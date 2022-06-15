@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"net/url"
 	"os"
@@ -46,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -147,6 +150,9 @@ type CommandLineFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseMySQLServerVersion is the MySQL server version reported to a client
+	// if the value cannot be obtained from the database.
+	DatabaseMySQLServerVersion string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -273,6 +279,13 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if fc.Storage.Type == lite.AlternativeName {
 			fc.Storage.Type = lite.GetName()
 		}
+		// If the alternative name "cockroachdb" is given, update it to "postgres".
+		if fc.Storage.Type == postgres.AlternativeName {
+			fc.Storage.Type = postgres.GetName()
+		}
+
+		// Fix yamlv2 issue with nested storage sections.
+		fc.Storage.Params.Cleanse()
 
 		cfg.Auth.StorageConfig = fc.Storage
 		// backend is specified, but no path is set, set a reasonable default
@@ -289,21 +302,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	logger := utils.NewLogger()
-	err = applyLogConfig(fc.Logger, logger)
+	err = applyLogConfig(fc.Logger, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cfg.Log = logger
-
-	// Apply logging configuration for the global logger instance
-	// DELETE this when global logger instance is no longer in use.
-	//
-	// Logging configuration has already been validated above
-	_ = applyLogConfig(fc.Logger, log.StandardLogger())
 
 	if fc.CachePolicy.TTL != "" {
-		log.Warnf("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+		log.Warn("cache.ttl config option is deprecated and will be ignored, caches no longer attempt to anticipate resource expiration.")
+	}
+	if fc.CachePolicy.Type == memory.GetName() {
+		log.Debugf("cache.type config option is explicitly set to %v.", memory.GetName())
+	} else if fc.CachePolicy.Type != "" {
+		log.Warn("cache.type config option is deprecated and will be ignored, caches are always in memory in this version.")
 	}
 
 	// apply cache policy for node and proxy
@@ -427,14 +437,18 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
-func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
+	logger := log.StandardLogger()
+
 	switch loggerConfig.Output {
 	case "":
 		break // not set
 	case "stderr", "error", "2":
 		logger.SetOutput(os.Stderr)
+		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
 		logger.SetOutput(os.Stdout)
+		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		err := utils.SwitchLoggerToSyslog(logger)
 		if err != nil {
@@ -487,10 +501,13 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 		}
 
 		logger.SetFormatter(formatter)
+		stdlog.SetOutput(io.Discard) // disable the standard logger used by external dependencies
+		stdlog.SetFlags(0)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
 	}
 
+	cfg.Log = logger
 	return nil
 }
 
@@ -792,7 +809,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1068,6 +1085,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			URI:           database.URI,
 			StaticLabels:  staticLabels,
 			DynamicLabels: dynamicLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: database.MySQL.ServerVersion,
+			},
 			TLS: service.DatabaseTLS{
 				CACert:     caBytes,
 				ServerName: database.TLS.ServerName,
@@ -1214,6 +1234,9 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Metrics.ListenAddr = addr
 
+	cfg.Metrics.GRPCServerLatency = fc.Metrics.GRPCServerLatency
+	cfg.Metrics.GRPCClientLatency = fc.Metrics.GRPCClientLatency
+
 	if !fc.Metrics.MTLSEnabled() {
 		return nil
 	}
@@ -1299,6 +1322,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1656,11 +1686,14 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			}
 		}
 		db := service.Database{
-			Name:          clf.DatabaseName,
-			Description:   clf.DatabaseDescription,
-			Protocol:      clf.DatabaseProtocol,
-			URI:           clf.DatabaseURI,
-			StaticLabels:  staticLabels,
+			Name:         clf.DatabaseName,
+			Description:  clf.DatabaseDescription,
+			Protocol:     clf.DatabaseProtocol,
+			URI:          clf.DatabaseURI,
+			StaticLabels: staticLabels,
+			MySQL: service.MySQLOptions{
+				ServerVersion: clf.DatabaseMySQLServerVersion,
+			},
 			DynamicLabels: dynamicLabels,
 			TLS: service.DatabaseTLS{
 				CACert: caBytes,

@@ -152,7 +152,7 @@ If you are getting a "Connection refused" error, that probably means that the `s
 - Ensure that no configuration options or environment variables are conflicting
   with the `ssh` command, which will resemble the following:
 
-  ```bash
+  ```code
   $ sudo ssh -o UserKnownHostsFile=/dev/null \
      -o StrictHostKeyChecking=no \
      -N docker@127.0.0.1 \

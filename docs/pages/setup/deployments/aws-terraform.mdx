@@ -5,14 +5,56 @@ h1: Running Teleport Enterprise in High Availability mode on AWS
 ---
 
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
-and describe how to use and administrate the resulting Teleport deployment.
+and describe how to manage the resulting Teleport deployment.
 
-<Details scope={["cloud"]} scopeOnly={true} opened={true} title="Teleport Cloud">
-Our reference Terraform code deploys self-hosted instances of the Teleport Auth Service and Proxy Service. Since Teleport Cloud manages these services for you, users interested in Terraform should consult the following guides instead of this one:
+<ScopedBlock scope="cloud">
 
-- To get started with Teleport and Terraform: [Terraform Provider](../guides/terraform-provider.mdx)
-- For a full reference: [Terraform Provider Resources](../reference/terraform-provider.mdx)
-</Details>
+Our reference Terraform code deploys self-hosted instances of the Teleport Auth
+Service and Proxy Service. Since Teleport Cloud manages these services for you,
+users interested in Terraform should consult the following guides instead of
+this one:
+
+<TileSet>
+<Tile
+href="../guides/terraform-provider.mdx"
+title="Getting started"
+icon="wrench"
+>
+
+Read our guide to using Teleport and Terraform
+
+</Tile>
+<Tile
+href="../reference/terraform-provider.mdx"
+title="Reference"
+icon="wrench"
+>
+
+Read our Terraform provider reference
+
+</Tile>
+</TileSet>
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+title="Open Source Teleport"
+href="./aws-terraform.mdx/?scope=oss"
+icon="stack"
+>
+</Tile>
+<Tile
+title="Teleport Enterprise"
+href="./aws-terraform.mdx/?scope=enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Prerequisites
 
@@ -712,9 +754,9 @@ ways to integrate Teleport onto your servers. We recommend looking at our [Insta
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../installation.mdx)
-- [Run Teleport - we recommend using systemd](../admin/daemon.mdx#systemd-unit-file)
+- [Run Teleport - we recommend using systemd](../admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../reference/config.mdx)
-- [Add nodes to the Teleport cluster](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster)
+- [Add Nodes to the Teleport cluster](../admin/adding-nodes.mdx)
 
 ### Getting the CA pin hash
 
@@ -736,7 +778,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate a node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx#adding-nodes-to-the-cluster).
+You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx).
 
 ### Joining nodes via the Teleport auth server
 
@@ -792,7 +834,7 @@ to an auth server. Follow the instructions in our [trusted cluster guide](https:
 
 Here's a bash script that you can use to quickly connect to instances:
 
-```bash
+```code
 #!/bin/bash
 if [[ "$1" != "" ]]; then
     INSTANCE_TYPE=$1
@@ -841,3 +883,5 @@ $ ./connect.sh proxy 1
 # connect to the node
 $ ./connect.sh node
 ```
+
+</ScopedBlock>

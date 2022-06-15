@@ -129,7 +129,12 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		var contextDialer client.ContextDialer
+		if cfg.IgnoreHTTPProxy {
+			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		} else {
+			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		}
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -627,8 +632,8 @@ func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
-func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("reversetunnels"), url.Values{})
+func (c *Client) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1790,6 +1795,10 @@ type IdentityService interface {
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetCurrentUser returns current user as seen by the server.
+	// Useful especially in the context of remote clusters which perform role and trait mapping.
+	GetCurrentUser(ctx context.Context) (types.User, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error

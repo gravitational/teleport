@@ -47,6 +47,12 @@ db_service:
       # Optional path to the CA used to validate the database certificate.
       ca_cert_file: /path/to/pem
 
+    # MySQL only options.
+    mysql:
+      # The default MySQL server version reported by Teleport Proxy.
+      # When this option is set the Database Agent doesn't try to check the MySQL server version.
+      server_version: 8.0.28
+
     # AWS specific configuration, only required for RDS/Aurora/Redshift.
     aws:
       # Region the database is deployed in.

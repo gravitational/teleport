@@ -109,7 +109,7 @@ data:
     {{- end }}
   {{- end }}
       enabled: true
-  {{- if .Values.highAvailability.certManager.enabled }}
+  {{- if or .Values.highAvailability.certManager.enabled .Values.tls.existingSecretName }}
       https_keypairs:
       - key_file: /etc/teleport-tls/tls.key
         cert_file: /etc/teleport-tls/tls.crt

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -322,6 +323,13 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+	case defaults.ProtocolMySQL:
+		version := getMySQLVersionFromServer(proxyCtx.Servers)
+		// Set the version in the context to match a behaviour in other handlers.
+		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
+		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -337,10 +345,29 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	return nil
 }
 
+// getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
+// the MySQL.ServerVersion set in configuration if the first one is not available.
+// Function picks a random server each time if more than one are available.
+func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
+	count := len(servers)
+	db := servers[rand.Intn(count)].GetDatabase()
+	return db.GetMySQLServerVersion()
+}
+
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
 		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
+		Limiter:    s.cfg.Limiter,
+		Log:        s.log,
+	}
+}
+
+// PostgresProxyNoTLS returns a new instance of the non-TLS Postgres proxy.
+func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
+	return &postgres.Proxy{
 		Middleware: s.middleware,
 		Service:    s,
 		Limiter:    s.cfg.Limiter,
@@ -359,15 +386,19 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	}
 }
 
+// MySQLProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
+func (s *ProxyServer) MySQLProxyNoTLS() *mysql.Proxy {
+	return &mysql.Proxy{
+		Middleware: s.middleware,
+		Service:    s,
+		Limiter:    s.cfg.Limiter,
+		Log:        s.log,
+	}
+}
+
 // SQLServerProxy returns a new instance of the SQL Server protocol aware proxy.
 func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
-	// SQL Server clients don't support client certificates, connections
-	// come over TLS routing tunnel.
-	tlsConf := s.cfg.TLSConfig.Clone()
-	tlsConf.ClientAuth = tls.NoClientCert
-	tlsConf.GetConfigForClient = nil
 	return &sqlserver.Proxy{
-		TLSConfig:  tlsConf,
 		Middleware: s.middleware,
 		Service:    s,
 		Log:        s.log,

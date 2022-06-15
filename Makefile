@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=9.0.3
+VERSION=9.3.6
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -198,7 +198,7 @@ all: version
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl: roletester
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -206,7 +206,7 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
@@ -704,6 +704,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
@@ -819,19 +820,24 @@ enter:
 grpc:
 	$(MAKE) -C build.assets grpc
 
-# proto file dependencies within the api module must be passed with the 'M' flag. This
-# way protoc generated files will use the correct api module import path in the case where
-# the import path has a version suffix, e.g. github.com/gravitational/teleport/api/v8
-GOGOPROTO_IMPORTMAP ?= $\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn
+print/env:
+	env
 
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
+buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
+# Proto file dependencies within the api module must be passed with the 'M'
+# flag. This way protoc generated files will use the correct api module import
+# path in the case where the import path has a version suffix, e.g.
+# "github.com/gravitational/teleport/api/v8".
+buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
+	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
+	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
+	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
+	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
+	Mignoreme=ignoreme
 buildbox-grpc:
-	echo $$PROTO_INCLUDE
+	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
 	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
 		api/client/proto/authservice.proto \
 		api/client/proto/joinservice.proto \
@@ -843,9 +849,6 @@ buildbox-grpc:
 		lib/events/slice.proto \
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
-
-# we eval within the make target to avoid invoking `go run` with every other call to the makefile
-	$(eval API_IMPORT_PATH := $(shell go run build.assets/gomod/print-import-path/main.go ./api))
 
 	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
@@ -883,6 +886,23 @@ buildbox-grpc:
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		envelope.proto
 
+# grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
+# Terminal. This target runs in the buildbox-teleterm container.
+#
+# It exists as a separate target because on M1 MacBooks we must build grpc_node_plugin from source.
+# That involves apt-get install of cmake & build-essential as well pulling hundreds of megabytes of
+# git repos. It would significantly increase the time it takes to build buildbox for M1 users that
+# don't need to generate Teleterm gRPC files.
+# TODO(ravicious): incorporate grpc-teleterm into grpc once grpc-tools adds arm64 binary.
+# https://github.com/grpc/grpc-node/issues/1405
+.PHONY: grpc-teleterm
+grpc-teleterm:
+	$(MAKE) -C build.assets grpc-teleterm
+
+# buildbox-grpc generates GRPC stubs
+.PHONY: buildbox-grpc-teleterm
+buildbox-grpc-teleterm:
+	cd lib/teleterm && buf generate
 
 .PHONY: goinstall
 goinstall:

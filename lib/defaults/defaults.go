@@ -305,10 +305,6 @@ const (
 	// per stream
 	ConcurrentUploadsPerStream = 1
 
-	// UploadGracePeriod is a period after which non-completed
-	// upload is considered abandoned and will be completed by the reconciler
-	UploadGracePeriod = 24 * time.Hour
-
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.
 	InactivityFlushPeriod = 5 * time.Minute
@@ -323,6 +319,15 @@ const (
 	// DefaultRedisUsername is a default username used by Redis when
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
+
+	// AbandonedUploadPollingRate defines how often to check for
+	// abandoned uploads which need to be completed.
+	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
+
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	// DELETE IN 11.0.0
+	UploadGracePeriod = 24 * time.Hour
 )
 
 var (
@@ -388,12 +393,6 @@ var (
 
 	// TopRequestsCapacity sets up default top requests capacity
 	TopRequestsCapacity = 128
-
-	// CachePollPeriod is a period for cache internal events polling,
-	// used in cases when cache is being used to subscribe for events
-	// and this parameter controls how often cache checks for new events
-	// to arrive
-	CachePollPeriod = 500 * time.Millisecond
 
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
@@ -813,7 +812,7 @@ func Transport() (*http.Transport, error) {
 
 	// Set IdleConnTimeout on the transport. This defines the maximum amount of
 	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
+	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
 

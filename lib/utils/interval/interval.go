@@ -56,6 +56,14 @@ type Config struct {
 	Jitter utils.Jitter
 }
 
+// NewNoop creates a new interval that will never fire.
+func NewNoop() *Interval {
+	return &Interval{
+		ch:   make(chan time.Time, 1),
+		done: make(chan struct{}),
+	}
+}
+
 // New creates a new interval instance.  This function panics on non-positive
 // interval durations (equivalent to time.NewTicker).
 func New(cfg Config) *Interval {

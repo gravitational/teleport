@@ -91,6 +91,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 		Clock:     clockwork.NewRealClock(),
 	}
 	srv.Router = *httprouter.New()
+	srv.Router.UseRawPath = true
 
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.withAuth(srv.processKubeCSR))
@@ -563,7 +564,7 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 
 // getReverseTunnels returns a list of reverse tunnels
 func (s *APIServer) getReverseTunnels(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	reverseTunnels, err := auth.GetReverseTunnels()
+	reverseTunnels, err := auth.GetReverseTunnels(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1336,9 +1337,6 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 	}
 	if req.TTL != 0 {
 		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
-	}
-	if err = services.ValidateOIDCConnector(connector); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {

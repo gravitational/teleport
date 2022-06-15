@@ -63,6 +63,88 @@ U9psmyPzK+Vsgw2jeRQ5JlKDyqE0hebfC1tvFu0CCrJFcw==
 -----END CERTIFICATE-----`
 )
 
+func TestU2FFacetValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		u2f      *types.U2F
+		assertFn require.ErrorAssertionFunc
+	}{
+		{
+			name: "same-domain",
+			u2f: &types.U2F{
+				AppID: "https://foo.com",
+				Facets: []string{
+					"https://foo.com",
+					"https://foo.com:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+		{
+			name: "same-domain-http",
+			u2f: &types.U2F{
+				AppID: "https://foo.com",
+				Facets: []string{
+					"http://foo.com",
+					"http://foo.com:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+		{
+			name: "same-domain-www-prefix",
+			u2f: &types.U2F{
+				AppID: "https://www.foo.com",
+				Facets: []string{
+					"https://foo.com",
+					"https://foo.com:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+		{
+			name: "diff-origin",
+			u2f: &types.U2F{
+				AppID: "https://bar.com",
+				Facets: []string{
+					"https://foo.com",
+					"https://foo.com:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+		{
+			name: "naked-protocol",
+			u2f: &types.U2F{
+				AppID: "https://foo.com",
+				Facets: []string{
+					"foo.com",
+					"foo.com:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+		{
+			name: "localhost-naked-protocol",
+			u2f: &types.U2F{
+				AppID: "https://localhost",
+				Facets: []string{
+					"localhost",
+					"localhost:3080",
+				},
+			},
+			assertFn: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.u2f.Check()
+			test.assertFn(t, err)
+		})
+	}
+}
+
 func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 	t.Parallel()
 
@@ -85,8 +167,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		Facets: []string{
 			"https://localhost:3080",
 			"https://localhost",
-			"localhost:3080",
-			"localhost",
 		},
 	}
 	minimalWeb := &types.Webauthn{

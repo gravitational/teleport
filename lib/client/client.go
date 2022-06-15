@@ -74,21 +74,6 @@ type NodeClient struct {
 	OnMFA     func()
 }
 
-// GetActiveSessions returns a list of active session trackers.
-func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer auth.Close()
-	sessions, err := auth.GetActiveSessionTrackers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sessions, nil
-}
-
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
@@ -711,6 +696,19 @@ func (proxy *ProxyClient) DeleteAppSession(ctx context.Context, sessionID string
 		return trace.Wrap(err)
 	}
 	err = authClient.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteUserAppSessions removes user's all application web sessions.
+func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	authClient, err := proxy.ConnectToRootCluster(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = authClient.DeleteUserAppSessions(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1639,8 +1637,8 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			NodeName:       nodeName(nodeAddr.Addr),
 			RouteToCluster: nodeAddr.Cluster,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, proxyAddr, c, "", false)
+		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return proxy.teleportClient.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
 		},
 	)
 	if err != nil {

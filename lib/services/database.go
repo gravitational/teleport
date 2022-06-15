@@ -395,9 +395,13 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 // related info if not.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
-	// Aurora Serverless (v1 and v2) does not support IAM authentication
+	// Aurora Serverless v1 does NOT support IAM authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
+	//
+	// Note that Aurora Serverless v2 does support IAM authentication.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html
+	// However, v2's engine mode is "provisioned" instead of "serverless" so it
+	// goes to the default case (true).
 	case RDSEngineModeServerless:
 		return false
 
@@ -535,6 +539,20 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 	return version
 }
 
+// GetMySQLEngineVersion returns MySQL engine version from provided metadata labels.
+// An empty string is returned if label doesn't exist.
+func GetMySQLEngineVersion(labels map[string]string) string {
+	if engine, ok := labels[labelEngine]; !ok || engine != RDSEngineMySQL {
+		return ""
+	}
+
+	version, ok := labels[labelEngineVersion]
+	if !ok {
+		return ""
+	}
+	return version
+}
+
 const (
 	// labelAccountID is the label key containing AWS account ID.
 	labelAccountID = "account-id"
@@ -575,7 +593,7 @@ const (
 	// RDSEndpointTypePrimary is the endpoint that specifies the connection for the primary instance of the RDS cluster.
 	RDSEndpointTypePrimary RDSEndpointType = "primary"
 	// RDSEndpointTypeReader is the endpoint that load-balances connections across the Aurora Replicas that are
-	// available in a RDS cluster.
+	// available in an RDS cluster.
 	RDSEndpointTypeReader RDSEndpointType = "reader"
 	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom endpoints associated with the RDS cluster.
 	RDSEndpointTypeCustom RDSEndpointType = "custom"

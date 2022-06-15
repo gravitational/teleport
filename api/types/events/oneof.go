@@ -351,6 +351,34 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MySQLStatementBulkExecute{
 			MySQLStatementBulkExecute: e,
 		}
+	case *MySQLInitDB:
+		out.Event = &OneOf_MySQLInitDB{
+			MySQLInitDB: e,
+		}
+	case *MySQLCreateDB:
+		out.Event = &OneOf_MySQLCreateDB{
+			MySQLCreateDB: e,
+		}
+	case *MySQLDropDB:
+		out.Event = &OneOf_MySQLDropDB{
+			MySQLDropDB: e,
+		}
+	case *MySQLShutDown:
+		out.Event = &OneOf_MySQLShutDown{
+			MySQLShutDown: e,
+		}
+	case *MySQLProcessKill:
+		out.Event = &OneOf_MySQLProcessKill{
+			MySQLProcessKill: e,
+		}
+	case *MySQLDebug:
+		out.Event = &OneOf_MySQLDebug{
+			MySQLDebug: e,
+		}
+	case *MySQLRefresh:
+		out.Event = &OneOf_MySQLRefresh{
+			MySQLRefresh: e,
+		}
 	case *RenewableCertificateGenerationMismatch:
 		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
 			RenewableCertificateGenerationMismatch: e,

@@ -19,7 +19,6 @@ package proxy
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -130,7 +129,7 @@ func TestGetKubeCreds(t *testing.T) {
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
 
-	tmpFile, err := ioutil.TempFile("", "teleport")
+	tmpFile, err := os.CreateTemp("", "teleport")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	kubeconfigPath := tmpFile.Name()

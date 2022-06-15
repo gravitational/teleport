@@ -9,6 +9,7 @@
         "labels",
         "chartMode",
         "highAvailability",
+        "tls",
         "image",
         "enterpriseImage",
         "log",
@@ -19,7 +20,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "clusterName": {
@@ -146,6 +148,31 @@
                 },
                 "volumeSize": {
                     "$id": "#/properties/standalone/properties/volumeSize",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
+        "persistence": {
+            "$id": "#/properties/persistence",
+            "type": "object",
+            "required": [
+                "enabled",
+                "volumeSize"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/persistence/properties/enabled",
+                    "type": "boolean",
+                    "default": "true"
+                },
+                "existingClaimName": {
+                    "$id": "#/properties/persistence/properties/existingClaimName",
+                    "type": "string",
+                    "default": ""
+                },
+                "volumeSize": {
+                    "$id": "#/properties/persistence/properties/volumeSize",
                     "type": "string",
                     "default": ""
                 }
@@ -302,6 +329,26 @@
                             "default": 1
                         }
                     }
+                }
+            }
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingSecretName",
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingSecretName": {
+                    "$id": "#/properties/tls/properties/existingSecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
                 }
             }
         },
@@ -486,6 +533,11 @@
             "type": "object",
             "default": {}
         },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "default": {}
+        },
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",
@@ -495,6 +547,11 @@
             "$id": "#/properties/priorityClassName",
             "type": "string",
             "default": ""
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
         }
     }
 }

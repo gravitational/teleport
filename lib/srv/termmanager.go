@@ -19,7 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,9 +54,12 @@ type TermManager struct {
 	// we only support one concurrent reader so this isn't mutex protected
 	remaining         []byte
 	readStateUpdate   *sync.Cond
-	closed            bool
+	closed            chan struct{}
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
+
+	// called when data is discarded due to multiplexing being disabled, used in tests
+	onDiscard func()
 }
 
 // NewTermManager creates a new TermManager.
@@ -65,14 +67,15 @@ func NewTermManager() *TermManager {
 	return &TermManager{
 		writers:           make(map[string]io.Writer),
 		readerState:       make(map[string]bool),
-		closed:            false,
+		closed:            make(chan struct{}),
 		readStateUpdate:   sync.NewCond(&sync.Mutex{}),
 		incoming:          make(chan []byte, 100),
-		terminateNotifier: make(chan struct{}),
+		terminateNotifier: make(chan struct{}, 1),
 	}
 }
 
-func (g *TermManager) writeToClients(p []byte) int {
+// writeToClients writes to underlying clients
+func (g *TermManager) writeToClients(p []byte) {
 	g.lastWasBroadcast = false
 	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
 
@@ -84,6 +87,7 @@ func (g *TermManager) writeToClients(p []byte) int {
 				log.Warnf("Failed to write to remote terminal: %v", err)
 			}
 
+			// Let term manager decide how to handle broken party writers
 			if g.OnWriteError != nil {
 				g.OnWriteError(key, err)
 			}
@@ -92,7 +96,6 @@ func (g *TermManager) writeToClients(p []byte) int {
 		}
 	}
 
-	return len(p)
 }
 
 func (g *TermManager) TerminateNotifier() <-chan struct{} {
@@ -102,6 +105,10 @@ func (g *TermManager) TerminateNotifier() <-chan struct{} {
 func (g *TermManager) Write(p []byte) (int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	if g.isClosed() {
+		return 0, io.EOF
+	}
 
 	if g.on {
 		g.writeToClients(p)
@@ -122,6 +129,7 @@ func (g *TermManager) Read(p []byte) (int, error) {
 	}
 
 	q := make(chan struct{})
+	defer close(q)
 	c := make(chan bool)
 	go func() {
 		g.readStateUpdate.L.Lock()
@@ -146,15 +154,20 @@ func (g *TermManager) Read(p []byte) (int, error) {
 	on := <-c
 	for {
 		if !on {
-			on = <-c
-			continue
+			select {
+			case <-g.closed:
+				return 0, io.EOF
+			case on = <-c:
+				continue
+			}
 		}
 
 		select {
+		case <-g.closed:
+			return 0, io.EOF
 		case on = <-c:
 			continue
 		case g.remaining = <-g.incoming:
-			close(q)
 			n := copy(p, g.remaining)
 			g.remaining = g.remaining[n:]
 			return n, nil
@@ -162,13 +175,8 @@ func (g *TermManager) Read(p []byte) (int, error) {
 	}
 }
 
-// writeUnconditional allows unconditional writes to the underlying writers.
-func (g *TermManager) writeUnconditional(p []byte) (int, error) {
-	return g.writeToClients(p), nil
-}
-
 // BroadcastMessage injects a message into the stream.
-func (g *TermManager) BroadcastMessage(message string) error {
+func (g *TermManager) BroadcastMessage(message string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	data := []byte("Teleport > " + message + "\r\n")
@@ -177,18 +185,17 @@ func (g *TermManager) BroadcastMessage(message string) error {
 	} else {
 		g.lastWasBroadcast = true
 	}
-	_, err := g.writeUnconditional(data)
-	return trace.Wrap(err)
+
+	g.writeToClients(data)
 }
 
 // On allows data to flow through the manager.
-func (g *TermManager) On() error {
+func (g *TermManager) On() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.on = true
 	g.readStateUpdate.Broadcast()
-	_, err := g.writeUnconditional(g.buffer)
-	return trace.Wrap(err)
+	g.writeToClients(g.buffer)
 }
 
 // Off buffers incoming writes and reads until turned on again.
@@ -228,7 +235,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				// This is the ASCII control code for CTRL+C.
 				if b == 0x03 {
 					g.mu.Lock()
-					if !g.on && !g.closed {
+					if !g.on && !g.isClosed() {
 						select {
 						case g.terminateNotifier <- struct{}{}:
 						default:
@@ -239,9 +246,19 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				}
 			}
 
-			g.incoming <- buf[:n]
 			g.mu.Lock()
-			if g.closed || g.readerState[name] {
+
+			if g.on {
+				g.mu.Unlock()
+				g.incoming <- buf[:n]
+				g.mu.Lock()
+			} else {
+				if g.onDiscard != nil {
+					g.onDiscard()
+				}
+			}
+
+			if g.isClosed() || g.readerState[name] {
 				g.mu.Unlock()
 				return
 			}
@@ -268,9 +285,18 @@ func (g *TermManager) Close() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if !g.closed {
-		g.closed = true
+	if !g.isClosed() {
+		close(g.closed)
 		close(g.terminateNotifier)
+	}
+}
+
+func (g *TermManager) isClosed() bool {
+	select {
+	case <-g.closed:
+		return true
+	default:
+		return false
 	}
 }
 

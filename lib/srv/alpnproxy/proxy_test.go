@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/stretchr/testify/require"
@@ -262,7 +264,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	require.NoError(t, err)
 	localProxyConfig := LocalProxyConfig{
 		RemoteProxyAddr:    suite.GetServerAddress(),
-		Protocol:           common.ProtocolPostgres,
+		Protocols:          []common.Protocol{common.ProtocolPostgres},
 		Listener:           localProxyListener,
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
@@ -443,6 +445,63 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 
 			mustReadFromConnection(t, conn, tc.wantProtocolHandler)
 			mustCloseConnection(t, conn)
+		})
+	}
+}
+
+func TestMatchMySQLConn(t *testing.T) {
+	encodeProto := func(version string) string {
+		return string(common.ProtocolMySQLWithVerPrefix) + base64.StdEncoding.EncodeToString([]byte(version))
+	}
+
+	tests := []struct {
+		name    string
+		protos  []string
+		version interface{}
+	}{
+		{
+			name:    "success",
+			protos:  []string{encodeProto("8.0.12")},
+			version: "8.0.12",
+		},
+		{
+			name:    "protocol only",
+			protos:  []string{string(common.ProtocolMySQL)},
+			version: nil,
+		},
+		{
+			name:    "random string",
+			protos:  []string{encodeProto("MariaDB some version")},
+			version: "MariaDB some version",
+		},
+		{
+			name:    "missing -",
+			protos:  []string{string(common.ProtocolMySQL) + base64.StdEncoding.EncodeToString([]byte("8.0.1"))},
+			version: nil,
+		},
+		{
+			name:    "missing version returns nothing",
+			protos:  []string{encodeProto("")},
+			version: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fn := ExtractMySQLEngineVersion(func(ctx context.Context, conn net.Conn) error {
+				version := ctx.Value(dbutils.ContextMySQLServerVersion)
+				require.Equal(t, tt.version, version)
+
+				return nil
+			})
+
+			ctx := context.Background()
+			connectionInfo := ConnectionInfo{
+				ALPN: tt.protos,
+			}
+
+			err := fn(ctx, nil, connectionInfo)
+			require.NoError(t, err)
 		})
 	}
 }

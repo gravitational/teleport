@@ -22,6 +22,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -44,8 +45,8 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 	return f(ctx, network, addr)
 }
 
-// newDirectDialer makes a new dialer to connect directly to an Auth server.
-func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+// NewDirectDialer makes a new dialer to connect directly to an Auth server, ignoring any HTTP proxies.
+func NewDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return &net.Dialer{
 		Timeout:   dialTimeout,
 		KeepAlive: keepAlivePeriod,
@@ -56,9 +57,9 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 // on the environment.
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyAddr := GetProxyAddress(addr); proxyAddr != "" {
-			return DialProxyWithDialer(ctx, proxyAddr, addr, dialer)
+		dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
+		if proxyAddr := proxy.GetProxyAddress(addr); proxyAddr != nil {
+			return DialProxyWithDialer(ctx, proxyAddr.Host, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	})
@@ -85,7 +86,7 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 
 // newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
+	dialer := NewDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		conn, err = dialer.DialContext(ctx, network, addr)
 		if err != nil {
@@ -119,7 +120,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 
 		}
 
-		host, err := webclient.ExtractHost(tunnelAddr)
+		host, _, err := webclient.ParseHostPort(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

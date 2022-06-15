@@ -150,6 +150,18 @@ type SampleFlags struct {
 	KeyFile string
 	// CertFile is a TLS Certificate file
 	CertFile string
+	// DataDir is a path to a directory where Teleport keep its data
+	DataDir string
+	// AuthToken is a token to register with an auth server
+	AuthToken string
+	// Roles is a list of comma-separated roles to create a config file with
+	Roles string
+	// AuthServer is the address of the auth server
+	AuthServer string
+	// AppName is the name of the application to start
+	AppName string
+	// AppURI is the internal address of the application to proxy
+	AppURI string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -175,80 +187,188 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
-	g.DataDir = defaults.DataDir
+
+	g.DataDir = flags.DataDir
+	if g.DataDir == "" {
+		g.DataDir = defaults.DataDir
+	}
+
+	g.AuthToken = flags.AuthToken
+	if flags.AuthServer != "" {
+		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	var s SSH
-	s.EnabledFlag = "yes"
-	s.ListenAddress = conf.SSH.Addr.Addr
-	s.Commands = []CommandLabel{
-		{
-			Name:    "hostname",
-			Command: []string{"hostname"},
-			Period:  time.Minute,
-		},
-	}
-	s.Labels = map[string]string{
-		"env": "example",
-	}
+	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
 
 	// Auth config:
-	var a Auth
-	a.ListenAddress = conf.Auth.SSHAddr.Addr
-	a.ClusterName = ClusterName(flags.ClusterName)
-	a.EnabledFlag = "yes"
-
-	if flags.LicensePath != "" {
-		a.LicenseFile = flags.LicensePath
-	}
-
-	if flags.Version == defaults.TeleportConfigVersionV2 {
-		a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
-	}
+	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
 
 	// sample proxy config:
-	var p Proxy
-	p.EnabledFlag = "yes"
-	p.ListenAddress = conf.Proxy.SSHAddr.Addr
-	if flags.ACMEEnabled {
-		p.ACME.EnabledFlag = "yes"
-		p.ACME.Email = flags.ACMEEmail
-		// ACME uses TLS-ALPN-01 challenge that requires port 443
-		// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-		p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+	p, err := makeSampleProxyConfig(conf, flags, roles[defaults.RoleProxy])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.PublicAddr != "" {
-		// default to 443 if port is not specified
-		publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		p.PublicAddr = apiutils.Strings{publicAddr.String()}
 
-		// use same port for web addr
-		webPort := publicAddr.Port(teleport.StandardHTTPSPort)
-		p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+	// Apps config:
+	apps, err := makeSampleAppsConfig(conf, flags, roles[defaults.RoleApp])
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if flags.KeyFile != "" && flags.CertFile != "" {
-		if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
-			return nil, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
-		}
 
-		p.KeyPairs = append(p.KeyPairs, KeyPair{
-			PrivateKey:  flags.KeyFile,
-			Certificate: flags.CertFile,
-		})
+	// DB config:
+	var dbs Databases
+	if roles[defaults.RoleDatabase] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		dbs.EnabledFlag = "no"
+	}
+
+	// WindowsDesktop config:
+	var d WindowsDesktopService
+	if roles[defaults.RoleWindowsDesktop] {
+		// keep it disable since `teleport configure` don't have all the necessary flags
+		// for this kind of resource
+		d.EnabledFlag = "no"
 	}
 
 	fc = &FileConfig{
-		Version: flags.Version,
-		Global:  g,
-		Proxy:   p,
-		SSH:     s,
-		Auth:    a,
+		Version:        flags.Version,
+		Global:         g,
+		Proxy:          p,
+		SSH:            s,
+		Auth:           a,
+		Apps:           apps,
+		Databases:      dbs,
+		WindowsDesktop: d,
 	}
 	return fc, nil
+}
+
+func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
+	var s SSH
+	if enabled {
+		s.EnabledFlag = "yes"
+		s.ListenAddress = conf.SSH.Addr.Addr
+		s.Commands = []CommandLabel{
+			{
+				Name:    "hostname",
+				Command: []string{"hostname"},
+				Period:  time.Minute,
+			},
+		}
+		s.Labels = map[string]string{
+			"env": "example",
+		}
+	} else {
+		s.EnabledFlag = "no"
+	}
+
+	return s
+}
+
+func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+	var a Auth
+	if enabled {
+		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ClusterName = ClusterName(flags.ClusterName)
+		a.EnabledFlag = "yes"
+
+		if flags.LicensePath != "" {
+			a.LicenseFile = flags.LicensePath
+		}
+
+		if flags.Version == defaults.TeleportConfigVersionV2 {
+			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
+		}
+	} else {
+		a.EnabledFlag = "no"
+	}
+
+	return a
+}
+
+func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+	var p Proxy
+	if enabled {
+		p.EnabledFlag = "yes"
+		p.ListenAddress = conf.Proxy.SSHAddr.Addr
+		if flags.ACMEEnabled {
+			p.ACME.EnabledFlag = "yes"
+			p.ACME.Email = flags.ACMEEmail
+			// ACME uses TLS-ALPN-01 challenge that requires port 443
+			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
+			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+		}
+		if flags.PublicAddr != "" {
+			// default to 443 if port is not specified
+			publicAddr, err := utils.ParseHostPortAddr(flags.PublicAddr, teleport.StandardHTTPSPort)
+			if err != nil {
+				return Proxy{}, trace.Wrap(err)
+			}
+			p.PublicAddr = apiutils.Strings{publicAddr.String()}
+
+			// use same port for web addr
+			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+		}
+		if flags.KeyFile != "" && flags.CertFile != "" {
+			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {
+				return Proxy{}, trace.Wrap(err, "failed to load x509 key pair from --key-file and --cert-file")
+			}
+
+			p.KeyPairs = append(p.KeyPairs, KeyPair{
+				PrivateKey:  flags.KeyFile,
+				Certificate: flags.CertFile,
+			})
+		}
+	} else {
+		p.EnabledFlag = "no"
+	}
+
+	return p, nil
+}
+
+func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+	var apps Apps
+	// assume users want app role if they added app name and/or uri but didn't add app role
+	if enabled || flags.AppURI != "" || flags.AppName != "" {
+		if flags.AppURI == "" || flags.AppName == "" {
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
+		}
+
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
+		}
+	}
+
+	return apps, nil
+}
+
+func roleMapFromFlags(flags SampleFlags) map[string]bool {
+	// if no roles are provided via CLI, return the default roles
+	if flags.Roles == "" {
+		return map[string]bool{
+			defaults.RoleProxy:       true,
+			defaults.RoleNode:        true,
+			defaults.RoleAuthService: true,
+		}
+	}
+
+	roles := splitRoles(flags.Roles)
+	m := make(map[string]bool)
+	for _, r := range roles {
+		m[r] = true
+	}
+
+	return m
 }
 
 // DebugDumpToYAML allows for quick YAML dumping of the config
@@ -442,7 +562,6 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Type:    c.Type,
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
@@ -527,10 +646,6 @@ type Auth struct {
 	// of clusters we trust. One key per line, those starting with '#' are comments
 	// Deprecated: Remove in Teleport 2.4.1.
 	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
-
-	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	// Deprecated: Remove in Teleport 2.4.1.
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
 
 	// DynamicConfig determines when file configuration is pushed to the backend. Setting
 	// it here overrides defaults.
@@ -1032,6 +1147,8 @@ type Database struct {
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
 	// TLS keeps an optional TLS configuration options.
 	TLS DatabaseTLS `yaml:"tls"`
+	// MySQL are additional database options.
+	MySQL DatabaseMySQL `yaml:"mysql"`
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string `yaml:"static_labels,omitempty"`
 	// DynamicLabels is a list of database dynamic labels.
@@ -1066,6 +1183,12 @@ type DatabaseTLS struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// CACertFile is an optional path to the database CA certificate.
 	CACertFile string `yaml:"ca_cert_file,omitempty"`
+}
+
+// DatabaseMySQL are an additional MySQL database options.
+type DatabaseMySQL struct {
+	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
+	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
@@ -1336,77 +1459,6 @@ type ClaimMapping struct {
 	Roles []string `yaml:"roles,omitempty"`
 }
 
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `yaml:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `yaml:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `yaml:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `yaml:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `yaml:"redirect_url"`
-	// ACR is the acr_values parameter to be sent with an authorization request.
-	ACR string `yaml:"acr_values,omitempty"`
-	// Provider is the identity provider we connect to. This field is
-	// only required if using acr_values.
-	Provider string `yaml:"provider,omitempty"`
-	// Display controls how this connector is displayed
-	Display string `yaml:"display"`
-	// Scope is a list of additional scopes to request from OIDC
-	// note that oidc and email scopes are always requested
-	Scope []string `yaml:"scope"`
-	// ClaimsToRoles is a list of mappings of claims to roles
-	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
-}
-
-// Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
-	if o.Display == "" {
-		o.Display = o.ID
-	}
-
-	var mappings []types.ClaimMapping
-	for _, c := range o.ClaimsToRoles {
-		var roles []string
-		if len(c.Roles) > 0 {
-			roles = append(roles, c.Roles...)
-		}
-
-		mappings = append(mappings, types.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
-		})
-	}
-
-	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
-		IssuerURL:     o.IssuerURL,
-		ClientID:      o.ClientID,
-		ClientSecret:  o.ClientSecret,
-		RedirectURL:   o.RedirectURL,
-		Display:       o.Display,
-		Scope:         o.Scope,
-		ClaimsToRoles: mappings,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector.SetACR(o.ACR)
-	connector.SetProvider(o.Provider)
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
-}
-
 // Metrics is a `metrics_service` section of the config file:
 type Metrics struct {
 	// Service is a generic service configuration section
@@ -1419,6 +1471,12 @@ type Metrics struct {
 	// CACerts is a list of prometheus CA certificates to validate clients against.
 	// mTLS will be enabled for the service if both 'keypairs' and 'ca_certs' fields are set.
 	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool `yaml:"grpc_server_latency,omitempty"`
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool `yaml:"grpc_client_latency,omitempty"`
 }
 
 // MTLSEnabled returns whether mtls is enabled or not in the metrics service config.

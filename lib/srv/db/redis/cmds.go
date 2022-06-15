@@ -177,6 +177,17 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 			return trace.Wrap(err)
 		}
 
+		password, ok := cmd.Args()[1].(string)
+		if !ok {
+			return trace.BadParameter("password has a wrong type, expected string got %T", cmd.Args()[1])
+		}
+
+		// Pass empty username to login using AUTH <password> command.
+		e.redisClient, err = e.reconnect("", password)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		return e.redisClient.Process(ctx, cmd)
 	case 3:
 		// Redis 6 version that contains username and password. Check the username against our RBAC before sending to Redis.

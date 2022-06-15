@@ -41,17 +41,55 @@ var promptU2F = u2f.AuthenticateSignChallenge
 // promptWebauthn allows tests to override the Webauthn prompt function.
 var promptWebauthn = wancli.Login
 
+// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
+type PromptMFAChallengeOpts struct {
+	// PromptDevicePrefix is an optional prefix printed before "security key" or
+	// "device". It is used to emphasize between different kinds of devices, like
+	// registered vs new.
+	PromptDevicePrefix string
+	// Quiet suppresses users prompts.
+	Quiet bool
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Stdin hijack provides a better login UX, but it can be difficult to reason
+	// about and is often a source of bugs.
+	// Do not set this options unless you deeply understand what you are doing.
+	// If false then only the strongest auth method is prompted.
+	AllowStdinHijack bool
+	// PreferOTP favors OTP challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferOTP bool
+}
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-//
-// If promptDevicePrefix is set, it will be printed in prompts before "security
-// key" or "device". This is used to emphasize between different kinds of
-// devices, like registered vs new.
-func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	opts := &PromptMFAChallengeOpts{
+		AllowStdinHijack: tc.AllowStdinHijack,
+		PreferOTP:        tc.PreferOTP,
+	}
+	if optsOverride != nil {
+		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
+		opts.Quiet = optsOverride.Quiet
+		opts.PreferOTP = optsOverride.PreferOTP
+		opts.AllowStdinHijack = optsOverride.AllowStdinHijack
+	}
+	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+	promptDevicePrefix := opts.PromptDevicePrefix
+	quiet := opts.Quiet
 
 	// We have three maximum challenges, from which we only pick two: TOTP and
 	// either Webauthn (preferred) or U2F.
@@ -65,6 +103,15 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasNonTOTP = false
+	}
+
+	// Tweak enabled/disabled methods according to opts.
+	switch {
+	case hasTOTP && opts.PreferOTP:
+		hasNonTOTP = false
+	case hasNonTOTP && !opts.AllowStdinHijack:
+		// Use strongest auth if hijack is not allowed.
+		hasTOTP = false
 	}
 
 	var numGoroutines int
@@ -112,23 +159,25 @@ func PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthe
 	}
 
 	// Fire Webauthn or U2F goroutine.
-	origin := proxyAddr
-	if !strings.HasPrefix(origin, "https://") {
-		origin = "https://" + origin
-	}
-	switch {
-	case c.WebauthnChallenge != nil:
-		go func() {
-			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
-			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-		}()
-	case len(c.U2F) > 0:
-		go func() {
-			log.Debugf("prompting U2F devices with facet %q", origin)
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
-			respC <- response{kind: "U2F", resp: resp, err: err}
-		}()
+	if hasNonTOTP {
+		origin := proxyAddr
+		if !strings.HasPrefix(origin, "https://") {
+			origin = "https://" + origin
+		}
+		switch {
+		case c.WebauthnChallenge != nil:
+			go func() {
+				log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+				resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+				respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+			}()
+		case len(c.U2F) > 0:
+			go func() {
+				log.Debugf("prompting U2F devices with facet %q", origin)
+				resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+				respC <- response{kind: "U2F", resp: resp, err: err}
+			}()
+		}
 	}
 
 	for i := 0; i < numGoroutines; i++ {

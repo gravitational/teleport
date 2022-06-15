@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -76,7 +77,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client)
+	uploaderCfg := filesessions.UploaderConfig{
+		Streamer: accessPoint,
+		AuditLog: conn.Client,
+	}
+	completerCfg := events.UploadCompleterConfig{
+		SessionTracker: conn.Client,
+	}
+	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -98,6 +106,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					CACert:     string(db.TLS.CACert),
 					ServerName: db.TLS.ServerName,
 					Mode:       db.TLS.Mode.ToProto(),
+				},
+				MySQL: types.MySQLOptions{
+					ServerVersion: db.MySQL.ServerVersion,
 				},
 				AWS: types.AWS{
 					Region: db.AWS.Region,
@@ -190,6 +201,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,
 		Databases:        databases,
+		CloudLabels:      process.cloudLabels,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),

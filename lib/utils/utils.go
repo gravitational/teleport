@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -444,9 +445,13 @@ func ReadHostUUID(dataDir string) (string, error) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
 			return "", err
 		}
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
@@ -472,7 +477,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New().String()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -538,6 +554,18 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 	return output
 }
 
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	switch len(slice) {
+	case 0:
+		return ""
+	case 1:
+		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
+	}
+}
+
 // CheckCertificateFormatFlag checks if the certificate format is valid.
 func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {
@@ -587,6 +615,17 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 		return data, ErrLimitReached
 	}
 	return data, nil
+}
+
+// HasPrefixAny determines if any of the string values have the given prefix.
+func HasPrefixAny(prefix string, values []string) bool {
+	for _, val := range values {
+		if strings.HasPrefix(val, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ErrLimitReached means that the read limit is reached.

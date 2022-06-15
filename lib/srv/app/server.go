@@ -87,6 +87,10 @@ type Config struct {
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps
 
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all apps.
+	CloudLabels labels.Importer
+
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
@@ -175,7 +179,7 @@ type Server struct {
 
 	proxyPort string
 
-	cache *sessionCache
+	cache *sessionChunkCache
 
 	awsSigner *appaws.SigningService
 
@@ -253,7 +257,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
-	s.cache, err = newSessionCache(s.closeContext, s.log)
+	s.cache, err = s.newSessionChunkCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,6 +404,9 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.c.CloudLabels != nil {
+		s.c.CloudLabels.Apply(copy)
+	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -493,7 +500,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -512,6 +518,11 @@ func (s *Server) Close() error {
 	if err := s.httpServer.Close(); err != nil {
 		errs = append(errs, err)
 	}
+
+	// Close the session cache and its remaining sessions. Sessions
+	// use server.closeContext to complete cleanup, so we must wait
+	// for sessions to finish closing before closing the context.
+	s.cache.closeAllSessions()
 
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
@@ -621,6 +632,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer session.release()
 
 	// Forward request to the target application.
 	session.fwd.ServeHTTP(w, r)
@@ -682,23 +694,17 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*session, error) {
-	// If a cached forwarder exists, return it right away.
+// The in-flight request count is automatically incremented on the session.
+// The caller must call session.release() after finishing its use
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
-	if err == nil {
+	// If a cached forwarder exists, return it right away.
+	if err == nil && session.acquire() == nil {
 		return session, nil
 	}
 
 	// Create a new session with a recorder and forwarder in it.
-	session, err = s.newSession(ctx, identity, app)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Put the session in the cache so the next request can use it for 5 minutes
-	// or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
-	err = s.cache.set(identity.RouteToApp.SessionID, session, ttl)
+	session, err = s.newSessionChunk(ctx, identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

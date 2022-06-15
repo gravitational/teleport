@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"sync"
@@ -46,15 +47,9 @@ type KubeSession struct {
 }
 
 // NewKubeSession joins a live kubernetes session.
-func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, key *Key, kubeAddr string, tlsServer string, mode types.SessionParticipantMode) (*KubeSession, error) {
+func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (*KubeSession, error) {
 	closeWait := &sync.WaitGroup{}
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetSessionID()
-	kubeCluster := meta.GetKubeCluster()
-	ciphers := utils.DefaultCipherSuites()
-	tlsConfig, err := key.KubeClientTLSConfig(ciphers, kubeCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	if tlsServer != "" {
 		tlsConfig.ServerName = tlsServer
@@ -201,12 +196,18 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, mode types.SessionParticipantM
 	go func() {
 		defer s.cancel()
 
-		handleNonPeerControls(mode, s.term, func() {
-			err := s.stream.ForceTerminate()
-			if err != nil {
-				fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
-			}
-		})
+		switch mode {
+		case types.SessionPeerMode:
+			handlePeerControls(s.term, s.stream)
+		default:
+			handleNonPeerControls(mode, s.term, func() {
+				err := s.stream.ForceTerminate()
+				if err != nil {
+					log.Debugf("Error sending force termination request: %v", err)
+					fmt.Print("\n\rError while sending force termination request\n\r")
+				}
+			})
+		}
 	}()
 }
 

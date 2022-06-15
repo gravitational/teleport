@@ -123,8 +123,8 @@ func waitForRequests(requestSender *testRequestSender, count int) error {
 }
 
 type testRequestSender struct {
+	count int64 // intentionally placed first to ensure 64-bit alignment
 	reply bool
-	count int64
 }
 
 func (n *testRequestSender) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {

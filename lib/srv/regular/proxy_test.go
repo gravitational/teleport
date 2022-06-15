@@ -21,10 +21,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParseProxyRequest(t *testing.T) {
@@ -127,6 +129,21 @@ func TestParseBadRequests(t *testing.T) {
 			require.Nil(t, subsystem, "test case: %q", tt.input)
 		})
 	}
+}
+
+type nodeGetter struct {
+	servers []types.Server
+}
+
+func (n nodeGetter) GetNodes(fn func(n services.Node) bool) []types.Server {
+	var servers []types.Server
+	for _, s := range n.servers {
+		if fn(s) {
+			servers = append(servers, s)
+		}
+	}
+
+	return servers
 }
 
 func TestProxySubsys_getMatchingServer(t *testing.T) {
@@ -312,7 +329,7 @@ func TestProxySubsys_getMatchingServer(t *testing.T) {
 				srv:                &Server{},
 			}
 
-			server, err := subsystem.getMatchingServer(tt.servers, tt.strategy)
+			server, err := subsystem.getMatchingServer(nodeGetter{tt.servers}, tt.strategy)
 			tt.expectError(t, err)
 			if tt.expectServer != nil {
 				require.Equal(t, tt.expectServer(tt.servers), server)

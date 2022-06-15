@@ -4,9 +4,7 @@ description: How to configure SSH access using One Login as an SSO provider
 h1: SSH Authentication with OneLogin
 ---
 
-## Using OneLogin as a single sign-on (SSO) provider for SSH
-
-This guide will cover how to configure [OneLogin](https://www.onelogin.com/) to issue
+This guide will explain how to configure [OneLogin](https://www.onelogin.com/) to issue
 SSH credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:
@@ -15,12 +13,33 @@ like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
+<ScopedBlock
+  scope={["oss"]}
 >
-  This guide requires an Enterprise edition of Teleport.
-</Admonition>
+
+  This guide requires Teleport Cloud or Teleport Enterprise.
+
+  View this guide as the user of another Teleport edition:
+
+  <TileSet>
+  <Tile icon="cloud" title="Teleport Cloud" href="./one-login.mdx/?scope=cloud">
+  </Tile>
+  <Tile icon="building" title="Teleport Enterprise" href="./one-login.mdx/?scope=enterprise">
+  </Tile>
+  </TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud", "enterprise"]}>
+
+## Prerequisites
+
+- One Login account with admin access and users assigned to at least two groups.
+- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -107,14 +126,14 @@ To fill in the fields, open `SSO` tab:
 
 Create the connector using `tctl` tool:
 
-```bsh
+```code
 $ tctl create onelogin-connector.yaml
 ```
 
 ## Create a new Teleport Role
 
 We are going to create a new that'll use external username data from OneLogin
-to map to a host linux login. 
+to map to a host linux login.
 
 In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
 Teleport label. Developers can log in as either `ubuntu` to a username that
@@ -137,7 +156,7 @@ spec:
 
 **Notice:** Replace `ubuntu` with linux login available on your servers!
 
-```bsh
+```code
 $ tctl create dev.yaml
 ```
 
@@ -146,7 +165,7 @@ $ tctl create dev.yaml
 The Web UI will now contain a new button: "Login with OneLogin". The CLI is
 the same as before:
 
-```bsh
+```code
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -175,3 +194,5 @@ automatically in a browser).
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+</ScopedBlock>

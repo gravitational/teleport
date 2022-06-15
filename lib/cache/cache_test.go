@@ -24,6 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -36,15 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
+
+const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
@@ -506,6 +509,20 @@ func expectEvent(t *testing.T, eventsC <-chan Event, expectedEvent string) {
 	}
 }
 
+func unexpectedEvent(t *testing.T, eventsC <-chan Event, unexpectedEvent string) {
+	timeC := time.After(time.Second)
+	for {
+		select {
+		case event := <-eventsC:
+			if event.Type == unexpectedEvent {
+				t.Fatalf("Received unexpected event: %s", unexpectedEvent)
+			}
+		case <-timeC:
+			return
+		}
+	}
+}
+
 func expectNextEvent(t *testing.T, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
@@ -657,87 +674,6 @@ func TestCompletenessReset(t *testing.T) {
 	}
 }
 
-// TestTombstones verifies that healthy caches leave tombstones
-// on closure, giving new caches the ability to start from a known
-// good state if the origin state is unavailable.
-func TestTombstones(t *testing.T) {
-	ctx := context.Background()
-	const caCount = 10
-	p := newTestPackWithoutCache(t)
-	t.Cleanup(p.Close)
-
-	// put lots of CAs in the backend
-	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
-	}
-
-	var err error
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available
-	cas, err := p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-
-	require.NoError(t, p.cache.Close())
-	// wait for TombstoneWritten, ignoring all other event types
-	expectEvent(t, p.eventsC, TombstoneWritten)
-	// simulate bad connection to auth server
-	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
-	p.eventsS.closeWatchers()
-
-	p.cache, err = New(ForAuth(Config{
-		Context:         ctx,
-		Backend:         p.cacheBackend,
-		Events:          p.eventsS,
-		ClusterConfig:   p.clusterConfigS,
-		Provisioner:     p.provisionerS,
-		Trust:           p.trustS,
-		Users:           p.usersS,
-		Access:          p.accessS,
-		DynamicAccess:   p.dynamicAccessS,
-		Presence:        p.presenceS,
-		AppSession:      p.appSessionS,
-		WebSession:      p.webSessionS,
-		WebToken:        p.webTokenS,
-		Restrictions:    p.restrictions,
-		Apps:            p.apps,
-		Databases:       p.databases,
-		WindowsDesktops: p.windowsDesktops,
-		MaxRetryPeriod:  200 * time.Millisecond,
-		EventsC:         p.eventsC,
-	}))
-	require.NoError(t, err)
-
-	// verify that CAs are immediately available despite the fact
-	// that the origin state was never available.
-	cas, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, cas, caCount)
-}
-
 // TestInitStrategy verifies that cache uses expected init strategy
 // of serving backend state when init is taking too long.
 func TestInitStrategy(t *testing.T) {
@@ -765,19 +701,16 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	ctx := context.Background()
 
 	for i := 0; i < nodeCount; i++ {
-		func() {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			require.NoError(b, err)
-			timeout := time.NewTimer(time.Millisecond * 200)
-			defer timeout.Stop()
-			select {
-			case event := <-p.eventsC:
-				require.Equal(b, EventProcessed, event.Type)
-			case <-timeout.C:
-				b.Fatalf("timeout waiting for event, iteration=%d", i)
-			}
-		}()
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
 	}
 
 	b.ResetTimer()
@@ -842,6 +775,66 @@ func benchListNodes(b *testing.B, nodeCount int, pageSize int) {
 			req.StartKey = nextKey
 		}
 		require.Len(b, nodes, nodeCount)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
+BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
+*/
+func BenchmarkListResourcesWithSort(b *testing.B) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	count := 100000
+	for i := 0; i < count; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		// Set some static and dynamic labels.
+		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
+		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
+			"version": {Result: "v8"},
+			"time":    {Result: "now"},
+		}
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
+	}
+
+	b.ResetTimer()
+
+	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
+		for _, totalCount := range []bool{true, false} {
+			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
+				for n := 0; n < b.N; n++ {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						SortBy: types.SortBy{
+							IsDesc: true,
+							Field:  types.ResourceSpecHostname,
+						},
+						// Predicate is the more expensive filter.
+						PredicateExpression: `search("mac", "frontend") && labels.version == "v8"`,
+						Limit:               limit,
+						NeedTotalCount:      totalCount,
+					})
+					require.NoError(b, err)
+					require.Len(b, resp.Resources, int(limit))
+				}
+			})
+		}
 	}
 }
 
@@ -1488,7 +1481,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetReverseTunnels()
+	out, err := p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1501,7 +1494,7 @@ func TestReverseTunnels(t *testing.T) {
 	err = p.presenceS.UpsertReverseTunnel(tunnel)
 	require.NoError(t, err)
 
-	out, err = p.presenceS.GetReverseTunnels()
+	out, err = p.presenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	tunnel = out[0]
@@ -1513,7 +1506,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
@@ -1529,7 +1522,7 @@ func TestReverseTunnels(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err = p.cache.GetReverseTunnels()
+	out, err = p.cache.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
@@ -2394,6 +2387,96 @@ func TestRelativeExpiry(t *testing.T) {
 	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
 }
 
+func TestRelativeExpiryLimit(t *testing.T) {
+	const (
+		checkInterval = time.Second
+		nodeCount     = 100
+		expiryLimit   = 10
+	)
+
+	// make sure the event buffer is much larger than node count
+	// so that we can batch create nodes without waiting on each event
+	require.True(t, int(nodeCount*3) < eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.RelativeExpiryLimit = expiryLimit
+		c.Clock = clock
+		return ForProxy(c)
+	})
+	t.Cleanup(p.Close)
+
+	// add servers that expire at a range of times
+	now := clock.Now()
+	for i := 0; i < nodeCount; i++ {
+		exp := now.Add(time.Minute * time.Duration(i))
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetExpiry(exp)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// wait for nodes to reach cache (we batch insert first for performance reasons)
+	for i := 0; i < nodeCount; i++ {
+		expectEvent(t, p.eventsC, EventProcessed)
+	}
+
+	nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, nodes, nodeCount)
+
+	clock.Advance(time.Hour * 24)
+	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+		// get rid of events that were emitted before clock advanced
+		drainEvents(p.eventsC)
+		// wait for next relative expiry check to run
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		// verify that the limit is respected.
+		nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, nodes, expired)
+
+		// advance clock to trigger next relative expiry check
+		clock.Advance(time.Hour * 24)
+	}
+}
+
+func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{{Kind: types.KindNode}}
+		return c
+	})
+	t.Cleanup(p.Close)
+
+	p2 := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
+			{Kind: types.KindNamespace},
+			{Kind: types.KindCertAuthority},
+		}
+		return c
+	})
+	t.Cleanup(p2.Close)
+
+	for i := 0; i < 2; i++ {
+		clock.Advance(time.Hour * 24)
+		drainEvents(p.eventsC)
+		expectEvent(t, p.eventsC, RelativeExpiry)
+
+		drainEvents(p2.eventsC)
+		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
+	}
+}
+
 func TestCache_Backoff(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	p := newTestPack(t, func(c Config) Config {
@@ -2475,4 +2558,78 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+// TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
+// with proto Events delivered via WatchEvents. If a watch kind is added to a cache component, but it
+// doesn't exist in the proto Events definition, an error will cause the WatchEvents stream to be closed.
+// This causes the cache to reinitialize every time that an unknown message is received and can lead to
+// a permanently unhealthy cache.
+//
+// While this test will ensure that there are no issues for the current release, it does not guarantee
+// that this issue won't arise across releases.
+func TestCacheWatchKindExistsInEvents(t *testing.T) {
+	cases := map[string]Config{
+		"ForAuth":           ForAuth(Config{}),
+		"ForProxy":          ForProxy(Config{}),
+		"ForRemoteProxy":    ForRemoteProxy(Config{}),
+		"ForOldRemoteProxy": ForOldRemoteProxy(Config{}),
+		"ForNode":           ForNode(Config{}),
+		"ForKubernetes":     ForKubernetes(Config{}),
+		"ForApps":           ForApps(Config{}),
+		"ForDatabases":      ForDatabases(Config{}),
+	}
+
+	events := map[string]types.Resource{
+		types.KindCertAuthority:           &types.CertAuthorityV2{},
+		types.KindClusterName:             &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindStaticTokens:            &types.StaticTokensV2{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
+		types.KindUser:                    &types.UserV2{},
+		types.KindRole:                    &types.RoleV5{Version: types.V4},
+		types.KindNamespace:               &types.Namespace{},
+		types.KindNode:                    &types.ServerV2{},
+		types.KindProxy:                   &types.ServerV2{},
+		types.KindAuthServer:              &types.ServerV2{},
+		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
+		types.KindAccessRequest:           &types.AccessRequestV3{},
+		types.KindAppServer:               &types.AppServerV3{},
+		types.KindApp:                     &types.AppV3{},
+		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindWebToken:                &types.WebTokenV3{},
+		types.KindRemoteCluster:           &types.RemoteClusterV3{},
+		types.KindKubeService:             &types.ServerV2{},
+		types.KindDatabaseServer:          &types.DatabaseServerV3{},
+		types.KindDatabase:                &types.DatabaseV3{},
+		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
+		types.KindLock:                    &types.LockV2{},
+		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+	}
+
+	for name, cfg := range cases {
+		t.Run(name, func(t *testing.T) {
+			for _, watch := range cfg.Watches {
+				resource, ok := events[watch.Kind]
+				require.True(t, ok, "missing event for kind %q", watch.Kind)
+
+				protoEvent, err := client.EventToGRPC(types.Event{
+					Type:     types.OpPut,
+					Resource: resource,
+				})
+				require.NoError(t, err)
+
+				event, err := client.EventFromGRPC(*protoEvent)
+				require.NoError(t, err)
+
+				require.Empty(t, cmp.Diff(resource, event.Resource))
+			}
+		})
+	}
 }

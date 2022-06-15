@@ -82,6 +82,10 @@ type ResourceWithLabels interface {
 	ResourceWithOrigin
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
+	// GetStaticLabels returns the resource's static labels.
+	GetStaticLabels() map[string]string
+	// SetStaticLabels sets the resource's static labels.
+	SetStaticLabels(sl map[string]string)
 	// MatchSearch goes through select field values of a resource
 	// and tries to match against the list of search values.
 	MatchSearch(searchValues []string) bool
@@ -348,7 +352,7 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 }
 
 // LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
+const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
 
 var validLabelKey = regexp.MustCompile(LabelPattern)
 

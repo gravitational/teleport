@@ -138,7 +138,7 @@ func (h *Handler) createDesktopConnection(
 		WriteBufferSize: 1024,
 	}
 
-	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort())
+	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,7 +164,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
-	if err := serviceConnTLS.Handshake(); err != nil {
+	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
 		return trace.NewAggregate(err, sendTDPError(ws, err))
 	}
 	log.Debug("Connected to windows_desktop_service")
@@ -185,11 +185,17 @@ func (h *Handler) createDesktopConnection(
 	return nil
 }
 
-func proxyClient(ctx context.Context, sessCtx *SessionContext, addr string) (*client.ProxyClient, error) {
+func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string) (*client.ProxyClient, error) {
 	cfg, err := makeTeleportClientConfig(ctx, sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Set HostLogin to avoid the default behavior of looking up the
+	// Unix user Teleport is running as (which doesn't work in containerized
+	// environments where we're running as an arbitrary UID)
+	cfg.HostLogin = windowsUser
+
 	if err := cfg.ParseProxyHost(addr); err != nil {
 		return nil, trace.Wrap(err)
 	}

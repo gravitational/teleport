@@ -3,8 +3,6 @@ title: Impersonating Teleport Users
 description: How to issue short-lived certs on behalf of Teleport users using impersonation.
 ---
 
-# Impersonation
-
 Sometimes users need to create short-lived certificates for non-interactive
 users, for example, CI/CD systems. Your programs interacting with Teleport may
 need to create their own authentication as well. Teleport's impersonation allows
@@ -15,20 +13,19 @@ non-interactive CI/CD user Jenkins and a security scanner.
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
-- [Tctl admin tool](https://goteleport.com/teleport/download) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3: Create a CI/CD user and corresponding role
 
-First, let's create a role called `jenkins`. Notice the `max_session_ttl`
+First, we will create a role called `jenkins`. Notice the `max_session_ttl`
 parameter, which limits the cert duration for certificates issued to users with
 this role. As a rule of thumb, the shorter the TTL, the better.
 
-Next, we'll create a user also named `jenkins` and assign the role to the user.
+We will also create a user also named `jenkins` and assign the role to the user.
 
-Save this file as `jenkins.yaml` to create the user and role:
+Save this file as `jenkins.yaml`:
 
 ```yaml
 kind: role
@@ -57,20 +54,15 @@ spec:
   roles: ['jenkins']
 ```
 
-<Admonition
-  type="note"
-  title="Audit"
->
-  Here and below follow along and create yaml resources using `tctl create -f`:
+Create the resources:
 
-  ```code
-  $ tctl create -f jenkins.yaml
-  ```
-</Admonition>
+```code
+$ tctl create -f jenkins.yaml
+```
 
 ## Step 2/3: Create an impersonator role
 
-Let's create a role `impersonator`. Users with this role will be permitted to
+Next, we will create a role called `impersonator`. Users with this role will be permitted to
 impersonate the `jenkins` user and role.
 
 Save this role definition as `impersonator.yaml`:
@@ -101,7 +93,13 @@ spec:
       '*': '*'
 ```
 
-Next, create an interactive user `alice` and assign the impersonator role so
+Create the `role` resource:
+
+```code
+$ tctl create -f impersonator.yaml
+```
+
+Next, create an interactive user named `alice` and assign the impersonator role so
 that `alice` can impersonate `jenkins`. 
 
 <Admonition
@@ -118,12 +116,24 @@ $ tctl users add alice  --roles=impersonator,access
 
 ## Step 3/3: Use impersonation to issue a certificate
 
-Alice can login using `tsh` and issue a cert for `jenkins`:
+Alice can log in using `tsh` and issue a cert for `jenkins`:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.localhost --user=alice --auth=local
+$ tsh login --proxy=proxy.example.com --user=alice --auth=local
 $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
+$ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
+```
+
+</ScopedBlock>
 
 Here is an example of how Alice can use the keys:
 
@@ -161,10 +171,10 @@ To prevent unintended consequences, Teleport defines the following impersonation
   being impersonated.
 - Even if the `jenkins` role could impersonate some other roles, Alice would not
   be able to use this permission. Teleport prevents recursive impersonation.
-- Alice can get a new `jenkins` certificate with the same TTL, but metadata
-  updated, for example pointing to a different Teleport leaf cluster. Teleport
-  allows impersonated users to renew their certificates with the reduced scope
-  of the certificate.
+- Alice can get a new `jenkins` certificate with the same TTL, but with the
+  metadata updated, for example, to point to a different Teleport leaf cluster.
+  Teleport allows impersonated users to renew their certificates with the
+  reduced scope of the certificate.
 
 ### Dynamic Impersonation
 
@@ -175,7 +185,7 @@ based on matching labels.
 
 For example, suppose you wanted to define a `security-impersonator` role that
 allowed the impersonation of any users or roles with the label
-`group: security`. This could be accomplished with the folowing role definition:
+`group: security`. This could be accomplished with the following role definition:
 
 ```yaml
 kind: role
@@ -246,11 +256,11 @@ the `group: security` label.
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-**Matching user traits**
+### Matching user traits
 
 We can also define impersonation rules by matching against user traits.
 
-Here we update the `security-impersonator` role to allow for the impersonation
+Here we updated the `security-impersonator` role to allow for the impersonation
 of any other users or roles where the `group` user trait contains the same value
 as the label on the role and/or user to impersonate:
 
@@ -279,7 +289,7 @@ spec:
 ```
 
 While user traits typically come from an external identity provider, we can test
-with local user `alice` by manually updating Alices's account with traits.
+with local user `alice` by manually updating Alice's account with traits.
 
 ```yaml
 kind: user
@@ -298,12 +308,9 @@ Since Alice's `group` trait contains `security`, and the `security-scanner` user
 has a label of `group: security`, Alice will be able to impersonate the security
 scanner.
 
-<Admonition
-  type="note"
-  title="Login"
->
-Alice will need to log in again to receive the newly updated traits.
-</Admonition>
+Alice will need to log in again to receive the newly updated traits:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
 # Once Alice logs in again, she will receive a new certificate with updated roles.
@@ -311,6 +318,18 @@ $ tsh login --proxy=teleport.example.com --user=alice --auth=local
 # Alice can now get a certificate for the security scanner
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Once Alice logs in again, she will receive a new certificate with updated roles.
+$ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
+# Alice can now get a certificate for the security scanner
+$ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
+```
+
+</ScopedBlock>
 
 ### Filter fields
 

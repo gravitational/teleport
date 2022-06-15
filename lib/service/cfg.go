@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -308,31 +307,21 @@ func (cfg *Config) DebugDumpToYAML() string {
 
 // CachePolicy sets caching policy for proxies and nodes
 type CachePolicy struct {
-	// Type sets the cache type
-	Type string
 	// Enabled enables or disables caching
 	Enabled bool
 }
 
 // CheckAndSetDefaults checks and sets default values
 func (c *CachePolicy) CheckAndSetDefaults() error {
-	switch c.Type {
-	case "", lite.GetName():
-		c.Type = lite.GetName()
-	case memory.GetName():
-	default:
-		return trace.BadParameter("unsupported cache type %q, supported values are %q and %q",
-			c.Type, lite.GetName(), memory.GetName())
-	}
 	return nil
 }
 
 // String returns human-friendly representation of the policy
 func (c CachePolicy) String() string {
 	if !c.Enabled {
-		return "no cache policy"
+		return "no cache"
 	}
-	return fmt.Sprintf("%v cache will store frequently accessed items", c.Type)
+	return "in-memory cache"
 }
 
 // ProxyConfig specifies configuration for proxy service
@@ -637,6 +626,8 @@ type Database struct {
 	URI string
 	// StaticLabels is a map of database static labels.
 	StaticLabels map[string]string
+	// MySQL are additional MySQL database options.
+	MySQL MySQLOptions
 	// DynamicLabels is a list of database dynamic labels.
 	DynamicLabels services.CommandLabels
 	// TLS keeps database connection TLS configuration.
@@ -689,6 +680,12 @@ func (m TLSMode) ToProto() types.DatabaseTLSMode {
 	default: // VerifyFull
 		return types.DatabaseTLSMode_VERIFY_FULL
 	}
+}
+
+// MySQLOptions are additional MySQL options.
+type MySQLOptions struct {
+	// ServerVersion is the version reported by Teleport DB Proxy on initial handshake.
+	ServerVersion string
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -950,6 +947,12 @@ type MetricsConfig struct {
 	// use for mTLS.
 	// Used in conjunction with MTLS = true
 	CACerts []string
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCServerLatency bool
+
+	// GRPCServerLatency enables histogram metrics for each grpc endpoint on the auth server
+	GRPCClientLatency bool
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -983,6 +986,12 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.

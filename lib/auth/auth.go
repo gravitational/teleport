@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -309,7 +310,8 @@ var (
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock          sync.RWMutex
+	lock sync.RWMutex
+	// oidcClients is a map from authID & proxyAddr -> oidcClient
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
 	githubClients map[string]*githubClient
@@ -2854,7 +2856,6 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 				PredicateExpression:  req.PredicateExpression,
 				Labels:               req.Labels,
 				SearchKeywords:       req.SearchKeywords,
-				SortBy:               req.SortBy,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2887,8 +2888,8 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 }
 
 // GetReverseTunnels returns reverse tunnels from the cache
-func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(opts...)
+func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	return a.GetCache().GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies returns proxies from the cache
@@ -3047,8 +3048,17 @@ func (a *Server) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *Server) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return a.SessionTrackerService.CreateSessionTracker(ctx, req)
+func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	// Don't allow sessions that require moderation without the enterprise feature enabled.
+	for _, policySet := range tracker.GetHostPolicySets() {
+		if len(policySet.RequireSessionJoin) != 0 {
+			if !modules.GetModules().Features().ModeratedSessions {
+				return nil, trace.AccessDenied("this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
+			}
+		}
+	}
+
+	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
@@ -3789,8 +3799,13 @@ const (
 
 // oidcClient is internal structure that stores OIDC client and its config
 type oidcClient struct {
-	client *oidc.Client
-	config oidc.ClientConfig
+	client    *oidc.Client
+	connector types.OIDCConnector
+	// syncCtx controls the provider sync goroutine.
+	syncCtx    context.Context
+	syncCancel context.CancelFunc
+	// firstSync will be closed once the first provider sync succeeds
+	firstSync chan struct{}
 }
 
 // samlProvider is internal structure that stores SAML client and its config
@@ -3803,28 +3818,6 @@ type samlProvider struct {
 type githubClient struct {
 	client *oauth2.Client
 	config oauth2.Config
-}
-
-// oidcConfigsEqual returns true if the provided OIDC configs are equal
-func oidcConfigsEqual(a, b oidc.ClientConfig) bool {
-	if a.RedirectURL != b.RedirectURL {
-		return false
-	}
-	if a.Credentials.ID != b.Credentials.ID {
-		return false
-	}
-	if a.Credentials.Secret != b.Credentials.Secret {
-		return false
-	}
-	if len(a.Scope) != len(b.Scope) {
-		return false
-	}
-	for i := range a.Scope {
-		if a.Scope[i] != b.Scope[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // oauth2ConfigsEqual returns true if the provided OAuth2 configs are equal

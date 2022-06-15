@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -284,6 +285,8 @@ type AppSession interface {
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
+	// DeleteUserAppSessions deletes all user’s application sessions.
+	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -384,7 +387,8 @@ type OIDCAuthRequest struct {
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
 
-	// RedirectURL will be used by browser
+	// RedirectURL will be used to route the user back to a
+	// Teleport Proxy after the oidc login attempt in the brower.
 	RedirectURL string `json:"redirect_url"`
 
 	// PublicKey is an optional public key, users want these
@@ -411,6 +415,12 @@ type OIDCAuthRequest struct {
 
 	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
 	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
+
+	// ProxyAddress is an optional address which can be used to
+	// find a redirect url from the OIDC connector which matches
+	// the address. If there is no match, the default redirect
+	// url will be used.
+	ProxyAddress string `json:"proxy_address,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

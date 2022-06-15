@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -66,10 +67,10 @@ func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config)
 }
 
 // TryRun attempts to run subcommands like "db ls".
-func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *DBCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.dbList.FullCommand():
-		err = c.ListDatabases(client)
+		err = c.ListDatabases(ctx, client)
 	default:
 		return false, nil
 	}
@@ -78,9 +79,7 @@ func (c *DBCommand) TryRun(cmd string, client auth.ClientI) (match bool, err err
 
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
-	ctx := context.TODO()
-
+func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,6 +103,9 @@ func (c *DBCommand) ListDatabases(clt auth.ClientI) error {
 			return trace.Wrap(err)
 		}
 	case err != nil:
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	default:
 		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()

@@ -17,10 +17,12 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -31,11 +33,13 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -211,8 +215,14 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// User is the login username.
 	User string
-	// User is the login password.
+	// Password is the login password.
 	Password string
+
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Do not set this options unless you deeply understand what you are doing.
+	AllowStdinHijack bool
+	// PreferOTP prefers OTP in favor of other MFA methods.
+	PreferOTP bool
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -406,7 +416,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, login.ProxyAddr, challengePB, "", false)
+	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
+		AllowStdinHijack: login.AllowStdinHijack,
+		PreferOTP:        login.PreferOTP,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,4 +487,32 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 	// DELETE IN 10.0.0 (zmb3)
 	return auth.UnmarshalLegacyCerts(resp.Bytes())
+}
+
+// GetWebConfig is used by teleterm to fetch webconfig.js from proxies
+func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
+	clt, _, err := initClient(proxyAddr, insecure, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.Get(ctx, clt.Endpoint("web", "config.js"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	body, err := io.ReadAll(response.Reader())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// WebConfig is served as JS file where GRV_CONFIG is a global object name
+	text := bytes.TrimSuffix(bytes.Replace(body, []byte("var GRV_CONFIG = "), []byte(""), 1), []byte(";"))
+
+	cfg := webclient.WebConfig{}
+	if err := json.Unmarshal(text, &cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &cfg, nil
 }

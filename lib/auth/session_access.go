@@ -21,12 +21,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
 )
+
+var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))
 
 // SessionAccessEvaluator takes a set of policies
 // and uses rules to evaluate them to determine when a session may start
@@ -70,7 +73,7 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	return policies
 }
 
-func containsKind(s []string, e types.SessionKind) bool {
+func ContainsSessionKind(s []string, e types.SessionKind) bool {
 	for _, a := range s {
 		if types.SessionKind(a) == e {
 			return true
@@ -146,13 +149,12 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 		return false
 	}
 
-	for _, policySet := range e.policySets {
-		for _, allowRole := range allow.Roles {
-			expr := utils.GlobToRegexp(policySet.Name)
-			// GlobToRegexp makes sure this is always a valid regexp.
-			matched, _ := regexp.MatchString(expr, allowRole)
+	for _, allowRole := range allow.Roles {
+		// GlobToRegexp makes sure this is always a valid regexp.
+		expr := regexp.MustCompile(utils.GlobToRegexp(allowRole))
 
-			if matched {
+		for _, policySet := range e.policySets {
+			if expr.MatchString(policySet.Name) {
 				return true
 			}
 		}
@@ -162,24 +164,28 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 }
 
 func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
-	if containsKind(allow, e.kind) || containsKind(allow, "*") {
+	if ContainsSessionKind(allow, e.kind) || ContainsSessionKind(allow, "*") {
 		return true
 	}
 
 	return false
 }
 
+func HasV5Role(roles []types.Role) bool {
+	for _, role := range roles {
+		if role.GetVersion() == types.V5 {
+			return true
+		}
+	}
+	return false
+}
+
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.SessionParticipantMode, error) {
-	supported, err := e.supportsSessionAccessControls()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !supported {
-		return preAccessControlsModes(e.kind), nil
+	if !HasV5Role(user.Roles) {
+		return preAccessControlsModes(e.kind)
 	}
 
 	var modes []types.SessionParticipantMode
@@ -198,7 +204,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.Ses
 		}
 	}
 
-	return modes, nil
+	return modes
 }
 
 func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {

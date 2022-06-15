@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"net"
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/auth"
 
@@ -57,6 +58,8 @@ type FakeRemoteSite struct {
 	AccessPoint auth.RemoteProxyAccessPoint
 	// OfflineTunnels is a list of server IDs that will return connection error.
 	OfflineTunnels map[string]struct{}
+	// connCounter count how many connection requests the remote received.
+	connCounter int64
 }
 
 // CachingAccessPoint returns caching auth server client.
@@ -71,6 +74,8 @@ func (s *FakeRemoteSite) GetName() string {
 
 // Dial returns the connection to the remote site.
 func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
+	atomic.AddInt64(&s.connCounter, 1)
+
 	if _, ok := s.OfflineTunnels[params.ServerID]; ok {
 		return nil, trace.ConnectionProblem(nil, "server %v tunnel is offline",
 			params.ServerID)
@@ -78,4 +83,12 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 	readerConn, writerConn := net.Pipe()
 	s.ConnCh <- readerConn
 	return writerConn, nil
+}
+
+func (s *FakeRemoteSite) Close() error {
+	return nil
+}
+
+func (s *FakeRemoteSite) DialCount() int64 {
+	return atomic.LoadInt64(&s.connCounter)
 }

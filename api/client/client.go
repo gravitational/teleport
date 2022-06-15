@@ -288,7 +288,12 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	var dialer ContextDialer
+	if params.cfg.IgnoreHTTPProxy {
+		dialer = NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	} else {
+		dialer = NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	}
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -358,7 +363,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	dialOpts := append([]grpc.DialOption{}, c.c.DialOpts...)
+	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
@@ -368,6 +373,8 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if c.tlsConfig != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 	}
+	// must come last, otherwise provided opts may get clobbered by defaults above
+	dialOpts = append(dialOpts, c.c.DialOpts...)
 
 	var err error
 	if c.conn, err = grpc.DialContext(dialContext, addr, dialOpts...); err != nil {
@@ -460,6 +467,8 @@ type Config struct {
 	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
 	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
 	ALPNSNIAuthDialClusterName string
+	// IgnoreHTTPProxy disables support for HTTP proxying when true.
+	IgnoreHTTPProxy bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -589,6 +598,16 @@ func (c *Client) GetUser(name string, withSecrets bool) (types.User, error) {
 		return nil, trail.FromGRPC(err)
 	}
 	return user, nil
+}
+
+// GetCurrentUser returns current user as seen by the server.
+// Useful especially in the context of remote clusters which perform role and trait mapping.
+func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
+	currentUser, err := c.grpc.GetCurrentUser(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return currentUser, nil
 }
 
 // GetUsers returns a list of users.
@@ -727,14 +746,46 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	rsp, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
+	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	reqs := make([]types.AccessRequest, 0, len(rsp.AccessRequests))
-	for _, req := range rsp.AccessRequests {
+
+	var reqs []types.AccessRequest
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			err := trail.FromGRPC(err)
+			if trace.IsNotImplemented(err) {
+				return c.getAccessRequestsLegacy(ctx, filter)
+			}
+
+			return nil, err
+		}
 		reqs = append(reqs, req)
 	}
+
+	return reqs, nil
+}
+
+// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
+//
+// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
+func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
+	for i, request := range requests.AccessRequests {
+		reqs[i] = request
+	}
+
 	return reqs, nil
 }
 
@@ -1148,6 +1199,12 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// DeleteUserAppSessions deletes all user’s application sessions.
+func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
+	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
@@ -1391,6 +1448,9 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+	// An old server would send RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1403,6 +1463,9 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
+		// An old server would send RedirectURL instead of RedirectURLs
+		// DELETE IN 11.0.0
+		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1414,6 +1477,9 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
+	// An old server would expect RedirectURL instead of RedirectURLs
+	// DELETE IN 11.0.0
+	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }
@@ -2409,7 +2475,7 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
-	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
+	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }
 
@@ -2509,21 +2575,48 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (c *Client) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	resp, err := c.grpc.CreateSessionTracker(ctx, req)
-	return resp, trail.FromGRPC(err)
+func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
+	v1, ok := st.(*types.SessionTrackerV1)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T, expected *types.SessionTrackerV1", st)
+	}
+
+	req := &proto.CreateSessionTrackerRequest{SessionTracker: v1}
+
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	req.ID = v1.Spec.SessionID
+	req.Type = v1.Spec.Kind
+	req.Reason = v1.Spec.Reason
+	req.Invited = v1.Spec.Invited
+	req.Hostname = v1.Spec.Hostname
+	req.Address = v1.Spec.Address
+	req.ClusterName = v1.Spec.ClusterName
+	req.Login = v1.Spec.Login
+	req.Expires = v1.Spec.Expires
+	req.KubernetesCluster = v1.Spec.KubernetesCluster
+	req.HostUser = v1.Spec.HostUser
+	if len(v1.Spec.Participants) > 0 {
+		req.Initiator = &v1.Spec.Participants[0]
+	}
+
+	tracker, err := c.grpc.CreateSessionTracker(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return tracker, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.
 func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
-	resp, err := c.grpc.GetSessionTracker(ctx, req)
+	resp, err := c.grpc.GetSessionTracker(ctx, req, c.callOpts...)
 	return resp, trail.FromGRPC(err)
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{})
+	stream, err := c.grpc.GetActiveSessionTrackers(ctx, &empty.Empty{}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2547,18 +2640,18 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (c *Client) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID})
+	_, err := c.grpc.RemoveSessionTracker(ctx, &proto.RemoveSessionTrackerRequest{SessionID: sessionID}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (c *Client) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	_, err := c.grpc.UpdateSessionTracker(ctx, req)
+	_, err := c.grpc.UpdateSessionTracker(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
 func (c *Client) MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error) {
-	stream, err := c.grpc.MaintainSessionPresence(ctx)
+	stream, err := c.grpc.MaintainSessionPresence(ctx, c.callOpts...)
 	return stream, trail.FromGRPC(err)
 }

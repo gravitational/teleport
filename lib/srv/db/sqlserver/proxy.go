@@ -31,8 +31,6 @@ import (
 // Proxy accepts connections from SQL Server clients, performs a Pre-Login
 // handshake and then forwards the connection to the database service agent.
 type Proxy struct {
-	// TLSConfig is the proxy TLS configuration.
-	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
 	Middleware *auth.Middleware
 	// Service is used to connect to a remote database service.

@@ -1,0 +1,66 @@
+Log into your Teleport cluster and see available databases:
+
+<Tabs>
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+    ```code
+    $ tsh login --proxy=teleport.example.com --user=alice
+    $ tsh db ls
+    # Name          Description     Labels
+    # ------------- --------------- --------
+    # example-redis Example Redis   env=dev
+    ```
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
+    ```code
+    $ tsh login --proxy=mytenant.teleport.sh --user=alice
+    $ tsh db ls
+    # Name          Description     Labels
+    # ------------- --------------- --------
+    # example-redis Example Redis   env=dev
+    ```
+  </TabItem>
+</Tabs>
+
+To connect to a particular database instance, first retrieve its certificate
+using the `tsh db login` command:
+
+```code
+$ tsh db login example-redis
+```
+
+<Admonition type="tip" title="Tip">
+  You can be logged into multiple databases simultaneously.
+</Admonition>
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db login --db-user=alice example-redis
+```
+
+If flag `--db-user` is not provided, Teleport logs in as the `default` user.
+
+Once logged in, connect to the database:
+
+```code
+$ tsh db connect example-redis
+```
+
+The `redis-cli` command-line client should be available in the system `PATH` in order to be
+able to connect.
+
+Now you can log in as the previously created user using the below command:
+
+```
+AUTH alice STRONG_GENERATED_PASSWORD
+```
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout example-redis
+# Remove credentials for all database instances.
+$ tsh db logout
+```

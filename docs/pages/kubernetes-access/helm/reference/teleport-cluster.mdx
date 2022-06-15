@@ -3,18 +3,10 @@ title: teleport-cluster Chart Reference
 description: Values that can be set using the teleport-cluster Helm chart
 ---
 
-The `teleport-cluster` Helm chart is used to deploy the Teleport Auth Service
-and Proxy Service, which is ideal for getting started with a self-hosted Teleport
-cluster on Kubernetes.
-
-<Notice scope={["cloud"]} type="warning">
-
-Teleport Cloud manages the Auth Service and Proxy Service for you. Use the
-`teleport-cluster` chart if you are interested in hosting Teleport yourself, or
-use the [`teleport-kube-agent`](./teleport-kube-agent.mdx) chart to deploy the
-Kubernetes Service, Application Service, or Database Service.
-
-</Notice>
+The `teleport-cluster` Helm chart deploys the `teleport` daemon on Kubernetes.
+You can use our preset configurations to deploy the Auth Service and Proxy
+Service, or a custom configuration to deploy agent services such as the Teleport
+Kubernetes Service or Database Service.
 
 You can
 [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
@@ -407,39 +399,61 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
 | `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
 
-## `standalone`
+## `persistence`
 
-### `standalone.existingClaimName`
+### `persistence.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `true` | ✅ |
+
+`persistence.enabled` can be used to enable data persistence using either a new or pre-existing `PersistentVolumeClaim`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  persistence:
+    enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set persistence.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `persistence.existingClaimName`
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string` | `nil` | ✅ |
 
-`standalone.existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
+`persistence.existingClaimName` can be used to provide the name of a pre-existing `PersistentVolumeClaim` to use if desired.
 
-The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` mode.
+The default is left blank, which will automatically create a `PersistentVolumeClaim` to use for Teleport storage in `standalone` or `custom` mode.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  standalone:
+  persistence:
     existingClaimName: my-existing-pvc-name
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set standalone.existingClaimName=my-existing-pvc-name
+  $ --set persistence.existingClaimName=my-existing-pvc-name
   ```
   </TabItem>
 </Tabs>
 
-### `standalone.volumeSize`
+### `persistence.volumeSize`
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
 | `string`  | `10Gi` | ✅ |
 
-You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` mode.
+You can set `volumeSize` to request a different size of persistent volume when installing the Teleport chart in `standalone` or `custom` mode.
 
 <Admonition type="note">
   `volumeSize` will be ignored if `existingClaimName` is set.
@@ -448,13 +462,13 @@ You can set `volumeSize` to request a different size of persistent volume when i
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  standalone:
+  persistence:
     volumeSize: 50Gi
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  --set standalone.volumeSize=50Gi
+  --set persistence.volumeSize=50Gi
   ```
   </TabItem>
 </Tabs>
@@ -737,6 +751,74 @@ Sets the `Group` of `Issuer` to be used when issuing certificates with `cert-man
   <TabItem label="--set">
   ```code
   --set highAvailability.certManager.issuerGroup=cert-manager.io
+  ```
+  </TabItem>
+</Tabs>
+
+## `tls.existingSecretName`
+
+| Type | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
+| - | - | - | - |
+| `string` | `""` | ✅ | `proxy_service.https_keypairs` |
+
+`tls.existingSecretName` tells Teleport to use an existing Kubernetes TLS secret to secure its web UI using HTTPS. This can be
+set to use a TLS certificate issued by a trusted internal CA rather than a public-facing CA like Let's Encrypt.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+```
+
+See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for more information.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingSecretName: my-tls-secret
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-tls-secret
+  ```
+  </TabItem>
+</Tabs>
+
+## `tls.existingCASecretName`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `""` | ✅ |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
+This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+
+This is likely to be needed
+if Teleport fails to start when `tls.existingSecretName` is set with a `User Message: unable to verify HTTPS certificate chain` error
+in the pod logs.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Notice type="warning" title="Root CA filename">
+  The filename used for the root CA in the secret must be `ca.pem`.
+</Notice>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingCASecretName: my-root-ca
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-root-ca
   ```
   </TabItem>
 </Tabs>
@@ -1370,6 +1452,30 @@ will also be applied to `initContainers`.
   </TabItem>
 </Tabs>
 
+## `securityContext`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `securityContext` applies to any pods created by the chart, including `initContainers`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  securityContext:
+    runAsUser: 99
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set securityContext.runAsUser=99
+  ```
+  </TabItem>
+</Tabs>
+
 ## `tolerations`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1423,3 +1529,25 @@ Kubernetes PriorityClass to set for pod.
   </TabItem>
 </Tabs>
 
+## `probeTimeoutSeconds`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `integer` | `1` | ✅ |
+
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+
+Kubernetes timeouts for the liveness and readiness probes.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  probeTimeoutSeconds: 5
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set probeTimeoutSeconds=5
+  ```
+  </TabItem>
+</Tabs>

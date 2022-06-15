@@ -23,7 +23,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -41,84 +43,78 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (a *Server) getOrCreateOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	client, err := a.getOIDCClient(conn)
-	if err == nil {
-		return client, nil
+// getOIDCConnectorAndClient returns the associated oidc connector
+// and client for the given oidc auth request.
+func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+	connector, err := a.Identity.GetOIDCConnector(ctx, request.ConnectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+
+	client, err := a.getCachedOIDCClient(ctx, connector, request.ProxyAddress)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	return a.createOIDCClient(conn)
+
+	// Wait for the client to successfully sync after getting it from the cache.
+	// We do this after caching the client to prevent locking the server during
+	// the initial sync period.
+	if err := client.waitFirstSync(defaults.WebHeadersTimeout); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return connector, client.client, nil
 }
 
-func (a *Server) getOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
+// getCachedOIDCClient gets a cached oidc client for
+// the given OIDC connector and redirectURL preference.
+func (a *Server) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	clientPack, ok := a.oidcClients[conn.GetName()]
-	if !ok {
-		return nil, trace.NotFound("connector %v is not found", conn.GetName())
+	// Each connector and proxy combination has a distinct client,
+	// so we use a composite key to capture all combinations.
+	clientMapKey := conn.GetName() + "_" + proxyAddr
+
+	cachedClient, ok := a.oidcClients[clientMapKey]
+	if ok {
+		if !cachedClient.needsRefresh(conn) && cachedClient.syncCtx.Err() == nil {
+			return cachedClient, nil
+		}
+		// Cached client needs to be refreshed or is no longer syncing.
+		cachedClient.syncCancel()
+		delete(a.oidcClients, clientMapKey)
 	}
 
-	config := oidcConfig(conn)
-	if ok && oidcConfigsEqual(clientPack.config, config) {
-		return clientPack.client, nil
+	// Create a new oidc client and add it to the cache.
+	client, err := newOIDCClient(ctx, conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	delete(a.oidcClients, conn.GetName())
-	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
-
+	a.oidcClients[clientMapKey] = client
+	return client, nil
 }
 
-func (a *Server) createOIDCClient(conn types.OIDCConnector) (*oidc.Client, error) {
-	config := oidcConfig(conn)
+func newOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
+	redirectURL, err := services.GetRedirectURL(conn, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config := oidcConfig(conn, redirectURL)
 	client, err := oidc.NewClient(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaults.WebHeadersTimeout)
-	defer cancel()
-
-	go func() {
-		defer cancel()
-		client.SyncProviderConfig(conn.GetIssuerURL())
-	}()
-
-	select {
-	case <-ctx.Done():
-	case <-a.closeCtx.Done():
-		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
-	}
-
-	// Canceled is expected in case if sync provider config finishes faster
-	// than the deadline
-	if ctx.Err() != nil && ctx.Err() != context.Canceled {
-		var err error
-		if ctx.Err() == context.DeadlineExceeded {
-			err = trace.ConnectionProblem(err,
-				"failed to reach out to oidc connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		} else {
-			err = trace.ConnectionProblem(err,
-				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
-				conn.GetName(), conn.GetIssuerURL())
-		}
-		return nil, err
-	}
-
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
-
-	return client, nil
+	oidcClient := &oidcClient{client: client, connector: conn, firstSync: make(chan struct{})}
+	oidcClient.startSync(ctx)
+	return oidcClient, nil
 }
 
-func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
+func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig {
 	return oidc.ClientConfig{
-		RedirectURL: conn.GetRedirectURL(),
+		RedirectURL: redirectURL,
 		Credentials: oidc.ClientCredentials{
 			ID:     conn.GetClientID(),
 			Secret: conn.GetClientSecret(),
@@ -126,6 +122,57 @@ func oidcConfig(conn types.OIDCConnector) oidc.ClientConfig {
 		// open id notifies provider that we are using OIDC scopes
 		Scope: apiutils.Deduplicate(append([]string{"openid", "email"}, conn.GetScope()...)),
 	}
+}
+
+// needsRefresh returns whether the client's connector and the
+// given connector have the same values for fields relevant to
+// generating and syncing an oidc.Client.
+func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
+	return !cmp.Equal(conn.GetRedirectURLs(), c.connector.GetRedirectURLs()) ||
+		conn.GetClientID() != c.connector.GetClientID() ||
+		conn.GetClientSecret() != c.connector.GetClientSecret() ||
+		!cmp.Equal(conn.GetScope(), c.connector.GetScope()) ||
+		conn.GetIssuerURL() != c.connector.GetIssuerURL()
+}
+
+// startSync starts a goroutine to sync the client with its provider
+// config until the given ctx is closed or the sync is cancelled.
+func (c *oidcClient) startSync(ctx context.Context) {
+	// SyncProviderConfig doesn't take a context for cancellation, instead it
+	// returns a channel that has to be closed to stop the sync. To ensure that the
+	// sync is eventually stopped, we "wrap" the stop channel with a cancel context.
+	c.syncCtx, c.syncCancel = context.WithCancel(ctx)
+	go func() {
+		stop := c.client.SyncProviderConfig(c.connector.GetIssuerURL())
+		close(c.firstSync)
+		<-c.syncCtx.Done()
+		close(stop)
+	}()
+}
+
+// waitFirstSync waits for the client to start syncing successfully, or
+// returns an error if syncing fails or fails to succeed within 10 seconds.
+// This prevents waiting on clients with faulty provider configurations.
+func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
+	timeoutTimer := time.NewTimer(timeout)
+
+	select {
+	case <-c.firstSync:
+	case <-c.syncCtx.Done():
+	case <-timeoutTimer.C:
+		// cancel sync so that it gets removed from the cache
+		c.syncCancel()
+		return trace.ConnectionProblem(nil, "timed out syncing oidc connector %v, ensure URL %q is valid and accessible and check configuration",
+			c.connector.GetName(), c.connector.GetIssuerURL())
+	}
+
+	// stop and flush timer
+	if !timeoutTimer.Stop() {
+		<-timeoutTimer.C
+	}
+
+	// return the syncing error if there is one
+	return trace.Wrap(c.syncCtx.Err())
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
@@ -171,11 +218,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 
 func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
 	ctx := context.TODO()
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
+	connector, oidcClient, err := a.getOIDCConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -267,6 +310,32 @@ type oidcAuthResponse struct {
 	claims jose.Claims
 }
 
+func checkEmailVerifiedClaim(claims jose.Claims) error {
+	claimName := "email_verified"
+	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
+
+	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
+	if hasEmailVerifiedClaim && emailVerified == "false" {
+		return unverifiedErr
+	}
+
+	data, ok := claims[claimName]
+	if !ok {
+		return nil
+	}
+
+	emailVerifiedBool, ok := data.(bool)
+	if !ok {
+		return trace.BadParameter("unable to parse oidc claim: %q, must be a string or bool", claimName)
+	}
+
+	if !emailVerifiedBool {
+		return unverifiedErr
+	}
+
+	return nil
+}
+
 func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
 	ctx := context.TODO()
 	if error := q.Get("error"); error != "" {
@@ -295,12 +364,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := a.Identity.GetOIDCConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oidcClient, err := a.getOrCreateOIDCClient(connector)
+	connector, oidcClient, err := a.getOIDCConnectorAndClient(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,6 +379,9 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 	}
 
 	log.Debugf("OIDC claims: %v.", re.claims)
+	if err := checkEmailVerifiedClaim(claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// if we are sending acr values, make sure we also validate them
 	acrValue := connector.GetACR()
@@ -707,19 +774,19 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 
 // getOAuthClient returns a Oauth2 client from the oidc.Client.  If the connector is set as a Ping provider sets the Client Secret Post auth method
 func (a *Server) getOAuthClient(oidcClient *oidc.Client, connector types.OIDCConnector) (*oauth2.Client, error) {
-
 	oac, err := oidcClient.OAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//If the default client secret basic is used the Ping OIDC
-	// will throw an error of multiple client credentials.  Even if you set in Ping
-	// to use Client Secret Post it will return to use client secret basic.
-	// Issue https://github.com/gravitational/teleport/issues/8374
-	if connector.GetProvider() == teleport.Ping {
+	// For OIDC, Ping and Okta will throw an error when the
+	// default client secret basic method is used.
+	// See: https://github.com/gravitational/teleport/issues/8374
+	switch connector.GetProvider() {
+	case teleport.Ping, teleport.Okta:
 		oac.SetAuthMethod(oauth2.AuthMethodClientSecretPost)
 	}
+
 	return oac, err
 }
 

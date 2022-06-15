@@ -93,14 +93,14 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
 <Tabs>
 <TabItem label="Download">
   ```code
-  $ curl -L https://get.gravitational.com/teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-slack-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ curl -L -O https://get.gravitational.com/teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-slack-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   $ cd teleport-access-slack
   $ ./install
   ```
 </TabItem>
 <TabItem label="From Source">
-  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+  To install from source you need `git` and `go` installed. If you do not have Go installed, visit the Go [downloads page](https://go.dev/dl/).
 
   ```code
   # Checkout teleport-plugins
@@ -108,11 +108,14 @@ compile these plugins from [source](https://github.com/gravitational/teleport-pl
   $ cd teleport-plugins/access/slack
   $ make
   ```
+Run `./install` from `teleport-slack` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
+</TabItem>
+<TabItem label="Docker">
+  ```code
+  $ docker pull quay.io/gravitational/teleport-plugin-slack:(=teleport.plugin.version=)
+  ```
 </TabItem>
 </Tabs>
-
-
-Run `./install` from `teleport-slack` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
 
 ### Configuring the Teleport Slack plugin
 

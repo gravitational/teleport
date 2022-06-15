@@ -19,15 +19,20 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
+
 	"github.com/gravitational/trace"
 )
 
 const (
-	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "k8s"
-	SessionObserverMode   SessionParticipantMode = "observer"
-	SessionModeratorMode  SessionParticipantMode = "moderator"
-	SessionPeerMode       SessionParticipantMode = "peer"
+	SSHSessionKind            SessionKind            = "ssh"
+	KubernetesSessionKind     SessionKind            = "k8s"
+	DatabaseSessionKind       SessionKind            = "db"
+	AppSessionKind            SessionKind            = "app"
+	WindowsDesktopSessionKind SessionKind            = "desktop"
+	SessionObserverMode       SessionParticipantMode = "observer"
+	SessionModeratorMode      SessionParticipantMode = "moderator"
+	SessionPeerMode           SessionParticipantMode = "peer"
 )
 
 // SessionKind is a type of session.
@@ -51,6 +56,9 @@ type SessionTracker interface {
 
 	// SetState sets the state of the session.
 	SetState(SessionState) error
+
+	// SetCreated sets the time at which the session was created.
+	SetCreated(time.Time)
 
 	// GetCreated returns the time at which the session was created.
 	GetCreated() time.Time
@@ -101,20 +109,16 @@ type SessionTracker interface {
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
-	meta := Metadata{
-		Name: spec.SessionID,
-	}
-
 	session := &SessionTrackerV1{
 		ResourceHeader: ResourceHeader{
-			Kind:     KindSessionTracker,
-			Version:  V1,
-			Metadata: meta,
+			Metadata: Metadata{
+				Name: spec.SessionID,
+			},
 		},
 		Spec: spec,
 	}
 
-	if err := session.Metadata.CheckAndSetDefaults(); err != nil {
+	if err := session.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -176,13 +180,31 @@ func (s *SessionTrackerV1) SetSubKind(sk string) {
 	s.SubKind = sk
 }
 
-// CheckAndSetDefaults sets defaults for the session resource.
-func (s *SessionTrackerV1) CheckAndSetDefaults() error {
+// setStaticFields sets static resource header and metadata fields.
+func (s *SessionTrackerV1) setStaticFields() {
 	s.Kind = KindSessionTracker
 	s.Version = V1
+}
+
+// CheckAndSetDefaults sets defaults for the session resource.
+func (s *SessionTrackerV1) CheckAndSetDefaults() error {
+	s.setStaticFields()
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if s.GetCreated().IsZero() {
+		s.SetCreated(time.Now())
+	}
+
+	if s.Expiry().IsZero() {
+		// By default, resource expiration should match session expiration.
+		expiry := s.GetExpires()
+		if expiry.IsZero() {
+			expiry = s.GetCreated().Add(defaults.SessionTrackerTTL)
+		}
+		s.SetExpiry(expiry)
 	}
 
 	return nil
@@ -217,6 +239,11 @@ func (s *SessionTrackerV1) SetState(state SessionState) error {
 // GetCreated returns the time at which the session was created.
 func (s *SessionTrackerV1) GetCreated() time.Time {
 	return s.Spec.Created
+}
+
+// SetCreated returns the time at which the session was created.
+func (s *SessionTrackerV1) SetCreated(created time.Time) {
+	s.Spec.Created = created
 }
 
 // GetExpires return the time at which the session expires.

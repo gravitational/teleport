@@ -42,6 +42,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -89,7 +90,6 @@ func SetTestTimeouts(t time.Duration) {
 	defaults.ResyncInterval = t
 	defaults.SessionRefreshPeriod = t
 	defaults.HeartbeatCheckPeriod = t
-	defaults.CachePollPeriod = t
 }
 
 // TeleInstance represents an in-memory instance of a teleport
@@ -657,7 +657,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 		return trace.Wrap(err)
 	}
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -752,7 +752,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -796,7 +796,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -817,6 +817,77 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
+}
+
+func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.TeleportProcess, error) {
+	type result struct {
+		process *service.TeleportProcess
+		tmpDir  string
+		err     error
+	}
+
+	results := make(chan result, len(configs))
+	for _, conf := range configs {
+		go func(cfg *service.Config) {
+			dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
+			if err != nil {
+				results <- result{err: err}
+			}
+
+			cfg.DataDir = dataDir
+			cfg.AuthServers = []utils.NetAddr{
+				{
+					AddrNetwork: "tcp",
+					Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+				},
+			}
+			cfg.Token = "token"
+			cfg.UploadEventsC = i.UploadEventsC
+			cfg.Auth.Enabled = false
+			cfg.Proxy.Enabled = false
+
+			// Create a new Teleport process and add it to the list of nodes that
+			// compose this "cluster".
+			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&disabledIMDSClient{}))
+			if err != nil {
+				results <- result{err: err, tmpDir: dataDir}
+			}
+
+			// Build a list of expected events to wait for before unblocking based off
+			// the configuration passed in.
+			expectedEvents := []string{
+				service.AppsReady,
+			}
+
+			// Start the process and block until the expected events have arrived.
+			receivedEvents, err := startAndWait(process, expectedEvents)
+			if err != nil {
+				results <- result{err: err, tmpDir: dataDir}
+			}
+
+			log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
+				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+
+			results <- result{err: err, tmpDir: dataDir, process: process}
+		}(conf)
+	}
+
+	processes := make([]*service.TeleportProcess, 0, len(configs))
+	for j := 0; j < len(configs); j++ {
+		result := <-results
+		if result.tmpDir != "" {
+			i.tempDirs = append(i.tempDirs, result.tmpDir)
+		}
+
+		if result.err != nil {
+			return nil, trace.Wrap(result.err)
+		}
+
+		i.Nodes = append(i.Nodes, result.process)
+		processes = append(processes, result.process)
+	}
+
+	return processes, nil
 }
 
 // StartDatabase starts the database access service with the provided config.
@@ -843,7 +914,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf)
+	process, err := service.NewTeleport(conf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -929,7 +1000,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1016,7 +1087,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf)
+	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1065,7 +1136,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config)
+	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&disabledIMDSClient{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1624,20 +1695,8 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // clobber your system agent.
 func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
-	sockDir, err := ioutil.TempDir("", "int-test")
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	sockPath := filepath.Join(sockDir, "agent.sock")
-
-	uid, err := strconv.Atoi(me.Uid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	gid, err := strconv.Atoi(me.Gid)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
+	sockDirName := "int-test"
+	sockName := "agent.sock"
 
 	// transform the key and certificate bytes into something the agent can understand
 	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
@@ -1666,13 +1725,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
+	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
 	go teleAgent.Serve()
 
-	return teleAgent, sockDir, sockPath, nil
+	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 
 func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
@@ -1703,7 +1762,7 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
 		TeleportClusterName: "teleport-cluster",
-		ClusterAddr:         net.JoinHostPort(Host, ports.Pop()),
+		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	require.NoError(t, err)
@@ -1711,6 +1770,23 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 	config.Kube.Enabled = true
 	config.Kube.KubeconfigPath = kubeConfigPath
 	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+}
+
+// getKubeClusters gets all kubernetes clusters accessible from a given auth server.
+func getKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+	ctx := context.Background()
+	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
+		ResourceType: types.KindKubeService,
+	})
+	require.NoError(t, err)
+	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	require.NoError(t, err)
+
+	clusters := make([]*types.KubernetesCluster, 0)
+	for _, ks := range kss {
+		clusters = append(clusters, ks.GetKubernetesClusters()...)
+	}
+	return clusters
 }
 
 func genUserKey() (*client.Key, error) {
@@ -1756,4 +1832,43 @@ func genUserKey() (*client.Key, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, nil
+}
+
+// getLocalIP gets the non-loopback IP address of this host.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+// disabledIMDSClient is an EC2 instance metadata client that is always disabled. This is faster
+// than the default client when not testing instance metadata behavior.
+type disabledIMDSClient struct{}
+
+func (d *disabledIMDSClient) IsAvailable(ctx context.Context) bool {
+	return false
+}
+
+func (d *disabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	return "", nil
 }

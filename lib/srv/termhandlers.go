@@ -46,9 +46,9 @@ func (t *TermHandlers) HandleExec(ch ssh.Channel, req *ssh.Request, ctx *ServerC
 	// If a terminal was previously allocated for this command, run command in
 	// an interactive session. Otherwise run it in an exec session.
 	if ctx.GetTerm() != nil {
-		return t.SessionRegistry.OpenSession(ch, req, ctx)
+		return t.SessionRegistry.OpenSession(ch, ctx)
 	}
-	return t.SessionRegistry.OpenExecSession(ch, req, ctx)
+	return t.SessionRegistry.OpenExecSession(ch, ctx)
 }
 
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
@@ -110,7 +110,7 @@ func (t *TermHandlers) HandleShell(ch ssh.Channel, req *ssh.Request, ctx *Server
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.SessionRegistry.OpenSession(ch, req, ctx); err != nil {
+	if err := t.SessionRegistry.OpenSession(ch, ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

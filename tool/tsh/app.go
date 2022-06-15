@@ -22,10 +22,13 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -40,7 +43,7 @@ func onAppLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,9 +95,13 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return appLoginTpl.Execute(os.Stdout, map[string]string{
 		"appName": app.GetName(),
-		"curlCmd": formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster),
+		"curlCmd": curlCmd,
 	})
 }
 
@@ -145,7 +152,7 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,7 +195,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,39 +203,80 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, ""))
+	conf, err := formatAppConfig(tc, profile, app.Name, app.PublicAddr, cf.Format, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Print(conf)
 	return nil
 }
 
-func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) string {
-	switch format {
-	case appFormatURI:
-		return fmt.Sprintf("https://%v:%v", appPublicAddr, tc.WebProxyPort())
-	case appFormatCA:
-		return profile.CACertPathForCluster(cluster)
-	case appFormatCert:
-		return profile.AppCertPath(appName)
-	case appFormatKey:
-		return profile.KeyPath()
-	case appFormatCURL:
-		return fmt.Sprintf(`curl \
+func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, appName, appPublicAddr, format, cluster string) (string, error) {
+	var uri string
+	if port := tc.WebProxyPort(); port == teleport.StandardHTTPSPort {
+		uri = fmt.Sprintf("https://%v", appPublicAddr)
+	} else {
+		uri = fmt.Sprintf("https://%v:%v", appPublicAddr, port)
+	}
+	curlCmd := fmt.Sprintf(`curl \
   --cacert %v \
   --cert %v \
   --key %v \
-  https://%v:%v`,
-			profile.CACertPathForCluster(cluster),
-			profile.AppCertPath(appName),
-			profile.KeyPath(),
-			appPublicAddr,
-			tc.WebProxyPort())
+  %v`,
+		profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName),
+		profile.KeyPath(),
+		uri)
+	format = strings.ToLower(format)
+	switch format {
+	case appFormatURI:
+		return uri, nil
+	case appFormatCA:
+		return profile.CACertPathForCluster(cluster), nil
+	case appFormatCert:
+		return profile.AppCertPath(appName), nil
+	case appFormatKey:
+		return profile.KeyPath(), nil
+	case appFormatCURL:
+		return curlCmd, nil
+	case appFormatJSON, appFormatYAML:
+		appConfig := &appConfigInfo{
+			appName, uri, profile.CACertPathForCluster(cluster),
+			profile.AppCertPath(appName), profile.KeyPath(), curlCmd,
+		}
+		out, err := serializeAppConfig(appConfig, format)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%s\n", out), nil
 	}
 	return fmt.Sprintf(`Name:      %v
-URI:       https://%v:%v
+URI:       %v
 CA:        %v
 Cert:      %v
 Key:       %v
-`, appName, appPublicAddr, tc.WebProxyPort(), profile.CACertPathForCluster(cluster),
-		profile.AppCertPath(appName), profile.KeyPath())
+`, appName, uri, profile.CACertPathForCluster(cluster),
+		profile.AppCertPath(appName), profile.KeyPath()), nil
+}
+
+type appConfigInfo struct {
+	Name string `json:"name"`
+	URI  string `json:"uri"`
+	CA   string `json:"ca"`
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+	Curl string `json:"curl"`
+}
+
+func serializeAppConfig(configInfo *appConfigInfo, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == appFormatJSON {
+		out, err = utils.FastMarshalIndent(configInfo, "", "  ")
+	} else {
+		out, err = yaml.Marshal(configInfo)
+	}
+	return string(out), trace.Wrap(err)
 }
 
 // pickActiveApp returns the app the current profile is logged into.
@@ -236,7 +284,7 @@ Key:       %v
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
 func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -271,4 +319,8 @@ const (
 	appFormatKey = "key"
 	// appFormatCURL prints app curl command.
 	appFormatCURL = "curl"
+	// appFormatJSON prints app URI, CA cert path, cert path, key path, and curl command in JSON format.
+	appFormatJSON = "json"
+	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
+	appFormatYAML = "yaml"
 )

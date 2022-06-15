@@ -3,6 +3,10 @@ apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
   name: {{ .Release.Name }}
+{{- if .Values.extraLabels.podSecurityPolicy }}
+  labels:
+  {{- toYaml .Values.extraLabels.podSecurityPolicy | nindent 4 }}
+{{- end }}
   annotations:
     seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default,runtime/default'
     seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'

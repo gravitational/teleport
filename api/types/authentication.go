@@ -19,6 +19,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -516,6 +517,89 @@ func (u *U2F) Check() error {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
+
+	// AppID must be a valid URL.
+	// NOTE: We allow naked AppIDs without a scheme for compatibility with WebAuthn
+	//       as we rely on that behaviour to derive WebAuthn configs on-the-fly.
+	//       This is only valid if all facets are also naked however.
+	appIDURL, err := url.Parse(u.AppID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Trim the www subdomain since it's a common AppID subdomain prefix.
+	host := strings.TrimPrefix(appIDURL.Host, "www.")
+	domain, err := getDomain(host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, facet := range u.Facets {
+		err := validateU2FFacet(domain, appIDURL.Scheme, facet)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// getDomain removes the port from a URL host.
+func getDomain(s string) (string, error) {
+	if strings.Contains(s, ":") {
+		host, _, err := net.SplitHostPort(s)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return host, nil
+	}
+
+	return s, nil
+}
+
+// validateU2FFacet validates that a facet is valid for U2F.
+// This means the following is true:
+//   - The facet domain is equal to the appIDDomain or a subdomain of it OR is localhost.
+//   - That the URL scheme is set for any non-localhost facet and is https if the domain is not localhost.
+//   - That the facet is either a well formed URL or a URL host (naked facet).
+func validateU2FFacet(appIDDomain string, appIDScheme string, facet string) error {
+	if facet == "" {
+		return trace.BadParameter("u2f configuration has an empty facet")
+	}
+
+	var facetHost string
+	var facetScheme string
+	if !strings.Contains(facet, "://") {
+		// Facet is naked, only allowed for localhost domains (checked later).
+		facetHost = facet
+	} else {
+		// FacetURL is a full URL that specifies a scheme.
+		facetURL, err := url.Parse(facet)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		facetScheme = facetURL.Scheme
+		facetHost = facetURL.Host
+	}
+
+	facetDomain, err := getDomain(facetHost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Naked non-https facets are only allowed for localhost domains when the appID has a scheme set.
+	isLocalhost := strings.HasSuffix(facetDomain, "localhost")
+	if appIDScheme != "" && !isLocalhost && facetScheme != "https" {
+		log.Warnf("u2f configuration has an invalid facet %q, must be https", facet)
+	}
+
+	// Check that the facet domain is a equal to the AppID domain or a subdomain of it.
+	if !strings.HasSuffix(facetDomain, appIDDomain) {
+		log.Warnf("u2f configuration has a facet with a different domain than the app_id: %q", facet)
+	}
+
 	return nil
 }
 

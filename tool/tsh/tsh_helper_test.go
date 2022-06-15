@@ -17,13 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
@@ -37,6 +40,9 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -52,10 +58,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -67,7 +74,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -224,7 +231,10 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
 	return process
 }
@@ -245,4 +255,17 @@ func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 			t.Fatalf("service server didn't receved %v event after 30s", event)
 		}
 	}
+}
+
+func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string) {
+	ctx := context.Background()
+	credentials := apiclient.LoadProfile(tshHomePath, "")
+	c, err := apiclient.New(context.Background(), apiclient.Config{
+		Addrs:                    []string{addr},
+		Credentials:              []apiclient.Credentials{credentials},
+		InsecureAddressDiscovery: true,
+	})
+	require.NoError(t, err)
+	_, err = c.Ping(ctx)
+	require.NoError(t, err)
 }

@@ -67,6 +67,9 @@ type RemoteClusterTunnelManagerConfig struct {
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
 	LocalCluster string
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
 	ReverseTunnelServer Server
@@ -168,7 +171,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels()
+	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -216,6 +219,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		HostSigner:          cfg.HostSigner,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
+		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		Clock:               cfg.Clock,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
