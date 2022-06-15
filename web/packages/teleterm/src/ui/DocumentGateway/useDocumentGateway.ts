@@ -87,11 +87,17 @@ export default function useGateway(doc: types.DocumentGateway) {
     }
   }, [disconnectAttempt.status]);
 
-  useEffect(() => {
-    if (rootCluster.connected && !connected) {
-      createGateway();
-    }
-  }, [rootCluster.connected, connected]);
+  const shouldCreateGateway =
+    rootCluster.connected && !connected && connectAttempt.status === '';
+
+  useEffect(
+    function createGatewayOnDocumentOpen() {
+      if (shouldCreateGateway) {
+        createGateway();
+      }
+    },
+    [shouldCreateGateway]
+  );
 
   return {
     doc,
