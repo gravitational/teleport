@@ -2788,6 +2788,21 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 	return &empty.Empty{}, nil
 }
 
+// GenerateToken generates a new auth token.
+func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GenerateTokenResponse{Token: token}, nil
+}
+
 // DeleteToken deletes a token by name.
 func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
