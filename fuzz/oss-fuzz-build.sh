@@ -10,7 +10,7 @@ prepare_teleport() {
 
   # Fix /root/go/pkg/mod/github.com/aws/aws-sdk-go-v2/internal/ini@v1.3.0/fuzz.go:13:21:
   # not enough arguments in call to Parse
-  rm /root/go/pkg/mod/github.com/aws/aws-sdk-go-v2/internal/ini@*/fuzz.go
+  rm -f /root/go/pkg/mod/github.com/aws/aws-sdk-go-v2/internal/ini@*/fuzz.go
 
 }
 
