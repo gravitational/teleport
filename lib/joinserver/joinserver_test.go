@@ -52,8 +52,8 @@ func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, chal
 func newGRPCServer(t *testing.T) (*grpc.Server, *bufconn.Listener) {
 	lis := bufconn.Listen(1024)
 	s := grpc.NewServer(
-		grpc.UnaryInterceptor(utils.ErrorConvertUnaryInterceptor),
-		grpc.StreamInterceptor(utils.ErrorConvertStreamInterceptor),
+		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
 	)
 	return s, lis
 }

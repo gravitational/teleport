@@ -27,6 +27,10 @@ pub fn try_error(msg: &str) -> Error {
     Error::TryError(msg.to_string())
 }
 
+pub fn rejected_by_server_error(msg: &str) -> Error {
+    Error::RdpError(RdpError::new(RdpErrorKind::RejectedByServer, msg))
+}
+
 // NTSTATUS_OK is a Windows NTStatus value that means "success".
 pub const NTSTATUS_OK: u32 = 0;
 // SPECIAL_NO_RESPONSE is our custom (not defined by Windows) NTStatus value that means "don't send

@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 54 - Passwordless for macOS CLI
@@ -233,9 +233,9 @@ The commands are only available on macOS builds.
 `tsh touchid diag` - prints diagnostics about Touch ID support (for example, if
 the binary is signed, entitlements, macOS version and Touch ID availability)
 
-`tsh touchid list` - lists currently stored credentials
+`tsh touchid ls` - lists currently stored credentials
 
-`tsh touchid delete` - deletes a stored credential
+`tsh touchid rm` - deletes a stored credential
 
 ```shell
 $ tsh touchid diag  # diag output subject to change
@@ -250,14 +250,14 @@ $ tsh touchid diag  # diag output subject to change
 > LAContext check passed: yes
 > Secure Enclave check passed: yes
 
-$ tsh touchid list
+$ tsh touchid ls
 <system shows Touch ID prompt>
-> RPID        User    Key Handle
+> RPID        User    Credential ID
 > ----------- ------- ------------------------------------
 > example.com llama   6ed2d2e4-7933-4988-9eeb-428e8531f122
 > example.com alpaca  cbf251a3-0e44-4068-87cb-91a1eb241eaf
 
-$ tsh touchid delete 6ed2d2e4-7933-4988-9eeb-428e8531f122
+$ tsh touchid rm 6ed2d2e4-7933-4988-9eeb-428e8531f122
 <system shows Touch ID prompt>
 > Credential 6ed2d2e4-7933-4988-9eeb-428e8531f122 / llama@example.com deleted.
 ```
@@ -296,8 +296,8 @@ new credentials.
 The following hidden maintenance commands are added:
 
 * `tsh touchid diag`
-* `tsh touchid list`
-* `tsh touchid delete`
+* `tsh touchid ls`
+* `tsh touchid rm`
 
 Regular users shouldn't need to touch those commands, but they are available for
 troubleshooting and credential management.

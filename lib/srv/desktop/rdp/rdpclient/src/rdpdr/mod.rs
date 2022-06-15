@@ -17,7 +17,8 @@ mod flags;
 mod scard;
 
 use crate::errors::{
-    invalid_data_error, not_implemented_error, try_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE,
+    invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
+    SPECIAL_NO_RESPONSE,
 };
 use crate::util;
 use crate::vchan;
@@ -173,7 +174,7 @@ impl Client {
 
         let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_CLIENT_CAPABILITY,
-            ClientCoreCapabilityResponse::new_response().encode()?,
+            ClientCoreCapabilityResponse::new_response(self.allow_directory_sharing).encode()?,
         )?;
         debug!("sending client core capability response");
         Ok(resp)
@@ -205,34 +206,40 @@ impl Client {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got ServerDeviceAnnounceResponse: {:?}", req);
 
-        if !self.active_device_ids.contains(&req.device_id) {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err_code: 1,
-                directory_id: req.device_id,
-            })?;
-            Err(invalid_data_error(&format!(
-                "got ServerDeviceAnnounceResponse for unknown device_id {}",
-                &req.device_id
-            )))
-        } else if req.result_code != NTSTATUS_OK {
-            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                err_code: 1,
-                directory_id: req.device_id,
-            })?;
-            Err(invalid_data_error(&format!(
-                "got unsuccessful ServerDeviceAnnounceResponse result code NTSTATUS({})",
-                &req.result_code
-            )))
-        } else {
-            debug!("ServerDeviceAnnounceResponse was valid");
+        if self.active_device_ids.contains(&req.device_id) {
             if req.device_id != self.get_scard_device_id()? {
+                // This was for a directory we're sharing over TDP
+                let mut err_code: u32 = 0;
+                if req.result_code != NTSTATUS_OK {
+                    err_code = 1;
+                    debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})", &req.result_code);
+                } else {
+                    debug!("ServerDeviceAnnounceResponse for shared directory succeeded")
+                }
+
                 (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                    err_code: 0,
+                    err_code,
                     directory_id: req.device_id,
                 })?;
+            } else {
+                // This was for the smart card
+                if req.result_code != NTSTATUS_OK {
+                    // End the session, we cannot continue without
+                    // the smart card being redirected.
+                    return Err(rejected_by_server_error(&format!(
+                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
+                        &req.result_code
+                    )));
+                }
+                debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
             }
-            Ok(vec![])
+        } else {
+            return Err(invalid_data_error(&format!(
+                "got ServerDeviceAnnounceResponse for unknown device_id {}",
+                &req.device_id
+            )));
         }
+        Ok(vec![])
     }
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
@@ -377,12 +384,6 @@ impl Client {
                                 );
                             }
 
-                            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L263
-                            // Note: the above line in FreeRDP will always evaluate to true:
-                            // - drive_file_init is called here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L362
-                            // - it is always passed a file where file->file_handle = INVALID_HANDLE_VALUE: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L351
-                            // - None of the calls up to the line in question can have changed it
-
                             // The actual creation of files and error mapping badevice_io_request.completion_id happens here, for reference:
                             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
                             if rdp_req.create_disposition
@@ -476,11 +477,13 @@ impl Client {
                 let rdp_req =
                     ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
                 debug!("got {:?}", rdp_req);
-                if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-                    self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS)
+                let f = self.get_file_by_id(rdp_req.device_io_request.file_id);
+                let code = if f.is_some() {
+                    NTSTATUS::STATUS_SUCCESS
                 } else {
-                    self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL)
-                }
+                    NTSTATUS::STATUS_UNSUCCESSFUL
+                };
+                self.prep_query_info_response(&rdp_req, f, code)
             }
             MajorFunction::IRP_MJ_CLOSE => {
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
@@ -505,6 +508,8 @@ impl Client {
         }
     }
 
+    /// This is called from Go (in effect) to announce a new directory
+    /// for sharing.
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -766,8 +771,25 @@ impl Client {
     }
 }
 
-#[derive(Debug)]
+/// FileCacheObject is an in-memory representation of
+/// of a file or directory holding the metadata necessary
+/// for RDP drive redirection. They are stored in map indexed
+/// by their RDP FileId.
+///
+/// The lifecycle for a FileCacheObject is a function of the
+/// MajorFunction of RDP DeviceIoRequests:
+///
+/// | Sequence | MajorFunction | results in                                               |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 1        | IRP_MJ_CREATE | A new FileCacheObject is created and assigned a FileId   |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 2        | <other>       | The FCO is retrieved from the cache by the FileId in the |
+/// |          |               | DeviceIoRequest and metadata is used to craft a response |
+/// | -------- | ------------- | ---------------------------------------------------------|
+/// | 3        | IRP_MJ_CLOSE  | The FCO is deleted from the cache                        |
+/// | -------- | ------------- | ---------------------------------------------------------|
 #[allow(dead_code)]
+#[derive(Debug)]
 struct FileCacheObject {
     path: String,
     delete_pending: bool,
@@ -872,11 +894,11 @@ struct ServerCoreCapabilityRequest {
 }
 
 impl ServerCoreCapabilityRequest {
-    fn new_response() -> Self {
+    fn new_response(allow_directory_sharing: bool) -> Self {
         // Clients are always required to send the "general" capability set.
         // In addition, we also send the optional smartcard capability (CAP_SMARTCARD_TYPE)
         // and drive capability (CAP_DRIVE_TYPE).
-        let capabilities = vec![
+        let mut capabilities = vec![
             CapabilitySet {
                 header: CapabilityHeader {
                     cap_type: CapabilityType::CAP_GENERAL_TYPE,
@@ -904,19 +926,22 @@ impl ServerCoreCapabilityRequest {
                 },
                 data: Capability::Smartcard,
             },
-            CapabilitySet {
+        ];
+
+        if allow_directory_sharing {
+            capabilities.push(CapabilitySet {
                 header: CapabilityHeader {
                     cap_type: CapabilityType::CAP_DRIVE_TYPE,
                     length: 8, // 8 byte header + empty capability descriptor
                     version: DRIVE_CAPABILITY_VERSION_02,
                 },
                 data: Capability::Drive,
-            },
-        ];
+            });
+        }
 
         Self {
             padding: 0,
-            num_capabilities: u16::try_from(capabilities.len()).unwrap(),
+            num_capabilities: capabilities.len() as u16,
             capabilities,
         }
     }
@@ -1101,6 +1126,9 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
+    /// Creates a ClientDeviceListAnnounceRequest for announcing a new shared drive (directory).
+    /// A new drive can be announced at any time during RDP's operation. It is up to the caller
+    /// to ensure that the passed device_id is unique from that of any previously shared devices.
     pub fn new_drive(device_id: u32, drive_name: String) -> Self {
         // According to the spec:
         //
@@ -1159,6 +1187,8 @@ impl DeviceAnnounceHeader {
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
         let mut name: &str = &self.preferred_dos_name;
+        // See "PreferredDosName" at
+        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/32e34332-774b-4ead-8c9d-5d64720d6bf9
         if name.len() > 7 {
             name = &name[..7];
         }
@@ -2135,6 +2165,7 @@ impl ClientDriveQueryDirectoryResponse {
 /// (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a69cc039-d288-4673-9598-772b6083f8bf).
 fn to_windows_time(tdp_time_ms: u64) -> i64 {
     // https://stackoverflow.com/a/5471380/6277051
+    // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
     let tdp_time_sec = tdp_time_ms / 1000;
     ((tdp_time_sec * 10000000) + 116444736000000000) as i64
 }
@@ -2152,3 +2183,16 @@ type SharedDirectoryCreateResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryDeleteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_windows_time() {
+        // Cross checked against
+        // https://www.silisoftware.com/tools/date.php?inputdate=1655246166&inputformat=unix
+        assert_eq!(to_windows_time(1655246166 * 1000), 132997197660000000);
+        assert_eq!(to_windows_time(1000), 116444736010000000);
+    }
+}
