@@ -496,6 +496,7 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 	})
 }
 
+// sharedDirectoryAcknowledge acknowledges that a `Shared Directory Announce` TDP message was processed.
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(ack); err != nil {

@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 
 	"github.com/ThalesIgnite/crypto11"
@@ -226,7 +225,6 @@ func (c *hsmKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
 	return sshSigner, nil
 }
 
@@ -415,7 +413,6 @@ func (c *hsmKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner = sshutils.AlgSigner(sshSigner, sshutils.GetSigningAlgName(ca))
 	return sshSigner, nil
 }
 
