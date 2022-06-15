@@ -289,24 +289,22 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// ping endpoint is used to check if the server is up. the /webapi/ping
-	// endpoint returns the default authentication method and configuration that
-	// the server supports. the /webapi/ping/:connector endpoint can be used to
-	// query the authentication configuration for a specific connector.
-	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
-	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
-
-	// Issues SSH temp certificates based on 2FA access creds
-	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
-
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
 
 	if !cfg.MinimalReverseTunnelRoutesOnly {
+
+		// ping endpoint is used to check if the server is up. the /webapi/ping
+		// endpoint returns the default authentication method and configuration that
+		// the server supports. the /webapi/ping/:connector endpoint can be used to
+		// query the authentication configuration for a specific connector.
+		h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
+		h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
+
 		// Unauthenticated access to JWT public keys.
 		h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
@@ -334,6 +332,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 		h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 		h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
+
+		// Issues SSH temp certificates based on 2FA access creds
+		h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
 
 		// list available sites
 		h.GET("/webapi/sites", h.WithAuth(h.getClusters))
