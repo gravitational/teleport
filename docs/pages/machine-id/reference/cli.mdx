@@ -130,6 +130,12 @@ $ tbot db --proxy=example.com --destination-dir=./tbot-user/ --help
 $ tbot db --proxy=example.com --destination-dir=./tbot-user/ -- --help
 ```
 
+Additionally, be aware of the following limitations of `tbot db`:
+ * `tbot db connect` requires a `tbot db login` for certain database types,
+   like MySQL, so that additional connection parameters can be written to a
+   local configuration file. 
+ * `tbot db env` is not fully supported.
+
 ## `tbot proxy`
 
 If you want to access Teleport resources on a cluster using
