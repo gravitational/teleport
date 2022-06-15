@@ -362,9 +362,11 @@ func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
 				return false, trace.BadParameter("unsupported role version: %v", policySet.Version)
 			}
 		}
+
+		return false, nil
 	}
 
-	return false, nil
+	return true, nil
 }
 
 func preAccessControlsModes(kind types.SessionKind) []types.SessionParticipantMode {
