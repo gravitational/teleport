@@ -56,7 +56,9 @@ pub struct Client {
 
     allow_directory_sharing: bool,
     active_device_ids: Vec<u32>,
-    /// FileId-indexed cache of FileCacheObjects
+    /// FileId-indexed cache of FileCacheObjects.
+    /// See the documentation of FileCacheObject
+    /// for more detail on how this is used.
     file_cache: HashMap<u32, FileCacheObject>,
     next_file_id: u32, // used to generate file id's
 
@@ -739,10 +741,14 @@ impl Client {
         self.vchan.add_header_and_chunkify(None, inner)
     }
 
+    /// Retrieves a FileCacheObject from the file cache
+    /// (without removing it from the cache).
     fn get_file_by_id(&self, file_id: u32) -> Option<&FileCacheObject> {
         self.file_cache.get(&file_id)
     }
 
+    /// Retrieves a FileCacheObject from the file cache,
+    /// removing it from the cache.
     fn remove_file_by_id(&mut self, file_id: u32) -> Option<FileCacheObject> {
         self.file_cache.remove(&file_id)
     }
