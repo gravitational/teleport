@@ -1555,7 +1555,7 @@ type proxyAuthorizer struct {
 	authDB    map[string]string
 }
 
-func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *proxyAuthorizer {
+func newProxyAuthorizer(handler http.Handler, authDB map[string]string) *proxyAuthorizer {
 	return &proxyAuthorizer{next: handler, authDB: authDB}
 }
 

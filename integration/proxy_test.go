@@ -855,7 +855,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	// Create and start http_proxy server.
 	ph := &proxyHandler{}
-	authorizer := NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	authorizer := newProxyAuthorizer(ph, map[string]string{validUser: validPass})
 	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
