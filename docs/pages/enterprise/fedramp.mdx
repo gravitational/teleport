@@ -1,5 +1,5 @@
 ---
-title: FedRAMP Compliance for Infrastructure Access 
+title: FedRAMP Compliance for Infrastructure Access
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
 ---
 
@@ -49,7 +49,7 @@ Enterprise FIPS Binary.
 
 After downloading the binary tarball, run:
 
-```bsh
+```code
 $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
@@ -122,9 +122,9 @@ proxy_service:
 ### Systemd Unit File
 
 Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd/fips)
-on Github and save it as `/etc/systemd/system/teleport.service` on both servers.
+on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
-```bsh
+```code
 # run this on both servers:
 $ sudo systemctl daemon-reload
 $ sudo systemctl enable teleport

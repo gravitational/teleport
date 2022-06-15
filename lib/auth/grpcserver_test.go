@@ -1970,7 +1970,7 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 2)
 				require.Empty(t, resp.NextKey)
-				require.Empty(t, resp.TotalCount)
+				require.Equal(t, 2, resp.TotalCount)
 			}
 
 			// Test listing with NeedTotalCount flag.

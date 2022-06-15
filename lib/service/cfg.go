@@ -600,6 +600,10 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -743,6 +747,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
 }
@@ -765,6 +771,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string
 }
 
 // DatabaseAWSSecretStore contains secret store configurations.
@@ -1107,6 +1119,12 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.

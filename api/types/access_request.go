@@ -94,6 +94,10 @@ type AccessRequest interface {
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 	SetRequestedResourceIDs([]ResourceID)
+	// GetLoginHint gets the requested login hint.
+	GetLoginHint() string
+	// SetLoginHint sets the requested login hint.
+	SetLoginHint(string)
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -380,6 +384,16 @@ func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
 // SetRequestedResourceIDs sets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) SetRequestedResourceIDs(ids []ResourceID) {
 	r.Spec.RequestedResourceIDs = append([]ResourceID{}, ids...)
+}
+
+// GetLoginHint gets the requested login hint.
+func (r *AccessRequestV3) GetLoginHint() string {
+	return r.Spec.LoginHint
+}
+
+// SetLoginHint sets the requested login hint.
+func (r *AccessRequestV3) SetLoginHint(login string) {
+	r.Spec.LoginHint = login
 }
 
 // String returns a text representation of this AccessRequest
