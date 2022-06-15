@@ -19,8 +19,16 @@ pub fn invalid_data_error(msg: &str) -> Error {
     Error::RdpError(RdpError::new(RdpErrorKind::InvalidData, msg))
 }
 
+pub fn not_implemented_error(msg: &str) -> Error {
+    Error::RdpError(RdpError::new(RdpErrorKind::NotImplemented, msg))
+}
+
 pub fn try_error(msg: &str) -> Error {
     Error::TryError(msg.to_string())
+}
+
+pub fn rejected_by_server_error(msg: &str) -> Error {
+    Error::RdpError(RdpError::new(RdpErrorKind::RejectedByServer, msg))
 }
 
 // NTSTATUS_OK is a Windows NTStatus value that means "success".
