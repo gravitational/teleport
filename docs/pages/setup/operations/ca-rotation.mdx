@@ -77,6 +77,10 @@ the phase transitions look like this:
   and gotchas before going with semi-automatic version.
 </Admonition>
 
+It is possible to rotate a specific set of certificate authorities using the 
+`--type` flag. If this flag is not provided, then all certificate authorities
+will be rotated. 
+
 ## Manual rotation
 
 In manual mode, we manually transition between phases while monitoring the state
@@ -87,7 +91,7 @@ of the cluster.
 Initiate the manual rotation of host certificate authorities:
 
 ```code
-$ tctl auth rotate --phase=init --manual --type=host
+$ tctl auth rotate --phase=init --manual
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 

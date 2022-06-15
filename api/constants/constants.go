@@ -217,3 +217,25 @@ const (
 	// when HTTPS_PROXY or HTTP_PROXY is ignored
 	NoProxy = "NO_PROXY"
 )
+
+// SessionRecordingService is used to differentiate session recording services.
+type SessionRecordingService int
+
+const (
+	// SessionRecordingServiceSSH represents the SSH service session.
+	SessionRecordingServiceSSH SessionRecordingService = iota
+)
+
+// SessionRecordingMode determines how session recording will behave in failure
+// scenarios.
+type SessionRecordingMode string
+
+const (
+	// SessionRecordingModeStrict causes any failure session recording to
+	// terminate the session or prevent a new session from starting.
+	SessionRecordingModeStrict = SessionRecordingMode("strict")
+
+	// SessionRecordingModeBestEffort allows the session to keep going even when
+	// session recording fails.
+	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
+)

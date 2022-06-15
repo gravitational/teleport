@@ -97,24 +97,24 @@ Mappings:
     t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    # All AMIs from AWS - gravitational-teleport-ami-oss-9.2.4
+    # All AMIs from AWS - gravitational-teleport-ami-oss-9.3.5
     eu-north-1: {HVM64: ami-0eef7480d85b07d78}
-    ap-south-1: {HVM64 : ami-0a67692855ee49a1a}
-    eu-west-1: {HVM64 : ami-0662b8714fca586b3}
-    eu-west-2: {HVM64 : ami-0bcf21a6aa02414f4}
+    ap-south-1: {HVM64 : ami-0b37542a900b756d1}
+    eu-west-1: {HVM64 : ami-0b028aa8e9a1877e6}
+    eu-west-2: {HVM64 : ami-0498c65d343759318}
     eu-west-3: {HVM64: ami-0211c6e2e821dd249}
-    ap-northeast-1: {HVM64 : ami-05f1a61ade057382b}
-    ap-northeast-2: {HVM64 : ami-0c5b1740dad29f210}
+    ap-northeast-1: {HVM64 : ami-03cf56e54a5bd425d}
+    ap-northeast-2: {HVM64 : ami-0521f73847d4237d4}
     ap-northeast-3: {HVM64: ami-02bb8618b75d025aa}
-    sa-east-1: {HVM64 : ami-012e0a5eaecbca0bc}
-    ca-central-1: {HVM64 : ami-0d816a065e36a8430}
-    ap-southeast-1: {HVM64 : ami-0798d7d1f639024b0}
-    ap-southeast-2: {HVM64 : ami-0c319f52b599bf9fd}
-    eu-central-1: {HVM64 : ami-05829abe8066e4bf1}
-    us-east-1: {HVM64 : ami-0fc6445794dccbd6a}
-    us-east-2: {HVM64 : ami-0467b40be0997def7}
-    us-west-1: {HVM64 : ami-05073d56304551bea}
-    us-west-2: {HVM64 : ami-0b7939c38e8542d66}
+    sa-east-1: {HVM64 : ami-0b7f9b559ef7389fd}
+    ca-central-1: {HVM64 : ami-0421f854766b95d6b}
+    ap-southeast-1: {HVM64 : ami-0dc3fb932aa49cd56}
+    ap-southeast-2: {HVM64 : ami-0dbd504721c6ba167}
+    eu-central-1: {HVM64 : ami-0be794cc5e32a2e99}
+    us-east-1: {HVM64 : ami-0f57d482203c36e4f}
+    us-east-2: {HVM64 : ami-016b2c1e3e1c7809e}
+    us-west-1: {HVM64 : ami-0f9f4db9fe8ddf3c7}
+    us-west-2: {HVM64 : ami-0a3ee4c3611949725}
 
 Resources:
 # Auth server setup
@@ -731,6 +731,7 @@ Resources:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
             - "s3:ListBucketMultipartUploads"
+            - "s3:AbortMultipartUpload"
 
           -
             Effect: "Allow"
@@ -818,6 +819,7 @@ Resources:
             - "s3:ListBucket"
             - "s3:ListBucketVersions"
             - "s3:ListBucketMultipartUploads"
+            - "s3:AbortMultipartUpload"
 
           -
             Effect: "Allow"
