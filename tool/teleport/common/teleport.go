@@ -534,18 +534,29 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if configPath != "" {
-		fmt.Printf("A Teleport configuration file has been created at %q.\n", configPath)
-		if !strings.HasPrefix(configPath, defaults.ConfigDir) {
-			fmt.Printf("For production environments, we recommend storing your Teleport configuration file at %q.\n", defaults.ConfigFilePath)
-		}
-		if modules.GetModules().BuildType() != modules.BuildOSS {
-			fmt.Printf("Add your license file to %q and start the server.\n", flags.LicensePath)
-		}
-		fmt.Printf("To start a teleport node with this configuration file, run:\n\nteleport start --config=%q\n\n", configPath)
+		canWriteToDataDir := utils.CanUserWriteTo(flags.DataDir)
+		canWriteToConfDir := utils.CanUserWriteTo(configPath)
+		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
-		if strings.HasPrefix(flags.DataDir, defaults.DataDir) {
-			fmt.Printf("Note that root access is required when \"teleport configure\" is run without specifying \"--data-dir\", because Teleport will default to storing data at %q.\n\n", defaults.DataDir)
+		fmt.Printf("A Teleport configuration file has been created at %q.\n", configPath)
+		if modules.GetModules().BuildType() != modules.BuildOSS {
+			fmt.Printf("Your license file should be added to %q.\n", flags.LicensePath)
 		}
+		fmt.Printf("To start a teleport node with this configuration file, run:\n\n")
+		if requiresRoot {
+			fmt.Printf("sudo teleport start --config=%q\n\n", configPath)
+			fmt.Printf("Note that starting a Teleport server with this configuration will require root access as:\n")
+			if !canWriteToConfDir {
+				fmt.Printf("- The Teleport configuration is located at %q.\n", configPath)
+			}
+			if !canWriteToDataDir {
+				fmt.Printf("- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("teleport start --config=%q\n\n", configPath)
+		}
+
 		fmt.Printf("Happy Teleporting!\n")
 	}
 
