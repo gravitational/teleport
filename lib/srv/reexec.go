@@ -44,6 +44,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type FileFD = uintptr
+
+const (
+	CommandFile FileFD = 3 + iota
+	ContinueFile
+	X11File
+	PTYFile
+	TTYFile
+
+	ExtraFD FileFD = 6
+)
+
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
 type ExecCommand struct {
@@ -146,11 +158,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stdout
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	contfd := os.NewFile(uintptr(4), "/proc/self/fd/4")
+	contfd := os.NewFile(ContinueFile, "/proc/self/fd/4")
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
@@ -175,8 +187,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(uintptr(6), "/proc/self/fd/6")
-		tty = os.NewFile(uintptr(7), "/proc/self/fd/7")
+		pty = os.NewFile(PTYFile, "/proc/self/fd/6")
+		tty = os.NewFile(TTYFile, "/proc/self/fd/7")
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -312,7 +324,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
 
 		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(uintptr(5), "/proc/self/fd/5")
+		x11rdyfd := os.NewFile(X11File, "/proc/self/fd/5")
 		if x11rdyfd == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 		}
@@ -369,7 +381,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stderr
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
@@ -592,7 +604,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 				// FD 3 and 4 are used for the command file and the
 				// continue file, and FD 5 is used for the X11 file,
 				// so extra file FDs will start at 6.
-				fd := 6 + i
+				fd := int(ExtraFD) + i
 				f := os.NewFile(uintptr(fd), strconv.Itoa(fd))
 				if f == nil {
 					return nil, trace.NotFound("extra file %d not found", i)
