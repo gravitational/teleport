@@ -118,6 +118,7 @@ build_teleport_api_fuzzers() {
 
 compile() {
 
+  go get github.com/AdamKorcz/go-118-fuzz-build/utils
   prepare_teleport
   prepare_teleport_api
 
