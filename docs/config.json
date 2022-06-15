@@ -51,6 +51,10 @@
         {
           "title": "FAQ",
           "slug": "/faq/"
+        },
+        {
+          "title": "Changelog",
+          "slug": "/changelog/"
         }
       ]
     },
@@ -742,15 +746,11 @@
     },
     {
       "icon": "wand",
-      "title": "Releases",
+      "title": "Preview",
       "entries": [
         {
           "title": "Upcoming Releases",
-          "slug": "/releases/upcoming-releases/"
-        },
-        {
-            "title": "Changelog",
-            "slug": "/releases/changelog/"
+          "slug": "/preview/upcoming-releases/"
         }
       ]
     },
@@ -1273,16 +1273,6 @@
     {
       "source": "/application-access/guides/jwt/",
       "destination": "/application-access/jwt/",
-      "permanent": true
-    },
-    {
-      "source": "/preview/upcoming-releases/",
-      "destination": "/releases/upcoming-releases/",
-      "permanent": true
-    },
-    {
-      "source": "/changelog/",
-      "destination": "/releases/changelog/",
       "permanent": true
     },
     {
