@@ -239,7 +239,7 @@ export function useNewRequest(ctx: Ctx) {
     fromPage = page.index * pageSize + 1;
     toPage = fromPage + fetchedData.agents.length - 1;
     totalCount = fetchedData.totalCount;
-  } else if (requestableRoles.length > 0) {
+  } else if (selectedResource === 'role' && requestableRoles.length > 0) {
     fromPage = 1;
     toPage = requestableRoles.length;
     totalCount = requestableRoles.length;
@@ -259,7 +259,6 @@ export function useNewRequest(ctx: Ctx) {
     updateResourceKind,
     addedResources,
     addOrRemoveResource,
-    pageSize,
     pageCount: {
       to: toPage,
       from: fromPage,

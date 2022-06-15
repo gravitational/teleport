@@ -81,7 +81,6 @@ export function renderActionCell(
 }
 
 export type ListProps = {
-  pageSize: State['pageSize'];
   customSort: State['customSort'];
   onLabelClick: State['onAgentLabelClick'];
   addedResources: State['addedResources'];
@@ -92,7 +91,6 @@ export type ListProps = {
 export type Props = {
   agents: State['agents'];
   selectedResource: State['selectedResource'];
-  pageSize: State['pageSize'];
   customSort: State['customSort'];
   onLabelClick: State['onAgentLabelClick'];
   addedResources: State['addedResources'];

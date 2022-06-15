@@ -79,7 +79,6 @@ export function NewRequest(props: State) {
     selectedResource,
     addedResources,
     addOrRemoveResource,
-    pageSize,
     pageCount,
     customSort,
     nextPage,
@@ -183,7 +182,6 @@ export function NewRequest(props: State) {
             <ResourceList
               agents={agents}
               selectedResource={selectedResource}
-              pageSize={pageSize}
               customSort={customSort}
               onLabelClick={onAgentLabelClick}
               addedResources={addedResources}
