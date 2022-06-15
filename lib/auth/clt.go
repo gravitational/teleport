@@ -88,7 +88,11 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
-	apiClient, err := client.New(context.TODO(), cfg)
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiClient, err := client.New(cfg.Context, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -458,26 +462,6 @@ func (c *Client) ActivateCertAuthority(id types.CertAuthID) error {
 // DeactivateCertAuthority not implemented: can only be called locally.
 func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// GenerateToken creates a special provisioning token for a new SSH server
-// that is valid for ttl period seconds.
-//
-// This token is used by SSH server to authenticate with Auth server
-// and get signed certificate and private key from the auth server.
-//
-// If token is not supplied, it will be auto generated and returned.
-// If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
 }
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
@@ -1569,7 +1553,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the

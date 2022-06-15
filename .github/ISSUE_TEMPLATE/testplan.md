@@ -1,3 +1,9 @@
+---
+name: Test Plan
+about: Manual test plan for Teleport major releases
+labels: testplan
+---
+
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
@@ -896,6 +902,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
@@ -908,6 +915,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
@@ -932,6 +940,10 @@ and non interactive tsh bench loads.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
   - [ ] Can detect and register Redshift clusters.
   - [ ] Can detect and register ElastiCache Redis clusters.
+  - [ ] Can detect and register MemoryDB clusters.
+- [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
+  - [ ] Can detect and manage ElastiCache users
+  - [ ] Can detect and manage MemoryDB users 
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
@@ -1094,28 +1106,28 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 
 ## Teleport Connect
 
-- Shell 
+- Shell
   - [ ] Verify that shell is pinned to correct cluster (for root clusters and leaf clusters)
   - [ ] Verify that local shell is opened with the correct env vars
   - [ ] Verify that working directory in the tab title is updated when you change the directory (only for local terminals)
 - State restoration
   - [ ] Verify that app asks about restoring the previous tabs when launched
-  - [ ] Verify that app opens with the cluster that was active when you closed it previously 
-  - [ ] Verify that app remembers size & position after restart 
+  - [ ] Verify that app opens with the cluster that was active when you closed it previously
+  - [ ] Verify that app remembers size & position after restart
   - [ ] Verify if [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works
 - Connections picker
   - [ ] Verify that connections picker shows new connections when ssh & db tabs are opened
   - [ ] Check if these connections are available after the app restart
-  - [ ] Check that these connections are removed when the cluster to which they belong is removed 
+  - [ ] Check that these connections are removed when the cluster to which they belong is removed
 - Cluster resources (servers/databases)
   - [ ] Verify that the app shows the same resources as WebUI
   - [ ] Verify that search is working for the resources lists
   - [ ] Verify that you can connect to these resources
-- [ ] Verify if adding a cluster adds it to the clusters list and activates automatically 
+- [ ] Verify if adding a cluster adds it to the clusters list and activates automatically
 - [ ] Verify that state of the current workspace is preserved when you change it (by switching to another cluster) and return
 - [ ] Verify that autocomplete works in the command bar
-- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & porfile selectors, switching tabs, etc.) 
-- [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable 
+- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & porfile selectors, switching tabs, etc.)
+- [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable
 - [ ] Verify that logs are collected for all processes
 - [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired
 

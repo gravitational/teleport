@@ -655,6 +655,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
+	processID := fmt.Sprintf("%v", nextProcessID())
+	cfg.Log = utils.WrapLogger(cfg.Log.WithFields(logrus.Fields{
+		trace.Component: teleport.Component(teleport.ComponentProcess, processID),
+		"pid":           fmt.Sprintf("%v.%v", os.Getpid(), processID),
+	}))
+
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
@@ -667,7 +673,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0o700)
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
@@ -747,7 +753,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		cfg.AuthServers = []utils.NetAddr{cfg.Auth.SSHAddr}
 	}
 
-	processID := fmt.Sprintf("%v", nextProcessID())
 	supervisor := NewSupervisor(processID, cfg.Log)
 	storage, err := auth.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
@@ -818,6 +823,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
 		id:                  processID,
+		log:                 cfg.Log,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
 		cloudLabels:         cloudLabels,
@@ -825,10 +831,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	process.registerAppDepend()
-
-	process.log = cfg.Log.WithFields(logrus.Fields{
-		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
-	})
 
 	serviceStarted := false
 
@@ -872,7 +874,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		eventMapping.In = append(eventMapping.In, DatabasesReady)
 	}
 	if cfg.Metrics.Enabled {
@@ -928,7 +930,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		process.initDatabases()
 		serviceStarted = true
 	} else {
@@ -966,7 +968,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -1680,6 +1682,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2211,7 +2214,7 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 	for i := 1; i < len(path); i++ {
 		dir := filepath.Join(path[:i+1]...)
 		log.Infof("Creating directory %v.", dir)
-		err := os.Mkdir(dir, 0755)
+		err := os.Mkdir(dir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -3083,27 +3086,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
 				NewCachingAccessPointOldProxy: process.newLocalCacheForOldRemoteProxy,
 				Limiter:                       reverseTunnelLimiter,
-				DirectClusters: []reversetunnel.DirectCluster{
-					{
-						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-						Client: conn.Client,
-					},
-				},
-				KeyGen:               cfg.Keygen,
-				Ciphers:              cfg.Ciphers,
-				KEXAlgorithms:        cfg.KEXAlgorithms,
-				MACAlgorithms:        cfg.MACAlgorithms,
-				DataDir:              process.Config.DataDir,
-				PollingPeriod:        process.Config.PollingPeriod,
-				FIPS:                 cfg.FIPS,
-				Emitter:              streamEmitter,
-				Log:                  process.log,
-				LockWatcher:          lockWatcher,
-				PeerClient:           peerClient,
-				NodeWatcher:          nodeWatcher,
-				CertAuthorityWatcher: caWatcher,
-				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:   utils.NetAddrsToStrings(process.Config.AuthServers),
+				KeyGen:                        cfg.Keygen,
+				Ciphers:                       cfg.Ciphers,
+				KEXAlgorithms:                 cfg.KEXAlgorithms,
+				MACAlgorithms:                 cfg.MACAlgorithms,
+				DataDir:                       process.Config.DataDir,
+				PollingPeriod:                 process.Config.PollingPeriod,
+				FIPS:                          cfg.FIPS,
+				Emitter:                       streamEmitter,
+				Log:                           process.log,
+				LockWatcher:                   lockWatcher,
+				PeerClient:                    peerClient,
+				NodeWatcher:                   nodeWatcher,
+				CertAuthorityWatcher:          caWatcher,
+				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3295,7 +3292,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
-		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		LocalCluster:        clusterName,
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
@@ -3496,7 +3493,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -4098,6 +4095,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4202,6 +4200,10 @@ func validateConfig(cfg *Config) error {
 		cfg.Console = io.Discard
 	}
 
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
+	}
+
 	if len(cfg.AuthServers) == 0 {
 		return trace.BadParameter("auth_servers is empty")
 	}
@@ -4253,10 +4255,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := os.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := os.WriteFile(keyPath, creds.PrivateKey, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := os.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := os.WriteFile(certPath, creds.Cert, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil

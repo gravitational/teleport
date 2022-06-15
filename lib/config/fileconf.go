@@ -1158,7 +1158,8 @@ type ResourceMatcher struct {
 
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", or "elasticache".
+	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
@@ -1245,6 +1246,8 @@ type DatabaseAWS struct {
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1265,6 +1268,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
