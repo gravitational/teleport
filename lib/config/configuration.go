@@ -1160,6 +1160,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: database.AWS.MemoryDB.ClusterName,
+				},
 				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
 					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,

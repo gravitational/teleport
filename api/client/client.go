@@ -789,21 +789,23 @@ func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter, c.callOpts...)
 	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			return c.getAccessRequestsLegacy(ctx, filter)
-		}
-
-		return nil, err
+		return nil, trail.FromGRPC(err)
 	}
+
 	var reqs []types.AccessRequest
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
-			return nil, trail.FromGRPC(err)
+			err := trail.FromGRPC(err)
+			if trace.IsNotImplemented(err) {
+				return c.getAccessRequestsLegacy(ctx, filter)
+			}
+
+			return nil, err
 		}
 		reqs = append(reqs, req)
 	}
@@ -1840,6 +1842,14 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	}
 	_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// GenerateToken generates a new auth token for the given service roles.
+// This token can be used by corresponding services to authenticate with
+// the Auth server and get a signed certificate and private key.
+func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
+	return resp.Token, trail.FromGRPC(err)
 }
 
 // DeleteToken deletes a provision token by name.

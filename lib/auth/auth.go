@@ -1970,46 +1970,24 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	return sess, nil
 }
 
-// GenerateTokenRequest is a request to generate auth token
-type GenerateTokenRequest struct {
-	// Token if provided sets the token value, otherwise will be auto generated
-	Token string `json:"token"`
-	// Roles is a list of roles this token authenticates as
-	Roles types.SystemRoles `json:"roles"`
-	// TTL is a time to live for token
-	TTL time.Duration `json:"ttl"`
-	// Labels sets token labels, e.g. {env: prod, region: us-west}.
-	// Labels are later passed to resources that are joining
-	// e.g. remote clusters and in the future versions, nodes and proxies.
-	Labels map[string]string `json:"labels"`
-}
+// GenerateToken generates multi-purpose authentication token.
+func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	expires := a.clock.Now().UTC()
+	if req.TTL != 0 {
+		expires.Add(req.TTL.Get())
+	} else {
+		expires.Add(defaults.ProvisioningTokenTTL)
+	}
 
-// CheckAndSetDefaults checks and sets default values of request
-func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
-	for _, role := range req.Roles {
-		if err := role.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if req.TTL == 0 {
-		req.TTL = defaults.ProvisioningTokenTTL
-	}
 	if req.Token == "" {
 		token, err := utils.CryptoRandomHex(TokenLenBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		req.Token = token
 	}
-	return nil
-}
 
-// GenerateToken generates multi-purpose authentication token.
-func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	token, err := types.NewProvisionToken(req.Token, req.Roles, a.clock.Now().UTC().Add(req.TTL))
+	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2780,7 +2758,6 @@ func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourc
 				PredicateExpression:  req.PredicateExpression,
 				Labels:               req.Labels,
 				SearchKeywords:       req.SearchKeywords,
-				SortBy:               req.SortBy,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
