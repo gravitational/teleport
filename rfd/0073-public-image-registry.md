@@ -196,6 +196,7 @@ The following table represents a best guess guide to migration of existing image
 | teleport-buildbox-fips |
 | teleport-ent-dev |
 | teleport-lab |
+| teleport-operator |
 
 ### **Repositories to not migrate**
 
