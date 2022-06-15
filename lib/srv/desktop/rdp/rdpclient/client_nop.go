@@ -40,7 +40,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 
 // Run starts the rdp client and blocks until the client disconnects,
 // then runs the cleanup.
-func (c *Client) Run() error {
+func (c *Client) Run(ctx context.Context) error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
