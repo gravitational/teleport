@@ -4,11 +4,9 @@ TELEPORT_PREFIX="github.com/gravitational/teleport"
 
 prepare_teleport() {
 
+  go get -u all || true
   go mod tidy
-
   go get github.com/AdamKorcz/go-118-fuzz-build/utils
-  go get k8s.io/client-go/tools/clientcmd@v0.23.3
-  go get github.com/ThalesIgnite/crypto11@v1.2.4
 
   # Fix /root/go/pkg/mod/github.com/aws/aws-sdk-go-v2/internal/ini@v1.3.0/fuzz.go:13:21:
   # not enough arguments in call to Parse

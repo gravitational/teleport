@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -28,7 +26,6 @@ import (
 )
 
 func FuzzParseCredentialCreationResponseBody(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, body []byte) {
 
 		require.NotPanics(t, func() {
@@ -38,7 +35,6 @@ func FuzzParseCredentialCreationResponseBody(f *testing.F) {
 }
 
 func FuzzParseCredentialRequestResponseBody(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, body []byte) {
 
 		require.NotPanics(t, func() {

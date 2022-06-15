@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -25,7 +23,6 @@ import (
 )
 
 func FuzzTdpMFACodecDecode(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			codec := tdpMFACodec{}

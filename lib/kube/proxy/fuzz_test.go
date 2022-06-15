@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -25,7 +23,6 @@ import (
 )
 
 func FuzzParseResourcePath(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, path string) {
 
 		require.NotPanics(t, func() {

@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -27,7 +25,6 @@ import (
 )
 
 func FuzzParseRefs(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, refs string) {
 		require.NotPanics(t, func() {
 			ParseRefs(refs)
@@ -36,7 +33,6 @@ func FuzzParseRefs(f *testing.F) {
 }
 
 func FuzzParserEvalBoolPredicate(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, expr string) {
 		resource, err := types.NewServerWithLabels("test-name", types.KindNode, types.ServerSpecV2{
 			Hostname: "test-hostname",

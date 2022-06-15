@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -25,7 +23,6 @@ import (
 )
 
 func FuzzParseRDSEndpoint(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
 			ParseRDSEndpoint(endpoint)
@@ -34,7 +31,6 @@ func FuzzParseRDSEndpoint(f *testing.F) {
 }
 
 func FuzzParseRedshiftEndpoint(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
 			ParseRedshiftEndpoint(endpoint)
@@ -43,7 +39,6 @@ func FuzzParseRedshiftEndpoint(f *testing.F) {
 }
 
 func FuzzParseElastiCacheEndpoint(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
 			ParseElastiCacheEndpoint(endpoint)

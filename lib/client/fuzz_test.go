@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -25,7 +23,6 @@ import (
 )
 
 func FuzzParseProxyHost(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, proxyHost string) {
 		require.NotPanics(t, func() {
 			ParseProxyHost(proxyHost)
@@ -34,7 +31,6 @@ func FuzzParseProxyHost(f *testing.F) {
 }
 
 func FuzzParseLabelSpec(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, spec string) {
 		require.NotPanics(t, func() {
 			ParseLabelSpec(spec)
@@ -43,7 +39,6 @@ func FuzzParseLabelSpec(f *testing.F) {
 }
 
 func FuzzParseSearchKeywords(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, spec string, customDelimiter rune) {
 		require.NotPanics(t, func() {
 			ParseSearchKeywords(spec, customDelimiter)

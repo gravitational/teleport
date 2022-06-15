@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -27,7 +25,6 @@ import (
 )
 
 func FuzzParseSAMLInResponseTo(f *testing.F) {
-
 	// Disable Go App Engine logging
 	logrus.SetLevel(logrus.PanicLevel)
 
@@ -39,7 +36,6 @@ func FuzzParseSAMLInResponseTo(f *testing.F) {
 }
 
 func FuzzParseAndVerifyIID(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, iidBytes []byte) {
 		require.NotPanics(t, func() {
 			parseAndVerifyIID(iidBytes)

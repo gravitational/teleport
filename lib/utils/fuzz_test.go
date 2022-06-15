@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -29,7 +27,6 @@ import (
 )
 
 func FuzzParseProxyJump(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, in string) {
 		require.NotPanics(t, func() {
 			ParseProxyJump(in)
@@ -38,7 +35,6 @@ func FuzzParseProxyJump(f *testing.F) {
 }
 
 func FuzzParseWebLinks(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, s string) {
 		links := strings.Split(s, "|")
 		require.NotPanics(t, func() {
@@ -53,7 +49,6 @@ func FuzzParseWebLinks(f *testing.F) {
 }
 
 func FuzzReadYAML(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, dataBytes []byte) {
 		data := bytes.NewReader(dataBytes)
 

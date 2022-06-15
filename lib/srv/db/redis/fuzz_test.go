@@ -1,5 +1,3 @@
-//go:build go1.18
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -25,7 +23,6 @@ import (
 )
 
 func FuzzParseRedisAddress(f *testing.F) {
-
 	f.Fuzz(func(t *testing.T, addr string) {
 		require.NotPanics(t, func() {
 			ParseRedisAddress(addr)
