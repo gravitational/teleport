@@ -41,12 +41,14 @@ import (
 
 // mockServer mocks an Auth Server.
 type mockServer struct {
+	addr string
 	grpc *grpc.Server
 	*proto.UnimplementedAuthServiceServer
 }
 
-func newMockServer() *mockServer {
+func newMockServer(addr string) *mockServer {
 	m := &mockServer{
+		addr,
 		grpc.NewServer(),
 		&proto.UnimplementedAuthServiceServer{},
 	}
@@ -59,8 +61,22 @@ func startMockServer(t *testing.T) string {
 	l, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, l.Close()) })
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	return l.Addr().String()
+}
+
+func (m *mockServer) NewClient(ctx context.Context) (*Client, error) {
+	cfg := Config{
+		Addrs: []string{m.addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{},
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		},
+	}
+
+	return New(ctx, cfg)
 }
 
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
@@ -386,7 +402,7 @@ func TestNewDialBackground(t *testing.T) {
 	require.Error(t, err)
 
 	// Start the server and wait for the client connection to be ready.
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// requests to the server should succeed.
@@ -424,7 +440,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	require.Error(t, clt.waitForConnectionReady(cancelCtx))
 
 	// WaitForConnectionReady should return nil if the server is open to connections.
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
