@@ -1168,6 +1168,9 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Existing SSH session in web UI
   - [ ] New SSH session with tsh
   - [ ] New SSH session with web UI
+  - [ ] New SSH session in a child cluster on the same major version
+  - [ ] New SSH session in a child cluster on the previous major version
+  - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
   - [ ] Application access through curl with `tsh app login`
   - [ ] Database access (manual refresh of the database cert is needed; special attention should be paid to the `update_clients` and `update_servers` phases when there's more than one valid Teleport CA)
