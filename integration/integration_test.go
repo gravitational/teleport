@@ -89,7 +89,6 @@ type integrationTestSuite struct {
 }
 
 func newSuite(t *testing.T) *integrationTestSuite {
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	suite := &integrationTestSuite{}
 
@@ -626,6 +625,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
