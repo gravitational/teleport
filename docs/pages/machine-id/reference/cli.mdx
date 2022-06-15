@@ -40,7 +40,7 @@ $ tbot start \
 |----------------------|------------------------------------------------------------------------------------------------|
 | `-d/--debug`         | Enable verbose logging to stderr.                                                              |
 | `-c/--config`        | Path to a configuration file.                                                                  |
-| `-a/--auth-server`   | Address of the Teleport Auth Server (On-Prem installs) or Teleport Cloud tenant.               |
+| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.               |
 | `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect.                   |
 | `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                            |
 | `--data-dir`         | Directory to store internal bot data. Access to this directory should be limited.              |
@@ -134,8 +134,8 @@ $ tbot db --proxy=example.com --destination-dir=./tbot-user/ -- --help
 
 If you want to access Teleport resources on a cluster using
 [TLS Routing](../../setup/operations/tls-routing.mdx), you'll need to 
-run access the resources through a local proxy. The `tbot proxy` command wraps
-`tsh proxy` to provide local proxy functionality for various protocols,
+run a local ALPN/SNI proxy to access the resources. The `tbot proxy` command
+wraps `tsh proxy` to provide local proxy functionality for various protocols,
 including SSH and database access.
 
 Note that `tsh` must also be installed to make use of this command.

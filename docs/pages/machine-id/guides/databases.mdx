@@ -6,11 +6,9 @@ description: Protecting your databases with Machine ID
 In this guide, we will demonstrate how to use Machine ID to access a database
 protected by Teleport from a custom application.
 
-You can use Machine ID to protect your data when machines, like web
-applications, access your data as well. With Machine ID you will be able to get
-the same short-lived certificates tied to a machine identity that can be
-rotated, audited, and controlled with all the familiar Teleport access
-controls.
+With Machine ID, Teleport issues short-lived certificates, tied to a machine identity,
+that can be rotated, audited, and managed with the same access controls that 
+Teleport provides for human users.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
   ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-app.png)
@@ -216,9 +214,9 @@ LimitNOFILE=8192
 WantedBy=multi-user.target
 ```
 
-This will start a local proxy on port `12345` at which you may connect to the
-`example-server` database server. Be sure to customize the `tbot` parameters as
-necessary for your local setup.
+This will start a local proxy on port `12345` applications can use to connect
+to the `example-server` database server. Be sure to customize the `tbot`
+parameters as necessary for your local setup.
 
 Finally, run the following commands to start Machine ID:
 
@@ -236,12 +234,12 @@ can access the database via the local proxy, and ensures the connection between
 your database client and server is never unencrypted, even over localhost.
 
 The standard TLS credentials may be found in your configured destination
-directory which in this example is `/opt/machine-id`. The certificate may be
+directory, which in this example is `/opt/machine-id`. The certificate may be
 found at `/opt/machine-id/tlscert` along with the private key
 `/opt/machine-id/key` and CA at `/opt/machine-id/teleport-database-ca.crt`.
 These are compatible with most database clients.
 
-Certain databases may require specially-formatted certificates; where
+Certain databases may require specially-formatted certificates. Where
 supported, `tbot` provides configuration templates you may configure via the
 `tbot.yaml` config file on a per-destination basis:
 
@@ -249,7 +247,7 @@ supported, `tbot` provides configuration templates you may configure via the
 |---------------|---------------|--------------------------------------|
 | MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas` |
 | CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt` |
-| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` (for generic clients that require specific file extensions.) |
+| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` (for generic clients that require specific file extensions) |
 
 The `mongo` template is enabled in the example `tbot.yaml` shown
 above. If config template changes are needed, be sure to re-run `tbot init ...`
