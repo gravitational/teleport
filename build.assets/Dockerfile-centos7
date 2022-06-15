@@ -87,7 +87,7 @@ FROM centos-devtoolset as clang10
 
 # Compile Clang 10.0.1 from source. It is needed to create BPF files. 
 # Centos 7 doesn't provide it as a package unfortunately.
-# LLVM_INCLUDE_BENCHMARKS must be off, otherwise comilations fails, 
+# LLVM_INCLUDE_BENCHMARKS must be off, otherwise compilation fails, 
 # CLANG_BUILD_TOOLS must be on, it builds clang binary,
 # LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
 # the rest is disabled to speedup the compilation.
