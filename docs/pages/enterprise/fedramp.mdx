@@ -50,7 +50,7 @@ Enterprise FIPS Binary.
 
 After downloading the binary tarball, run:
 
-```bsh
+```code
 $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
@@ -125,7 +125,7 @@ proxy_service:
 Next, download the systemd service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd/fips)
 on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
-```bsh
+```code
 # run this on both servers:
 $ sudo systemctl daemon-reload
 $ sudo systemctl enable teleport
