@@ -77,7 +77,7 @@ version: v5
 metadata:
   name: allow-copy-test
 options:
-  disable_copy: true
+  disable_file_copy: true
 spec:
   allow:
     labels:
@@ -88,7 +88,7 @@ version: v5
 metadata:
   name: deny-copy-prod
 options:
-  disable_copy: false
+  disable_file_copy: false
 spec:
   allow:
     labels:
