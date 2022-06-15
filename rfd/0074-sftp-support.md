@@ -63,10 +63,40 @@ if users express a need for it.
 
 #### Roles
 
-A role option `allow_file_copying` will be added that will define if file
-copying via scp/rcp or sftp protocols will be allowed. If a user has multiple
-roles that have different values for `allow_file_copying`, then file copying
-will be disabled (the most restrictive option).
+A role option `disable_file_copy` will be added that will define if file
+copying via scp/rcp or sftp protocols will be allowed. This role option will
+be false by default.
+
+If a user has multiple roles that have different values for `disable_file_copy`,
+then file copying will be disabled if the role restricting file copying matches
+the server the user is trying to access. For example:
+
+```yaml
+ind: role
+version: v5
+metadata:
+  name: allow-copy-test
+options:
+  disable_copy: true
+spec:
+  allow:
+    labels:
+      env: test
+
+kind: role
+version: v5
+metadata:
+  name: deny-copy-prod
+options:
+  disable_copy: false
+spec:
+  allow:
+    labels:
+      env: prod
+```
+
+File copying would be disabled for nodes with label "env: prod" but enabled
+for "env: test" if the user has both of these roles attached.
 
 ### Security
 
