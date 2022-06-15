@@ -87,8 +87,8 @@ lib/teleterm/api/protogen/
 2. Update `nodejs` files by copying them to the `/webapps/packages/teleterm/src/services/tshd/` location
 
 ```sh
-$ cd teleport
-$ rm -rf ./../webapps/packages/teleterm/src/services/tshd/v1/ && cp -R lib/teleterm/api/protogen/js/v1 ./../webapps/packages/teleterm/src/services/tshd/v1
+$ cd webapps
+$ rm -rf ./packages/teleterm/src/services/tshd/v1/ && cp -R ../teleport/lib/teleterm/api/protogen/js/v1 ./packages/teleterm/src/services/tshd/v1
 ```
 
 #### Generating shared process gRPC protobuf files
