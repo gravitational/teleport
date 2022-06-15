@@ -1164,8 +1164,8 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `rollback` phase (second pass, after completing a regular rotation): same content as in the `init` phase
   - [ ] `standby` phase after `rollback`: same content as in the previous `standby` phase
 - Verify functionality in all phases (clients might have to log in again in lieu of waiting for credentials to expire between phases)
-  - [ ] Existing SSH session in tsh
-  - [ ] Existing SSH session in web UI
+  - [ ] SSH session in tsh from a previous phase
+  - [ ] SSH session in web UI from a previous phase
   - [ ] New SSH session with tsh
   - [ ] New SSH session with web UI
   - [ ] New SSH session in a child cluster on the same major version
@@ -1173,4 +1173,5 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
   - [ ] Application access through curl with `tsh app login`
+  - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (manual refresh of the database cert is needed; special attention should be paid to the `update_clients` and `update_servers` phases when there's more than one valid Teleport CA)
