@@ -145,7 +145,7 @@ Note that `tsh` must also be installed to make use of this command.
 | `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
 | `-c/--config`       | Path to a configuration file.                                                                            |
 | `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
-| `--proxy`           | The `host:port` of the Teleport proxy to use to access resources. Required.                              |
+| `--proxy`           | The `host:port` of the Teleport Proxy Service through which resources will be accessed. Required.        |
 | `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
 
 All other flags and arguments are passed directly to `tsh proxy ...`, along
@@ -176,8 +176,8 @@ $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 ssh al
 
 In this case:
  * `alice` is the remote username
- * `node` is the Teleport node name
- * `3022` is the remote SSH port, which is 3022 for nodes running the Teleport
+ * `node` is the Teleport Node name
+ * `3022` is the remote SSH port, which is 3022 for Nodes running the Teleport
    SSH service.
 
 You can also refer to Machine ID's generated `ssh_config` for a proxy usage
@@ -196,8 +196,9 @@ In this case:
  * `example` is the name of the database server as it exists in Teleport
  * `1234` is an arbitrary port on which to run the proxy
 
-Though not recommended, to avoid the need to additional client authentication,
-the `--tunnel` flag may be used to perform authentication at the proxy:
+Though not recommended, to avoid the need for additional client authentication,
+the `--tunnel` flag may be used to perform authentication at the local proxy
+rather than within your client:
 
 ```code
 $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --tunnel --port=1234 example

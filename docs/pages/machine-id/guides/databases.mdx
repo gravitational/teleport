@@ -6,12 +6,11 @@ description: Protecting your databases with Machine ID
 In this guide, we will demonstrate how to use Machine ID to access a database
 protected by Teleport from a custom application.
 
-You may already be using Teleport Database Access to protect your database
-when humans access it. Machine ID can be used to protect your data when
-machines, like web applications, access your data as well. With Machine ID you
-will be able to get the same short-lived certificates tied to a machine
-identity that can be rotated, audited, and controlled with all the familiar
-Teleport access controls.
+You can use Machine ID to protect your data when machines, like web
+applications, access your data as well. With Machine ID you will be able to get
+the same short-lived certificates tied to a machine identity that can be
+rotated, audited, and controlled with all the familiar Teleport access
+controls.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
   ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-app.png)
@@ -72,21 +71,21 @@ $ tctl create -f role.yaml
 
 With the role created, create a new bot and allow it to assume the new role.
 
-<Details scope={["cloud"]} scopeOnly={true}>
+<ScopedBlock scope={["cloud"]}>
 On your client machine, log in to Teleport using `tsh` before using `tctl` to
 create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</Details>
-<Details scope={["oss","enterprise"]} scopeOnly={true}>
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
 Connect to the Teleport Auth Server and use `tctl` to create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</Details>
+</ScopedBlock>
 
 ## Step 2/3. Configure and start Machine ID
 
@@ -95,7 +94,7 @@ credentials.
 
 Start by creating a configuration file for Machine ID at `/etc/tbot.yaml`:
 
-<Details scope={["cloud"]} scopeOnly={true}>
+<ScopedBlock scope={["cloud"]}>
 ```yaml
 auth_server: "example.teleport.sh:443"
 onboarding:
@@ -117,15 +116,15 @@ destinations:
     configs:
       - mongo
 ```
-</Details>
-<Details scope={["oss","enterprise"]} scopeOnly={true}>
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
 ```yaml
 auth_server: "auth.example.com:3025"
 onboarding:
   join_method: "token"
-  token: "00000000000000000000000000000000"
+  token: "(=presets.tokens.first=)"
   ca_pins:
-  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  - "(=presets.ca_pin=)"
 storage:
   directory: /var/lib/teleport/bot
 destinations:
@@ -140,10 +139,12 @@ destinations:
     configs:
       - mongo
 ```
-</Details>
+</ScopedBlock>
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
-`tctl bots add ...`.
+`tctl bots add ...`. We've also included the `mongo` config template in the
+`configs` section to generate additional certificates for MongoDB; you can
+remove it if using a different database type.
 
 Machine ID also allows you to use Linux ACLs to control access to certificates
 on disk. You will use this to ensure only your application has access to the
@@ -163,11 +164,11 @@ $ tbot init \
     --reader-user=app
 ```
 
-<Admonition type="note" title="`tbot init` Note">
+<Notice type="note">
 Be sure to re-run `tbot init ...` as shown here if config templates are added
 or removed from `tbot.yaml`. You may run into permissions errors if `tbot init`
 is not run for new files.
-</Admonition>
+</Notice>
 
 Next, you will use systemd to run Machine ID in the background on your
 application node. Create a systemd.unit file at
