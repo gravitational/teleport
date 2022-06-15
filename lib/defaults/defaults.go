@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -513,10 +512,7 @@ const (
 
 var (
 	// ConfigFilePath is default path to teleport config file
-	ConfigDir = "/etc"
-
-	// ConfigFilePath is default path to teleport config file
-	ConfigFilePath = filepath.Join(ConfigDir, "teleport.yaml")
+	ConfigFilePath = "/etc/teleport.yaml"
 
 	// DataDir is where all mutable data is stored (user keys, recorded sessions,
 	// registered SSH servers, etc):
