@@ -589,6 +589,9 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		if c.ExtraFilesLen > 0 {
 			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
 			for i := 0; i < c.ExtraFilesLen; i++ {
+				// FD 3 and 4 are used for the command file and the
+				// continue file, and FD 5 is used for the X11 file,
+				// so extra file FDs will start at 6.
 				fd := 6 + i
 				f := os.NewFile(uintptr(fd), strconv.Itoa(fd))
 				if f == nil {

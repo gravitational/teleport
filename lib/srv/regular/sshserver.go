@@ -1988,7 +1988,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
 	case r.Name == "sftp":
-		return newSftpSubsys()
+		return newSFTPSubsys()
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}

@@ -36,7 +36,7 @@ type sftpSubsys struct {
 	log     *logrus.Entry
 }
 
-func newSftpSubsys() (*sftpSubsys, error) {
+func newSFTPSubsys() (*sftpSubsys, error) {
 	// TODO: add prometheus collectors?
 	return &sftpSubsys{
 		log: logrus.WithFields(logrus.Fields{
@@ -52,16 +52,18 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 		return trace.Wrap(err)
 	}
 
-	chrr, chrw, err := os.Pipe()
+	// Create two sets of anonymous pipes that we can use to give the
+	// child process access to the SSH channel
+	chReadPipeOut, chReadPipeIn, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer chrr.Close()
-	chwr, chww, err := os.Pipe()
+	defer chReadPipeOut.Close()
+	chWritePipeOut, chWritePipeIn, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer chww.Close()
+	defer chWritePipeIn.Close()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -71,7 +73,7 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chrr, chww)
+	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,19 +88,20 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	// TODO: put in cgroup?
 	serverCtx.ExecRequest.Continue()
 
+	// Copy the SSH channel to and from the anonymous pipes
 	errCh := make(chan error, 2)
 	go func() {
-		defer chrw.Close()
+		defer chReadPipeIn.Close()
 		defer ch.Close()
 
-		_, err := io.Copy(chrw, ch)
+		_, err := io.Copy(chReadPipeIn, ch)
 		errCh <- err
 	}()
 	go func() {
-		defer chwr.Close()
+		defer chWritePipeOut.Close()
 		defer ch.Close()
 
-		_, err := io.Copy(ch, chwr)
+		_, err := io.Copy(ch, chWritePipeOut)
 		errCh <- err
 	}()
 
