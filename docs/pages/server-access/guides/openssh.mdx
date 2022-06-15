@@ -275,9 +275,6 @@ This command creates an SSH configuration file at a nonstandard location in
 order to make it easier to clean up, but you can append the output of
 `tsh config` to the default SSH config file (`~/.ssh/config`) if you wish.
 
-If you are using Trusted Clusters, this will print an OpenSSH client
-configuration block for the root cluster and all currently known leaf clusters.
-
 <Details title="How does the config work?">
 
 Teleport implements an SSH server that includes several **subsystems**, or
@@ -342,18 +339,20 @@ authenticate the host via the certificate we generated earlier.
 
 <Details title="Using Trusted Clusters?">
 
-The configuration file that `tsh config` generates uses a `ProxyCommand`
-directive to connect to SSH servers in a leaf cluster through the root cluster's
-Proxy Service.
+If you are using Trusted Clusters, the `tsh config` command will print an OpenSSH
+client configuration block for the root cluster and all currently known leaf clusters.
+
+This configuration block uses a `ProxyCommand` directive to connect to SSH 
+servers in a leaf cluster through the root cluster's Proxy Service.
 
 In scenarios where Proxy Service instances in a leaf cluster are reachable by
 SSH clients, you might prefer to connect directly through the leaf proxies to
 achieve lower latency.
 
-To support this scenario, the `tsh proxy ssh` command provides the `-J` flag.
+To support this scenario, the `tsh proxy ssh` command provides the `--jumphost`/`-J` flag.
 This flag points to the public address of a cluster's Proxy Service and indicates 
 that the OpenSSH client will be connecting through that proxy instead of the proxy
-you're currently logged into:
+you're currently logged into.
 
 ```txt
 Host *.{{ .NodeName }}.{{ .ClusterName }}
@@ -361,25 +360,16 @@ Host *.{{ .NodeName }}.{{ .ClusterName }}
    ProxyCommand tsh proxy ssh -J proxy.leaf1.example.com:443 %r@%h:%p
 ```
 
-The `-J` flag dynamically determines the jump proxy address and the name
-of the host to connect to using the SSH config's full hostname spec (`%h:%p`)
-and the `{{proxy}}` template variable:
-
-The jump proxy address and the node name to connect to can be dynamically
-determined from the SSH config's full hostname spec (`%h:%p`) using `{{proxy}}`
-template variable:
+When the `-J` flag is used with the `{{proxy}}` template variable, the jump
+proxy address and host server address can be dynamically determined using proxy
+templates defined in the `tsh` configuration file (`~/.tsh/config/config.yaml`
+or a global `/etc/tsh.yaml`)
 
 ```txt
 Host *.example.com
    Port 3022
    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
 ```
-
-You can define the rules of how to parse the proxy address and node name
-from the full host in the `tsh` configuration file (`~/.tsh/config/config.yaml`
-or a global `/etc/tsh.yaml`). `tsh proxy ssh` will take the attempt to match the
-full hostname `%h:%p` with one of the provided templates, and use that template
-to replace `{{proxy}}` and optionally `%h:%p` with the desired values.
 
 ```yaml
 proxy_templates:
@@ -393,20 +383,25 @@ proxy_templates:
   host: "$1:22"
 ```
 
+`tsh proxy ssh -J {{proxy}}` will attempt to match the host server address `%h:%p` with the 
+configured templates. If there is a match, then the jump proxy address `{{proxy}}` will
+be replaced using the template's `proxy` field and the host server address `%h:%p` will be 
+replaced using the template's `host` field if set.
+
 | Field      | Description |
 | ---------- | ----------- |
-| `template` | (Required) Regular expression full SSH config host spec `%h:%p` is matched against. |
-| `proxy`    | (Required) Proxy Service address to use. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). |
-| `host`     | (Optional) Full hostname to connect to. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). Defaults to full host spec `%h:%p`. |
+| `template` | (Required) Regular expression that the host server address `%h:%p` is matched against. |
+| `proxy`    | (Required) Proxy Service address to use for proxy jump. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). |
+| `host`     | (Optional) Host Servera ddress to connect to. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). Defaults to full host spec `%h:%p`. |
 
-Given the configuration above, the following command will connect to the node
+Given the configuration above, the following command will connect to the Node
 `node-1.leaf1.example.com:3022` through the Proxy Service `leaf1.example.com:443`:
 
 ```code
 $ ssh root@node-1.leaf1.example.com
 ```
 
-The following command will connect to the node `node-1:3022` through the Proxy Service
+The following command will connect to the Node `node-1:3022` through the Proxy Service
 `leaf2.example.com:3080`:
 
 ```code
