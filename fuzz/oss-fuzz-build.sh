@@ -4,6 +4,7 @@ TELEPORT_PREFIX="github.com/gravitational/teleport"
 
 prepare_teleport() {
 
+  go get github.com/AdamKorcz/go-118-fuzz-build/utils
   go get -u all || true
   go mod tidy
   go get github.com/AdamKorcz/go-118-fuzz-build/utils
@@ -118,7 +119,6 @@ build_teleport_api_fuzzers() {
 
 compile() {
 
-  go get github.com/AdamKorcz/go-118-fuzz-build/utils
   prepare_teleport
   prepare_teleport_api
 
