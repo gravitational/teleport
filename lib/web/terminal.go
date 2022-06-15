@@ -556,6 +556,22 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 	return nil
 }
 
+func splitHostPort(servername string, defaultPort int) (string, int, error) {
+	if !strings.Contains(servername, ":") {
+		return servername, defaultPort, nil
+	}
+	// Check for explicitly specified port.
+	host, portString, err := utils.SplitHostPort(servername)
+	if err != nil {
+		return "", defaultPort, trace.Wrap(err)
+	}
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return "", defaultPort, trace.BadParameter("invalid port: %v", err)
+	}
+	return host, port, nil
+}
+
 // resolveServerHostPort parses server name and attempts to resolve hostname
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
@@ -570,26 +586,14 @@ func resolveServerHostPort(servername string, existingServers []types.Server) (s
 	for i := range existingServers {
 		node := existingServers[i]
 		if node.GetName() == servername {
+			if node.GetSubKind() == "agentless" {
+				return splitHostPort(node.GetName(), defaultPort)
+			}
 			return node.GetHostname(), defaultPort, nil
 		}
 	}
 
-	if !strings.Contains(servername, ":") {
-		return servername, defaultPort, nil
-	}
-
-	// Check for explicitly specified port.
-	host, portString, err := utils.SplitHostPort(servername)
-	if err != nil {
-		return "", defaultPort, trace.Wrap(err)
-	}
-
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return "", defaultPort, trace.BadParameter("invalid port: %v", err)
-	}
-
-	return host, port, nil
+	return splitHostPort(servername, defaultPort)
 }
 
 func (t *TerminalHandler) write(data []byte, ws *websocket.Conn) (n int, err error) {
