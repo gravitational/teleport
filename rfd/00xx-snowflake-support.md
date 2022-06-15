@@ -1,9 +1,9 @@
 ---
 authors: Jakub Nyckowski (jakub.nyckowski@goteleport.com)
-state: draft
+state: implemented
 ---
 
-# RFD XX - Snowflake Database support
+# RFD 75 - Snowflake Database support
 
 ## What
 
