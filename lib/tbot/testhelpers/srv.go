@@ -36,8 +36,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func DefaultConfig(t *testing.T) *config.FileConfig {
-	return &config.FileConfig{
+// from lib/service/listeners.go
+// TODO(espadolini): have the constants exported
+const (
+	listenerAuthSSH     = "auth"
+	listenerProxySSH    = "proxy:ssh"
+	listenerProxyWeb    = "proxy:web"
+	listenerProxyTunnel = "proxy:tunnel"
+)
+
+// DefaultConfig returns a FileConfig to be used in tests, with random listen
+// addresses that are tied to the listeners returned in the FileDescriptor
+// slice, which should be passed as exported file descriptors to NewTeleport;
+// this is to ensure that we keep the listening socket open, to prevent other
+// processes from using the same port before we're done with it.
+func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) {
+	var fds []service.FileDescriptor
+
+	fc := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
 		},
@@ -49,35 +65,67 @@ func DefaultConfig(t *testing.T) *config.FileConfig {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: newListener(t, listenerProxySSH, &fds),
 			},
-			WebAddr:    mustGetFreeLocalListenerAddr(t),
-			TunAddr:    mustGetFreeLocalListenerAddr(t),
+			WebAddr:    newListener(t, listenerProxyWeb, &fds),
+			TunAddr:    newListener(t, listenerProxyTunnel, &fds),
 			PublicAddr: []string{"proxy.example.com"},
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: newListener(t, listenerAuthSSH, &fds),
 			},
 		},
 	}
+
+	return fc, fds
 }
 
-func mustGetFreeLocalListenerAddr(t *testing.T) string {
+// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). Takes a pointer to the slice
+// so that it's convenient to call in the middle of a FileConfig or Config
+// struct literal.
+// TODO(espadolini): move this to a more generic place so we can use the same
+// approach in other tests that spin up a TeleportProcess
+func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string {
+	t.Helper()
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer l.Close()
-	return l.Addr().String()
+	addr := l.Addr().String()
+
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
+	t.Cleanup(func() { lf.Close() })
+
+	*fds = append(*fds, service.FileDescriptor{
+		Type:    ty,
+		Address: addr,
+		File:    lf,
+	})
+
+	return addr
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
+	cfg.FileDescriptors = fds
+	cfg.Log = utils.NewLoggerForTests()
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
@@ -147,6 +195,25 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
+
+	// Wait for the server to become available.
+	require.Eventually(t, func() bool {
+		ping, err := client.Ping(context.Background())
+		if err != nil {
+			t.Logf("auth server is not yet available")
+			return false
+		}
+
+		// Make sure the returned proxy address is sane, it should at least be
+		// parseable.
+		_, _, err = utils.SplitHostPort(ping.ProxyPublicAddr)
+		if err != nil {
+			t.Logf("proxy public address is not yet valid")
+			return false
+		}
+
+		return true
+	}, time.Second*10, time.Millisecond*250)
 
 	return client
 }

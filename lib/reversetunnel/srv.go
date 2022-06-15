@@ -118,14 +118,6 @@ type server struct {
 	offlineThreshold time.Duration
 }
 
-// DirectCluster is used to access cluster directly
-type DirectCluster struct {
-	// Name is a cluster name
-	Name string
-	// Client is a client to the cluster
-	Client auth.ClientI
-}
-
 // Config is a reverse tunnel server configuration
 type Config struct {
 	// ID is the ID of this server proxy
@@ -151,8 +143,6 @@ type Config struct {
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
-	// DirectClusters is a list of clusters accessed directly
-	DirectClusters []DirectCluster
 	// Context is a signalling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -216,6 +206,10 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
+
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -311,8 +305,6 @@ func NewServer(cfg Config) (Server, error) {
 
 	srv := &server{
 		Config:           cfg,
-		localSites:       []*localSite{},
-		remoteSites:      []*remoteSite{},
 		localAuthClient:  cfg.LocalAuthClient,
 		localAccessPoint: cfg.LocalAccessPoint,
 		newAccessPoint:   cfg.NewCachingAccessPoint,
@@ -325,14 +317,12 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	for _, clusterInfo := range cfg.DirectClusters {
-		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client, srv.PeerClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		srv.localSites = append(srv.localSites, cluster)
+	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses, cfg.LocalAuthClient, srv.PeerClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	srv.localSites = append(srv.localSites, localSite)
 
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
@@ -661,6 +651,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthAddresses,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,

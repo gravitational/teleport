@@ -345,11 +345,17 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		r.SetHostGroups(condition,
+			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
+
+		r.SetHostSudoers(condition,
+			applyValueTraitsSlice(r.GetHostSudoers(condition), traits, "host_sudoers"))
+
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Warnf("didnt applying trait to cert_extensions.value: %v", err)
+				log.Warnf("Did not apply trait to cert_extensions.value: %v", err)
 				continue
 			}
 			if len(vals) != 0 {
@@ -618,6 +624,15 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	// Groups is the list of groups to include host users in
+	Groups []string
+	// Sudoers is a list of entries for a users sudoers file
+	Sudoers []string
+}
+
 // FromSpec returns new RoleSet created from spec
 func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
 	role, err := types.NewRoleV3(name, spec)
@@ -865,6 +880,30 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
+// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
+// The wildcard selector is ignored, since it is now allowed for server logins
+func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather logins for checking from the roles
+	// no need to check for wildcards
+	var logins []string
+	for _, role := range set {
+		logins = append(logins, role.GetLogins(types.Allow)...)
+		logins = append(logins, role.GetLogins(types.Deny)...)
+	}
+
+	logins = apiutils.Deduplicate(logins)
+
+	// check each individual user against the server.
+	for _, user := range logins {
+		err := set.checkAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {
@@ -978,6 +1017,17 @@ func (set RoleSet) WithoutImplicit() (out RoleSet) {
 		out = append(out, r)
 	}
 	return out
+}
+
+// PinSourceIP determines if the role set should use source IP pinning.
+// If one or more roles in the set requires IP pinning then it will be enabled.
+func (set RoleSet) PinSourceIP() bool {
+	for _, role := range set {
+		if role.GetOptions().PinSourceIP {
+			return true
+		}
+	}
+	return false
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
@@ -2062,6 +2112,60 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	}
 
 	return m
+}
+
+// HostUsers returns host user information matching a server or nil if
+// a role disallows host user creation
+func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
+	groups := make(map[string]struct{})
+	sudoers := make(map[string]struct{})
+	serverLabels := s.GetAllLabels()
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+		createHostUser := role.GetOptions().CreateHostUser
+		// if any of the matching roles do not enable create host
+		// user, the user should not be allowed on
+		if createHostUser == nil || !createHostUser.Value {
+			return nil, trace.AccessDenied("user is not allowed to create host users")
+		}
+		for _, group := range role.GetHostGroups(types.Allow) {
+			groups[group] = struct{}{}
+		}
+		for _, sudoer := range role.GetHostSudoers(types.Allow) {
+			sudoers[sudoer] = struct{}{}
+		}
+	}
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetHostGroups(types.Deny) {
+			delete(groups, group)
+		}
+		for _, sudoer := range role.GetHostSudoers(types.Deny) {
+			if sudoer == "*" {
+				sudoers = nil
+				break
+			}
+			delete(sudoers, sudoer)
+		}
+	}
+
+	return &HostUsersInfo{
+		Groups:  utils.StringsSliceFromSet(groups),
+		Sudoers: utils.StringsSliceFromSet(sudoers),
+	}, nil
 }
 
 // certificatePriority returns the priority of the certificate format. The

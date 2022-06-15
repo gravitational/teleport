@@ -674,65 +674,6 @@ func TestListResources(t *testing.T) {
 				return resultResourcesWithMatchExprsLen == totalWithLabels
 			}, time.Second, 100*time.Millisecond)
 
-			// Test sorting by metadata.name, since not all resources support sorting:
-			sortBy := types.SortBy{Field: types.ResourceMetadataName, IsDesc: true}
-			var sortedResources []types.ResourceWithLabels
-
-			switch test.resourceType {
-			case types.KindNode, types.KindAppServer, types.KindDatabaseServer:
-				// Test NeedTotalCount flag.
-				res, err := presence.ListResources(ctx, proto.ListResourcesRequest{
-					ResourceType:   test.resourceType,
-					NeedTotalCount: true,
-					Limit:          1,
-				})
-				require.NoError(t, err)
-				require.Len(t, res.Resources, 1)
-				require.NotEmpty(t, res.NextKey)
-				require.Equal(t, totalResources, res.TotalCount)
-
-				// Test sorting.
-				require.Eventually(t, func() bool {
-					resp, err = presence.ListResources(ctx, proto.ListResourcesRequest{
-						Limit:        int32(resourcesPerPage),
-						Namespace:    apidefaults.Namespace,
-						ResourceType: test.resourceType,
-						StartKey:     resp.NextKey,
-						SortBy:       sortBy,
-					})
-					require.NoError(t, err)
-					require.Empty(t, resp.TotalCount)
-
-					sortedResources = append(sortedResources, resp.Resources...)
-					if len(sortedResources) == totalResources {
-						require.Empty(t, resp.NextKey)
-					}
-					return len(sortedResources) == totalResources
-				}, time.Second, 100*time.Millisecond)
-			}
-
-			// Test sorted resources are in the correct direction.
-			switch test.resourceType {
-			case types.KindNode:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsServers()
-				require.NoError(t, err)
-				fieldVals, err := types.Servers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			case types.KindAppServer:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsAppServers()
-				require.NoError(t, err)
-				fieldVals, err := types.AppServers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			case types.KindDatabaseServer:
-				servers, err := types.ResourcesWithLabels(sortedResources).AsDatabaseServers()
-				require.NoError(t, err)
-				fieldVals, err := types.DatabaseServers(servers).GetFieldVals(sortBy.Field)
-				require.NoError(t, err)
-				require.IsDecreasing(t, fieldVals)
-			}
-
 			// delete everything
 			err = test.deleteAllResourcesFunc(ctx, presence)
 			require.NoError(t, err)
@@ -848,7 +789,6 @@ func TestListResources_Helpers(t *testing.T) {
 				resp, err := tc.fetch(req)
 				require.NoError(t, err)
 				require.Empty(t, resp.NextKey)
-				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -870,7 +810,6 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 10)
-				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -886,7 +825,6 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 5)
-				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -894,7 +832,7 @@ func TestListResources_Helpers(t *testing.T) {
 				require.Equal(t, backend.GetPaginationKey(nodes[15]), resp.NextKey) // 16th item
 
 				// Last fetch.
-				resp, err = presence.listResources(ctx, proto.ListResourcesRequest{
+				resp, err = tc.fetch(proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
 					Namespace:    namespace,
 					StartKey:     resp.NextKey,
@@ -902,7 +840,6 @@ func TestListResources_Helpers(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 5)
-				require.Empty(t, resp.TotalCount)
 
 				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -930,7 +867,6 @@ func TestListResources_Helpers(t *testing.T) {
 				require.Len(t, resp.Resources, 1)
 				require.Equal(t, targetVal, resp.Resources[0].GetName())
 				require.Empty(t, resp.NextKey)
-				require.Empty(t, resp.TotalCount)
 			})
 		}
 	})
@@ -1125,4 +1061,121 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, semaphores, 1)
 	require.Empty(t, semaphores[0].LeaseRefs())
+}
+
+// TestListResources_DuplicateResourceFilterByLabel tests that we can search for a specific label
+// among duplicated resources, and once a match is found, excludes duplicated matches from the result.
+func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	presence := NewPresenceService(backend)
+
+	// Same resource name, but have different labels.
+	names := []string{"a", "a", "a", "a"}
+	labels := []map[string]string{
+		{"env": "prod"},
+		{"env": "dev"},
+		{"env": "qa"},
+		{"env": "dev"},
+	}
+
+	tests := []struct {
+		name            string
+		kind            string
+		insertResources func()
+		wantNames       []string
+	}{
+		{
+			name: "KindDatabaseServer",
+			kind: types.KindDatabaseServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					db, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.DatabaseServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name:   names[i],
+								Labels: labels[i],
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: "_",
+								URI:      "_",
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertDatabaseServer(ctx, db)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindAppServer",
+			kind: types.KindAppServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewAppServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.AppServerSpecV3{
+						HostID: "_",
+						App: &types.AppV3{
+							Metadata: types.Metadata{
+								Name:   names[i],
+								Labels: labels[i],
+							},
+							Spec: types.AppSpecV3{URI: "_"}},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindKubernetesCluster",
+			kind: types.KindKubernetesCluster,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
+						KubernetesClusters: []*types.KubernetesCluster{
+							// Test dedup inside this list as well as from each service.
+							{Name: names[i], StaticLabels: labels[i]},
+							{Name: names[i], StaticLabels: labels[i]},
+						},
+					})
+					require.NoError(t, err)
+					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResources()
+
+			// Look among the duplicated resource by label
+			resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				Limit:          5,
+				SearchKeywords: []string{"dev"},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1)
+			require.Equal(t, 1, resp.TotalCount)
+			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
+		})
+	}
 }
