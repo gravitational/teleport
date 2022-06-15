@@ -32,6 +32,15 @@ administrators to define policies like:
 
 <ScopedBlock scope={["cloud", "enterprise"]}>
 
+## Prerequisites
+
+- Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
+- Teleport role with access to maintaining `oidc` resources. This is available in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
 ## Enable default OIDC authentication
 
 (!docs/pages/includes/enterprise/oidcauthentication.mdx!)
@@ -148,7 +157,7 @@ spec:
 
 Create both roles:
 
-```bsh
+```code
 $ tctl create role-admin.yaml
 $ tctl create role-dev.yaml
 ```
