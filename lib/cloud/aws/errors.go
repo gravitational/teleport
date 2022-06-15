@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -42,4 +43,13 @@ func ConvertRequestFailureError(err error) error {
 	}
 
 	return err // Return unmodified.
+}
+
+// ParseMetadataClientError converts a failed instance metadata service call to a trace error.
+func ParseMetadataClientError(err error) error {
+	var httpError interface{ HTTPStatusCode() int }
+	if errors.As(err, &httpError) {
+		return trace.ReadError(httpError.HTTPStatusCode(), nil)
+	}
+	return trace.Wrap(err)
 }

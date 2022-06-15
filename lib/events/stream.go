@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +73,10 @@ const (
 	// ProtoStreamV1RecordHeaderSize is the size of the header
 	// of the record header, it consists of the record length
 	ProtoStreamV1RecordHeaderSize = Int32Size
+
+	// uploaderReservePartErrorMessage error message present when
+	// `ReserveUploadPart` fails.
+	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
 )
 
 // ProtoStreamerConfig specifies configuration for the part
@@ -215,7 +220,7 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewProtoStream uploads session recordings to the protobuf format.
+// NewProtoStream uploads session recordings in the protobuf format.
 //
 // The individual session stream is represented by continuous globally
 // ordered sequence of events serialized to binary protobuf format.
@@ -255,6 +260,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 		cancelCtx: cancelCtx,
 		cancel:    cancel,
+		cancelMtx: &sync.RWMutex{},
 
 		completeCtx:      completeCtx,
 		complete:         complete,
@@ -293,7 +299,26 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		writer.lastPartNumber = cfg.CompletedParts[len(cfg.CompletedParts)-1].Number + 1
 		writer.completedParts = cfg.CompletedParts
 	}
-	go writer.receiveAndUpload()
+
+	// Generate the first slice. This is done in the initialization process to
+	// return any critical errors synchronously instead of having to emit the
+	// first event.
+	var err error
+	writer.current, err = writer.newSlice()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Start writer events receiver.
+	go func() {
+		if err := writer.receiveAndUpload(); err != nil {
+			log.WithError(err).Debug("slice writer ended with error")
+			stream.setCancelError(err)
+		}
+
+		stream.cancel()
+	}()
+
 	return stream, nil
 }
 
@@ -307,6 +332,8 @@ type ProtoStream struct {
 	// cancelCtx is used to signal closure
 	cancelCtx context.Context
 	cancel    context.CancelFunc
+	cancelErr error
+	cancelMtx *sync.RWMutex
 
 	// completeCtx is used to signal completion of the operation
 	completeCtx    context.Context
@@ -376,6 +403,11 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		}
 		return nil
 	case <-s.cancelCtx.Done():
+		cancelErr := s.getCancelError()
+		if cancelErr != nil {
+			return trace.Wrap(cancelErr)
+		}
+
 		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-s.completeCtx.Done():
 		return trace.ConnectionProblem(nil, "emitter is completed")
@@ -413,6 +445,20 @@ func (s *ProtoStream) Close(ctx context.Context) error {
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
 	}
+}
+
+// setCancelError sets the cancelErr with lock.
+func (s *ProtoStream) setCancelError(err error) {
+	s.cancelMtx.Lock()
+	defer s.cancelMtx.Unlock()
+	s.cancelErr = err
+}
+
+// getCancelError gets the cancelErr with lock.
+func (s *ProtoStream) getCancelError() error {
+	s.cancelMtx.RLock()
+	defer s.cancelMtx.RUnlock()
+	return s.cancelErr
 }
 
 // sliceWriter is a helper struct that coordinates
@@ -454,7 +500,7 @@ func (w *sliceWriter) trySendStreamStatusUpdate(lastEventIndex int64) {
 }
 
 // receiveAndUpload receives and uploads serialized events
-func (w *sliceWriter) receiveAndUpload() {
+func (w *sliceWriter) receiveAndUpload() error {
 	defer close(w.proto.uploadLoopDoneCh)
 	// on the start, send stream status with the upload ID and negative
 	// index so that remote party can get an upload ID
@@ -468,7 +514,7 @@ func (w *sliceWriter) receiveAndUpload() {
 		select {
 		case <-w.proto.cancelCtx.Done():
 			// cancel stops all operations without waiting
-			return
+			return nil
 		case <-w.proto.completeCtx.Done():
 			// if present, send remaining data for upload
 			if w.current != nil {
@@ -479,20 +525,18 @@ func (w *sliceWriter) receiveAndUpload() {
 					w.current.isLast = true
 				}
 				if err := w.startUploadCurrentSlice(); err != nil {
-					w.proto.cancel()
-					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-					return
+					return trace.Wrap(err)
 				}
 			}
+
 			w.completeStream()
-			return
+			return nil
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Error("Could not upload part after retrying, aborting.")
-				w.proto.cancel()
-				return
+				return trace.Wrap(err)
 			}
+
 			delete(w.activeUploads, part.Number)
 			w.updateCompletedParts(*part, upload.lastEventIndex)
 		case <-flushCh:
@@ -509,9 +553,7 @@ func (w *sliceWriter) receiveAndUpload() {
 				if w.current != nil {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
-						w.proto.cancel()
-						log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-						return
+						return trace.Wrap(err)
 					}
 				} else {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold but have no data. Nothing to do.", now, inactivityPeriod)
@@ -529,15 +571,20 @@ func (w *sliceWriter) receiveAndUpload() {
 			}
 			if err := w.submitEvent(event); err != nil {
 				log.WithError(err).Error("Lost event.")
+				// Failure on `newSlice` indicates that the streamer won't be
+				// able to process events. Close the streamer and set the
+				// returned error so that event emitters can proceed.
+				if isReserveUploadPartError(err) {
+					return trace.Wrap(err)
+				}
+
 				continue
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
 				// upload has not completed and the current slice is out of capacity
 				if err := w.startUploadCurrentSlice(); err != nil {
-					w.proto.cancel()
-					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
-					return
+					return trace.Wrap(err)
 				}
 			}
 		}
@@ -553,13 +600,13 @@ func (w *sliceWriter) shouldUploadCurrentSlice() bool {
 // startUploadCurrentSlice starts uploading current slice
 // and adds it to the waiting list
 func (w *sliceWriter) startUploadCurrentSlice() error {
-	w.lastPartNumber++
 	activeUpload, err := w.startUpload(w.lastPartNumber, w.current)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	w.activeUploads[w.lastPartNumber] = activeUpload
 	w.current = nil
+	w.lastPartNumber++
 	return nil
 }
 
@@ -571,22 +618,34 @@ func (b *bufferCloser) Close() error {
 	return nil
 }
 
-func (w *sliceWriter) newSlice() *slice {
+func (w *sliceWriter) newSlice() (*slice, error) {
+	w.lastPartNumber++
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
 	buffer.Write(w.emptyHeader[:])
+
+	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
+	}
+
 	return &slice{
 		proto:  w.proto,
 		buffer: buffer,
 		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
-	}
+	}, nil
 }
 
 func (w *sliceWriter) submitEvent(event protoEvent) error {
 	if w.current == nil {
-		w.current = w.newSlice()
+		var err error
+		w.current, err = w.newSlice()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	return w.current.emitAuditEvent(event)
 }
 
@@ -1286,4 +1345,14 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) UploadMetadata {
 		URL:       "memory",
 		SessionID: sid,
 	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error {
+	return nil
+}
+
+// isReserveUploadPartError identifies uploader reserve part errors.
+func isReserveUploadPartError(err error) bool {
+	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
