@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-BUILDBOX_VERSION ?= teleport10
+BUILDBOX_VERSION ?= teleport11
 GOLANG_VERSION ?= go1.18.3
 RUST_VERSION ?= 1.58.1 # don't bump this without checking GLIBC compatibility
 NODE_VERSION ?= 16.13.2

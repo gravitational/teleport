@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base32"
 	"fmt"
 	"net"
@@ -1358,6 +1359,134 @@ func TestGenerateHostCerts(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, certs)
+}
+
+// TestInstanceCertAndControlStream attempts to generate an instance cert via the
+// assertion API and use it to handle an inventory ping via the control stream.
+func TestInstanceCertAndControlStream(t *testing.T) {
+	const assertionID = "test-assertion"
+	const serverID = "test-server"
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	srv := newTestTLSServer(t)
+
+	roles := []types.SystemRole{
+		types.RoleNode,
+		types.RoleAuth,
+		types.RoleProxy,
+	}
+
+	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	priv, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	req := proto.HostCertsRequest{
+		HostID:       serverID,
+		Role:         types.RoleInstance,
+		PublicSSHKey: pub,
+		PublicTLSKey: pubTLS,
+		SystemRoles:  roles,
+		// assertion ID is omitted initially to test
+		// the failure case
+	}
+
+	// request should fail since clt only holds RoleNode
+	_, err = clt.GenerateHostCerts(ctx, &req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// perform assertions
+	for _, role := range roles {
+		func() {
+			clt, err := srv.NewClient(TestServerID(role, serverID))
+			require.NoError(t, err)
+			defer clt.Close()
+
+			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+				ServerID:    serverID,
+				AssertionID: assertionID,
+				SystemRole:  role,
+			})
+			require.NoError(t, err)
+		}()
+	}
+
+	// set assertion ID
+	req.UnstableSystemRoleAssertionID = assertionID
+
+	// assertion should allow us to generate certs
+	certs, err := clt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	// make an instance client
+	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	instanceClt := srv.NewClientWithCert(instanceCert)
+
+	// instance cert can self-renew without assertions
+	req.UnstableSystemRoleAssertionID = ""
+	_, err = instanceClt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	stream, err := instanceClt.InventoryControlStream(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	err = stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: roles,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream hello")
+	}
+
+	// fire off a ping in the background
+	pingErr := make(chan error, 1)
+	go func() {
+		defer close(pingErr)
+		// get an admin client so that we can test pings
+		clt, err := srv.NewClient(TestAdmin())
+		if err != nil {
+			pingErr <- err
+			return
+		}
+		defer clt.Close()
+
+		_, err = clt.PingInventory(ctx, proto.InventoryPingRequest{
+			ServerID: serverID,
+		})
+		pingErr <- err
+	}()
+
+	// wait for the ping
+	select {
+	case msg := <-stream.Recv():
+		ping, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+		err = stream.Send(ctx, proto.UpstreamInventoryPong{
+			ID: ping.ID,
+		})
+		require.NoError(t, err)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream ping")
+	}
+
+	// ensure that bg ping routine was successful
+	require.NoError(t, <-pingErr)
 }
 
 func TestNodesCRUD(t *testing.T) {
