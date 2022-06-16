@@ -41,6 +41,8 @@ func (p *enterpriseModules) Features() modules.Features {
 		DB:                      p.license.GetCloud().Value() || p.license.GetSupportsDatabaseAccess().Value(),
 		Desktop:                 p.license.GetCloud().Value() || p.license.GetSupportsDesktopAccess().Value(),
 		ModeratedSessions:       p.license.GetCloud().Value() || p.license.GetSupportsModeratedSessions().Value(),
+		MachineID:               p.license.GetCloud().Value() || p.license.GetSupportsMachineID().Value(),
+		ResourceAccessRequests:  p.license.GetCloud().Value() || p.license.GetSupportsResourceAccessRequests().Value(),
 		Cloud:                   p.license.GetCloud().Value(),
 		OIDC:                    true,
 		SAML:                    true,
