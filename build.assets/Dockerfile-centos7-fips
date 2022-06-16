@@ -38,15 +38,14 @@ RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/
     chmod a-w / && \
     /opt/go/bin/go version
 
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
-# Install Rust.
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=$RUST_VERSION
 
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
@@ -60,10 +59,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustc --version && \
     rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
     cargo install cbindgen
-
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
