@@ -292,7 +292,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
 			ourClusterName = clusterName.GetClusterName()
 		}
-		t.log.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
+		t.log.Errorf("Failed to retrieve client pool for client %v, client cluster %v, target cluster %v, error:  %v.",
+			info.Conn.RemoteAddr().String(), clusterName, ourClusterName, trace.DebugReport(err))
 		// this falls back to the default config
 		return nil, nil
 	}
