@@ -55,7 +55,7 @@ func makeKnownHostsLine(host string, key ssh.PublicKey) string {
 }
 
 // Tests symmetric equality of key equality.
-func TestSshKeysEqual(t *testing.T) {
+func TestSSHKeysEqual(t *testing.T) {
 	rsaKey1, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClwXUKOp/S4XEtFjgr8mfaCy4OyI7N9ZMibdCGxvk2VHP9+Vn8Al1lUSVwuBxHI7EHiq42RCTBetIpTjzn6yiPNAeGNL5cfl9i6r+P5k7og1hz+2oheWveGodx6Dp+Z4o2dw65NGf5EPaotXF8AcHJc3+OiMS5yp/x2A3tu2I1SPQ6dtPa067p8q1L49BKbFwrFRBCVwkr6kpEQAIjnMESMPGD5Buu/AtyAdEZQSLTt8RZajJZDfXFKMEtQm2UF248NFl3hSMAcbbTxITBbZxX7THbwQz22Yuw7422G5CYBPf6WRXBY84Rs6jCS4I4GMxj+3rF4mGtjvuz0wOE32s3w4eMh9h3bPuEynufjE8henmPCIW49+kuZO4LZut7Zg5BfVDQnZYclwokEIMz+gR02YpyflxQOa98t/0mENu+t4f0LNAdkQEBpYtGKKDth5kLphi2Sdi9JpGO2sTivlxMsGyBqdd0wT9VwQpWf4wro6t09HdZJX1SAuEi/0tNI10= friel@test"))
 	require.NoError(t, err)
 	// Same as above, but different comment
@@ -105,7 +105,7 @@ func TestSshKeysEqual(t *testing.T) {
 	}
 }
 
-func TestSshMarshalEd25519(t *testing.T) {
+func TestSSHMarshalEd25519(t *testing.T) {
 	ak, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtqQKEkGIY5+Bc4EmEv7NeSn6aA7KMl5eiNEAOqwTBl friel@test"))
 	require.NoError(t, err)
 
