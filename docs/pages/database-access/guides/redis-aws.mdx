@@ -91,13 +91,6 @@ $ teleport start --config=/etc/teleport.yaml
 The Database Service will discover and register all ElastiCache for Redis
 clusters according to the configuration.
 
-<Admonition type="note" title="AWS credentials">
-  The Teleport Database Service uses the default credential provider chain to
-  find AWS credentials. See [Specifying
-  Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
-  for more information.
-</Admonition>
-
 ## Step 6/7. Create a Teleport-managed ElastiCache user (optional)
 
 To provide better security, it is recommended to use [Redis
@@ -112,7 +105,7 @@ Control for
 ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html).
 
 Once an ElastiCache user is created with the desired access, add an
-AWS resource tag `teleport.dev/managed` with the value `true` to this user.
+AWS resource tag `teleport.dev/managed` with the value `true` to this user:
 
 ![Managed User Tag](../../../img/database-access/guides/redis/redis-aws-managed-user-tag.png)
 
@@ -120,19 +113,12 @@ The Database Service will automatically discover this user if it is associated
 with a registered database. Keep in mind that it may take the Database Service
 some time (up to 20 minutes) to discover this user once the tag is added.
 
-<Admonition type="tip">
-It is not required for all users in the same ElastiCache user group to be
-managed by Teleport. You can configure some ElastiCache users for Teleport
-access while reserving other users for other purposes like programming access.
-</Admonition>
-
 ## Step 7/7. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
@@ -184,15 +170,14 @@ Now, depending on the authentication configurations, you may need to send an
 `AUTH` command to authenticate with the Redis server:
 
 <Tabs>
-  <TabItem label="Teleport-managed user">
+  <TabItem label="Redis with ACL">
     The Database Service automatically authenticates Teleport-managed users
     with the Redis server. No `AUTH` command is required after successful
     connection.
-  </TabItem>
 
-  <TabItem label="Non-Teleport-managed user">
-    The connection normally starts as the `default` user. Now you can
-    authenticate the database user with its password:
+    If you are connecting as a non-Teleport-manged user, the connection
+    normally starts as the `default` user. Now you can authenticate the
+    database user with its password:
 
     ```
     AUTH my-database-user <USER_PASSWORD>
@@ -208,7 +193,7 @@ Now, depending on the authentication configurations, you may need to send an
   </TabItem>
 
   <TabItem label="Redis without AUTH">
-    For Redis without AUTH token or ACL, no `AUTH` command is required.
+    For Redis without ACL or AUTH token, no `AUTH` command is required.
   </TabItem>
 
 </Tabs>
