@@ -17,14 +17,14 @@ limitations under the License.
 package services
 
 import (
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // CompareResources compares two resources by all significant fields.
-func CompareResources(resA, resB types.Resource) int {
+func CompareResources(resA, resB types.Resource) CompareResult {
 	equal := cmp.Equal(resA, resB,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),

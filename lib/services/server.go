@@ -21,27 +21,29 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 )
+
+type CompareResult int
 
 const (
 	// Equal means two objects are equal
-	Equal = iota
+	Equal CompareResult = iota
 	// OnlyTimestampsDifferent is true when only timestamps are different
-	OnlyTimestampsDifferent = iota
+	OnlyTimestampsDifferent
 	// Different means that some fields are different
-	Different = iota
+	Different
 )
 
 // CompareServers compares two provided servers.
-func CompareServers(a, b types.Resource) int {
+func CompareServers(a, b types.Resource) CompareResult {
 	if serverA, ok := a.(types.Server); ok {
 		if serverB, ok := b.(types.Server); ok {
 			return compareServers(serverA, serverB)
@@ -65,7 +67,7 @@ func CompareServers(a, b types.Resource) int {
 	return Different
 }
 
-func compareServers(a, b types.Server) int {
+func compareServers(a, b types.Server) CompareResult {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -116,7 +118,7 @@ func compareServers(a, b types.Server) int {
 	return Equal
 }
 
-func compareApplicationServers(a, b types.AppServer) int {
+func compareApplicationServers(a, b types.AppServer) CompareResult {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -146,7 +148,7 @@ func compareApplicationServers(a, b types.AppServer) int {
 	return Equal
 }
 
-func compareDatabaseServers(a, b types.DatabaseServer) int {
+func compareDatabaseServers(a, b types.DatabaseServer) CompareResult {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}
@@ -176,7 +178,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	return Equal
 }
 
-func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
+func compareWindowsDesktopServices(a, b types.WindowsDesktopService) CompareResult {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}

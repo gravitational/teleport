@@ -21,14 +21,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 type ServerSuite struct {
@@ -219,7 +219,7 @@ func TestOnlyTimestampsDifferent(t *testing.T) {
 		desc   string
 		a      types.Resource
 		b      types.Resource
-		expect int
+		expect CompareResult
 	}{
 		{
 			desc: "Kube cluster change returns Different",
