@@ -214,12 +214,23 @@ role only allows SSH logins as `root@host`.
 ```yaml
 kind: role
 metadata:
-  name: access
+  name: access-sample
 spec:
+  # This example defines a typical role. It allows listing all resources
+  # with typical developer credentials.
   allow:
-    logins:
-    - '{{internal.logins}}'
-    - root
+    logins: ['{{internal.logins}}', root]
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - event
+      verbs: [list, read]
+    - resources:
+      - session
+      verbs: [list, read]
+      where: contains(session.participants, user.metadata.name)
+version: v5
 ```
 
 You probably want to replace "root" with something else. Let's assume there will
@@ -229,7 +240,9 @@ to look like this:
 
 ```yaml
 allow:
-   logins: [admin]
+    logins: [admin]
+    node_labels:
+      '*': '*'
 ```
 
 <Admonition
@@ -248,7 +261,7 @@ $ sudo tctl create -f role.yaml
 Now, lets create a new Teleport user "joe" with "access" role:
 
 ```code
-$ sudo tctl users add --roles=access --logins=joe,ubuntu,ec2-user joe
+$ sudo tctl users add --roles=access-sample --logins=joe,ubuntu,ec2-user joe
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
