@@ -131,10 +131,10 @@ $ tbot db --proxy=example.com --destination-dir=./tbot-user/ -- --help
 ```
 
 Additionally, be aware of the following limitations of `tbot db`:
- * `tbot db connect` requires a `tbot db login` for certain database types,
+ - `tbot db connect` requires a `tbot db login` for certain database types,
    like MySQL, so that additional connection parameters can be written to a
    local configuration file. 
- * `tbot db env` is not fully supported.
+ - `tbot db env` is not fully supported.
 
 ## `tbot proxy`
 
@@ -181,9 +181,9 @@ $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 ssh al
 ```
 
 In this case:
- * `alice` is the remote username
- * `node` is the Teleport Node name
- * `3022` is the remote SSH port, which is 3022 for Nodes running the Teleport
+ - `alice` is the remote username
+ - `node` is the Teleport Node name
+ - `3022` is the remote SSH port, which is 3022 for Nodes running the Teleport
    SSH service.
 
 You can also refer to Machine ID's generated `ssh_config` for a proxy usage
@@ -199,8 +199,8 @@ $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --p
 ```
 
 In this case:
- * `example` is the name of the database server as it exists in Teleport
- * `1234` is an arbitrary port on which to run the proxy
+ - `example` is the name of the database server as it exists in Teleport
+ - `1234` is an arbitrary port on which to run the proxy
 
 Though not recommended, to avoid the need for additional client authentication,
 the `--tunnel` flag may be used to perform authentication at the local proxy
@@ -211,8 +211,8 @@ $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --t
 ```
 
 Note that this decreases security:
- * It allows any user on the system to access the database via `localhost`
- * Your connection to the database will be unencrypted until it reaches the
+ - It allows any user on the system to access the database via `localhost`
+ - Your connection to the database will be unencrypted until it reaches the
    tbot proxy running on `localhost`.
 
 Refer to the [database guide](../guides/webapps.mdx) for more information on
