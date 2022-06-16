@@ -24,7 +24,7 @@ Here's an overview of what you will do:
 <Admonition type="note" title="Machine ID and TLS Routing">
 TLS Routing support was added to Machine ID in [Teleport
 9.3](https://goteleport.com/docs/changelog/#930=). Older versions of the
-Teleport Proxy Server will need to be configured with a dedicated SSH listener:
+Teleport Proxy Service will need to be configured with a dedicated SSH listener:
 
 ```yaml
 version: v1
@@ -174,14 +174,14 @@ Replace the following fields with values from your own cluster.
 <ScopedBlock scope={["cloud"]}>
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `destination-dir` is where Machine ID writes user certificates which can be used by applications and tools.
+- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `destination-dir` is where Machine ID writes user certificates which can be used by applications and tools.
+- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Auth Server, for example `auth.example.com:3025`.
 </ScopedBlock>

@@ -110,7 +110,7 @@ Note that `tsh` must also be installed to make use of this command.
 | `-d/--debug`        | Enable verbose logging to stderr.                                                                        |
 | `-c/--config`       | Path to a configuration file.                                                                            |
 | `--destination-dir` | Path to the Machine ID destination dir that should be used for authentication. Required.                 |
-| `--proxy`           | The `host:port` of the Teleport proxy to use to access resources. Required.                              |
+| `--proxy`           | The `host:port` of the Teleport Proxy Service to use to access resources. Required.                              |
 | `--cluster`         | The name of the cluster on which resources should be accessed. Extracted from the bot identity if unset. |
 
 All other flags and arguments are passed directly to `tsh db ...`, along
@@ -211,9 +211,9 @@ $ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --t
 ```
 
 Note that this decreases security:
- - It allows any user on the system to access the database via `localhost`
+ - It allows any user on the system to access the database via `localhost`.
  - Your connection to the database will be unencrypted until it reaches the
-   tbot proxy running on `localhost`.
+   `tbot` proxy running on `localhost`.
 
 Refer to the [database guide](../guides/databases.mdx) for more information on
 using database proxies.
