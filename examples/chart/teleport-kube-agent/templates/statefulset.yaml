@@ -2,7 +2,7 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
-{{- if .Values.storage.enabled }}
+{{- if or (.Values.storage.enabled) .Release.IsInstall (not (include "teleport.kube.agent.isUpgrade" .)) }}
 {{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -113,9 +113,23 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if .Values.extraEnv }}
+        {{- if or (or .Release.IsInstall (not (include "teleport.kube.agent.isUpgrade" .)))  .Values.extraEnv }}
         env:
-          {{- toYaml .Values.extraEnv | nindent 10 }}
+          {{- if or .Release.IsInstall ( not (include "teleport.kube.agent.isUpgrade" .) )}}
+          - name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: RELEASE_NAME
+            value: {{ .Release.Name }}
+          {{- end }}
+          {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 10 }}
+          {{- end }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -164,8 +178,13 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+{{- if and .Values.storage.enabled (include "teleport.kube.agent.isUpgrade" .) }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+{{- else }}
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -176,9 +195,14 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+{{- if not (and .Values.storage.enabled (include "teleport.kube.agent.isUpgrade" .) ) }}
+      - name: "data"
+        emptyDir: {}
+{{- end}}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
+{{- if and .Values.storage.enabled  (include "teleport.kube.agent.isUpgrade" .) }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"
@@ -188,4 +212,5 @@ spec:
       resources:
         requests:
           storage: {{ .Values.storage.requests }}
+{{- end }}
 {{- end }}

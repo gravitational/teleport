@@ -1,0 +1,32 @@
+suite: Role
+templates:
+  - role.yaml
+tests:
+  - it: Doesn't create a Role when upgrading
+    release:
+      isupgrade: true
+    set:
+      unitTestUpgrade: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a Role
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Role
+      - matchSnapshot: {}
+  
+  - it: sets Role labels when specified
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: role
+      - matchSnapshot: {}

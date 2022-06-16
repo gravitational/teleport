@@ -1,0 +1,19 @@
+{{- if or .Release.IsInstall ( not (include "teleport.kube.agent.isUpgrade" .) ) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.roleBindingName | default .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.roleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.roleName | default .Release.Name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccountName | default .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+{{- end}}

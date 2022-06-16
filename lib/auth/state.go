@@ -29,16 +29,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// stateBackend implements abstraction over local or remote storage backend methods
+// required for Identity/State storage.
+// As in backend.Backend, Item keys are assumed to be valid UTF8, which may be enforced by the
+// various Backend implementations.
+type stateBackend interface {
+	// Create creates item if it does not exist
+	Create(ctx context.Context, i backend.Item) (*backend.Lease, error)
+	// Put puts value into backend (creates if it does not
+	// exists, updates it otherwise)
+	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
+	// Get returns a single item or not found error
+	Get(ctx context.Context, key []byte) (*backend.Item, error)
+}
+
 // ProcessStorage is a backend for local process state,
 // it helps to manage rotation for certificate authorities
 // and keeps local process credentials - x509 and SSH certs and keys.
 type ProcessStorage struct {
-	backend.Backend
+	BackendStorage backend.Backend
+	stateStorage   stateBackend
 }
 
 // Close closes all resources used by process storage backend.
 func (p *ProcessStorage) Close() error {
-	return p.Backend.Close()
+	// we do not need to close identity storage because it's either the same as backend or it's kubernetes
+	// which does not require any close method
+	return p.BackendStorage.Close()
 }
 
 const (
@@ -58,7 +75,7 @@ const (
 
 // GetState reads rotation state from disk.
 func (p *ProcessStorage) GetState(role types.SystemRole) (*StateV2, error) {
-	item, err := p.Get(context.TODO(), backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
+	item, err := p.stateStorage.Get(context.TODO(), backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -85,7 +102,7 @@ func (p *ProcessStorage) CreateState(role types.SystemRole, state StateV2) error
 		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.Create(context.TODO(), item)
+	_, err = p.stateStorage.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,7 +122,7 @@ func (p *ProcessStorage) WriteState(role types.SystemRole, state StateV2) error 
 		Key:   backend.Key(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.Put(context.TODO(), item)
+	_, err = p.stateStorage.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -117,7 +134,7 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*Iden
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := p.Get(context.TODO(), backend.Key(idsPrefix, strings.ToLower(role.String()), name))
+	item, err := p.stateStorage.Get(context.TODO(), backend.Key(idsPrefix, strings.ToLower(role.String()), name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -165,7 +182,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id Identity) error {
 		Key:   backend.Key(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
 		Value: value,
 	}
-	_, err = p.Put(context.TODO(), item)
+	_, err = p.stateStorage.Put(context.TODO(), item)
 	return trace.Wrap(err)
 }
 

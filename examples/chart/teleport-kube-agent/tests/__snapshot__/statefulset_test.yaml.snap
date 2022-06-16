@@ -3,6 +3,17 @@ sets Pod annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -42,7 +53,7 @@ sets Pod annotations when specified:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -53,11 +64,24 @@ sets Pod annotations when specified:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 sets Pod labels when specified:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -97,7 +121,7 @@ sets Pod labels when specified:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -108,6 +132,8 @@ sets Pod labels when specified:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 sets StatefulSet labels when specified:
   1: |
     apiVersion: apps/v1
@@ -137,6 +163,17 @@ sets StatefulSet labels when specified:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
+            env:
+            - name: TELEPORT_REPLICA_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: RELEASE-NAME
             image: quay.io/gravitational/teleport:11.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
@@ -176,7 +213,7 @@ sets StatefulSet labels when specified:
               name: auth-token
               readOnly: true
             - mountPath: /var/lib/teleport
-              name: RELEASE-NAME-teleport-data
+              name: data
           securityContext:
             fsGroup: 9807
           serviceAccountName: RELEASE-NAME
@@ -187,22 +224,25 @@ sets StatefulSet labels when specified:
           - name: auth-token
             secret:
               secretName: teleport-kube-agent-join-token
-      volumeClaimTemplates:
-      - metadata:
-          name: RELEASE-NAME-teleport-data
-        spec:
-          accessModes:
-          - ReadWriteOnce
-          resources:
-            requests:
-              storage: 128Mi
-          storageClassName: aws-gp2
+          - emptyDir: {}
+            name: data
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -242,7 +282,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -253,7 +293,9 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should add volumeClaimTemplate for data volume when using StatefulSet:
+    - emptyDir: {}
+      name: data
+should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade:
   1: |
     containers:
     - args:
@@ -313,6 +355,17 @@ should add volumeMount for data volume when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -352,7 +405,7 @@ should add volumeMount for data volume when using StatefulSet:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -363,11 +416,24 @@ should add volumeMount for data volume when using StatefulSet:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should expose diag port:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -407,7 +473,7 @@ should expose diag port:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -418,6 +484,76 @@ should expose diag port:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+should generate Statefulset when storage is disabled and mode is a Upgrade:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: quay.io/gravitational/teleport:11.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should have multiple replicas when replicaCount is set (using .replicaCount, deprecated):
   1: |
     affinity:
@@ -435,6 +571,17 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -474,7 +621,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -485,6 +632,8 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should have multiple replicas when replicaCount is set (using highAvailability.replicaCount):
   1: |
     affinity:
@@ -502,6 +651,17 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -541,7 +701,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -552,11 +712,24 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should have one replica when replicaCount is not set:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -596,7 +769,7 @@ should have one replica when replicaCount is not set:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -607,11 +780,24 @@ should have one replica when replicaCount is not set:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should mount extraVolumes and extraVolumeMounts:
+    - emptyDir: {}
+      name: data
+should install Statefulset when storage is disabled and mode is a Fresh Install:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -651,7 +837,75 @@ should mount extraVolumes and extraVolumeMounts:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
+    securityContext:
+      fsGroup: 9807
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+should mount extraVolumes and extraVolumeMounts:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: quay.io/gravitational/teleport:11.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
       - mountPath: /path/to/mount
         name: my-mount
     securityContext:
@@ -664,6 +918,8 @@ should mount extraVolumes and extraVolumeMounts:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
     - name: my-mount
       secret:
         secretName: mySecret
@@ -727,6 +983,17 @@ should provision initContainer correctly when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -773,7 +1040,7 @@ should provision initContainer correctly when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     initContainers:
     - args:
       - echo test
@@ -813,11 +1080,24 @@ should provision initContainer correctly when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set SecurityContext:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -857,7 +1137,7 @@ should set SecurityContext:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -868,6 +1148,8 @@ should set SecurityContext:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set affinity when set in values:
   1: |
     affinity:
@@ -893,6 +1175,17 @@ should set affinity when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -932,7 +1225,7 @@ should set affinity when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -943,11 +1236,24 @@ should set affinity when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set default serviceAccountName when not set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -987,7 +1293,7 @@ should set default serviceAccountName when not set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -998,12 +1304,24 @@ should set default serviceAccountName when not set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set environment when extraEnv set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
       image: quay.io/gravitational/teleport:11.0.0-dev
@@ -1045,7 +1363,7 @@ should set environment when extraEnv set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1056,11 +1374,24 @@ should set environment when extraEnv set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set image and tag correctly:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:8.3.4
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1100,7 +1431,7 @@ should set image and tag correctly:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1111,11 +1442,24 @@ should set image and tag correctly:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set imagePullPolicy when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: Always
       livenessProbe:
@@ -1155,7 +1499,7 @@ should set imagePullPolicy when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1166,11 +1510,24 @@ should set imagePullPolicy when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set nodeSelector if set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1210,7 +1567,7 @@ should set nodeSelector if set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     nodeSelector:
       gravitational.io/k8s-role: node
     securityContext:
@@ -1223,6 +1580,8 @@ should set nodeSelector if set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set preferred affinity when more than one replica is used:
   1: |
     affinity:
@@ -1240,6 +1599,17 @@ should set preferred affinity when more than one replica is used:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1279,7 +1649,7 @@ should set preferred affinity when more than one replica is used:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1290,11 +1660,24 @@ should set preferred affinity when more than one replica is used:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set probeTimeoutSeconds when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1334,7 +1717,7 @@ should set probeTimeoutSeconds when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1345,6 +1728,8 @@ should set probeTimeoutSeconds when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set required affinity when highAvailability.requireAntiAffinity is set:
   1: |
     affinity:
@@ -1360,6 +1745,17 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1399,7 +1795,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1410,11 +1806,24 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set resources when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1461,7 +1870,7 @@ should set resources when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1472,11 +1881,24 @@ should set resources when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
 should set serviceAccountName when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1516,7 +1938,7 @@ should set serviceAccountName when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: teleport-kube-agent-sa
@@ -1527,7 +1949,9 @@ should set serviceAccountName when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should set storage.requests when set in values:
+    - emptyDir: {}
+      name: data
+should set storage.requests when set in values and action is an Upgrade:
   1: |
     containers:
     - args:
@@ -1582,7 +2006,7 @@ should set storage.requests when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should set storage.storageClassName when set in values:
+should set storage.storageClassName when set in values and action is an Upgrade:
   1: |
     containers:
     - args:
@@ -1642,6 +2066,17 @@ should set tolerations when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1681,7 +2116,7 @@ should set tolerations when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: RELEASE-NAME-teleport-data
+        name: data
     securityContext:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
@@ -1701,3 +2136,93 @@ should set tolerations when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+shouldn't add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install:
+  1: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: RELEASE-NAME
+      serviceName: RELEASE-NAME
+      template:
+        metadata:
+          annotations:
+            checksum/config: 4e3d4cbd8163fcd955cd7f8f13e88ccdef04a77ae689d1ec48dce37465d71d4f
+          labels:
+            app: RELEASE-NAME
+        spec:
+          containers:
+          - args:
+            - --diag-addr=0.0.0.0:3000
+            env:
+            - name: TELEPORT_REPLICA_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: RELEASE-NAME
+            image: quay.io/gravitational/teleport:11.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diag
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diag
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+            volumeMounts:
+            - mountPath: /etc/teleport
+              name: config
+              readOnly: true
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+              readOnly: true
+            - mountPath: /var/lib/teleport
+              name: data
+          securityContext:
+            fsGroup: 9807
+          serviceAccountName: RELEASE-NAME
+          volumes:
+          - configMap:
+              name: RELEASE-NAME
+            name: config
+          - name: auth-token
+            secret:
+              secretName: teleport-kube-agent-join-token
+          - emptyDir: {}
+            name: data

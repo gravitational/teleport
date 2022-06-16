@@ -1,0 +1,17 @@
+
+{{- if or .Release.IsInstall ( not (include "teleport.kube.agent.isUpgrade" .)) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.roleName | default .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.role }}
+  labels:
+  {{- toYaml .Values.extraLabels.role | nindent 4 }}
+{{- end }}
+rules:
+- apiGroups: [""]
+  # objects is "secrets"
+  resources: ["secrets"]
+  verbs: ["create", "get", "update","patch"]
+{{- end}}
