@@ -167,6 +167,9 @@ func (s *shard) remove(handle UpstreamHandle) {
 	for i, h := range e.handles {
 		if handle == h {
 			e.handles = swapRemove(e.handles, i)
+			if len(e.handles) == 0 {
+				delete(s.m, handle.Hello().ServerID)
+			}
 			return
 		}
 	}
