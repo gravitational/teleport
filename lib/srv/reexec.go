@@ -44,16 +44,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// FileFD is a file descriptor passed down from a parent process when
+// Teleport is re-executing itself.
 type FileFD = uintptr
 
 const (
+	// CommandFile is used to pass the command and arguments that the
+	// child process should execute from the parent process.
 	CommandFile FileFD = 3 + iota
+	// ContinueFile is used to communicate to the child process that
+	// it can continue after the parent process assigns a cgroup to the
+	// child process.
 	ContinueFile
+	// X11File is used to communicate to the parent process that the child
+	// process has set up X11 forwarding.
 	X11File
+	// PTYFile is a PTY the parent process passes to the child process.
 	PTYFile
+	// TTYFile is a TTY the parent process passes to the child process.
 	TTYFile
 
-	ExtraFD FileFD = 6
+	// FirstExtraFile is the first file descriptor that will be valid when
+	// extra files are passed to child processes without a terminal.
+	FirstExtraFile FileFD = X11File + 1
 )
 
 // ExecCommand contains the payload to "teleport exec" which will be used to
@@ -108,8 +121,8 @@ type ExecCommand struct {
 	X11Config X11Config `json:"x11_config"`
 
 	// ExtraFilesLen is the number of extra files that are inherited from
-	// the parent process. These files start at file descriptor 3 and are
-	// only valid if Terminal is false.
+	// the parent process. These files start at file descriptor 3 of the
+	// child process, and are only valid for processes without a terminal.
 	ExtraFilesLen int `json:"extra_files_len"`
 }
 
@@ -255,6 +268,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	defer func() {
+		for _, f := range cmd.ExtraFiles {
+			if err := f.Close(); err != nil {
+				log.WithError(err).Debug("error closing extra file")
+			}
+		}
+	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
@@ -349,12 +369,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	parkerCancel()
-
-	for _, f := range cmd.ExtraFiles {
-		if err := f.Close(); err != nil {
-			log.Debugf("error closing extra file: %v", err)
-		}
-	}
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
@@ -598,16 +612,16 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 			Setsid: true,
 		}
 
+		// If a terminal was not requested, and extra files were specified
+		// to be passed to the child, open them so that they can be passed
+		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
 			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
 			for i := 0; i < c.ExtraFilesLen; i++ {
-				// FD 3 and 4 are used for the command file and the
-				// continue file, and FD 5 is used for the X11 file,
-				// so extra file FDs will start at 6.
-				fd := int(ExtraFD) + i
-				f := os.NewFile(uintptr(fd), strconv.Itoa(fd))
+				fd := FirstExtraFile + uintptr(i)
+				f := os.NewFile(fd, strconv.Itoa(int(fd)))
 				if f == nil {
-					return nil, trace.NotFound("extra file %d not found", i)
+					return nil, trace.NotFound("extra file %d not found", fd)
 				}
 				cmd.ExtraFiles[i] = f
 			}

@@ -42,8 +42,7 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	// TODO: add prometheus collectors?
 	return &sftpSubsys{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component:       teleport.ComponentSubsystemSFTP,
-			trace.ComponentFields: map[string]string{},
+			trace.Component: teleport.ComponentSubsystemSFTP,
 		}),
 	}, nil
 }
