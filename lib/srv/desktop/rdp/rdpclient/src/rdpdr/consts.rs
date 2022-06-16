@@ -89,7 +89,7 @@ pub enum MajorFunction {
     IRP_MJ_LOCK_CONTROL = 0x00000011,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Clone)]
 #[allow(non_camel_case_types)]
 pub enum MinorFunction {
     IRP_MN_NONE = 0x00000000,
