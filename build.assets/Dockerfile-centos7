@@ -19,11 +19,12 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
+# install_sw install only binaries, skips docs.
 RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1o && \
     cd openssl && \
     ./config --release && \
     make && \
-    make install
+    make install_sw
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -52,6 +53,79 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
 
+FROM centos:7 AS centos-devtoolset
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+        # required by libbpf, Clang
+        centos-release-scl \
+        # required by Clang/LLVM
+        cmake3 \
+        # required by libbpf and Clang
+        devtoolset-11-gcc* \
+        # required by libbpf
+        devtoolset-11-make \
+        # required by libbpf
+        elfutils-libelf-devel \
+        # required by libbpf
+        elfutils-libelf-devel-static \
+        git \
+        # required by libbpf, Clang
+        scl-utils \
+        # required by libbpf
+        zlib-devel \
+        # required by libbpf
+        zlib-static && \
+    yum clean all
+
+# Use just created devtool image with newer GCC and Cmake
+FROM centos-devtoolset as clang10
+
+# Compile Clang 10.0.1 from source. It is needed to create BPF files. 
+# Centos 7 doesn't provide it as a package unfortunately.
+# LLVM_INCLUDE_BENCHMARKS must be off, otherwise compilation fails, 
+# CLANG_BUILD_TOOLS must be on, it builds clang binary,
+# LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
+# the rest is disabled to speedup the compilation.
+RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-project.git && \
+    cd llvm-project/ && \
+    mkdir build && cd build/ && \
+    scl enable devtoolset-11 'bash -c "cmake3 \
+        -DCLANG_BUILD_TOOLS=ON \
+        -DCLANG_ENABLE_ARCMT=OFF \
+        -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/llvm \
+        -DLLVM_BUILD_TOOLS=ON \
+        -DLLVM_BUILD_UTILS=OFF \
+        -DLLVM_ENABLE_BINDINGS=OFF \
+        -DLLVM_ENABLE_PROJECTS=clang \
+        -DLLVM_INCLUDE_BENCHMARKS=OFF \
+        -DLLVM_INCLUDE_GO_TESTS=OFF \
+        -DLLVM_INCLUDE_TESTS=OFF \
+        -DLLVM_TOOL_LLI_BUILD=OFF \
+        -G \"Unix Makefiles\" ../llvm && \
+    make -j6 &&  \
+    make install"' && \
+    cd ../.. && \
+    rm -rf llvm-project
+
+# Use just created devtools image with never GCC
+FROM centos-devtoolset as libbpf
+
+# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
+# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && \
+    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
+
+
 FROM centos:7 AS buildbox
 
 ENV LANGUAGE=en_US.UTF-8 \
@@ -69,13 +143,23 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
+        # required by libbpf
+        elfutils-libelf-devel \
+        # required by libbpf
+        elfutils-libelf-devel-static \
         git \
-        libatomic \
         net-tools \
+        # required by Teleport PAM support
         pam-devel \
         perl-IPC-Cmd \
         tree \
+        # used by our Makefile
+        which \
         zip \
+        # required by libbpf
+        zlib-devel \
+        # required by libbpf
+        zlib-static && \
     yum clean all
 
 # Install etcd.
@@ -141,6 +225,13 @@ RUN cd /usr/local/lib64 && \
     ldconfig
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
+
+# Copy Clang into the final image.
+COPY --from=clang10 /opt/llvm /opt/llvm/
+ENV PATH=/opt/llvm/bin:${PATH}
+
+# Copy libbpf into the final image.
+COPY --from=libbpf /opt/libbpf/usr /usr 
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
