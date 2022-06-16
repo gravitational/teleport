@@ -1278,7 +1278,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	n, err := authClient.GetClusterName()
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
-	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "")
+	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
 	require.NoError(t, err)
 
 	tlsConfig, err := identity.TLSConfig(nil)
