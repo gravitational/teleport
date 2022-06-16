@@ -126,7 +126,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
-
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
@@ -134,7 +133,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
-
 			},
 			expectError: require.Error,
 		},
@@ -465,7 +463,6 @@ func TestSSHSection(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestX11Config(t *testing.T) {
@@ -490,7 +487,8 @@ func TestX11Config(t *testing.T) {
 				}
 			},
 			expectX11Config: &x11.ServerConfig{},
-		}, {
+		},
+		{
 			desc: "x11 enabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -517,7 +515,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: 100,
 				MaxDisplay:    100 + x11.DefaultMaxDisplays,
 			},
-		}, {
+		},
+		{
 			desc: "display offset value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -545,7 +544,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100,
 			},
-		}, {
+		},
+		{
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -558,7 +558,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    x11.MaxDisplayNumber,
 			},
-		}, {
+		},
+		{
 			desc: "max display smaller than display offset",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -720,6 +721,15 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthToken:  "auth-token",
 			JoinMethod: "token",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+	})
+
+	t.Run("Token, method not specified", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthToken: "auth-token",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
