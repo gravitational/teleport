@@ -246,6 +246,9 @@ const (
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
+	// ComponentInstance is an abstract component common to all services.
+	ComponentInstance = "instance"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
