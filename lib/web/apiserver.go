@@ -190,8 +190,8 @@ type Config struct {
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
 
-	// MinimalReverseTunnelRoutesOnly adds only the routes required for a reverse
-	// tunnel agent to establish a connection when enabled.
+	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
+	// a reverse tunnel agent to establish a connection.
 	MinimalReverseTunnelRoutesOnly bool
 }
 

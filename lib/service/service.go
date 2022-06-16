@@ -3235,7 +3235,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if listeners.minimalReverseTunnelWebEnabled {
-			minimalListener := listeners.reverseTunnelMux.TLS()
+			minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
+				Listener: tls.NewListener(listeners.reverseTunnelMux.TLS(), tlsConfigWeb),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			minimalProxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3247,17 +3253,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			minimalProxyLimiter.WrapHandle(minimalWebHandler)
 
-			minimalTLSListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-				Listener: tls.NewListener(minimalListener, tlsConfigWeb),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			minimalListener = minimalTLSListener.Web()
-
 			process.RegisterCriticalFunc("proxy.reversetunnel.tls", func() error {
 				log.Infof("TLS multiplexer is starting on %v.", cfg.Proxy.ReverseTunnelListenAddr.Addr)
-				if err := minimalTLSListener.Serve(); !trace.IsConnectionProblem(err) {
+				if err := minimalListener.Serve(); !trace.IsConnectionProblem(err) {
 					log.WithError(err).Warn("TLS multiplexer error.")
 				}
 				log.Info("TLS multiplexer exited.")
@@ -3275,7 +3273,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 				defer minimalWebHandler.Close()
 				process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: minimalWebHandler})
-				if err := minimalWebServer.Serve(minimalListener); err != nil && err != http.ErrServerClosed {
+				if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
 					log.Warningf("Error while serving web requests: %v", err)
 				}
 				log.Info("Exited.")
