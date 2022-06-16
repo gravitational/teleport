@@ -2126,10 +2126,10 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Token = fc.JoinParams.TokenName
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
+		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
 	return nil

@@ -197,9 +197,13 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
 	g.JoinParams = JoinParams{
 		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(flags.JoinMethod),
+		Method:    types.JoinMethod(joinMethod),
 	}
 
 	if flags.AuthServer != "" {
