@@ -34,14 +34,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // WriteContextCloser provides close method with context
@@ -506,9 +506,9 @@ func PrintVersion() {
 
 // StringSliceSubset returns true if b is a subset of a.
 func StringSliceSubset(a []string, b []string) error {
-	aset := make(map[string]bool)
+	aset := make(map[string]struct{})
 	for _, v := range a {
-		aset[v] = true
+		aset[v] = struct{}{}
 	}
 
 	for _, v := range b {

@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // HeartbeatI abstracts over the basic interfact of Heartbeat and HeartbeatV2. This can be removed
@@ -356,7 +356,7 @@ func (h *Heartbeat) fetch() error {
 		}
 		result := services.CompareServers(h.current, server)
 		// server update happened, time to announce
-		if result == services.Different {
+		if result == services.Different || result == services.ProxyReachabilityDifferent {
 			h.current = server
 			h.reset(HeartbeatStateAnnounce)
 		}
@@ -367,16 +367,22 @@ func (h *Heartbeat) fetch() error {
 		// Stay in keep alive state in case
 		// if there are no changes
 	case HeartbeatStateKeepAliveWait:
-		// time to send a new keep alive
-		if h.Clock.Now().UTC().After(h.nextKeepAlive) {
-			h.setState(HeartbeatStateKeepAlive)
-			return nil
-		}
 		result := services.CompareServers(h.current, server)
 		// server update happened, move to announce
 		if result == services.Different {
 			h.current = server
 			h.reset(HeartbeatStateAnnounce)
+			return nil
+		}
+		// time to send a new keep alive
+		if h.Clock.Now().UTC().After(h.nextKeepAlive) {
+			if result == services.ProxyReachabilityDifferent {
+				h.current = server
+				h.reset(HeartbeatStateAnnounce)
+				return nil
+			}
+			h.setState(HeartbeatStateKeepAlive)
+			return nil
 		}
 		return nil
 	default:

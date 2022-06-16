@@ -40,6 +40,8 @@ const (
 	OnlyTimestampsDifferent
 	// Different means that some fields are different
 	Different
+	// ProxyReachabilityDifferent means that the ProxyIDs are different
+	ProxyReachabilityDifferent
 )
 
 // CompareServers compares two provided servers.
@@ -109,6 +111,11 @@ func compareServers(a, b types.Server) CompareResult {
 		return Different
 	}
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		if len(b.GetProxyIDs()) > len(a.GetProxyIDs()) && len(a.GetProxyIDs()) > 0 {
+			if utils.StringSliceSubset(b.GetProxyIDs(), a.GetProxyIDs()) == nil {
+				return ProxyReachabilityDifferent
+			}
+		}
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.

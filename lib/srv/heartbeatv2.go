@@ -20,6 +20,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -29,9 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // SSHServerHeartbeatConfig configures the HeartbeatV2 for an ssh server.
@@ -409,7 +409,8 @@ func (h *sshServerHeartbeatV2) Poll() (changed bool) {
 	if h.prev == nil {
 		return true
 	}
-	return services.CompareServers(h.getServer(), h.prev) == services.Different
+	result := services.CompareServers(h.prev, h.getServer())
+	return result == services.Different || result == services.ProxyReachabilityDifferent
 }
 
 func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
