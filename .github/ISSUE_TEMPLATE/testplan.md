@@ -1174,4 +1174,4 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Application access through a browser
   - [ ] Application access through curl with `tsh app login`
   - [ ] `kubectl get po` after `tsh kube login`
-  - [ ] Database access (manual refresh of the database cert is needed; special attention should be paid to the `update_clients` and `update_servers` phases when there's more than one valid Teleport CA)
+  - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
