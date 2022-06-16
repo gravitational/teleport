@@ -264,7 +264,7 @@ func hostKeyFallbackFunc(knownHosts []ssh.PublicKey) func(hostname string, remot
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks
 func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ssh.Marshal(ak)
-	b := ssh.Marshal(bk)
+	a := ssh.MarshalAuthorizedKey(ak)
+	b := ssh.MarshalAuthorizedKey(bk)
 	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
 }
