@@ -51,11 +51,11 @@ Once agent updates the secret, it will have the following structure:
 
 ```yaml
 apiVersion: v1
-data: |
-        {
+stringData: 
+        
             # {role} might be kube, app,... if multiple roles are defined for the agent then, 
-            multiple entries are created each one holding its identity
-            "/ids/{role}/current": {
+            #multiple entries are created each one holding its identity
+            /ids/{role}/current: {
                 "kind": "identity",
                 "version": "v2",
                 "metadata": {
@@ -72,14 +72,14 @@ data: |
 
              # State is important if restart/rollback happens during the CA rotation phase.
              # it holds the current status of the rotation
-            "/states/{role}/state": {
+            /states/{role}/state: {
                 "kind": "state",
                 "version": "v2",
                 ...
             }
             
             # during CA rotation phase, the new keys are stored if agent is restarted or rotation has to rollback
-            "/ids/{role}/replacement": {
+            /ids/{role}/replacement: {
                 "kind": "identity",
                 "version": "v2",
                 "metadata": {
@@ -93,12 +93,11 @@ data: |
                     "ssh_ca_certs": ["{ssh_ca_certs}"]
                 }
             }
-        }
     
 kind: Secret
 metadata:
-  name: {.Release.Name}-state-{{$TELEPORT_REPLICA_NAME}}
-  namespace: {.Release.Namespace}
+  name: {$RELEASE_NAME}-state-{{$TELEPORT_REPLICA_NAME}}
+  namespace: {$KUBE_NAMESPACE}
 ```
 
 Where:
@@ -110,6 +109,8 @@ Where:
 - `ssh_ca_certs` is a list of SSH certificate authorities encoded in the authorized_keys format.
 - `role` is the role the agent is operating. If agent is running with multiple roles, i.e. app, kube..., multiple entries will be added, one for each role.
 - `TELEPORT_REPLICA_NAME` is the teleport agent replica name. In Kubernetes this variable exposes the POD name `TELEPORT_REPLICA_NAME=metadata.name`.
+- `KUBE_NAMESPACE` is the Kubernetes namespace in which the agent was installed. It is exposed by an ENV variable.
+- `RELEASE_NAME` is the Helm release name.
 
 #### RBAC Changes
 
@@ -140,7 +141,7 @@ The Kubernetes Secret backend storage is responsible for managing the Kubernetes
 
 If the identity secret exists in Kubernetes and has the node identity on it, the storage engine will parse and return the keys to the Agent, so it can use them to authenticate in the Teleport Cluster. If the cluster access operation is successful, the agent will be available for usage, but if the access operation fails because the Teleport Auth does not validate the node credentials, the Agent will log an error providing insightful information about the failure cause.
 
-In case of the identity secret is not present or is empty, the agent will try to join the cluster with the invite token provided. If the invite token is valid (has details in the Teleport Cluster and did not expire yet), Teleport Cluster will reply with the agent identity. Given the identity, the agent will write it in the secret `{{ .Release.Name }}-state-{{$TELEPORT_REPLICA_NAME}}` for future usage.
+In case of the identity secret is not present or is empty, the agent will try to join the cluster with the invite token provided. If the invite token is valid (has details in the Teleport Cluster and did not expire yet), Teleport Cluster will reply with the agent identity. Given the identity, the agent will write it in the secret `{$RELEASE_NAME}-state-{{$TELEPORT_REPLICA_NAME}}` for future usage.
 
 Otherwise, if the invite token is not valid or has expired, the Agent could not join the cluster, and it will stop and log a meaningful error message.
 
@@ -235,14 +236,15 @@ The following diagram shows the behavior when using Kubernetes’ Secret backend
 
 ### Backend storage
 
-Kubernetes Secret storage will be a transparent backend storage that can be plugged into [`ProcessStorage`](https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/state.go#L35) structure. Currently, `ProcessStorage` is responsible for handling the Identity and State storage. It expects a [`backend.Backend`](https://github.com/gravitational/teleport/blob/cc27d91a4585b0d744a7bec110260c335b0007fd/lib/backend/backend.go#L42), but it only requires a subset of it. The idea is to define a new interface `IdentityBackend` with the required methods and use it.
+Kubernetes Secret storage will be a transparent backend storage that can be plugged into [`ProcessStorage`](https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/state.go#L35) structure. Currently, `ProcessStorage` is responsible for handling the Identity and State storage. It expects a [`backend.Backend`](https://github.com/gravitational/teleport/blob/cc27d91a4585b0d744a7bec110260c335b0007fd/lib/backend/backend.go#L42), but it only requires a subset of it. The idea is to define a new interface `IdentityBackend` with the required methods and use it only for backend storage.
 
 ```go
 // ProcessStorage is a backend for local process state,
 // it helps to manage rotation for certificate authorities
 // and keeps local process credentials - x509 and SSH certs and keys.
 type ProcessStorage struct {
-	IdentityBackend
+	identityStorage IdentityBackend
+  Backend backend.Backend
 }
 
 // IdentityBackend implements abstraction over local or remote storage backend methods
@@ -257,14 +259,44 @@ type IdentityBackend interface {
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key []byte) (*backend.Item, error)
-	// Close closes backend and all associated resources
-	Close() error
 }
 ```
 
 During the startup procedure, the agent identifies that it is running inside Kubernetes. The identification can be achieved by checking the presence of the service account mount path `/var/run/secrets/kubernetes.io`. Although Kubernetes has an option that can disable this mount path, `automountServiceAccountToken: false`, this option is always `true` in our helm chart since we require it for handling the secrets via Kubernetes API and if the service account is not present, Teleport must avoid using secrets and fallback to local storage.
 
-If the agent detects that it is running in Kubernetes, it instantiates a backend for Kubernetes Secret. This backend creates a client with configuration provided by `restclient.InClusterConfig()`, which uses the service account token mounted in the pod. With this, the agent can operate the secret by creating, updating, and reading the secret data. 
+If the agent detects that it is running in Kubernetes, it instantiates an identity backend for Kubernetes Secret. This backend creates a client with configuration provided by `restclient.InClusterConfig()`, which uses the service account token mounted in the pod. With this, the agent can operate the secret by creating, updating, and reading the secret data.
+
+```go
+// NewProcessStorage returns a new instance of the process storage.
+func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
+  var (
+    identityStorage IdentityBackend
+    err error
+  )
+
+  if path == "" {
+    return nil, trace.BadParameter("missing parameter path")
+  }
+
+  litebk, err := lite.NewWithConfig(ctx, lite.Config{
+    Path:      path,
+    EventsOff: true,
+    Sync:      lite.SyncFull,
+  })
+
+  if kubernetes.InKubeCluster() {
+    identityStorage, err = kubernetes.New()
+    if err != nil {
+      return nil, trace.Wrap(err)
+    }
+    // TODO: add compatibility layer
+  } else {
+    identityStorage = litebk
+  }
+
+  return &ProcessStorage{Backend: litebk, identityStorage: identityStorage}, nil
+}
+```
 
 For a compatibility layer, if the secret does not exist in Kubernetes, but locally we have the SQLite database, this means storage is enabled, and the agent had already joined the cluster in the past. Hereby, the agent can inherit the credentials stored in the database and write them in Kubernetes secret ([more details](#upgrade-plans-from-pre-rfd-to-pos-rfd)).
 
@@ -367,6 +399,12 @@ data:
 +            valueFrom:
 +              fieldRef:
 +                 fieldPath: metadata.name
++          - name: KUBE_NAMESPACE
++            valueFrom:
++              fieldRef:
++                 fieldPath: metadata.namespace
++          - name: RELEASE_NAME
++            value: {{ .Release.Name }}
 +         {{- if .Values.extraEnv }}
 +          {{- toYaml .Values.extraEnv | nindent 8 }}
 +        {{- end }}
@@ -391,6 +429,12 @@ data:
 +            valueFrom:
 +              fieldRef:
 +                 fieldPath: metadata.name
++          - name: KUBE_NAMESPACE
++            valueFrom:
++              fieldRef:
++                 fieldPath: metadata.namespace
++          - name: RELEASE_NAME
++            value: {{ .Release.Name }}
 +         {{- if .Values.extraEnv }}
 +          {{- toYaml .Values.extraEnv | nindent 10 }}
 +        {{- end }}
