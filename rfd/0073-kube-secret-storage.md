@@ -11,7 +11,6 @@ state: draft
 Engineering: `@r0mant`
 Product: `@klizhentas || @xinding33`
 
-
 ## What
 
 Teleport Kubernetes Agent support for dynamic short-lived tokens relying only on native Kubernetes Secrets for identity storage.
@@ -47,56 +46,78 @@ The agent will never issue a delete request to destroy the secret. Helm’s `pos
 
 #### Secret content
 
-Once agent updates the secret, it will have the following structure:
+The agent will store `identity`, `replacement`, and `state` separately for each replica name and role. This means that if the agent is running with `roles = [kube,app,db]` each replica will generate 9 different secrets. If high availability is enabled, then the number of secrets generated is `9 * replicas`
+
+Identity storage:
 
 ```yaml
 apiVersion: v1
 stringData: 
-        
-            # {role} might be kube, app,... if multiple roles are defined for the agent then, 
-            #multiple entries are created each one holding its identity
-            /ids/{role}/current: {
-                "kind": "identity",
-                "version": "v2",
-                "metadata": {
-                    "name": "current"
-                },
-                "spec": {
-                    "key": "{key_content}",
-                    "ssh_cert": "{ssh_cert_content}",
-                    "tls_cert": "{tls_cert_content}",
-                    "tls_ca_certs": ["{tls_ca_certs}"],
-                    "ssh_ca_certs": ["{ssh_ca_certs}"]
-                }
-            }
-
-             # State is important if restart/rollback happens during the CA rotation phase.
-             # it holds the current status of the rotation
-            /states/{role}/state: {
-                "kind": "state",
-                "version": "v2",
-                ...
-            }
-            
-            # during CA rotation phase, the new keys are stored if agent is restarted or rotation has to rollback
-            /ids/{role}/replacement: {
-                "kind": "identity",
-                "version": "v2",
-                "metadata": {
-                    "name": "replacement"
-                },
-                "spec": {
-                    "key": "{key_content}",
-                    "ssh_cert": "{ssh_cert_content}",
-                    "tls_cert": "{tls_cert_content}",
-                    "tls_ca_certs": ["{tls_ca_certs}"],
-                    "ssh_ca_certs": ["{ssh_ca_certs}"]
-                }
-            }
-    
+  # key is required since data and stringData are represented in K8S as map[string][]byte or map[string]string
+  data: |
+    {
+        "kind": "identity",
+        "version": "v2",
+        "metadata": {
+            "name": "current"
+        },
+        "spec": {
+            "key": "{key_content}",
+            "ssh_cert": "{ssh_cert_content}",
+            "tls_cert": "{tls_cert_content}",
+            "tls_ca_certs": ["{tls_ca_certs}"],
+            "ssh_ca_certs": ["{ssh_ca_certs}"]
+        }
+    }
 kind: Secret
 metadata:
-  name: {$RELEASE_NAME}-state-{{$TELEPORT_REPLICA_NAME}}
+  name: {$TELEPORT_REPLICA_NAME}-identity-{role}
+  namespace: {$KUBE_NAMESPACE}
+```
+
+State storage:
+
+```yaml
+apiVersion: v1
+stringData: 
+    # State is important if restart/rollback happens during the CA rotation phase.
+    # it holds the current status of the rotation
+  data: |
+    {
+      "kind": "state",
+      "version": "v2",
+      ...
+    }
+kind: Secret
+metadata:
+  name: {$TELEPORT_REPLICA_NAME}-state-{role}
+  namespace: {$KUBE_NAMESPACE}
+```
+
+Replacement storage:
+
+```yaml
+apiVersion: v1
+stringData: 
+  # during CA rotation phase, the new keys are stored if agent is restarted or rotation has to rollback
+  data: |
+    {
+        "kind": "identity",
+        "version": "v2",
+        "metadata": {
+            "name": "replacement"
+        },
+        "spec": {
+            "key": "{key_content}",
+            "ssh_cert": "{ssh_cert_content}",
+            "tls_cert": "{tls_cert_content}",
+            "tls_ca_certs": ["{tls_ca_certs}"],
+            "ssh_ca_certs": ["{ssh_ca_certs}"]
+        }
+    }
+kind: Secret
+metadata:
+  name: {$TELEPORT_REPLICA_NAME}-replacement-{role}
   namespace: {$KUBE_NAMESPACE}
 ```
 
@@ -110,7 +131,6 @@ Where:
 - `role` is the role the agent is operating. If agent is running with multiple roles, i.e. app, kube..., multiple entries will be added, one for each role.
 - `TELEPORT_REPLICA_NAME` is the teleport agent replica name. In Kubernetes this variable exposes the POD name `TELEPORT_REPLICA_NAME=metadata.name`.
 - `KUBE_NAMESPACE` is the Kubernetes namespace in which the agent was installed. It is exposed by an ENV variable.
-- `RELEASE_NAME` is the Helm release name.
 
 #### RBAC Changes
 
@@ -141,7 +161,7 @@ The Kubernetes Secret backend storage is responsible for managing the Kubernetes
 
 If the identity secret exists in Kubernetes and has the node identity on it, the storage engine will parse and return the keys to the Agent, so it can use them to authenticate in the Teleport Cluster. If the cluster access operation is successful, the agent will be available for usage, but if the access operation fails because the Teleport Auth does not validate the node credentials, the Agent will log an error providing insightful information about the failure cause.
 
-In case of the identity secret is not present or is empty, the agent will try to join the cluster with the invite token provided. If the invite token is valid (has details in the Teleport Cluster and did not expire yet), Teleport Cluster will reply with the agent identity. Given the identity, the agent will write it in the secret `{$RELEASE_NAME}-state-{{$TELEPORT_REPLICA_NAME}}` for future usage.
+In case of the identity secret is not present or is empty, the agent will try to join the cluster with the invite token provided. If the invite token is valid (has details in the Teleport Cluster and did not expire yet), Teleport Cluster will reply with the agent identity. Given the identity, the agent will write it in the secret for future usage.
 
 Otherwise, if the invite token is not valid or has expired, the Agent could not join the cluster, and it will stop and log a meaningful error message.
 
@@ -320,6 +340,8 @@ Given this, it is required to expose the `$TELEPORT_REPLICA_NAME` environment va
 
 If the action is an upgrade and previously the agent was running as Deployment, Helm chart will keep the Deployment (it upgrades it to the version the operator chooses) in order to maintain the cluster accessible and install, as well, the Statefulset. This means that after a successful installation we might end up with multiple replicas from both Deployment and Statefulset writing into different secrets. Since Pods created from Deployments have random names each time a pod is recreated a new secret is generated creating a lot of garbage. In order to prevent that, when running in Deployment mode, the agent will clean the secret it created using a `preStop` hook.
 
+If the agent was previously running, secrets were already created, and the operator wants to upgrade it to use a different Auth service or proxy it is required that he must wipe every secret `({$RELEASE_NAME-0|$RELEASE_NAME-1|...|$RELEASE_NAME-replicas}-{identity|state|replacement}-{kube|app|db})`. This will prevent the agent to reuse the credentials signed by a different CA, otherwise the cluster authentication will fail.
+
 ### Upgrade from PRE-RFD versions
 
 When upgrading from PRE-RFD into versions that implement this RFD, we have two scenarios based on pre-existing configuration.
@@ -403,8 +425,6 @@ data:
 +            valueFrom:
 +              fieldRef:
 +                 fieldPath: metadata.namespace
-+          - name: RELEASE_NAME
-+            value: {{ .Release.Name }}
 +         {{- if .Values.extraEnv }}
 +          {{- toYaml .Values.extraEnv | nindent 8 }}
 +        {{- end }}
@@ -433,8 +453,6 @@ data:
 +            valueFrom:
 +              fieldRef:
 +                 fieldPath: metadata.namespace
-+          - name: RELEASE_NAME
-+            value: {{ .Release.Name }}
 +         {{- if .Values.extraEnv }}
 +          {{- toYaml .Values.extraEnv | nindent 10 }}
 +        {{- end }}
