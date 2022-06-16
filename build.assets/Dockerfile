@@ -166,6 +166,8 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
+
+# Tell prost to use the system protoc instead of building it from source
 ENV PROTOC_NO_VENDOR true
 ENV PROTOC /usr/local/bin/protoc
 
