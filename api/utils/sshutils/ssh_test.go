@@ -68,7 +68,15 @@ func TestSSHKeysEqual(t *testing.T) {
 	require.NoError(t, err)
 	ed25519Key1Alt, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGtqQKEkGIY5+Bc4EmEv7NeSn6aA7KMl5eiNEAOqwTBl other@foo"))
 	require.NoError(t, err)
-	ed25519Key2, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAhOF1Yw9LyTcIM1ku2hrqYcJ4e+784zp2XX4oIAWRuZ friel@Zing"))
+	ed25519Key2, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAhOF1Yw9LyTcIM1ku2hrqYcJ4e+784zp2XX4oIAWRuZ friel@test"))
+	require.NoError(t, err)
+
+	// The key material says this is RSA, the prefix is irrelevant.
+	disguisedRsaKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-ed25519 AAAAB3NzaC1yc2EAAAADAQABAAABgQClwXUKOp/S4XEtFjgr8mfaCy4OyI7N9ZMibdCGxvk2VHP9+Vn8Al1lUSVwuBxHI7EHiq42RCTBetIpTjzn6yiPNAeGNL5cfl9i6r+P5k7og1hz+2oheWveGodx6Dp+Z4o2dw65NGf5EPaotXF8AcHJc3+OiMS5yp/x2A3tu2I1SPQ6dtPa067p8q1L49BKbFwrFRBCVwkr6kpEQAIjnMESMPGD5Buu/AtyAdEZQSLTt8RZajJZDfXFKMEtQm2UF248NFl3hSMAcbbTxITBbZxX7THbwQz22Yuw7422G5CYBPf6WRXBY84Rs6jCS4I4GMxj+3rF4mGtjvuz0wOE32s3w4eMh9h3bPuEynufjE8henmPCIW49+kuZO4LZut7Zg5BfVDQnZYclwokEIMz+gR02YpyflxQOa98t/0mENu+t4f0LNAdkQEBpYtGKKDth5kLphi2Sdi9JpGO2sTivlxMsGyBqdd0wT9VwQpWf4wro6t09HdZJX1SAuEi/0tNI10= friel@Zing"))
+	require.NoError(t, err)
+
+	// The key material says this is Ed25519, the prefix is irrelevant.
+	disguisedEd25519Key, _, _, _, err := ssh.ParseAuthorizedKey([]byte("ssh-rsa AAAAC3NzaC1lZDI1NTE5AAAAIGtqQKEkGIY5+Bc4EmEv7NeSn6aA7KMl5eiNEAOqwTBl friel@test"))
 	require.NoError(t, err)
 
 	type test struct {
@@ -79,11 +87,13 @@ func TestSSHKeysEqual(t *testing.T) {
 
 	keys := []test{
 		{name: "rsaKey1", key: rsaKey1},
-		{name: "rsaKey1", variant: "alt", key: rsaKey1Alt},
+		{name: "rsaKey1", variant: "-alt", key: rsaKey1Alt},
 		{name: "rsaKey2", key: rsaKey2},
+		{name: "ed25519Key1", variant: "-rsa-prefixed", key: disguisedEd25519Key},
 		{name: "ed25519Key1", key: ed25519Key1},
-		{name: "ed25519Key1", variant: "alt", key: ed25519Key1Alt},
+		{name: "ed25519Key1", variant: "-alt", key: ed25519Key1Alt},
 		{name: "ed25519Key2", key: ed25519Key2},
+		{name: "rsaKey1", variant: "-ed25519-prefixed", key: disguisedRsaKey},
 	}
 
 	for _, ak := range keys {
