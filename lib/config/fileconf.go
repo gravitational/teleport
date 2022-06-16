@@ -197,9 +197,13 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
 	g.JoinParams = JoinParams{
 		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(flags.JoinMethod),
+		Method:    types.JoinMethod(joinMethod),
 	}
 
 	if flags.AuthServer != "" {
@@ -510,9 +514,13 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
-	PIDFile     string           `yaml:"pid_file,omitempty"`
+	NodeName string `yaml:"nodename,omitempty"`
+	DataDir  string `yaml:"data_dir,omitempty"`
+	PIDFile  string `yaml:"pid_file,omitempty"`
+
+	// AuthToken is the old way of configuring the token to be used by the
+	// node to join the Teleport cluster. `JoinParams.TokenName` should be
+	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`

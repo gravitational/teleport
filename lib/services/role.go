@@ -633,13 +633,18 @@ type HostUsersInfo struct {
 	Sudoers []string
 }
 
-// FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+// RoleFromSpec returns new Role created from spec
+func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
 	role, err := types.NewRoleV3(name, spec)
+	return role, trace.Wrap(err)
+}
+
+// RoleSetFromSpec returns a new RoleSet from spec
+func RoleSetFromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+	role, err := RoleFromSpec(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return NewRoleSet(role), nil
 }
 
