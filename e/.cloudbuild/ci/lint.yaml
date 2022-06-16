@@ -1,9 +1,9 @@
 steps:
-  - name: quay.io/gravitational/teleport-buildbox:teleport10
+  - name: quay.io/gravitational/teleport-buildbox:teleport11
     id: pull-buildbox-image
     args: ["echo", "done"]
 
-  - name: quay.io/gravitational/teleport-buildbox:teleport10
+  - name: quay.io/gravitational/teleport-buildbox:teleport11
     id: checkout
     secretEnv:
       - WEBASSETS_DEPLOYMENT_KEY
@@ -12,11 +12,11 @@ steps:
       - "-c"
       - "go run .cloudbuild/ci/checkout.go -workspace=/tmp/teleport -target=$_BASE_BRANCH"
 
-  - name: quay.io/gravitational/teleport-buildbox:teleport10
+  - name: quay.io/gravitational/teleport-buildbox:teleport11
     id: lint
     dir: /tmp/teleport
     args: [ "make", "lint" ]
-      
+
 availableSecrets:
   secretManager:
   - versionName: projects/771512790633/secrets/webassets-e-deployment-key/versions/2
@@ -28,4 +28,3 @@ options:
       path: /tmp/teleport
 
   machineType: 'E2_HIGHCPU_32'
-  
