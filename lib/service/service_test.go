@@ -207,7 +207,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		ServerIdentity: tlsServer.Identity,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inPrincipals  []string
 		inDNS         []string
 		outRegenerate bool
