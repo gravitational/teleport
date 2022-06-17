@@ -18,7 +18,7 @@ Service) or explore the Auth and Proxy Services locally.
 ## Prerequisites
 
 <Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope={["oss","cloud"]} label="Open Source">
 
 - Docker v(=docker.version=) or later. We currently only offer Docker images for
   `x86_64` architectures.
@@ -32,7 +32,7 @@ $ docker version
 - The `tsh` client tool, which ships with the `teleport` binary. Visit [Download Teleport](https://goteleport.com/download/) to download `tsh`.
 
 </TabItem>
-<TabItem scope={["cloud", "enterprise"]} label="Commercial">
+<TabItem scope={["enterprise"]} label="Commercial">
 
 - Access to the [customer portal](https://dashboard.gravitational.com/web/login) for the Teleport license
 - Docker v(=docker.version=) or later. We currently only offer Docker images for
@@ -52,7 +52,7 @@ $ docker version
 ## Step 1/4. Pick your image
 
 <Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope={["oss", "cloud"]} label="Open Source">
 We provide pre-built Docker images for every version of Teleport.
 
 These images are hosted on quay.io. All tags under `quay.io/gravitational/teleport` [are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
@@ -75,7 +75,7 @@ keep your Teleport installation up to date.
 
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 </TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+<TabItem scope={["enterprise"]} label="Commercial">
 We provide pre-built Docker images for every version of Teleport.
 
 (!docs/pages/includes/enterprise/docker-images.mdx!)
@@ -86,7 +86,7 @@ We provide pre-built Docker images for every version of Teleport.
 ## Step 2/4. Start Teleport
 
 <Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope={["oss", "cloud"]} label="Open Source">
 
 Create Teleport configs and start the process with the following `docker run` commands:
 
@@ -109,7 +109,7 @@ $ docker run --hostname localhost --name teleport \
 ```
 
 </TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+<TabItem scope={["enterprise"]} label="Commercial">
 
 Create Teleport configs and start the process with the following `docker run` commands:
 
