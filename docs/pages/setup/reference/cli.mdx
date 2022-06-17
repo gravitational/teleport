@@ -1434,6 +1434,9 @@ Generate a GitHub auth connector. Two role mappings are defined:
   - members of the `admin` team in the `octocats` org will receive `access`, `editor` and `auditor` roles.
   - members of the `dev` team in `octocats` org will receive the `access` role.
 
+<Admonition type="note">
+  `tctl sso configure gh` is an alias for `tctl sso configure github`.
+</Admonition>
 
 ```code
 $ tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
@@ -1585,30 +1588,28 @@ This command accepts no arguments.
 
 #### Flags
 
-Mandatory flags: 
-- `--attributes-to-roles`; may be given multiple times.
-- `--entity-descriptor`, unless `--sso`, `--acs`, `--cert` and `--issuer` are also given.
-- `-n/--name`, unless `-p/--preset` is present.
+Mandatory flags: `--name`, `--attributes-to-roles`, `--entity-descriptor`. These flags may become non-mandatory when other flags are present; see table below for details.
 
-| Name                        | Description                                                                                                                                      |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `-p/--preset`               | Preset. One of: `okta`, `onelogin`, `ad`, `adfs`.                                                                                                |
-| `-n/--name`                 | Connector name. Required, unless implied from preset.                                                                                            |
-| `-e/--entity-descriptor`    | Set the Entity Descriptor. Valid values: file path, URL, XML content. Supplies configuration parameters as a single XML document instead of individual elements. |
-| `-r/--attributes-to-roles`  | Sets attribute-to-role mapping using format `attr_name,attr_value,role1,role2,...`. Repeatable.                                                  |
-| `--display`                 | Sets the connector display name.                                                                                                                 |
-| `--issuer`                  | Sets identity provider issuer.                                                                                                                   |
-| `--sso`                     | URL of the identity provider's SSO service.                                                                                           |
-| `--cert`                    | Path to your IdP's certificate PEM file. Your IdP signs responses using this certificate.                                                         |
-| `--acs`                     | AssertionConsumerService is a URL for the assertion consumer service on the service provider (Teleport's side).                                      |
-| `--audience`                | Audience uniquely identifies our service provider.                                                                                               |
-| `--service-provider-issuer` | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                          |
-| `--signing-key-file`        | A file with request signing key. Must be used together with `--signing-cert-file`.                                                               |
-| `--signing-cert-file`       | A file with request certificate. Must be used together with `--signing-key-file`.                                                                |
-| `--assertion-key-file`      | A file with key used for securing SAML assertions. Must be used together with `--assertion-cert-file`.                                           |
-| `--assertion-cert-file`     | A file with cert used for securing SAML assertions. Must be used together with `--assertion-key-file`.                                           |
-| `--provider`                | Sets the external identity provider type, enabling workarounds. Examples: ping, adfs.                                                            |
-| `--ignore-missing-roles`    | Ignore missing roles referenced in `--attributes-to-roles`.                                                                                      |
+| Name                        | Required?                                                             | Description                                                                                                                                                      |
+|-----------------------------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-p/--preset`               |                                                                       | Preset. One of: `okta`, `onelogin`, `ad`, `adfs`.                                                                                                                |
+| `-n/--name`                 | Yes, unless `--preset` given.                                         | Connector name.                                                                                                                                                  |
+| `-e/--entity-descriptor`    | Yes, unless `--sso`, `--acs`, `--cert` and `--issuer` are also given. | Set the Entity Descriptor. Valid values: file path, URL, XML content. Supplies configuration parameters as a single XML document instead of individual elements. |
+| `-r/--attributes-to-roles`  | Yes, at least one occurrence must be present.                         | Sets attribute-to-role mapping using format `attr_name,attr_value,role1,role2,...`. Repeatable.                                                                  |
+| `--display`                 |                                                                       | Sets the connector display name.                                                                                                                                 |
+| `--issuer`                  |                                                                       | Sets identity provider issuer.                                                                                                                                   |
+| `--sso`                     |                                                                       | URL of the identity provider's SSO service.                                                                                                                      |
+| `--cert`                    |                                                                       | Path to your IdP's certificate PEM file. Your IdP signs responses using this certificate.                                                                        |
+| `--acs`                     |                                                                       | AssertionConsumerService is a URL for the assertion consumer service on the service provider (Teleport's side).                                                  |
+| `--audience`                |                                                                       | Audience uniquely identifies our service provider.                                                                                                               |
+| `--service-provider-issuer` |                                                                       | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                                          |
+| `--signing-key-file`        |                                                                       | A file with request signing key. Must be used together with `--signing-cert-file`.                                                                               |
+| `--signing-cert-file`       |                                                                       | A file with request certificate. Must be used together with `--signing-key-file`.                                                                                |
+| `--assertion-key-file`      |                                                                       | A file with key used for securing SAML assertions. Must be used together with `--assertion-cert-file`.                                                           |
+| `--assertion-cert-file`     |                                                                       | A file with cert used for securing SAML assertions. Must be used together with `--assertion-key-file`.                                                           |
+| `--provider`                |                                                                       | Sets the external identity provider type, enabling workarounds. Examples: ping, adfs.                                                                            |
+| `--ignore-missing-roles`    |                                                                       | Ignore missing roles referenced in `--attributes-to-roles`.                                                                                                      |
+
 
 Supported presets:
 
