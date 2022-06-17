@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
@@ -33,12 +34,12 @@ import (
 // using an expired user identity
 // We should receive an error message which contains the real cause (ssh: handshake)
 func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
-	rc := NewInstance(InstanceConfig{
+	rc := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
-		Ports:       singleProxyPortSetup(),
+		Log:         utils.NewLoggerForTests(),
+		Ports:       helpers.SingleProxyPortSetup(),
 	})
 
 	rcConf := service.MakeDefaultConfig()

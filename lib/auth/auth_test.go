@@ -561,7 +561,7 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	require.NoError(t, err)
 	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -577,7 +577,7 @@ func TestTokensCRUD(t *testing.T) {
 
 	// generate predefined token
 	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	require.NoError(t, err)
 	require.Equal(t, tokenName, customToken)
 
@@ -629,7 +629,7 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 
 	// tampered
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
+	tok, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
 	require.NoError(t, err)
 
 	tampered := string(tok[0]+1) + tok[1:]
@@ -643,13 +643,13 @@ func TestGenerateTokenEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
+	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
 	s.mockEmitter.Reset()
 
 	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{
+	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
 		types.RoleNode,
 		types.RoleTrustedCluster,
 		types.RoleAuth,

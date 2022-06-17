@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -92,6 +91,8 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
 	}
+
+	modules.SetModules(&cliModules{})
 }
 
 func TestMain(m *testing.M) {
@@ -119,6 +120,7 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
+		ResourceAccessRequests:  true,
 	}
 }
 
@@ -158,8 +160,6 @@ func TestFailedLogin(t *testing.T) {
 
 func TestOIDCLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
-
-	modules.SetModules(&cliModules{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -498,17 +498,9 @@ func TestMakeClient(t *testing.T) {
 // approveAllAccessRequests starts a loop which gets all pending AccessRequests
 // from access and approves them. It accepts a stop channel, which will stop the
 // loop and cancel all active requests when it is closed.
-func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{}) (err error) {
+func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-
-	// Make a context that will be cancelled when the stop chan is closed, to
-	// pass to the requests.
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-stop
-		cancel()
-	}()
 
 	for {
 		select {
@@ -537,16 +529,29 @@ func approveAllAccessRequests(access services.DynamicAccess, stop <-chan struct{
 }
 
 // TestSSHAccessRequest tests that a user can automatically request access to a
-// ssh server using a search-based access request when "tsh ssh" fails with
+// ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
 func TestSSHAccessRequest(t *testing.T) {
+	t.Parallel()
 	tmpHomePath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	requester, err := types.NewRole("requester", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"access"},
+				SearchAsRoles: []string{"node-access"},
 			},
+		},
+	})
+	require.NoError(t, err)
+
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"access": {"true"},
+			},
+			Logins: []string{"{{internal.logins}}"},
 		},
 	})
 	require.NoError(t, err)
@@ -563,7 +568,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	}
 	alice.SetTraits(traits)
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, connector, alice))
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, nodeAccessRole, connector, alice))
 
 	authAddr, err := rootAuth.AuthSSHAddr()
 	require.NoError(t, err)
@@ -572,27 +577,36 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	sshHostname := "test-ssh-server"
-	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname))
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
 	require.NotNil(t, node)
+	sshHostID := node.Config.HostUUID
 
-	// wait for auth to see node
-	var sshHostID string
-	require.Eventually(t, func() bool {
-		nodes, err := rootAuth.GetAuthServer().GetNodes(context.Background(), apidefaults.Namespace)
-		require.NoError(t, err)
-		for _, node := range nodes {
-			if node.GetHostname() == sshHostname {
-				sshHostID = node.GetName()
-				return true
+	sshHostnameNoAccess := "test-ssh-server-no-access"
+	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
+	require.NotNil(t, nodeNoAccess)
+
+	hasNode := func(hostName string) func() bool {
+		return func() bool {
+			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			for _, node := range nodes {
+				if node.GetHostname() == hostName {
+					return true
+				}
 			}
+			return false
 		}
-		return false
-	}, 10*time.Second, time.Second, "node never showed up")
+	}
 
-	err = Run(context.Background(), []string{
+	// wait for auth to see nodes
+	require.Eventually(t, hasNode(sshHostname), 10*time.Second, time.Second,
+		sshHostname+" never showed up")
+	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
+		sshHostnameNoAccess+" never showed up")
+
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
-		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice",
@@ -602,63 +616,86 @@ func TestSSHAccessRequest(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// sanity check, cannot ssh without access request
-	err = Run(context.Background(), []string{
+	// won't request if can't list node
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// won't request if can't login with username
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", "not-a-username", sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// won't request to non-existent node
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		fmt.Sprintf("%s@unknown", user.Username),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
 	// approve all requests as they're created
 	errChan := make(chan error)
-	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
-	stop := make(chan struct{})
-	defer close(stop)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
 	go func() {
-		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
-		if !errors.Is(err, context.Canceled) {
-			// Kill auth so Run calls don't hang. Don't worry about the Close
-			// error, the test will already fail.
-			rootAuth.Close()
-		}
+		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		cancel()
 		errChan <- err
 	}()
 
-	// ssh with request, by hostname
-	err = Run(context.Background(), []string{
+	// won't request if explicitly disabled
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
-		"--request",
-		"--request-reason", "for testing purposes",
+		"--request-reason", "reason here to bypass prompt",
+		"--disable-access-request",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// ssh with request, by hostname
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	// now that we have an approved access request, it should still work without --request
-	err = Run(context.Background(), []string{
+	// now that we have an approved access request, it should work without
+	// prompting for a request reason
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
-		"--request-reason", "for testing purposes",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// log out and back in with no access request
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"logout",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
-		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
 		"--user", "alice",
@@ -669,12 +706,10 @@ func TestSSHAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// ssh with request, by host ID
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		"--debug",
-		"--request",
-		"--request-reason", "for testing purposes",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
@@ -683,6 +718,8 @@ func TestSSHAccessRequest(t *testing.T) {
 
 func TestAccessRequestOnLeaf(t *testing.T) {
 	tmpHomePath := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -734,7 +771,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	leafAuth, _ := makeTestServers(t, withClusterName(t, "leafcluster"))
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -746,7 +783,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -755,7 +792,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -764,7 +801,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -775,20 +812,17 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 
 	// approve all requests as they're created
 	errChan := make(chan error)
-	defer func() { require.ErrorIs(t, <-errChan, context.Canceled) }()
-	stop := make(chan struct{})
-	defer close(stop)
+	t.Cleanup(func() {
+		require.ErrorIs(t, <-errChan, context.Canceled, "unexpected error from approveAllAccessRequests")
+	})
 	go func() {
-		err := approveAllAccessRequests(rootAuth.GetAuthServer(), stop)
-		if !errors.Is(err, context.Canceled) {
-			// Kill auth so Run calls don't hang. Don't worry about the Close
-			// error, the test will already fail.
-			rootAuth.Close()
-		}
+		err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer())
+		// Cancel the context, so Run calls don't block
+		cancel()
 		errChan <- err
 	}()
 
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"request",
 		"new",
 		"--insecure",
@@ -1561,6 +1595,15 @@ func withHostname(hostname string) testServerOptFunc {
 	})
 }
 
+func withSSHLabel(key, value string) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
+		if cfg.SSH.Labels == nil {
+			cfg.SSH.Labels = make(map[string]string)
+		}
+		cfg.SSH.Labels[key] = value
+	})
+}
+
 func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) (node *service.TeleportProcess) {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -1571,6 +1614,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 
 	// Set up a test ssh service.
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "node"
 	cfg.DataDir = t.TempDir()
 
@@ -1581,6 +1625,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Enabled = true
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+	cfg.SSH.DisableCreateHostUser = true
 	cfg.Log = utils.NewLoggerForTests()
 
 	for _, fn := range options.configFuncs {
@@ -1883,7 +1928,8 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         },
         "elasticache": {},
-        "secret_store": {}
+        "secret_store": {},
+        "memorydb": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1905,7 +1951,8 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         },
         "elasticache": {},
-        "secret_store": {}
+        "secret_store": {},
+        "memorydb": {}
       }
     }
   }]

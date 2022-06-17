@@ -487,6 +487,70 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 	return certs, nil
 }
 
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *proto.UnstableSystemRoleAssertion) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UnstableAssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryControlStreamServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	ics := client.NewUpstreamInventoryControlStream(stream)
+
+	if err := auth.RegisterInventoryControlStream(ics); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// hold open the stream until it completes
+	<-ics.Done()
+
+	if trace.IsEOF(ics.Error()) {
+		return nil
+	}
+
+	return trail.ToGRPC(ics.Error())
+}
+
+func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
+func (g *GRPCServer) PingInventory(ctx context.Context, req *proto.InventoryPingRequest) (*proto.InventoryPingResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.PingInventory(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2786,6 +2850,21 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+// GenerateToken generates a new auth token.
+func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GenerateTokenResponse{Token: token}, nil
 }
 
 // DeleteToken deletes a token by name.

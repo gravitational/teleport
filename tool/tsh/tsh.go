@@ -347,9 +347,8 @@ type CLIConf struct {
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
-	// doRequest is set if access request should be automatically created on
-	// access denied errors.
-	doRequest bool
+	// disableAccessRequest disables automatic resource access requests.
+	disableAccessRequest bool
 }
 
 // Stdout returns the stdout writer.
@@ -393,7 +392,10 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(ctx, cmdLine); err != nil {
+
+	err := Run(ctx, cmdLine)
+	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
+	if err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -517,8 +519,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
-	ssh.Flag("request", "Attempt to request access to host if access is denied").BoolVar(&cf.doRequest)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
+	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
@@ -2246,7 +2248,7 @@ func onListClusters(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName()
+		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})
@@ -2335,8 +2337,8 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 	return string(out), trace.Wrap(err)
 }
 
-// accessRequestForSSH attempts to create a search-based access request for the
-// case where "tsh ssh" was attempted and access was denied
+// accessRequestForSSH attempts to create a resource access request for the case
+// where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2378,28 +2380,46 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.SetLoginHint(tc.HostLogin)
+
+	// Set the DryRun flag and send the request to auth for full validation. If
+	// the user has no search_as_roles or is not allowed to SSH to the host with
+	// the requested login, we will get an error here.
+	req.SetDryRun(true)
+	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
+	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SetDryRun(false)
+	req.SetRequestReason("")
+
 	return req, nil
 }
 
 func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
 	origErr := fn()
-	if !cf.doRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
-		// Don't retry unless --request flag was set.
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Print and log the AccessDenied error first.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
-
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
 	if err != nil {
-		return trace.Wrap(err)
+		// We can't request access to the node or it doesn't exist, return the
+		// original error but put this one in the debug log.
+		log.WithError(err).Debug("unable to request access to node")
+		return trace.Wrap(origErr)
 	}
 	cf.RequestID = req.GetName()
+
+	// Print and log the original AccessDenied error.
+	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -2422,8 +2442,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
 	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		err := clt.CreateAccessRequest(cf.Context, req)
-		return trace.Wrap(err)
+		return trace.Wrap(clt.CreateAccessRequest(cf.Context, req))
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2664,6 +2683,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 	c.Host = cf.UserHost
+	if cf.TracingProvider == nil {
+		cf.TracingProvider = tracing.NoopProvider()
+	}
+	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3345,7 +3368,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 	}
 	w.closers = append(w.closers, proxyClient)
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx, false)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
