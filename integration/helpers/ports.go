@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package helpers
 
 import (
 	"fmt"
@@ -25,6 +25,8 @@ import (
 )
 
 // ports contains tcp ports allocated for all integration tests.
+// TODO: Replace all usage of `Ports` with FD-injected sockets as per
+//       https://github.com/gravitational/teleport/pull/13346
 var ports utils.PortList
 
 func init() {
@@ -36,11 +38,22 @@ func init() {
 	}
 }
 
-func newInstancePort() *InstancePort {
+func NewPortValue() int {
+	return ports.PopInt()
+}
+
+func NewPortStr() string {
+	return ports.Pop()
+}
+
+func NewPortSlice(n int) []int {
+	return ports.PopIntSlice(n)
+}
+
+func NewInstancePort() *InstancePort {
 	i := ports.PopInt()
 	p := InstancePort(i)
 	return &p
-
 }
 
 type InstancePort int
@@ -52,62 +65,62 @@ func (p *InstancePort) String() string {
 	return strconv.Itoa(int(*p))
 }
 
-func singleProxyPortSetup() *InstancePorts {
-	v := newInstancePort()
+func SingleProxyPortSetup() *InstancePorts {
+	v := NewInstancePort()
 	return &InstancePorts{
 		Web:               v,
 		SSHProxy:          v,
 		ReverseTunnel:     v,
 		MySQL:             v,
-		SSH:               newInstancePort(),
-		Auth:              newInstancePort(),
+		SSH:               NewInstancePort(),
+		Auth:              NewInstancePort(),
 		isSinglePortSetup: true,
 	}
 }
-func standardPortSetup() *InstancePorts {
+func StandardPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           newInstancePort(),
-		SSH:           newInstancePort(),
-		Auth:          newInstancePort(),
-		SSHProxy:      newInstancePort(),
-		ReverseTunnel: newInstancePort(),
-		MySQL:         newInstancePort(),
+		Web:           NewInstancePort(),
+		SSH:           NewInstancePort(),
+		Auth:          NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		ReverseTunnel: NewInstancePort(),
+		MySQL:         NewInstancePort(),
 	}
 }
 
-func webReverseTunnelMuxPortSetup() *InstancePorts {
-	v := newInstancePort()
+func WebReverseTunnelMuxPortSetup() *InstancePorts {
+	v := NewInstancePort()
 	return &InstancePorts{
 		Web:           v,
 		ReverseTunnel: v,
-		SSH:           newInstancePort(),
-		SSHProxy:      newInstancePort(),
-		MySQL:         newInstancePort(),
-		Auth:          newInstancePort(),
+		SSH:           NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		MySQL:         NewInstancePort(),
+		Auth:          NewInstancePort(),
 	}
 }
 
-func separatePostgresPortSetup() *InstancePorts {
+func SeparatePostgresPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           newInstancePort(),
-		SSH:           newInstancePort(),
-		Auth:          newInstancePort(),
-		SSHProxy:      newInstancePort(),
-		ReverseTunnel: newInstancePort(),
-		MySQL:         newInstancePort(),
-		Postgres:      newInstancePort(),
+		Web:           NewInstancePort(),
+		SSH:           NewInstancePort(),
+		Auth:          NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		ReverseTunnel: NewInstancePort(),
+		MySQL:         NewInstancePort(),
+		Postgres:      NewInstancePort(),
 	}
 }
 
-func separateMongoPortSetup() *InstancePorts {
+func SeparateMongoPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           newInstancePort(),
-		SSH:           newInstancePort(),
-		Auth:          newInstancePort(),
-		SSHProxy:      newInstancePort(),
-		ReverseTunnel: newInstancePort(),
-		MySQL:         newInstancePort(),
-		Mongo:         newInstancePort(),
+		Web:           NewInstancePort(),
+		SSH:           NewInstancePort(),
+		Auth:          NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		ReverseTunnel: NewInstancePort(),
+		MySQL:         NewInstancePort(),
+		Mongo:         NewInstancePort(),
 	}
 }
 

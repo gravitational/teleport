@@ -342,7 +342,7 @@ Passwordless requires `tsh` compiled with libfido2 for most operations (apart
 from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
 
 Touch ID requires a properly built and signed `tsh` binary. Ask for a
-pre-release binary so you may run the tests.
+pre-release binary, so you may run the tests.
 
 This sections complements "Users -> Managing MFA devices". Ideally both macOS
 and Linux `tsh` binaries are tested for FIDO2 items.
@@ -898,24 +898,34 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
+  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis Cluster.
+  - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] Snowflake.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
+  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis Cluster.
+  - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] Snowflake.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -938,11 +948,17 @@ and non interactive tsh bench loads.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
   - [ ] Can detect and register Redshift clusters.
   - [ ] Can detect and register ElastiCache Redis clusters.
+  - [ ] Can detect and register MemoryDB clusters.
+- [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
+  - [ ] Can detect and manage ElastiCache users
+  - [ ] Can detect and manage MemoryDB users 
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+- [ ] Other
+  - [ ] MySQL server version reported by Teleport is correct.
 
 ## TLS Routing
 
@@ -973,6 +989,9 @@ and non interactive tsh bench loads.
     - [ ] MariaDB
     - [ ] MongoDB
     - [ ] CockroachDB
+    - [ ] Redis
+    - [ ] MSSQL
+    - [ ] Snowflake
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
@@ -1025,7 +1044,7 @@ and non interactive tsh bench loads.
   - When a user has a role with clipboard sharing enabled and is using a chromium based browser
     - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
     - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
-    - [ ] Denying clibpoard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
+    - [ ] Denying clipboard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
     - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
     - [ ] Copy text from local workstation, paste into remote desktop
     - [ ] Copy text from remote desktop, paste into local workstation
@@ -1120,8 +1139,8 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 - [ ] Verify if adding a cluster adds it to the clusters list and activates automatically
 - [ ] Verify that state of the current workspace is preserved when you change it (by switching to another cluster) and return
 - [ ] Verify that autocomplete works in the command bar
-- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & porfile selectors, switching tabs, etc.)
-- [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable
+- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & profile selectors, switching tabs, etc.)
+- [ ] Verify that app doesn't crash when there is no internet connection or some cluster is unavailable
 - [ ] Verify that logs are collected for all processes
 - [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired
 
