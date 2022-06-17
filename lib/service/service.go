@@ -1878,6 +1878,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		WebToken:         cfg.services.WebTokens(),
 		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
 	}))
 }
 

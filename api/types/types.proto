@@ -2716,7 +2716,7 @@ message OIDCAuthRequest {
     bytes PublicKey = 7 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get
-    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CreateWebSession indicates if user wants to generate a web
     // session after successful authentication
@@ -2828,7 +2828,7 @@ message SAMLAuthRequest {
     bytes PublicKey = 6 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get.
-    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CSRFToken is associated with user web session token.
     string CSRFToken = 8 [ (gogoproto.jsontag) = "csrf_token" ];
@@ -2930,7 +2930,7 @@ message GithubAuthRequest {
     // PublicKey is an optional public key to sign in case of successful auth.
     bytes PublicKey = 5 [ (gogoproto.jsontag) = "public_key" ];
     // CertTTL is TTL of the cert that's generated in case of successful auth.
-    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
     // CreateWebSession indicates that a user wants to generate a web session
     // after successful authentication.
     bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
