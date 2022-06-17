@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -78,27 +80,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
-	roles := profile.Roles
-	traits := profile.Traits
-
-	// GetCurrentUser() may not be implemented, fail gracefully.
-	user, err := cluster.GetCurrentUser(cf.Context)
-	if err == nil {
-		roles = user.GetRoles()
-		traits = user.GetTraits()
-	} else {
-		log.Debugf("Failed to fetch current user information: %v.", err)
-	}
-
-	// get the role definition for all roles of user.
-	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
-	// example scenario when this may happen:
-	// 1. we have set of roles [foo bar] from profile.
-	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
-	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
-	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := services.FetchRoles(roles, cluster, traits)
+	roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -161,17 +143,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				continue
 			}
 
-			roles := profile.Roles
-			traits := profile.Traits
-			user, err := cluster.GetCurrentUser(cf.Context)
-			if err == nil {
-				roles = user.GetRoles()
-				traits = user.GetTraits()
-			} else {
-				log.Debugf("Failed to fetch current user information: %v.", err)
-			}
-
-			roleSet, err := services.FetchRoles(roles, cluster, traits)
+			roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
@@ -828,6 +800,32 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 		return false, trace.Wrap(err)
 	}
 	return mfaResp.GetRequired(), nil
+}
+
+// fetchRoleSet fetches a user's roles for a specified cluster.
+func fetchRoleSet(ctx context.Context, cluster auth.ClientI, profile *client.ProfileStatus) (services.RoleSet, error) {
+	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
+	roles := profile.Roles
+	traits := profile.Traits
+
+	// GetCurrentUser() may not be implemented, fail gracefully.
+	user, err := cluster.GetCurrentUser(ctx)
+	if err == nil {
+		roles = user.GetRoles()
+		traits = user.GetTraits()
+	} else {
+		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// get the role definition for all roles of user.
+	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+	// example scenario when this may happen:
+	// 1. we have set of roles [foo bar] from profile.
+	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+	roleSet, err := services.FetchRoles(roles, cluster, traits)
+	return roleSet, trace.Wrap(err)
 }
 
 // pickActiveDatabase returns the database the current profile is logged into.
