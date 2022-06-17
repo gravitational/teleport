@@ -199,7 +199,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 				continue
 			}
 
-			switch match, err := services.MatchResourceByFilters(desktop, filter); {
+			switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:

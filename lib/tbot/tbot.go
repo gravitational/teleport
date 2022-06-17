@@ -68,6 +68,11 @@ func (b *Bot) setClient(client auth.ClientI) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// Make sure the previous client is closed.
+	if b._client != nil {
+		_ = b._client.Close()
+	}
+
 	b._client = client
 }
 

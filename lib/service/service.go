@@ -657,7 +657,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// create the data directory if it's missing
 	_, err = os.Stat(cfg.DataDir)
 	if os.IsNotExist(err) {
-		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0700)
+		err := os.MkdirAll(cfg.DataDir, os.ModeDir|0o700)
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
@@ -764,7 +764,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
 			if ec2Hostname != "" {
-				cfg.Log.Info("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
 			}
 		} else if !trace.IsNotFound(err) {
@@ -858,7 +858,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		eventMapping.In = append(eventMapping.In, DatabasesReady)
 	}
 	if cfg.Metrics.Enabled {
@@ -911,7 +911,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
-	if cfg.Databases.Enabled {
+	if process.shouldInitDatabases() {
 		process.initDatabases()
 		serviceStarted = true
 	} else {
@@ -949,7 +949,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -2186,7 +2186,7 @@ func (process *TeleportProcess) initUploaderService(uploaderCfg filesessions.Upl
 		for i := 1; i < len(path); i++ {
 			dir := filepath.Join(path[:i+1]...)
 			log.Infof("Creating directory %v.", dir)
-			err := os.Mkdir(dir, 0755)
+			err := os.Mkdir(dir, 0o755)
 			err = trace.ConvertSystemError(err)
 			if err != nil {
 				if !trace.IsAlreadyExists(err) {
@@ -2970,27 +2970,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:               conn.Client,
 				LocalAccessPoint:              accessPoint,
+				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
 				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
 				NewCachingAccessPointOldProxy: process.newLocalCacheForOldRemoteProxy,
 				Limiter:                       reverseTunnelLimiter,
-				DirectClusters: []reversetunnel.DirectCluster{
-					{
-						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-						Client: conn.Client,
-					},
-				},
-				KeyGen:               cfg.Keygen,
-				Ciphers:              cfg.Ciphers,
-				KEXAlgorithms:        cfg.KEXAlgorithms,
-				MACAlgorithms:        cfg.MACAlgorithms,
-				DataDir:              process.Config.DataDir,
-				PollingPeriod:        process.Config.PollingPeriod,
-				FIPS:                 cfg.FIPS,
-				Emitter:              streamEmitter,
-				Log:                  process.log,
-				LockWatcher:          lockWatcher,
-				NodeWatcher:          nodeWatcher,
-				CertAuthorityWatcher: caWatcher,
+				KeyGen:                        cfg.Keygen,
+				Ciphers:                       cfg.Ciphers,
+				KEXAlgorithms:                 cfg.KEXAlgorithms,
+				MACAlgorithms:                 cfg.MACAlgorithms,
+				DataDir:                       process.Config.DataDir,
+				PollingPeriod:                 process.Config.PollingPeriod,
+				FIPS:                          cfg.FIPS,
+				Emitter:                       streamEmitter,
+				Log:                           process.log,
+				LockWatcher:                   lockWatcher,
+				NodeWatcher:                   nodeWatcher,
+				CertAuthorityWatcher:          caWatcher,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3152,6 +3147,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		HostSigner:          conn.ServerIdentity.KeySigner,
 		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServers),
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
@@ -3350,7 +3346,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, accessPoint)
+		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
@@ -4065,10 +4061,10 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0600); err != nil {
+	if err := ioutil.WriteFile(keyPath, creds.PrivateKey, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
-	if err := ioutil.WriteFile(certPath, creds.Cert, 0600); err != nil {
+	if err := ioutil.WriteFile(certPath, creds.Cert, 0o600); err != nil {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
