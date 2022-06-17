@@ -212,7 +212,7 @@ func TestAccessRequest(t *testing.T) {
 			desc:               "no search_as_roles",
 			requester:          "nobody",
 			requestResources:   []string{"prod"},
-			expectRequestError: trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
+			expectRequestError: trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`),
 		},
 	}
 	for _, tc := range testCases {
