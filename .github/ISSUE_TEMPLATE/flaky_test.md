@@ -20,6 +20,7 @@ If there's no existing issue for this test, continue to file a new one:
 3. **Delete this entire section and continue**.
 
 ## Failure
+If you encounter this test failure, please react 👍 to this issue (so we can sort issues by reactions). If you have a link to the full log of the test run, please add it to the `Link(s) to logs` section below.
 
 #### Link(s) to logs
 
