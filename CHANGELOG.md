@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.3.6
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added Unicode clipboard support to Desktop Access. [#13391](https://github.com/gravitational/teleport/pull/13391)
+* Fixed backwards compatibility issue with fetch access requests from older servers. [#13490](https://github.com/gravitational/teleport/pull/13490)
+* Fixed issue with Application Access requests periodically failing with 500 errors. [#13469](https://github.com/gravitational/teleport/pull/13469)
+* Fixed issues with pagination when displaying applications. [#13451](https://github.com/gravitational/teleport/pull/13451)
+* Fixed file descriptor leak in Machine ID. [#13386](https://github.com/gravitational/teleport/pull/13386)
+
 ## 9.3.5
 
 This release of Teleport contains multiple improvements and bug fixes.
