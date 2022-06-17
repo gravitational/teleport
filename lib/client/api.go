@@ -751,8 +751,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 
 func IsErrorResolvableWithRelogin(err error) bool {
 	// Assume that failed handshake is a result of expired credentials.
-	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err)
+	return true
 }
 
 // ProfileOptions contains fields needed to initialize a profile beyond those
