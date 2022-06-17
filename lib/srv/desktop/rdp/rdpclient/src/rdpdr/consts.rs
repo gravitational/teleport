@@ -100,7 +100,7 @@ pub enum MinorFunction {
 /// Windows defines an absolutely massive list of potential NTSTATUS values.
 /// This enum includes the basic ones we support for communicating with the windows machine.
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
-#[derive(ToPrimitive, Debug)]
+#[derive(ToPrimitive, Debug, PartialEq)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -109,6 +109,10 @@ pub enum NTSTATUS {
     STATUS_UNSUCCESSFUL = 0xC0000001,
     STATUS_NOT_IMPLEMENTED = 0xC0000002,
     STATUS_NO_MORE_FILES = 0x80000006,
+    STATUS_OBJECT_NAME_COLLISION = 0xC0000035,
+    STATUS_ACCESS_DENIED = 0xC0000022,
+    STATUS_NOT_A_DIRECTORY = 0xC0000103,
+    STATUS_NO_SUCH_FILE = 0xC000000F,
 }
 
 /// 2.4 File Information Classes [MS-FSCC]
