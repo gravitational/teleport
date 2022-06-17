@@ -1396,9 +1396,9 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
 
 Configure the GitHub auth connector.
 
-Required params `--id` and `--secret` come from registering a Github OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
+Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
-The flag `--teams-to-roles` can be provided multiple times to specify which Github Teams are assigned which roles.
+The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
 In this example, members of the `octocats` team in GitHub will be assigned the `devs`, `access`, and `editor` roles in Teleport.
 
 ```code
@@ -1418,8 +1418,8 @@ Mandatory flags: `--id`, `--secret`, `--teams-to-roles`.
 | `-n`, `--name`            | `github`         | resource name              | Connector name.                                         |
 | `-r`, `--teams-to-roles`  | none             | `org,team,role1,role2,...` | Sets teams-to-roles mapping. Repeatable.                |
 | `--display`               | none             | display name               | Controls how this connector is displayed.               |
-| `--id`                    | none             | Github OAuth2 client id    | Github app client ID.                                   |
-| `--secret`                | none             | Github OAuth2 secret       | Github app client secret.                               |
+| `--id`                    | none             | GitHub OAuth2 client id    | GitHub app client ID.                                   |
+| `--secret`                | none             | GitHub OAuth2 secret       | GitHub app client secret.                               |
 | `--redirect-url`          | none             | Valid callback URL.        | Authorization callback URL.                             |
 | `--ignore-missing-roles`  |                  |                            | Ignore missing roles referenced in `--teams-to-roles`.  |
 
