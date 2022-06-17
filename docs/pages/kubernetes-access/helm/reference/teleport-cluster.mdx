@@ -1452,6 +1452,30 @@ will also be applied to `initContainers`.
   </TabItem>
 </Tabs>
 
+## `securityContext`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+
+The `securityContext` applies to any pods created by the chart, including `initContainers`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  securityContext:
+    runAsUser: 99
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set securityContext.runAsUser=99
+  ```
+  </TabItem>
+</Tabs>
+
 ## `tolerations`
 
 | Type | Default value | Can be used in `custom` mode? |

@@ -25,14 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // UserGetter is responsible for getting users
@@ -180,10 +178,10 @@ type Identity interface {
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
-	CreateOIDCAuthRequest(req OIDCAuthRequest, ttl time.Duration) error
+	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
 
 	// GetOIDCAuthRequest returns OIDC auth request if found
-	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*OIDCAuthRequest, error)
+	GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error)
 
 	// UpsertSAMLConnector upserts SAML Connector
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
@@ -198,10 +196,10 @@ type Identity interface {
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
-	CreateSAMLAuthRequest(req SAMLAuthRequest, ttl time.Duration) error
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
 
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(ctx context.Context, id string) (*SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error)
 
 	// CreateSSODiagnosticInfo creates new SSO diagnostic info record.
 	CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error
@@ -222,10 +220,10 @@ type Identity interface {
 	DeleteGithubConnector(ctx context.Context, name string) error
 
 	// CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-	CreateGithubAuthRequest(req GithubAuthRequest) error
+	CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error
 
 	// GetGithubAuthRequest retrieves Github auth request by the token
-	GetGithubAuthRequest(ctx context.Context, stateToken string) (*GithubAuthRequest, error)
+	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
@@ -265,6 +263,8 @@ type Identity interface {
 
 	// AppSession defines application session features.
 	AppSession
+	// SnowflakeSession defines Snowflake session features.
+	SnowflakeSession
 }
 
 // AppSession defines application session features.
@@ -273,7 +273,7 @@ type AppSession interface {
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// GetAppSessions gets all application web sessions.
 	GetAppSessions(context.Context) ([]types.WebSession, error)
-	// UpsertAppSession upserts and application web session.
+	// UpsertAppSession upserts an application web session.
 	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
@@ -281,6 +281,20 @@ type AppSession interface {
 	DeleteAllAppSessions(context.Context) error
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
+}
+
+// SnowflakeSession defines Snowflake session features.
+type SnowflakeSession interface {
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+	// GetSnowflakeSessions gets all Snowflake web sessions.
+	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// UpsertSnowflakeSession upserts a Snowflake web session.
+	UpsertSnowflakeSession(context.Context, types.WebSession) error
+	// DeleteSnowflakeSession removes a Snowflake web session.
+	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
+	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
+	DeleteAllSnowflakeSessions(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -294,256 +308,6 @@ func VerifyPassword(password []byte) error {
 		return trace.BadParameter(
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
 	}
-	return nil
-}
-
-// GithubAuthRequest is the request to start Github OAuth2 flow
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use
-	ConnectorID string `json:"connector_id"`
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-	// StateToken is used to validate the request
-	StateToken string `json:"state_token"`
-	// CSRFToken is used to protect against CSRF attacks
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth
-	PublicKey []byte `json:"public_key"`
-	// CertTTL is TTL of the cert that's generated in case of successful auth
-	CertTTL time.Duration `json:"cert_ttl"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successul authentication
-	CreateWebSession bool `json:"create_web_session"`
-	// RedirectURL will be used by browser
-	RedirectURL string `json:"redirect_url"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth
-	ClientRedirectURL string `json:"client_redirect_url"`
-	// Compatibility specifies OpenSSH compatibility flags
-	Compatibility string `json:"compatibility,omitempty"`
-	// Expires is a global expiry time header can be set on any resource in the system.
-	Expires *time.Time `json:"expires,omitempty"`
-	// RouteToCluster is the name of Teleport cluster to issue credentials for.
-	RouteToCluster string `json:"route_to_cluster,omitempty"`
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
-	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-	// SSOTestFlow indicates if the request is part of the test flow.
-	SSOTestFlow bool `json:"sso_test_flow"`
-	// ConnectorSpec is embedded connector spec for use in test flow.
-	ConnectorSpec *types.GithubConnectorSpecV3 `json:"connector_spec,omitempty"`
-}
-
-// SetExpiry sets expiry time for the object
-func (r *GithubAuthRequest) SetExpiry(expires time.Time) {
-	r.Expires = &expires
-}
-
-// Expiry returns object expiry setting.
-func (r *GithubAuthRequest) Expiry() time.Time {
-	if r.Expires == nil {
-		return time.Time{}
-	}
-	return *r.Expires
-}
-
-// Check makes sure the request is valid
-func (r *GithubAuthRequest) Check() error {
-	if r.ConnectorID == "" {
-		return trace.BadParameter("missing ConnectorID")
-	}
-	if r.StateToken == "" {
-		return trace.BadParameter("missing StateToken")
-	}
-	if len(r.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
-		if err != nil {
-			return trace.BadParameter("bad PublicKey: %v", err)
-		}
-		if (r.CertTTL > apidefaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("wrong CertTTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if r.SSOTestFlow && r.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !r.SSOTestFlow && r.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
-	return nil
-}
-
-// OIDCAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
-type OIDCAuthRequest struct {
-	// ConnectorID is ID of OIDC connector this request uses
-	ConnectorID string `json:"connector_id"`
-
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-
-	// CheckUser tells validator if it should expect and check user
-	CheckUser bool `json:"check_user"`
-
-	// StateToken is generated by service and is used to validate
-	// reuqest coming from
-	StateToken string `json:"state_token"`
-
-	// CSRFToken is associated with user web session token
-	CSRFToken string `json:"csrf_token"`
-
-	// RedirectURL will be used to route the user back to a
-	// Teleport Proxy after the oidc login attempt in the brower.
-	RedirectURL string `json:"redirect_url"`
-
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
-
-	// CertTTL is the TTL of the certificate user wants to get
-	CertTTL time.Duration `json:"cert_ttl"`
-
-	// CreateWebSession indicates if user wants to generate a web
-	// session after successful authentication
-	CreateWebSession bool `json:"create_web_session"`
-
-	// ClientRedirectURL is a URL client wants to be redirected
-	// after successful authentication
-	ClientRedirectURL string `json:"client_redirect_url"`
-
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-
-	// RouteToCluster is the name of Teleport cluster to issue credentials for.
-	RouteToCluster string `json:"route_to_cluster,omitempty"`
-
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
-	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-
-	// SSOTestFlow indicates if the request is part of the test flow.
-	SSOTestFlow bool `json:"sso_test_flow"`
-
-	// ConnectorSpec is embedded connector spec for use in test flow.
-	ConnectorSpec *types.OIDCConnectorSpecV3 `json:"connector_spec,omitempty"`
-
-	// ProxyAddress is an optional address which can be used to
-	// find a redirect url from the OIDC connector which matches
-	// the address. If there is no match, the default redirect
-	// url will be used.
-	ProxyAddress string `json:"proxy_address,omitempty"`
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *OIDCAuthRequest) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.StateToken == "" {
-		return trace.BadParameter("StateToken: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
-	return nil
-}
-
-// SAMLAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
-type SAMLAuthRequest struct {
-	// ID is a unique request ID
-	ID string `json:"id"`
-
-	// ConnectorID is ID of OIDC connector this request uses
-	ConnectorID string `json:"connector_id"`
-
-	// Type is opaque string that helps callbacks identify the request type
-	Type string `json:"type"`
-
-	// CheckUser tells validator if it should expect and check user
-	CheckUser bool `json:"check_user"`
-
-	// RedirectURL will be used by browser
-	RedirectURL string `json:"redirect_url"`
-
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
-
-	// CertTTL is the TTL of the certificate user wants to get
-	CertTTL time.Duration `json:"cert_ttl"`
-
-	// CSRFToken is associated with user web session token
-	CSRFToken string `json:"csrf_token"`
-
-	// CreateWebSession indicates if user wants to generate a web
-	// session after successful authentication
-	CreateWebSession bool `json:"create_web_session"`
-
-	// ClientRedirectURL is a URL client wants to be redirected
-	// after successful authentication
-	ClientRedirectURL string `json:"client_redirect_url"`
-
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-
-	// RouteToCluster is the name of Teleport cluster to issue credentials for.
-	RouteToCluster string `json:"route_to_cluster,omitempty"`
-
-	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
-	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
-
-	// SSOTestFlow indicates if the request is part of the test flow.
-	SSOTestFlow bool `json:"sso_test_flow"`
-
-	// ConnectorSpec is embedded connector spec for use in test flow.
-	ConnectorSpec *types.SAMLConnectorSpecV2 `json:"connector_spec,omitempty"`
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > apidefaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
-	}
-
 	return nil
 }
 

@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.0-dev
+VERSION=11.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -206,6 +206,8 @@ TEST_KUBE ?=
 export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
+
+CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 #
 # 'make all' builds all 3 executables and places them in the current directory.
@@ -903,7 +905,7 @@ buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
 	Mignoreme=ignoreme
 buildbox-grpc:
 	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
-	$(CLANG_FORMAT) -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}' \
+	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
 		api/client/proto/authservice.proto \
 		api/client/proto/certs.proto \
 		api/client/proto/joinservice.proto \
@@ -964,6 +966,9 @@ grpc-teleterm:
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc-teleterm
 buildbox-grpc-teleterm:
+	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
+		lib/teleterm/api/proto/**/*.proto
+
 	cd lib/teleterm && buf generate
 
 .PHONY: goinstall

@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -110,11 +111,21 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
+	fetchedToken, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if fetchedToken.GetUser() != c.user {
+		c.log.Warnf("Failed validating bearer token: the user[%s] in bearer token[%s] did not match the user[%s] for session[%s]",
+			fetchedToken.GetUser(), token, c.user, c.GetSessionID())
+		return trace.AccessDenied("access denied")
+	}
+
+	return nil
 }
 
 func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
@@ -256,6 +267,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -818,8 +830,9 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs:       utils.NetAddrsToStrings(s.authServers),
-		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		Addrs:                utils.NetAddrsToStrings(s.authServers),
+		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

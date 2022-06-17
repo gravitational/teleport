@@ -163,6 +163,16 @@ type AccessChecker interface {
 	// the AccessChecker is allowed to access. An empty or nil list indicates that
 	// there are no resource-specific restrictions.
 	GetAllowedResourceIDs() []types.ResourceID
+
+	// SessionRecordingMode returns the recording mode for a specific service.
+	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
+
+	// HostUsers returns host user information matching a server or nil if
+	// a role disallows host user creation
+	HostUsers(types.Server) (*HostUsersInfo, error)
+
+	// PinSourceIP forces the same client IP for certificate generation and SSH usage
+	PinSourceIP() bool
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -219,16 +229,35 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 		// resources, only role-based access control is used
 		return nil
 	}
+
+	// Note: logging in this function only happens in debug mode. This is because
+	// adding logging to this function (which is called on every resource returned
+	// by the backend) can slow down this function by 50x for large clusters!
+	isDebugEnabled, debugf := rbacDebugLogger()
+
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
 			resourceID.Kind == r.GetKind() &&
 			resourceID.Name == r.GetName() {
-			// allowed to access this resource
+			// Allowed to access this resource by resource ID, move on to role checks.
+			if isDebugEnabled {
+				debugf("Matched allowed resource ID %q", types.ResourceIDToString(resourceID))
+			}
 			return nil
 		}
 	}
-	return trace.AccessDenied("access to %s:%s is not allowed. Allowed resources: %v",
-		r.GetKind(), r.GetName(), a.info.AllowedResourceIDs)
+
+	if isDebugEnabled {
+		allowedResources, err := types.ResourceIDsToString(a.info.AllowedResourceIDs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = trace.AccessDenied("access to %v denied, %q not in allowed resource IDs %s",
+			r.GetKind(), r.GetName(), allowedResources)
+		debugf("Access denied: %v", err)
+		return err
+	}
+	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
 // CheckAccess checks if the identity for this AccessChecker has access to the

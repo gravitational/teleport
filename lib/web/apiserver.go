@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -792,6 +793,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -804,6 +806,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}, nil
 }
 
@@ -823,6 +826,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:         *proxyConfig,
 		ServerVersion: teleport.Version,
+		ClusterName:   h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
@@ -1061,15 +1065,14 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-			CheckUser:         true,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+		CheckUser:         true,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1088,13 +1091,12 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			CSRFToken:         req.csrfToken,
-			ConnectorID:       req.connectorID,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		CSRFToken:         req.csrfToken,
+		ConnectorID:       req.connectorID,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -1119,16 +1121,15 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
-		services.GithubAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			ClientRedirectURL: req.RedirectURL,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-		})
+	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		PublicKey:         req.PublicKey,
+		CertTTL:           req.CertTTL,
+		ClientRedirectURL: req.RedirectURL,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -1220,18 +1221,17 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
-		services.OIDCAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			ClientRedirectURL: req.RedirectURL,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			CheckUser:         true,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-			ProxyAddress:      r.Host,
-		})
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		ClientRedirectURL: req.RedirectURL,
+		PublicKey:         req.PublicKey,
+		CertTTL:           req.CertTTL,
+		CheckUser:         true,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+		ProxyAddress:      r.Host,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -1949,8 +1949,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -2072,8 +2077,40 @@ type siteSessionsGetResponse struct {
 	Sessions []session.Session `json:"sessions"`
 }
 
-// siteSessionGet gets the list of site sessions filtered by creation time
-// and either they're active or not
+func trackerToLegacySession(tracker types.SessionTracker, clusterName string) session.Session {
+	participants := tracker.GetParticipants()
+	parties := make([]session.Party, 0, len(participants))
+
+	for _, participant := range participants {
+		parties = append(parties, session.Party{
+			ID:         session.ID(participant.ID),
+			User:       participant.User,
+			ServerID:   tracker.GetAddress(),
+			LastActive: participant.LastActive,
+			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
+		})
+	}
+
+	return session.Session{
+		ID:        session.ID(tracker.GetSessionID()),
+		Namespace: apidefaults.Namespace,
+		Parties:   parties,
+		TerminalParams: session.TerminalParams{
+			W: teleport.DefaultTerminalWidth,
+			H: teleport.DefaultTerminalHeight,
+		},
+		Login:          tracker.GetLogin(),
+		Created:        tracker.GetCreated(),
+		LastActive:     tracker.GetLastActive(),
+		ServerID:       tracker.GetAddress(),
+		ServerHostname: tracker.GetHostname(),
+		ServerAddr:     tracker.GetAddress(),
+		ClusterName:    clusterName,
+	}
+}
+
+// siteSessionsGet gets the list of site sessions filtered by creation time
+// and whether they're active or not
 //
 // GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
 //
@@ -2086,21 +2123,15 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := clt.GetSessions(apidefaults.Namespace)
+	trackers, err := clt.GetActiveSessionTrackers(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 5.0.0
-	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
-	// which 4.3 UI client relies on to create URL's and display node inform.
-	clusterName := p.ByName("site")
-	for i, session := range sessions {
-		if session.ClusterName == "" {
-			sessions[i].ClusterName = clusterName
-		}
-		if session.ServerHostname == "" {
-			sessions[i].ServerHostname = session.ServerID
+	sessions := make([]session.Session, 0, len(trackers))
+	for _, tracker := range trackers {
+		if tracker.GetSessionKind() == types.SSHSessionKind {
+			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
 
@@ -2127,22 +2158,16 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := clt.GetSession(apidefaults.Namespace, *sessionID)
+	tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN: 5.0.0
-	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
-	// which 4.3 UI client relies on to create URL's and display node inform.
-	if sess.ClusterName == "" {
-		sess.ClusterName = p.ByName("site")
-	}
-	if sess.ServerHostname == "" {
-		sess.ServerHostname = sess.ServerID
+	if tracker.GetSessionKind() != types.SSHSessionKind {
+		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
-	return *sess, nil
+	return trackerToLegacySession(tracker, site.GetName()), nil
 }
 
 const maxStreamBytes = 5 * 1024 * 1024
@@ -2789,6 +2814,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		Tracer:            tracing.NoopProvider().Tracer("test"),
 	}
 
 	return config, nil
