@@ -115,7 +115,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		c:            c,
 		uri:          uri,
 		tr:           tr,
-		ws:           newWebsocketTransport(uri, tr.TLSClientConfig),
+		ws:           newWebsocketTransport(uri, tr.TLSClientConfig, c),
 	}, nil
 }
 
@@ -173,27 +173,28 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Host = t.uri.Host
 
 	// Add headers from rewrite configuration.
-	if t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Headers) > 0 {
-		t.rewriteHeaders(r)
-	}
-
-	// Add in JWT headers.
-	r.Header.Set(teleport.AppJWTHeader, t.c.jwt)
-	r.Header.Set(teleport.AppCFHeader, t.c.jwt)
+	rewriteHeaders(r, t.c)
 
 	return nil
 }
 
 // rewriteHeaders applies headers rewrites from the application configuration.
-func (t *transport) rewriteHeaders(r *http.Request) {
-	for _, header := range t.c.app.GetRewrite().Headers {
+func rewriteHeaders(r *http.Request, c *transportConfig) {
+	// Add in JWT headers.
+	r.Header.Set(teleport.AppJWTHeader, c.jwt)
+	r.Header.Set(teleport.AppCFHeader, c.jwt)
+
+	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
+		return
+	}
+	for _, header := range c.app.GetRewrite().Headers {
 		if common.IsReservedHeader(header.Name) {
-			t.c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
+			c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
 			continue
 		}
-		values, err := services.ApplyValueTraits(header.Value, t.c.traits)
+		values, err := services.ApplyValueTraits(header.Value, c.traits)
 		if err != nil {
-			t.c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
+			c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
 			continue
 		}
 		r.Header.Del(header.Name)
@@ -331,11 +332,12 @@ func isRedirect(code int) bool {
 type websocketTransport struct {
 	uri    *url.URL
 	dialer forward.Dialer
+	c      *transportConfig
 }
 
 // newWebsocketTransport returns transport that knows how to rewrite and
 // dial websocket requests.
-func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config) *websocketTransport {
+func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config, c *transportConfig) *websocketTransport {
 	return &websocketTransport{
 		uri: uri,
 		dialer: func(network, address string) (net.Conn, error) {
@@ -346,6 +348,7 @@ func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config) *websocketTransp
 			// Request is going to "ws://".
 			return net.Dial(network, address)
 		},
+		c: c,
 	}
 }
 
@@ -359,4 +362,6 @@ func (r *websocketTransport) Rewrite(req *http.Request) {
 	}
 	req.URL.Host = r.uri.Host
 	req.Host = r.uri.Host
+
+	rewriteHeaders(req, r.c)
 }
