@@ -46,7 +46,7 @@ func samlTest(c auth.ClientI, samlConnector types.SAMLConnector) (*tester.AuthRe
 			Type:              constants.SAML,
 			CheckUser:         false,
 			PublicKey:         req.PublicKey,
-			CertTTL:           types.Duration(defaults.SAMLAuthRequestTTL),
+			CertTTL:           defaults.SAMLAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,

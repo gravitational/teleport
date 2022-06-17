@@ -46,7 +46,7 @@ func oidcTest(c auth.ClientI, connector types.OIDCConnector) (*tester.AuthReques
 			Type:              constants.OIDC,
 			CheckUser:         false,
 			PublicKey:         req.PublicKey,
-			CertTTL:           types.Duration(defaults.OIDCAuthRequestTTL),
+			CertTTL:           defaults.OIDCAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,
