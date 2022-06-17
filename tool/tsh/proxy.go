@@ -475,6 +475,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"envVars":     envVars,
 		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
+		"format":      cf.Format,
 	}
 
 	template := awsHTTPSProxyTemplate
@@ -564,25 +565,73 @@ Use the following command to connect to the database:
   $ {{.command}}
 `))
 
+const (
+	envVarFormatText                 = "text"
+	envVarFormatUnix                 = "unix"
+	envVarFormatWindowsCommandPrompt = "command-prompt"
+	envVarFormatWindowsPowershell    = "powershell"
+)
+
+var envVarFormats = []string{
+	envVarFormatText,
+	envVarFormatUnix,
+	envVarFormatWindowsCommandPrompt,
+	envVarFormatWindowsPowershell,
+}
+
+func envVarFormatFlagDescription() string {
+	return fmt.Sprintf(
+		"Optional format to print the commands for setting environment variables, one of: %s.",
+		strings.Join(envVarFormats, ", "),
+	)
+}
+
+// envVarCommand returns the command to set environment variables based on the
+// format.
+//
+// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+func envVarCommand(format, key, value string) (string, error) {
+	switch format {
+	case envVarFormatText, "":
+		return fmt.Sprintf("%s=%s", key, value), nil
+
+	case envVarFormatUnix:
+		return fmt.Sprintf("export %s=%s", key, value), nil
+
+	case envVarFormatWindowsCommandPrompt:
+		return fmt.Sprintf("set %s=%s", key, value), nil
+
+	case envVarFormatWindowsPowershell:
+		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+
+	default:
+		return "", trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+var awsTemplateFuncs = template.FuncMap{
+	"envVarCommand": envVarCommand,
+}
+
 // awsHTTPSProxyTemplate is the message that gets printed to a user when an
 // HTTPS proxy is started.
-var awsHTTPSProxyTemplate = template.Must(template.New("").Parse(
+var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
-  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
-  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
-  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
-  HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+  {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
 `))
 
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = template.Must(template.New("").Parse(
+var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
 
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
-  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
-  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
-  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
 `))
