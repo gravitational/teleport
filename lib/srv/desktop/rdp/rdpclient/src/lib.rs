@@ -1048,6 +1048,38 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     }
 }
 
+/// FileSystemObject is a TDP structure containing the metadata
+/// of a file or directory.
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct FileSystemObject {
+    last_modified: u64,
+    size: u64,
+    file_type: u32, // TODO(isaiah): make an enum
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOFileSystemObject {
+    pub last_modified: u64,
+    pub size: u64,
+    pub file_type: u32, // TODO(isaiah): make an enum
+    pub path: *const c_char,
+}
+
+impl From<CGOFileSystemObject> for FileSystemObject {
+    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
+        unsafe {
+            FileSystemObject {
+                last_modified: cgo_fso.last_modified,
+                size: cgo_fso.size,
+                file_type: cgo_fso.file_type,
+                path: from_go_string(cgo_fso.path),
+            }
+        }
+    }
+}
+
 /// SharedDirectoryCreateRequest is sent by the TDP server to
 /// the client to request the creation of a new file or directory.
 #[derive(Debug)]
@@ -1091,38 +1123,6 @@ pub struct CGOSharedDirectoryDeleteRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: *const c_char,
-}
-
-/// FileSystemObject is a TDP structure containing the metadata
-/// of a file or directory.
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct FileSystemObject {
-    last_modified: u64,
-    size: u64,
-    file_type: u32, // TODO(isaiah): make an enum
-    path: String,
-}
-
-#[repr(C)]
-pub struct CGOFileSystemObject {
-    pub last_modified: u64,
-    pub size: u64,
-    pub file_type: u32, // TODO(isaiah): make an enum
-    pub path: *const c_char,
-}
-
-impl From<CGOFileSystemObject> for FileSystemObject {
-    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
-        unsafe {
-            FileSystemObject {
-                last_modified: cgo_fso.last_modified,
-                size: cgo_fso.size,
-                file_type: cgo_fso.file_type,
-                path: from_go_string(cgo_fso.path),
-            }
-        }
-    }
 }
 
 /// SharedDirectoryDeleteResponse is sent by the TDP client to the server
