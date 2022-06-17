@@ -5,13 +5,13 @@ title: `TestName` flakiness
 labels: flaky tests
 ---
 
-## Before submitting a new issue (read, and then delete this entire section before submitting)
+## Before submitting a new issue
 
 Before filing a new issue, search https://github.com/gravitational/teleport/issues?q=is%3Aissue+is%3Aopen+label%3A%22flaky+tests%22 for
 the flaky test's name to see if the same issue has already been reported. If so, double check the `Relevant snippet` to confirm that
-the specific failure is the same. If it is, edit the issue and add your Google Cloud console link to the `Link(s) to logs` list to indicate
-another failure has occured (this can help us prioritize fixes). If instead you've encountered a new failure, edit the issue and copy paste
-in a new `Failure` section below the existing one(s).
+the specific failure is the same. If it is, please react 👍 to this issue (so we can sort issues by reactions). If you have a link to the
+full log of the test run, please add it to the `Link(s) to logs` section below. If instead you've encountered a new failure, edit the issue
+and copy paste in a new `Failure` section below the existing one(s).
 
 If there's no existing issue for this test, continue to file a new one:
 
@@ -20,7 +20,6 @@ If there's no existing issue for this test, continue to file a new one:
 3. **Delete this entire section and continue**.
 
 ## Failure
-If you encounter this test failure, please react 👍 to this issue (so we can sort issues by reactions). If you have a link to the full log of the test run, please add it to the `Link(s) to logs` section below.
 
 #### Link(s) to logs
 
@@ -61,3 +60,13 @@ User Message: too much contention on semaphore connection/alice ("too much conte
         	            	exit code 1
         	Test:       	TestSSHAccessRequest
 ```
+
+## Update the Flaky Test Tracker meta-issue
+
+After submitting this issue, add a comment to our `Flaky Test Tracker` issue (https://github.com/gravitational/teleport/issues/9492) in the format:
+
+`TestName`: https://github.com/gravitational/teleport/issues/<issue-number>
+
+See https://github.com/gravitational/teleport/issues/9492#issuecomment-1158937319 for an example.
+
+**Delete this section, submit the issue, and add the comment**
