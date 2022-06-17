@@ -1081,7 +1081,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		rolesToRequest = append(rolesToRequest, roleName)
 	}
 	if len(rolesToRequest) == 0 {
-		return trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`)
+		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
 	}
 	req.SetRoles(rolesToRequest)
 	return nil
