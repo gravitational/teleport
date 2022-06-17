@@ -123,6 +123,10 @@ db_service:
     {{- if .DatabaseAWSRegion }}
     aws:
       region: {{ .DatabaseAWSRegion }}
+      {{- if .DatabaseAWSRedshiftClusterID }}
+      redshift:
+        cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
+      {{- end }}
     {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
@@ -278,6 +282,8 @@ type DatabaseSampleFlags struct {
 	DatabaseProtocols []string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
+	DatabaseAWSRedshiftClusterID string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
