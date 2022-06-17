@@ -2385,13 +2385,20 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	}
 	req.SetLoginHint(tc.HostLogin)
 
+	// Set the DryRun flag and send the request to auth for full validation. If
+	// the user has no search_as_roles or is not allowed to SSH to the host with
+	// the requested login, we will get an error here.
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
-	defer req.SetDryRun(false)
-	defer req.SetRequestReason("")
-	return req, trace.Wrap(tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
 		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
-	}))
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SetDryRun(false)
+	req.SetRequestReason("")
+
+	return req, nil
 }
 
 func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
