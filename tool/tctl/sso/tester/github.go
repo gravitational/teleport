@@ -45,7 +45,7 @@ func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestIn
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.Github,
 			PublicKey:         req.PublicKey,
-			CertTTL:           types.Duration(defaults.GithubAuthRequestTTL),
+			CertTTL:           defaults.GithubAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,

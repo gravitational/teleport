@@ -1124,7 +1124,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		PublicKey:         req.PublicKey,
-		CertTTL:           types.Duration(req.CertTTL),
+		CertTTL:           req.CertTTL,
 		ClientRedirectURL: req.RedirectURL,
 		Compatibility:     req.Compatibility,
 		RouteToCluster:    req.RouteToCluster,
@@ -1225,7 +1225,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		ConnectorID:       req.ConnectorID,
 		ClientRedirectURL: req.RedirectURL,
 		PublicKey:         req.PublicKey,
-		CertTTL:           types.Duration(req.CertTTL),
+		CertTTL:           req.CertTTL,
 		CheckUser:         true,
 		Compatibility:     req.Compatibility,
 		RouteToCluster:    req.RouteToCluster,
