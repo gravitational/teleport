@@ -790,8 +790,8 @@ func TestClusterSessionDial(t *testing.T) {
 	sess := &clusterSession{
 		authContext: authContext{
 			teleportCluster: teleportClusterClient{
-				dial: func(_ context.Context, _, addr, _ string) (net.Conn, error) {
-					if addr == "" {
+				dial: func(_ context.Context, _ string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+					if endpoint.addr == "" {
 						return nil, trace.BadParameter("no addr")
 					}
 					return &net.TCPConn{}, nil
@@ -846,7 +846,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
 
-	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
 	}
 
