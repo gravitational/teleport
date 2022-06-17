@@ -70,6 +70,10 @@ typedef struct ClientOrError {
   enum CGOErrCode err;
 } ClientOrError;
 
+/**
+ * CGOSharedDirectoryAnnounce is sent by the TDP client to the server
+ * to announce a new directory to be shared over TDP.
+ */
 typedef struct CGOSharedDirectoryAnnounce {
   uint32_t directory_id;
   const char *name;
@@ -88,6 +92,10 @@ typedef struct CGOSharedDirectoryInfoResponse {
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
+/**
+ * SharedDirectoryCreateResponse is sent by the TDP client to the server
+ * to acknowledge a SharedDirectoryCreateRequest was received and executed.
+ */
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
   uint32_t err_code;
@@ -136,6 +144,10 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+/**
+ * SharedDirectoryAcknowledge is sent by the TDP server to the client
+ * to acknowledge that a SharedDirectoryAnnounce was received.
+ */
 typedef struct SharedDirectoryAcknowledge {
   uint32_t err_code;
   uint32_t directory_id;
