@@ -34,6 +34,7 @@ $ docker version
 </TabItem>
 <TabItem scope={["cloud", "enterprise"]} label="Commercial">
 
+- Access to the [customer portal](https://dashboard.gravitational.com/web/login) for the Teleport license
 - Docker v(=docker.version=) or later. We currently only offer Docker images for
   `x86_64` architectures.
 
@@ -116,12 +117,17 @@ Create Teleport configs and start the process with the following `docker run` co
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
+
+# Download your license file from the Gravitational dashboard and put it in the correct directory.
+# The file needs to be named "license.pem".
+$ cp ~/downloads/license.pem ~/teleport/data
+
 # Generate a sample Teleport config and write it to the local config directory.
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
   --entrypoint=/bin/sh \
   -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_ent_docker_image=) bash -c "teleport configure > /etc/teleport/teleport.yaml"
+  (=teleport.latest_ent_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
