@@ -120,6 +120,10 @@ db_service:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
     uri: {{ .StaticDatabaseURI }}
+    {{- if .DatabaseAWSRegion }}
+    aws:
+      region: {{ .DatabaseAWSRegion }}
+    {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
     {{- range $name, $value := .StaticDatabaseStaticLabels }}
@@ -272,6 +276,8 @@ type DatabaseSampleFlags struct {
 	MemoryDBDiscoveryRegions []string
 	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
+	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
+	DatabaseAWSRegion string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
