@@ -132,7 +132,16 @@ func TestStoreAccess(t *testing.T) {
 		})
 	}
 
-	for _, n := range handles {
+	// verify that each handle was seen, then remove it
+	for h, n := range handles {
 		require.NotZero(t, n)
+		store.Remove(h)
 	}
+
+	// verify that all handles were removed
+	var count int
+	store.Iter(func(h UpstreamHandle) {
+		count++
+	})
+	require.Zero(t, count)
 }
