@@ -91,6 +91,8 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
 	}
+
+	modules.SetModules(&cliModules{})
 }
 
 func TestMain(m *testing.M) {
@@ -118,6 +120,7 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
+		ResourceAccessRequests:  true,
 	}
 }
 
@@ -157,8 +160,6 @@ func TestFailedLogin(t *testing.T) {
 
 func TestOIDCLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
-
-	modules.SetModules(&cliModules{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
