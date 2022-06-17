@@ -111,12 +111,21 @@ func compareServers(a, b types.Server) CompareResult {
 		return Different
 	}
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
-		if len(b.GetProxyIDs()) > len(a.GetProxyIDs()) && len(a.GetProxyIDs()) > 0 {
-			if utils.StringSliceSubset(b.GetProxyIDs(), a.GetProxyIDs()) == nil {
+		ap, bp := a.GetProxyIDs(), b.GetProxyIDs()
+		// no need to hurry to heartbeat an empty proxy list
+		if len(bp) == 0 {
+			return ProxyReachabilityDifferent
+		}
+		// if the previous heartbeat contains all the current proxies we're
+		// still fully reachable
+		if len(ap) >= len(bp) && utils.StringSliceSubset(ap, bp) == nil {
+			// the lists might be equal but in different order
+			if len(ap) > len(bp) {
 				return ProxyReachabilityDifferent
 			}
+		} else {
+			return Different
 		}
-		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
