@@ -76,10 +76,12 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 Teleport proxy server for self-hosted Teleport instances.
 
 <Admonition type="tip" title="Application Domain Names and TLS" scope="oss,enterprise" scopeOnly>
-Subdomains (*.teleport.example.com) and any other FQDN used as application URIs should have their entries
-point at the proxy server.  TLS certificates for wildcard subdomains and any domains
-should be be installed in the proxy server. Teleport Cloud automatically manages allocating
-TLS for sub-domains.
+(!docs/pages/includes/dns-app-access.mdx!)
+
+If TLS certificates are managed by files you can install
+via the `https_keypairs` under the `proxy_service`.  Below is an example
+for installing the `teleport.example.com` TLS certificate and the wildcard
+TLS certificate `*.teleport.example.com`.
 ```yaml
 proxy_service:
   enabled: "yes"
@@ -162,6 +164,7 @@ app_service:
 
 The app will dump all the request headers in the response.
 
+<ScopedBlock  scope="oss,enterprise" >
 ### Customize public address
 
 By default applications are available at `<app-name>.<proxy-host>:<proxy-port>`
@@ -180,6 +183,7 @@ Teleport Cloud only supports sub-domains of the cloud tenant URI(`grafana.exampl
 cloud tenant `example.teleport.sh`). Teleport Cloud will automatically manage TLS certificates
 for any subdomains.
 </Admonition>
+</ScopedBlock>
 
 ### Skip TLS certificate verification
 
