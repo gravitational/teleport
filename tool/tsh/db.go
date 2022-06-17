@@ -160,11 +160,22 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				errors = append(errors, err)
 				continue
 			}
-			roleSet, err := services.FetchRoles(profile.Roles, cluster, profile.Traits)
-			if err != nil {
-				errors = append(errors, err)
-				continue
+
+			roles := profile.Roles
+			traits := profile.Traits
+			user, err := cluster.GetCurrentUser(cf.Context)
+			if err == nil {
+				roles = user.GetRoles()
+				traits = user.GetTraits()
+			} else {
+				log.Debugf("Failed to fetch current user information: %v.", err)
 			}
+
+			roleSet, err := services.FetchRoles(roles, cluster, traits)
+			if err != nil {
+				log.Debugf("Failed to fetch user roles: %v.", err)
+			}
+
 			for _, database := range databases {
 				dbListings = append(dbListings, databaseListing{
 					Proxy:    profile.ProxyURL.Host,
