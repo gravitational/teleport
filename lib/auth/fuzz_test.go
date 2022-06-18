@@ -14,24 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package protocol
+package auth
 
 import (
-	"bytes"
+	"encoding/base64"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-func FuzzMongoRead(f *testing.F) {
-	f.Add([]byte{})
-	f.Add([]byte("000\xa4000000000000"))
+func FuzzParseSAMLInResponseTo(f *testing.F) {
+	// Disable Go App Engine logging
+	logrus.SetLevel(logrus.PanicLevel)
 
-	f.Fuzz(func(t *testing.T, msgBytes []byte) {
-		msg := bytes.NewReader(msgBytes)
-
+	f.Fuzz(func(t *testing.T, response string) {
 		require.NotPanics(t, func() {
-			_, _ = ReadMessage(msg)
+			ParseSAMLInResponseTo(base64.StdEncoding.EncodeToString([]byte(response)))
+		})
+	})
+}
+
+func FuzzParseAndVerifyIID(f *testing.F) {
+	f.Fuzz(func(t *testing.T, iidBytes []byte) {
+		require.NotPanics(t, func() {
+			parseAndVerifyIID(iidBytes)
 		})
 	})
 }

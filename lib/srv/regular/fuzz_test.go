@@ -14,24 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package protocol
+package regular
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv"
 )
 
-func FuzzMongoRead(f *testing.F) {
-	f.Add([]byte{})
-	f.Add([]byte("000\xa4000000000000"))
+func FuzzParseProxySubsys(f *testing.F) {
+	f.Fuzz(func(t *testing.T, request string) {
+		server := &Server{
+			hostname:  "redhorse",
+			proxyMode: true,
+		}
 
-	f.Fuzz(func(t *testing.T, msgBytes []byte) {
-		msg := bytes.NewReader(msgBytes)
+		ctx := &srv.ServerContext{}
 
 		require.NotPanics(t, func() {
-			_, _ = ReadMessage(msg)
+			parseProxySubsys(request, server, ctx)
 		})
 	})
 }
