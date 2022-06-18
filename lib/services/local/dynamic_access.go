@@ -46,6 +46,9 @@ func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req type
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
+	if req.GetDryRun() {
+		return trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
+	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
 		return trace.Wrap(err)

@@ -41,6 +41,7 @@ func artifactMigrationPipeline() pipeline {
 		// "v7.3.19",
 		// "v7.3.20",
 		// "v7.3.21",
+		// "v7.3.23",
 		// "v8.3.3",
 		// "v8.3.4",
 		// "v8.3.5",
@@ -51,6 +52,7 @@ func artifactMigrationPipeline() pipeline {
 		// "v8.3.10",
 		// "v8.3.11",
 		// "v8.3.12",
+		// "v8.3.14",
 		// "v9.0.0",
 		// "v9.0.1",
 		// "v9.0.2",
@@ -67,6 +69,8 @@ func artifactMigrationPipeline() pipeline {
 		// "v9.2.4",
 		// "v9.3.0",
 		// "v9.3.2",
+		// "v9.3.4",
+		// "v9.3.5",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
