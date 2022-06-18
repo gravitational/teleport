@@ -25,14 +25,64 @@ We use AWS-managed keys. Currently there is no option to provide your own key.
 It's a Teleport-managed S3 bucket with AWS-managed keys.
 Currently there is no way to provide your own bucket.
 
-### How do I add nodes to Teleport Cloud?
+## How long will Teleport Cloud retain my data?
 
-You can connect servers, kubernetes clusters, databases and applications
+See our documentation on [data retention](./architecture.mdx#data-retention).
+
+## How do I add Nodes to Teleport Cloud?
+
+You can connect servers, Kubernetes clusters, databases and applications
 using [reverse tunnels](../setup/admin/adding-nodes.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
-### How can I access the tctl admin tool?
+## Which Proxy Service ports are open on my Teleport Cloud tenant?
+
+Teleport Cloud allocates a different set of ports to each tenant. To see which
+ports are available for your Teleport Cloud tenant, run a command similar to the
+following, replacing `mytenant.teleport.sh` with your tenant domain:
+
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+```
+
+The output should resemble the following, including the unique ports assigned to
+your tenant:
+
+```json
+{
+  "kube": {
+    "enabled": true,
+    "public_addr": "mytenant.teleport.sh:11107",
+    "listen_addr": "0.0.0.0:3026"
+  },
+  "ssh": {
+    "listen_addr": "[::]:3023",
+    "tunnel_listen_addr": "0.0.0.0:3024",
+    "public_addr": "mytenant.teleport.sh:443",
+    "ssh_public_addr": "mytenant.teleport.sh:11105",
+    "ssh_tunnel_public_addr": "mytenant.teleport.sh:11106"
+  },
+  "db": {
+    "postgres_public_addr": "mytenant.teleport.sh:11109",
+    "mysql_listen_addr": "0.0.0.0:3036",
+    "mysql_public_addr": "mytenant.teleport.sh:11108"
+  },
+  "tls_routing_enabled": true
+}
+```
+
+This output also indicates whether TLS routing is enabled for your tenant. When
+TLS routing is enabled, connections to a Teleport service (e.g., the Teleport
+SSH Service) are routed through the Proxy Service's public web address, rather
+than through a port allocated to that service.
+
+In this case, you can see that TLS routing is enabled, and that the Proxy
+Service's public web address (`ssh.public_addr`) is `mytenant.teleport.sh:443`.
+
+Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
+
+## How can I access the tctl admin tool?
 
 We have made changes to allow you to log into your cluster using `tsh`, then use `tctl` remotely:
 
