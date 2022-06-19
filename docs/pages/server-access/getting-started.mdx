@@ -67,7 +67,7 @@ Next, create a join token so you can add the Node to your Teleport cluster.
 
 ```code
 # Let's save the token to a file
-$ sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 ```
 
 `--type=node` specifies that the Teleport Node will act and join as an SSH
@@ -119,7 +119,7 @@ $ sudo teleport start \
 Run the following command to create a user that can access the Teleport Web UI:
 
 ```code
-$ sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+$ tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 This will generate an initial login link where you can create a password and set up two-factor authentication for `tele-admin`.
