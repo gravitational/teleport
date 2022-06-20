@@ -134,14 +134,14 @@ func startKubernetesOperator(t *testing.T, teleportClient *client.Client) kclien
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	ctx, ctxTearDown := context.WithCancel(context.Background())
+	ctx, ctxCancel := context.WithCancel(context.Background())
 	go func() {
 		err = k8sManager.Start(ctx)
 		require.NoError(t, err)
 	}()
 
 	t.Cleanup(func() {
-		ctxTearDown()
+		ctxCancel()
 		err = testEnv.Stop()
 		require.NoError(t, err)
 	})
