@@ -44,7 +44,6 @@ export const Roles = () => (
 const props: Props = {
   agents: [],
   selectedResource: 'app',
-  pageSize: 10,
   customSort: { dir: 'ASC', fieldName: '', onSort: () => null },
   onLabelClick: () => null,
   addedResources: getEmptyResourceState(),
