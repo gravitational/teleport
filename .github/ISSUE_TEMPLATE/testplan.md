@@ -1129,6 +1129,11 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
     - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
   - [ ] Verify that the working directory in the tab title is updated when you change the directory
         (only for local terminals).
+  - [ ] Verify that terminal resize works for both local and remote shells.
+    - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
+    - Run the program: `$ mc`
+    - Resize Teleport Connect to see if the panels resize with it
+  - [ ] Verify that the tab automatically closes on `$ exit` command.
 - State restoration
   - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
         properly.
