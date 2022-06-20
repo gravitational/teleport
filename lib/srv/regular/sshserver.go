@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -94,6 +95,8 @@ type Server struct {
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
 	limiter       *limiter.Limiter
+
+	inventoryHandle inventory.DownstreamHandle
 
 	// labels are static labels.
 	labels map[string]string
@@ -160,7 +163,7 @@ type Server struct {
 
 	// heartbeat sends updates about this server
 	// back to auth server
-	heartbeat *srv.Heartbeat
+	heartbeat srv.HeartbeatI
 
 	// useTunnel is used to inform other components that this server is
 	// requesting connections to it come over a reverse tunnel.
@@ -648,6 +651,15 @@ func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerO
 	}
 }
 
+// SetInventoryControlHandle sets the server's downstream inventory control
+// handle.
+func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
+	return func(s *Server) error {
+		s.inventoryHandle = handle
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -788,19 +800,32 @@ func New(addr utils.NetAddr,
 	} else {
 		heartbeatMode = srv.HeartbeatModeNode
 	}
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Mode:            heartbeatMode,
-		Context:         ctx,
-		Component:       component,
-		Announcer:       s.authService,
-		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		Clock:           s.clock,
-		OnHeartbeat:     s.onHeartbeat,
-	})
+
+	var heartbeat srv.HeartbeatI
+	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
+		log.Info("debug -> starting control-stream based heartbeat.")
+		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
+			InventoryHandle: s.inventoryHandle,
+			GetServer:       s.getServerInfo,
+			Announcer:       s.authService,
+			OnHeartbeat:     s.onHeartbeat,
+		})
+	} else {
+		log.Info("debug -> starting legacy heartbeat.")
+		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
+			Mode:            heartbeatMode,
+			Context:         ctx,
+			Component:       component,
+			Announcer:       s.authService,
+			GetServerInfo:   s.getServerResource,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			ServerTTL:       apidefaults.ServerAnnounceTTL,
+			CheckPeriod:     defaults.HeartbeatCheckPeriod,
+			Clock:           s.clock,
+			OnHeartbeat:     s.onHeartbeat,
+		})
+	}
 	if err != nil {
 		s.srv.Close()
 		return nil, trace.Wrap(err)
@@ -918,6 +943,10 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
+	return s.getBasicInfo()
+}
+
+func (s *Server) getBasicInfo() *types.ServerV2 {
 	// Only set the address for non-tunnel nodes.
 	var addr string
 	if !s.useTunnel {
@@ -943,8 +972,8 @@ func (s *Server) GetInfo() types.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (types.Resource, error) {
-	server := s.GetInfo()
+func (s *Server) getServerInfo() *types.ServerV2 {
+	server := s.getBasicInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
 		if err != nil {
@@ -959,7 +988,11 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	server.SetPeerAddr(s.peerAddr)
-	return server, nil
+	return server
+}
+
+func (s *Server) getServerResource() (types.Resource, error) {
+	return s.getServerInfo(), nil
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
