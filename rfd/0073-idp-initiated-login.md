@@ -5,6 +5,12 @@ state: draft
 
 # RFD 73 - RFD 73 - IdP-initated Login Flows for SAML and OIDC
 
+## Required Approvers
+
+* Engineering @zmb3
+* Security @reed
+* Product: (@xinding33 || @klizhentas)
+
 ## Terminology
 
 - SP: Service Provider (Teleport)
