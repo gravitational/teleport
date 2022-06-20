@@ -104,7 +104,7 @@ func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.CLICommand = *cliCommand
+	gateway.CLICommand = cliCommand
 
 	ok = true
 	return gateway, nil
@@ -145,7 +145,7 @@ func (g *Gateway) SetTargetSubresourceName(targetSubresourceName string) error {
 		return trace.Wrap(err)
 	}
 
-	g.CLICommand = *cliCommand
+	g.CLICommand = cliCommand
 
 	return nil
 }
@@ -167,5 +167,5 @@ type Gateway struct {
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
-	GetCommand(gateway *Gateway) (*string, error)
+	GetCommand(gateway *Gateway) (string, error)
 }
