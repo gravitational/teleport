@@ -8,7 +8,7 @@ state: draft
 ## Required Approvers
 
 * Engineering @zmb3
-* Security @reed
+* Security @reedloden
 * Product: (@xinding33 || @klizhentas)
 
 ## Terminology
@@ -62,11 +62,11 @@ Allowing IdP-initiated login flows comes with a set of security tradeoffs inhere
 
 Due to the security risks below, this feature should be opt-in using the configuration option above and not enabled by default. Since this can reduce usage friction, we should still offer the feature to those that want it.
 
-#### Specific risks
+#### Specific risks and Employed Mitigations
 
-- Replay Attacks: Replay attacks are possible by capturing SAML assertions and possibly reusing them. We can attempt to mitigate this in Teleport by storing a cache of SAML assertion IDs that are valid for as long the SAML assertion is itself valid. This may not always be feasible depending on the data we receive from the IdP, but it is an useful mitigation we should employ. 
+- Replay Attacks: Replay attacks are possible by capturing SAML assertions and possibly reusing them. We can attempt to mitigate this in Teleport by storing a cache of SAML assertion IDs that are valid for as long the SAML assertion is itself valid. This may not always be feasible depending on the data we receive from the IdP, but it is an useful mitigation we will employ.
 
-- SAML interception: Since no sort of nonce or request/response system can be employed with randomly generated CSRF relay state tokens or other mechanism, IdP-initiated is prone to being chained with other attacks using assertion injection, interception and stealing and reuse by an attacker. We can attempt to mitigate this by reducing the trust length (the time we consider a response to be valid for login from it's issuance) but this is ultimately just a mitigation and not a perfect solution. We should also check the `InResponseTo` field to ensure any stolen responses aren't reused with the IdP-initiated flow.
+- SAML interception: Since no sort of nonce or request/response system can be employed with randomly generated CSRF relay state tokens or other mechanism, IdP-initiated is prone to being chained with other attacks using assertion injection, interception and stealing and reuse by an attacker. We can attempt to mitigate this by reducing the trust length (the time we consider a response to be valid for login from it's issuance) but this is ultimately just a mitigation and not a perfect solution. We will also check the `InResponseTo` field to ensure any stolen responses aren't reused with the IdP-initiated flow.
 
 ## References and Resources
 
