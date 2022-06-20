@@ -72,11 +72,6 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 		},
 	})
 
-	// set some logins
-	role1.SetLogins(types.Allow, []string{"a", "b"})
-	role1.SetLogins(types.Deny, []string{"c"})
-	role2.SetLogins(types.Allow, []string{"d"})
-
 	// set some windows desktop logins
 	role1.SetWindowsLogins(types.Allow, []string{"a", "b"})
 	role1.SetWindowsLogins(types.Deny, []string{"c"})
@@ -104,7 +99,6 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
-	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b", "d"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   types.RequestStrategyOptional,
@@ -149,8 +143,6 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 		},
 	})
 
-	role.SetLogins(types.Allow, []string{"a", "b"})
-	role.SetLogins(types.Deny, []string{"c"})
 	role.SetWindowsLogins(types.Allow, []string{"a", "b"})
 	role.SetWindowsLogins(types.Deny, []string{"c"})
 
@@ -174,7 +166,6 @@ func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, allowed)
-	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b"})
 	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b"})
 	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   types.RequestStrategyOptional,
