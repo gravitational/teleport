@@ -19,19 +19,31 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	apiuri "github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
 
-type CLICommandProvider interface {
-	GetCommand(cluster *Cluster, gateway *gateway.Gateway) (*string, error)
+// DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
+// fresh profile state from the disk.
+type DbcmdCLICommandProvider struct {
+	storage *Storage
 }
 
-type dbcmdCLICommandProvider struct{}
+func NewDbcmdCLICommandProvider(storage *Storage) DbcmdCLICommandProvider {
+	return DbcmdCLICommandProvider{
+		storage: storage,
+	}
+}
 
-func (d dbcmdCLICommandProvider) GetCommand(cluster *Cluster, gateway *gateway.Gateway) (*string, error) {
+func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*string, error) {
+	cluster, err := d.resolveCluster(gateway.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gateway.TargetName,
 		Protocol:    gateway.Protocol,
@@ -52,7 +64,6 @@ func (d dbcmdCLICommandProvider) GetCommand(cluster *Cluster, gateway *gateway.G
 		dbcmd.WithNoTLS(),
 		dbcmd.WithTolerateMissingCLIClient(),
 	).GetConnectCommandNoAbsPath()
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,4 +71,18 @@ func (d dbcmdCLICommandProvider) GetCommand(cluster *Cluster, gateway *gateway.G
 	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
 
 	return &cmdString, nil
+}
+
+func (d DbcmdCLICommandProvider) resolveCluster(uri string) (*Cluster, error) {
+	clusterURI, err := apiuri.ParseClusterURI(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := d.storage.GetByURI(clusterURI.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cluster, nil
 }

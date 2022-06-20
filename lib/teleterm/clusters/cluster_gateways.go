@@ -37,7 +37,7 @@ type CreateGatewayParams struct {
 }
 
 // CreateGateway creates a gateway
-func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (c *Cluster) CreateGateway(ctx context.Context, cliCommandProvider DbcmdCLICommandProvider, params CreateGatewayParams) (*gateway.Gateway, error) {
 	db, err := c.GetDatabase(ctx, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,32 +59,10 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	})
+	}, cliCommandProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cliCommand, err := c.cliCommandProvider.GetCommand(c, gw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gw.CLICommand = *cliCommand
 
 	return gw, nil
-}
-
-// SetGatewayTargetSubresourceName sets the target subresource name and updates the CLI command, as
-// changes to the target subresource name might impact the command.
-func (c *Cluster) SetGatewayTargetSubresourceName(gateway *gateway.Gateway, targetSubresourceName string) error {
-	gateway.TargetSubresourceName = targetSubresourceName
-
-	cliCommand, err := c.cliCommandProvider.GetCommand(c, gateway)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	gateway.CLICommand = *cliCommand
-
-	return nil
 }

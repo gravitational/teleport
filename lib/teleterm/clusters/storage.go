@@ -202,13 +202,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		URI: clusterURI,
 		// TODO(ravicious): This should probably use leafClusterName if available, but at this point I'm
 		// worried that changing it might break something else in the app.
-		Name:               profileName,
-		clusterClient:      clusterClient,
-		dir:                s.Dir,
-		clock:              s.Clock,
-		status:             *status,
-		Log:                s.Log.WithField("cluster", clusterURI),
-		cliCommandProvider: &dbcmdCLICommandProvider{},
+		Name:          profileName,
+		clusterClient: clusterClient,
+		dir:           s.Dir,
+		clock:         s.Clock,
+		status:        *status,
+		Log:           s.Log.WithField("cluster", clusterURI),
 	}, nil
 }
 
