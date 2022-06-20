@@ -328,6 +328,8 @@ type Service struct {
 	Config
 
 	mu sync.RWMutex
-	// gateways is the cluster gateways
+	// gateways holds the long-running gateways for resources on different clusters. So far it's been
+	// used mostly for database gateways but it has potential to be used for app access as well.
+	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
 	gateways []*gateway.Gateway
 }
