@@ -77,15 +77,16 @@ Run `./install` from `teleport-pagerduty` or place the executable in the appropr
   $ docker pull quay.io/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=)
   ```
 </TabItem>
-<TabItem label="Helm">
+</Tabs>
+
+<Details title="Installing via Helm?">
   ```code
   $ helm repo add teleport https://charts.releases.teleport.dev/
   $ helm install teleport-plugin-pagerduty teleport/teleport-plugin-pagerduty --values teleport-pagerduty-helm.yaml
   ```
 
-  See an example for `teleport-pagerduty-helm.yaml` under Helm in the next section!
-</TabItem>
-</Tabs>
+  See an example for `teleport-pagerduty-helm.yaml` under [Running Teleport in Kubernetes?](#running-teleport-in-kubernetes)
+</Details>
 
 ### Config file
 
@@ -111,19 +112,35 @@ After generating the config, edit it as follows:
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
 ```
 </TabItem>
-<TabItem scopes={["oss", "enterprise", "cloud"]} label="Helm values">
+</Tabs>
+
+<Details title="Running Teleport in Kubernetes?">
+  <Tabs>
+    <TabItem label="Self-hosted" scope={["oss","enterprise","cloud"]}>
+
 ```yaml
-(!examples/resources/plugins/teleport-pagerduty-helm.yaml!)
+(!examples/resources/plugins/teleport-pagerduty-helm-self.yaml!)
 ```
+
+  </TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+```yaml
+(!examples/resources/plugins/teleport-pagerduty-helm-cloud.yaml!)
+```
+
+    </TabItem>
+  </Tabs>
 
 Use the following command to create a Kubernetes secret from the identity file
-generated above:
+generated in the [export identity](#step-37-export-the-access-plugin-identity) section:
 
-```code
-kubectl create secret generic teleport-slack-identity --from-file=auth_id=identity
+```console
+kubectl create secret generic teleport-plugin-pagerduty-identity --from-file=auth_id=auth.pem
 ```
-</TabItem>
-</Tabs>
+
+For installation instructions, see [Installing via Helm?](#installing-via-helm)
+</Details>
 
 ### Testing the plugin
 
