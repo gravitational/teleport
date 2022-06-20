@@ -5,5 +5,5 @@ teleport:
 slack:
   token: "xoxb-11xx"  # Slack Bot OAuth token
 
-role_to_recipients:
+roleToRecipients:
   '*': access-requests@example.com

@@ -75,6 +75,15 @@ and will require access to both the public internet and the Teleport Auth Servic
 </TabItem>
 </Tabs>
 
+<Details title="Installing via Helm?">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm install teleport-plugin-slack teleport/teleport-plugin-slack --values teleport-slack-helm.yaml
+  ```
+
+  See an example for `teleport-slack-helm.yaml` under [Step 5/7. Configure the Teleport Slack Plugin](#running-teleport-in-kubernetes)
+</Details>
+
 ## Step 2/7. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
@@ -183,21 +192,35 @@ addr = "mytenant.teleport.sh"
 identity = "/var/lib/teleport/plugins/slack/auth.pem"
 ```
   </TabItem>
-  <TabItem label="Cloud" scope={["oss","enterprise","cloud"]}>
+</Tabs>
 
-```conf
-(!examples/resources/plugins/teleport-slack-helm.toml!)
-```
+<Details title="Running Teleport in Kubernetes?">
+  <Tabs>
+    <TabItem label="Self-hosted" scope={["oss","enterprise","cloud"]}>
 
-Use the following command to create a Kubernetes secret from the identity file
-generated above:
-
-```code
-kubectl create secret generic teleport-slack-identity --from-file=auth_id=identity
+```yaml
+(!examples/resources/plugins/teleport-slack-helm-self.yaml!)
 ```
 
   </TabItem>
-</Tabs>
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+```yaml
+(!examples/resources/plugins/teleport-slack-helm-cloud.yaml!)
+```
+
+    </TabItem>
+  </Tabs>
+
+Use the following command to create a Kubernetes secret from the identity file
+generated in the [export identity](#step-37-export-the-access-plugin-identity) section:
+
+```console
+kubectl create secret generic teleport-plugin-slack-identity --from-file=auth_id=auth.pem
+```
+
+For installation instructions, see [Installing via Helm?](#installing-via-helm)
+</Details>
 
 **`[slack]`**
 

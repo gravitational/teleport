@@ -1,0 +1,9 @@
+teleport:
+  address: "teleportauth:3025"                        # Teleport Cloud proxy HTTPS address
+  identitySecretName: teleport-plugin-slack-identity  # Identity file path
+
+slack:
+  token: "xoxb-11xx"  # Slack Bot OAuth token
+
+roleToRecipients:
+  '*': access-requests@example.com
