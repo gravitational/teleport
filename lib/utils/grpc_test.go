@@ -18,7 +18,9 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 
@@ -121,8 +123,15 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	stream, err := client.BidirectionalStreamingEcho(context.Background())
 	require.NoError(t, err)
 
-	err = stream.Send(&pb.EchoRequest{Message: "Hi!"})
-	require.NoError(t, err)
+	sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
+
+	// io.EOF means the server closed the stream, which can
+	// happen depending in timing. In either case, it is
+	// still safe to recv from the stream and check for
+	// the already exists error.
+	if sendErr != nil && !errors.Is(sendErr, io.EOF) {
+		require.FailNowf(t, "unexpected error", "%v", sendErr)
+	}
 
 	_, err = stream.Recv()
 	require.True(t, trace.IsAlreadyExists(err))
