@@ -440,6 +440,26 @@
             {
               "title": "teleport-kube-agent",
               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            },
+            {
+              "title": "teleport-plugin-slack",
+              "slug": "/kubernetes-access/helm/reference/teleport-plugin-slack/"
+            },
+            {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/kubernetes-access/helm/reference/teleport-plugin-mattermost/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/kubernetes-access/helm/reference/teleport-plugin-pagerduty/"
+            },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/kubernetes-access/helm/reference/teleport-plugin-jira/"
+            },
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/kubernetes-access/helm/reference/teleport-plugin-event-handler/"
             }
           ]
         },

@@ -1,13 +1,13 @@
 ---
-title: teleport-plugin-slack Chart Reference
-description: Values that can be set using the teleport-plugin-slack Helm chart
+title: teleport-plugin-mattermost Chart Reference
+description: Values that can be set using the teleport-plugin-mattermost Helm chart
 ---
 
-The `teleport-plugin-slack` Helm chart is used to configure the Slack Teleport plugin which allows users to receive access requests to channels or as direct messages via Slack.
+The `teleport-plugin-mattermost` Helm chart is used to configure the MatterMost Teleport plugin which allows users to receive access requests to channels or as direct messages via MatterMost.
 
-You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/slack).
+You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/mattermost).
 
-This reference details available values for the `teleport-plugin-slack` chart.
+This reference details available values for the `teleport-plugin-mattermost` chart.
 
 (!docs/pages/includes/backup-warning.mdx!)
 
@@ -48,23 +48,23 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: teleport-plugin-slack-identity
+  name: teleport-plugin-mattermost-identity
 data:
   auth_id: ...
 ```
 
-Check out the [Slack Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/slack#prerequisites) for more information about how to acquire these credentials!
+Check out the [MatterMost Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/mattermost#prerequisites) for more information about how to acquire these credentials!
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   teleport:
-    identitySecretName: "teleport-plugin-slack-identity"
+    identitySecretName: "teleport-plugin-mattermost-identity"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set teleport.identitySecretName="teleport-plugin-slack-identity"
+  $ --set teleport.identitySecretName="teleport-plugin-mattermost-identity"
   ```
   </TabItem>
 </Tabs>
@@ -91,29 +91,51 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
   </TabItem>
 </Tabs>
 
-## `slack.token`
+## `mattermost.url`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Base URL of the MatterMost instance
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mattermost:
+    url: "https://mattermost.example.com/"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mattermost.url="https://mattermost.example.com/"
+  ```
+  </TabItem>
+</Tabs>
+
+## `mattermost.token`
 
 | Type | Default value | Required? |
 | - | - | - |
 | `string` | `""` | No |
 
-Slack token of the bot user to impersonate when sending the messages.
+MatterMost token of the bot user to impersonate when sending the messages. Ignored when `mattermost.tokenFromSecret` is set.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  slack:
+  mattermost:
     token: "xoxb-1234"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set slack.token="xoxb-1234"
+  $ --set mattermost.token="xoxb-1234"
   ```
   </TabItem>
 </Tabs>
 
-## `slack.tokenFromSecret`
+## `mattermost.tokenFromSecret`
 
 | Type | Default value | Required? |
 | - | - | - |
@@ -124,58 +146,59 @@ Secret containing the MatterMost token of the bot user.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  slack:
-    tokenFromSecret: "teleport-slack-plugin-token"
+  mattermost:
+    tokenFromSecret: "teleport-mattermost-plugin-token"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set slack.tokenFromSecret="teleport-slack-plugin-token"
+  $ --set mattermost.tokenFromSecret="teleport-mattermost-plugin-token"
   ```
   </TabItem>
 </Tabs>
 
-## `slack.tokenSecretPath`
+## `mattermost.tokenSecretPath`
 
 | Type | Default value | Required? |
 | - | - | - |
 | `string` | `"mattermostToken"` | No |
 
-Key where the token is located inside the secret specified by `slack.tokenFromSecret`.
+Key where the token is located inside the secret specified by `mattermost.tokenFromSecret`.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  slack:
+  mattermost:
     tokenSecretPath: "token"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set slack.tokenSecretPath="token"
+  $ --set mattermost.tokenSecretPath="token"
   ```
   </TabItem>
 </Tabs>
 
-## `roleToRecipients`
+## `mattermost.recipients`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `map` | `{}` | Yes |
+| `array` | `[]` | Yes |
 
-Mapping of roles to a list of channels and Slack emails.
+List of recipients who will receive notifications about access requests.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  roleToRecipients:
-    dev: ["dev-access-requests", "user@example.com"]
-    "*": ["access-requests"]
+  mattermost:
+    recipients:
+      - user1@example.com
+      - user2@example.com
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set "roleToRecipients.dev[0]=dev-access-requests,roleToRecipients.dev[1]=user@example.com,roleToRecipients.\*[0]=access-requests"
+  $ --set mattermost.recipients[0]="user1@example.com",mattermost.recipients[0]="user1@example.com"
   ```
   </TabItem>
 </Tabs>
@@ -186,18 +209,18 @@ Mapping of roles to a list of channels and Slack emails.
 | - | - | - |
 | `string` | `stdout` | No |
 
-Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/slack.log"
+Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/mattermost.log"
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   log:
-    output: /var/log/teleport/slack.log
+    output: /var/log/teleport/mattermost.log
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set log.output="/var/log/teleport/slack.log"
+  $ --set log.output="/var/log/teleport/mattermost.log"
   ```
   </TabItem>
 </Tabs>

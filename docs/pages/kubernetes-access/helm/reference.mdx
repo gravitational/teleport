@@ -3,6 +3,8 @@ title: Helm chart reference
 description: A list of values that can be set using Teleport Helm charts and their purpose
 ---
 
+# Teleport
+
 <TileSet>
 <Tile href="./reference/teleport-cluster.mdx" icon="kubernetes" title="teleport-cluster">
 ![Teleport ](../../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
@@ -15,6 +17,41 @@ Auth and Proxy Services and support for any Teleport service configuration.
 ![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
 
 Deploy the Teleport Kubernetes Service, Application Service, or Database Service on Kubernetes.
+
+</Tile>
+</TileSet>
+
+# Plugins
+
+<TileSet>
+<Tile href="./reference/teleport-plugin-slack.mdx" icon="kubernetes" title="teleport-plugin-slack">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Send notifications about acccess requests via Slack.
+
+</Tile>
+<Tile href="./reference/teleport-plugin-mattermost.mdx" icon="kubernetes" title="teleport-plugin-mattermost">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Send notifications about acccess requests via Mattermost.
+
+</Tile>
+<Tile href="./reference/teleport-plugin-pagerduty.mdx" icon="kubernetes" title="teleport-plugin-pagerduty">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Send notifications about acccess requests and can automatically approve them via PagerDuty.
+
+</Tile>
+<Tile href="./reference/teleport-plugin-jira.mdx" icon="kubernetes" title="teleport-plugin-jira">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Send notifications about acccess requests and can automatically approve them via PagerDuty.
+
+</Tile>
+<Tile href="./reference/teleport-plugin-event-handler.mdx" icon="kubernetes" title="teleport-plugin-event-handler">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Sends events and session logs to Fluentd.
 
 </Tile>
 </TileSet>
