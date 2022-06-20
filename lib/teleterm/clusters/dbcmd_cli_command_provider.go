@@ -38,10 +38,10 @@ func NewDbcmdCLICommandProvider(storage *Storage) DbcmdCLICommandProvider {
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*string, error) {
+func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
 	cluster, err := d.resolveCluster(gateway.TargetURI)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
@@ -65,12 +65,12 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*string, 
 		dbcmd.WithTolerateMissingCLIClient(),
 	).GetConnectCommandNoAbsPath()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
 
-	return &cmdString, nil
+	return cmdString, nil
 }
 
 func (d DbcmdCLICommandProvider) resolveCluster(uri string) (*Cluster, error) {

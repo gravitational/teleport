@@ -25,9 +25,9 @@ import (
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (*string, error) {
+func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
 	command := fmt.Sprintf("%s/%s", gateway.TargetName, gateway.TargetSubresourceName)
-	return &command, nil
+	return command, nil
 }
 
 func TestSetGatewayTargetSubresourceName(t *testing.T) {
@@ -37,7 +37,7 @@ func TestSetGatewayTargetSubresourceName(t *testing.T) {
 			TargetName: "foo",
 			Protocol:   defaults.ProtocolPostgres,
 		},
-		cliCommandProvider: &mockCLICommandProvider{},
+		cliCommandProvider: mockCLICommandProvider{},
 	}
 
 	err := gateway.SetTargetSubresourceName("bar")
