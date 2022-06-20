@@ -79,10 +79,9 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if trace.IsNotFound(err) {
-		if !hasOriginLabel(obj) {
-			return addOriginLabel(ctx, r.Client, obj)
-		}
+	if trace.IsNotFound(err) && !hasOriginLabel(obj) {
+		return addOriginLabel(ctx, r.Client, obj)
 	}
+
 	return r.TeleportClient.UpsertRole(ctx, teleportResource)
 }
