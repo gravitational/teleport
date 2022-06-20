@@ -497,6 +497,41 @@ This can be used for joining a Teleport instance to a Teleport cluster which doe
   One option might be to use Teleport's built-in [ACME support](./teleport-cluster.mdx#acme) or enable [cert-manager support](./teleport-cluster.mdx#highavailabilitycertmanager).
 </Admonition>
 
+## `tls`
+
+### `existingCASecretName`
+
+| Type | Default value |
+| - | - |
+| `string` | `""` |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
+This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+
+You should create the secret in the same namespace as Teleport using a command like this:
+
+```shell
+kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Notice type="warning" title="Root CA filename">
+  The filename used for the root CA in the secret must be `ca.pem`.
+</Notice>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tls:
+    existingCASecretName: my-root-ca
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set tls.existingSecretName=my-root-ca
+  ```
+  </TabItem>
+</Tabs>
+
 ## `existingDataVolume`
 
 | Type | Default value |
