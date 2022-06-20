@@ -1120,29 +1120,92 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 ## Teleport Connect
 
 - Shell
-  - [ ] Verify that shell is pinned to correct cluster (for root clusters and leaf clusters).
-  - [ ] Verify that local shell is opened with the correct env vars.
-  - [ ] Verify that working directory in the tab title is updated when you change the directory (only for local terminals).
+  - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf clusters).
+    - That is, opening new shell sessions in other workspaces or other clusters within the same
+      workspace should have no impact on the original shell session.
+  - [ ] Verify that the local shell is opened with correct env vars.
+    - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
+    - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
+    - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
+  - [ ] Verify that the working directory in the tab title is updated when you change the directory
+        (only for local terminals).
 - State restoration
-  - [ ] Verify that app asks about restoring the previous tabs when launched.
-  - [ ] Verify that app opens with the cluster that was active when you closed it previously.
-  - [ ] Verify that app remembers size & position after restart.
-  - [ ] Verify if [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works.
+  - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
+        properly.
+  - [ ] Verify that the app opens with the cluster that was active when you closed the app.
+  - [ ] Verify that the app remembers size & position after restart.
+  - [ ] Verify that [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575)
+        works.
 - Connections picker
-  - [ ] Verify that connections picker shows new connections when ssh & db tabs are opened.
-  - [ ] Check if these connections are available after the app restart.
-  - [ ] Check that these connections are removed when the cluster to which they belong is removed.
+  - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
+  - [ ] Check if those connections are available after the app restart.
+  - [ ] Check that those connections are removed after you log out of the root cluster that they
+        belong to.
 - Cluster resources (servers/databases)
-  - [ ] Verify that the app shows the same resources as WebUI.
+  - [ ] Verify that the app shows the same resources as the Web UI.
   - [ ] Verify that search is working for the resources lists.
   - [ ] Verify that you can connect to these resources.
-- [ ] Verify if adding a cluster adds it to the clusters list and activates automatically.
-- [ ] Verify that state of the current workspace is preserved when you change it (by switching to another cluster) and return.
-- [ ] Verify that autocomplete works in the command bar.
-- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & profile selectors, switching tabs, etc.).
-- [ ] Verify that app doesn't crash when there is no internet connection or some cluster is unavailable.
-- [ ] Verify that logs are collected for all processes.
-- [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired.
+  - [ ] Verify that clicking "Connect" shows available logins and db usernames.
+    - Logins and db usernames are taken from the role, under `spec.allow.logins` and
+      `spec.allow.db_users`.
+  - [ ] Repeat the above steps for resources in leaf clusters.
+  - [ ] Verify that tabs have correct titles set.
+- Shortcuts
+  - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
+  - [ ] Verify that other shortcuts are shown after you close all tabs.
+  - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
+        elements.
+- Workspaces
+  - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to the
+        workspace of that cluster automatically.
+  - [ ] Verify that the state of the current workspace is preserved when you change the workspace (by
+        switching to another cluster) and return to the previous workspace.
+- Command bar & autocomplete
+  - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
+  - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
+  - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
+        autocompletes them.
+  - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
+  - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
+  - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
+        autocompletes them.
+  - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
+        running.
+  - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
+        various points.
+  - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
+        command bar.
+  - [ ] Verify that launching any other command that's not supported by the autocomplete opens a new
+        local shell with that command running.
+- Resilience when resources become unavailable
+  - For each scenario, create at least one tab for each available kind (minus k8s for now).
+  - For each scenario, first do the external action, then click "Sync" on the relevant cluster tab.
+    Verify that no unrecoverable error was raised. Then restart the app and verify that it was
+    restarted gracefully (no unrecoverable error on restart, the user can continue using the app).
+    * [ ] Stop the root cluster.
+    * [ ] Stop a leaf cluster.
+    * [ ] Disconnect your device from the internet.
+- Refreshing certs
+  - To test scenarios from this section, create a user with a role that has TTL of `1m`
+    (`spec.options.max_session_ttl`).
+  - Log in, create a db connection and run the CLI command; wait 1 minute, click "Sync" on the
+    cluster tab.
+    - Verify that after successfully logging in:
+      - [ ] the cluster info is synced
+      - [ ] the connection in the running CLI db client wasn't dropped; try executing `select
+            now();`, the client should be able to automatically reinstantiate the connection.
+      - [ ] the database proxy is able to handle new connections; click "Run" in the db tab and see
+            if it connects without problems. You might need to resync the cluster again in case they
+            managed to expire.
+    - [ ] Verify that closing the login modal without logging in shows an error related to syncing
+      the cluster.
+  - Log in; wait 1 minute, click "Connect" next to a db in the cluster tab.
+    - [ ] Verify that clicking "Connect" and then navigating to a different tab before the request
+          completes doesn't show the login modal and instead immediately shows the error.
+    - For this one, you might want to use a sever in our Cloud if the introduced latency is high
+      enough. Perhaps enabling throttling in dev tools can help too.
+- [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
+  `~/Library/Application\ Support/Teleport\ Connect/logs`.
 
 ## Host users creation
 
