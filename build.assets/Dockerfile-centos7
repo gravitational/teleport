@@ -19,11 +19,12 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
+# install_sw install only binaries, skips docs.
 RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1o && \
     cd openssl && \
     ./config --release && \
     make && \
-    make install
+    make install_sw
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -70,11 +71,13 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
         git \
-        libatomic \
         net-tools \
+        # required by Teleport PAM support
         pam-devel \
         perl-IPC-Cmd \
         tree \
+        # used by our Makefile
+        which \
         zip \
     yum clean all
 
@@ -91,6 +94,21 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+ARG BUILDARCH
+
+# Install protoc (for prost, a roletester dependency)
+ARG PROTOC_VER
+RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
+     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     chmod -R a+r /usr/local/include/google/protobuf && \
+     chmod -R a+xr /usr/local/bin/protoc && \
+     rm /tmp/${PROTOC_TARBALL})
+
+# Tell prost to use the system protoc instead of building it from source
+ENV PROTOC_NO_VENDOR true
+ENV PROTOC /usr/local/bin/protoc
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
