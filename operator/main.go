@@ -145,6 +145,10 @@ func main() {
 
 	// Install CRDs
 	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		if synced := mgr.GetCache().WaitForCacheSync(ctx); !synced {
+			setupLog.Error(err, "cache is not ready")
+			return trace.Wrap(err)
+		}
 
 		setupLog.Info("installing CRDs")
 		if err := crd.Upsert(ctx, setupLog, crdFS, mgr.GetClient()); err != nil {
