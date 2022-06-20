@@ -35,7 +35,8 @@ If it's a creation/modification:
 The first two steps above may change the object's state in K8S. If they do, we update and finish the cycle - we'll receive another reconciliation request with the new state.
 
 ### Diagram
-```
+```asciiflow
+      POD
 +--------------------------------------------------------+
 |                                                        |         +------+
 |                                                        |         |      |
@@ -50,19 +51,19 @@ The first two steps above may change the object's state in K8S. If they do, we u
 | |   |                             |   |                |           |
 | |   |   +-----------------+       |   | Manage         |           |
 | |   |   |/var/lib/teleport|       |   | Resources      |           |
-| |   |   +^----------------+       |   |                |           |     K8S
+| |   |   +^----------------+       |   |                |           |  kube-apiserver
 | |   |    |                        |   |                |      +----v----------------+
 | +---+----+------------------------+   |                |      |                     |
-|     |    |                            |                |      |    +--------------+ |
-|     |    |                            |                |      |    |              | |
-|     |    |   operator                 |                |      |    | Reconciler   | |
-| +---+----+----------------------------+--------+       |      |    | Loop         | |
-| |   |    |                            |        |       |      |    |              | |
-| |  ++----+----+                 +-----v----+   |       |      |    |              | |
-| |  |sidecar   <-----------------> teleport <---+-------+------+---->              | |
-| |  +----------+ Setup U&R       | operator |   |       |      |    |              | |
-| |             Create Identity   +----------+   |       |      |    |              | |
-| |                                              |       |      |    +--------------+ |
+|     |    |                            |                |      |                     |
+|     |    |                            |                |      |                     |
+|     |    |   operator                 |                |      |                     |
+| +---+----+----------------------------+--------+       |      |                     |
+| |   |    |                            |        |       |      |                     |
+| |  ++----+----+                 +-----v----+   |       |      |                     |
+| |  |sidecar   <-----------------> teleport <---+-------+------>                     |
+| |  +----------+ Setup U/R       | operator |   |       |      |                     |
+| |             Create Identity   +----------+   |       |      |                     |
+| |                                              |       |      |                     |
 | |                                              |       |      |                     |
 | +----------------------------------------------+       |      +---------------------+
 |                                                        |
