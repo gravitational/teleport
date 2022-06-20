@@ -723,6 +723,136 @@ should mount extraVolumes and extraVolumeMounts:
     - name: my-mount
       secret:
         secretName: mySecret
+should mount tls.existingCASecretName and set environment when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: quay.io/gravitational/teleport:11.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
+should mount tls.existingCASecretName and set extra environment when set in values:
+  1: |
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      env:
+      - name: HTTPS_PROXY
+        value: http://username:password@my.proxy.host:3128
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: quay.io/gravitational/teleport:11.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
 should provision initContainer correctly when set in values:
   1: |
     containers:
