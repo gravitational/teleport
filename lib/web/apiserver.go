@@ -2130,7 +2130,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		if tracker.GetSessionKind() == types.SSHSessionKind && tracker.GetState() == types.SessionState_SessionStateRunning {
+		if tracker.GetSessionKind() == types.SSHSessionKind && tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
@@ -2163,7 +2163,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() != types.SessionState_SessionStateRunning {
+	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
