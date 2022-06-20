@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -37,6 +38,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 )
 
@@ -577,6 +579,8 @@ type Config struct {
 	// becomes healthy, meaning that it will always end up hitting the
 	// real backend and the ttl cache.
 	neverOK bool
+	// Tracer is used to create spans
+	Tracer oteltrace.Tracer
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -608,9 +612,11 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.RelativeExpiryLimit == 0 {
 		c.RelativeExpiryLimit = 2000
 	}
-
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache
+	}
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopTracer(c.Component)
 	}
 	return nil
 }
@@ -735,6 +741,8 @@ func New(config Config) (*Cache, error) {
 // to handle subscribers connected to the in-memory caches
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/NewWatcher")
+	defer span.End()
 Outer:
 	for _, requested := range watch.Kinds {
 		for _, configured := range c.Config.Watches {
@@ -1166,6 +1174,9 @@ var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1209,6 +1220,9 @@ var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
 func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1237,6 +1251,9 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1247,6 +1264,9 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1257,6 +1277,9 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 
 // GetToken finds and returns token by ID
 func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1284,6 +1307,9 @@ var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1308,6 +1334,9 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1332,6 +1361,9 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 
 // GetClusterName gets the name of the cluster from the backend.
 func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1339,7 +1371,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.ClusterName) {} // compile-time type assertion
-		ci, err := c.fnCache.Get(context.TODO(), clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
+		ci, err := c.fnCache.Get(ctx, clusterConfigCacheKey{"name"}, func(ctx context.Context) (interface{}, error) {
 			cfg, err := rg.clusterConfig.GetClusterName(opts...)
 			ta(cfg)
 			return cfg, err
@@ -1356,6 +1388,9 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 
 // GetRoles is a part of auth.Cache implementation
 func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1366,6 +1401,9 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 // GetRole is a part of auth.Cache implementation
 func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1386,6 +1424,9 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // GetNamespace returns namespace
 func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1396,6 +1437,9 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 
 // GetNamespaces is a part of auth.Cache implementation
 func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespaces")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1406,6 +1450,9 @@ func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 
 // GetNode finds and returns a node by name and namespace.
 func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1422,6 +1469,9 @@ var _ map[getNodesCacheKey]struct{} // compile-time hashability check
 
 // GetNodes is a part of auth.Cache implementation
 func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1448,9 +1498,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
 	ta := func(_ []types.Server) {} // compile-time type assertion
 	ni, err := c.fnCache.Get(ctx, getNodesCacheKey{namespace}, func(ctx context.Context) (interface{}, error) {
-		// use cache's close context instead of request context in order to ensure
-		// that we don't cache a context cancellation error.
-		nodes, err := rg.presence.GetNodes(c.ctx, namespace)
+		nodes, err := rg.presence.GetNodes(ctx, namespace)
 		ta(nodes)
 		return nodes, err
 	})
@@ -1467,6 +1515,9 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 
 // GetAuthServers returns a list of registered servers
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1477,6 +1528,9 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 
 // GetReverseTunnels is a part of auth.Cache implementation
 func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1487,6 +1541,9 @@ func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalO
 
 // GetProxies is a part of auth.Cache implementation
 func (c *Cache) GetProxies() ([]types.Server, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1503,6 +1560,9 @@ var _ map[remoteClustersCacheKey]struct{} // compile-time hashability check
 
 // GetRemoteClusters returns a list of remote clusters
 func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1510,7 +1570,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ []types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
+		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{}, func(ctx context.Context) (interface{}, error) {
 			remotes, err := rg.presence.GetRemoteClusters(opts...)
 			ta(remotes)
 			return remotes, err
@@ -1531,6 +1591,9 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 
 // GetRemoteCluster returns a remote cluster by name
 func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1538,7 +1601,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		ta := func(_ types.RemoteCluster) {} // compile-time type assertion
-		ri, err := c.fnCache.Get(context.TODO(), remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
+		ri, err := c.fnCache.Get(ctx, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (interface{}, error) {
 			remote, err := rg.presence.GetRemoteCluster(clusterName)
 			ta(remote)
 			return remote, err
@@ -1565,6 +1628,9 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetUser")
+	defer span.End()
+
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(name, withSecrets)
 	}
@@ -1589,6 +1655,9 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 
 // GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetUsers")
+	defer span.End()
+
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(withSecrets)
 	}
@@ -1602,6 +1671,9 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 
 // GetTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1612,6 +1684,9 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 
 // GetAllTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
+	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1622,6 +1697,9 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 
 // GetKubeServices is a part of auth.Cache implementation
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1632,6 +1710,9 @@ func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 
 // GetApplicationServers returns all registered application servers.
 func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1642,6 +1723,9 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 
 // GetApps returns all application resources.
 func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1652,6 +1736,9 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 
 // GetApp returns the specified application resource.
 func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1664,6 +1751,9 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 //
 // DELETE IN 9.0. Deprecated, use GetApplicationServers.
 func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAppServers")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1674,6 +1764,9 @@ func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...ser
 
 // GetAppSession gets an application web session.
 func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1684,6 +1777,9 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 
 // GetSnowflakeSession gets Snowflake web session.
 func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1694,6 +1790,9 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1704,6 +1803,9 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 
 // GetDatabases returns all database resources.
 func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1714,6 +1816,9 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 
 // GetDatabase returns the specified database resource.
 func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1724,6 +1829,9 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 
 // GetWebSession gets a regular web session.
 func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1734,6 +1842,9 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 
 // GetWebToken gets a web token.
 func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1744,6 +1855,9 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 
 // GetAuthPreference gets the cluster authentication config.
 func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1754,6 +1868,9 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1764,6 +1881,9 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 
 // GetNetworkRestrictions gets the network restrictions.
 func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1775,6 +1895,9 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 
 // GetLock gets a lock by name.
 func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetLock")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1797,6 +1920,9 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 // GetLocks gets all/in-force locks that match at least one of the targets
 // when specified.
 func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1807,6 +1933,9 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 
 // GetWindowsDesktopServices returns all registered Windows desktop services.
 func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1817,6 +1946,9 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 
 // GetWindowsDesktopService returns a registered Windows desktop service by name.
 func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1827,6 +1959,9 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 
 // GetWindowsDesktops returns all registered Windows desktop hosts.
 func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1837,6 +1972,9 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 
 // ListWindowsDesktops returns all registered Windows desktop hosts.
 func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1847,6 +1985,9 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 
 // ListResources is a part of auth.Cache implementation
 func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
+	defer span.End()
+
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)

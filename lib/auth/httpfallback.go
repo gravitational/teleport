@@ -75,6 +75,30 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	}, nil
 }
 
+// DELETE IN 11.0.0, to remove fallback and grpc call is already defined in api/client/client.go
+//
+// GenerateToken generates a new auth token for the given service roles.
+// This token can be used by corresponding services to authenticate with
+// the Auth server and get a signed certificate and private key.
+func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
+	case err == nil:
+		return resp, nil
+	case !trace.IsNotImplemented(err):
+		return "", trace.Wrap(err)
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var token string
+	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
+
 // CreateOIDCAuthRequest creates OIDCAuthRequest.
 // DELETE IN 11.0.0
 func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {

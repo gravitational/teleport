@@ -995,7 +995,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
 		cfg.SSH.DisableCreateHostUser = true
 		if runtime.GOOS != constants.LinuxOS {
-			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+			log.Debugln("Disabling host user creation as this feature is only available on Linux")
 		}
 	}
 	if fc.SSH.PAM != nil {
@@ -1159,6 +1159,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				},
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
+				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
 				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
@@ -2121,12 +2124,15 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		if cfg.Token != "" {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		cfg.Token = fc.JoinParams.TokenName
+		_, err := cfg.ApplyToken(fc.JoinParams.TokenName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
+		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
 	return nil
