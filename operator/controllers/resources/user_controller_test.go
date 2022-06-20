@@ -32,6 +32,7 @@ import (
 )
 
 func TestUserCreation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
@@ -72,6 +73,7 @@ func TestUserCreation(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
