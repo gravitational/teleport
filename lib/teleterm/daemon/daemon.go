@@ -145,7 +145,9 @@ func (s *Service) createGateway(ctx context.Context, params clusters.CreateGatew
 		return nil, trace.Wrap(err)
 	}
 
-	gateway, err := cluster.CreateGateway(ctx, params)
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage)
+
+	gateway, err := cluster.CreateGateway(ctx, cliCommandProvider, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -255,12 +257,7 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := s.ResolveCluster(gateway.TargetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := cluster.SetGatewayTargetSubresourceName(gateway, targetSubresourceName); err != nil {
+	if err := gateway.SetTargetSubresourceName(targetSubresourceName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
