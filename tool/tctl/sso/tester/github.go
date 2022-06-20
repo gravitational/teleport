@@ -45,7 +45,7 @@ func githubTest(c auth.ClientI, connector types.GithubConnector) (*AuthRequestIn
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.Github,
 			PublicKey:         req.PublicKey,
-			CertTTL:           types.Duration(defaults.GithubAuthRequestTTL),
+			CertTTL:           defaults.GithubAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
 			RouteToCluster:    req.RouteToCluster,
@@ -100,6 +100,11 @@ func getGithubDiagInfoFields(diag *types.SSODiagnosticInfo, debug bool) []string
 			diag.GithubTeamsToLogins != nil,
 			true,
 			FormatYAML("[GitHub] Connector team to logins mapping", diag.GithubTeamsToLogins),
+		),
+		GetDiagMessage(
+			diag.GithubTeamsToRoles != nil,
+			true,
+			FormatYAML("[GitHub] Connector team to roles mapping", diag.GithubTeamsToRoles),
 		),
 	}
 }

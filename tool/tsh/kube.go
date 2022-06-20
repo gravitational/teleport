@@ -28,11 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
@@ -45,6 +41,10 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -110,7 +110,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	site, err := proxy.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,6 +278,11 @@ func (o *StreamOptions) SetupTTY() term.TTY {
 	// if we get to here, the user wants to attach stdin, wants a TTY, and o.In is a terminal, so we
 	// can safely set t.Raw to true
 	t.Raw = true
+
+	if o.overrideStreams == nil {
+		// use dockerterm.StdStreams() to get the right I/O handles on Windows
+		o.overrideStreams = dockerterm.StdStreams
+	}
 
 	stdin, stdout, _ := o.overrideStreams()
 	o.In = stdin
@@ -493,7 +498,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(cf.Context, true)
+	site, err := proxy.ConnectToCurrentCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -928,7 +933,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx, true)
+		ac, err := pc.ConnectToCurrentCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
