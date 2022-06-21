@@ -55,6 +55,47 @@ Consumers are non-lazy functions that take an iterator and consume it to produce
 
 todo
 
+
+#### Examples
+
+The examples are using a beta version of [my iterator library](https://github.com/xacrimon/functional).
+
+```go
+import "github.com/xacrimon/functional/iter"
+
+type Iter = iter.Iter
+
+// Consumes no amount of intermediary memory to perform the computation, preventing memory spikes that scale with the amount of active sessions.
+func FilterTerminatedTrackers(trackers Iter[types.SessionTracker]) Iter[types.SessionTracker] {
+	return iter.Filter(trackers, func(tracker *types.SessionTracker) bool {
+        return tracker.GetState() != types.SessionStateTerminated
+    })
+}
+```
+
+```go
+import (
+    "github.com/xacrimon/functional/iter"
+    "github.com/xacrimon/functional/result"
+)
+
+type Iter = iter.Iter
+type Result = result.Result
+
+// Consumes no amount of intermediary memory to perform the computation, preventing memory spikes that scale with the amount of nodes.
+func DeserializeNodes(trackers Iter[string]) Iter[Result[types.Server]] {
+	return iter.Map(trackers, func(json string) Result[types.Server] {
+        item := new(types.ServerV3)
+        err := json.Unmarshal([]byte(json), item)
+        if err != nil {
+            return result.Err(err)
+        }
+
+        return result.Ok(item)
+    })
+}
+```
+
 ### External API's over gRPC
 
 todo
