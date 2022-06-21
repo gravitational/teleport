@@ -75,6 +75,9 @@ data:
       {{- end }}
     {{- end }}
   {{- end }}
+  {{- if .Values.sessionRecording }}
+      session_recording: {{ .Values.sessionRecording }}
+  {{- end }}
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
   {{- end }}
