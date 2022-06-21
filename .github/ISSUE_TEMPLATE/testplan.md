@@ -1119,6 +1119,24 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 
 ## Teleport Connect
 
+- Auth methods
+  - Verify that the app supports clusters using different auth settings
+    (`auth_service.authentication` in the cluster config):
+    - [ ] `type: local`, `second_factor: "off"`
+    - [ ] `type: local`, `second_factor: "otp"`
+    - [ ] `type: local`, `second_factor: "webauthn"`
+    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
+    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
+    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
+    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
+    - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
+      - For those you might want to use clusters that are deployed on the web, specified in parens.
+        Or set up the connectors on a local enterprise cluster following [the guide from our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+      - [ ] GitHub (asteroid)
+        - [ ] local login on a GitHub-enabled cluster
+      - [ ] SAML (platform cluster)
+      - [ ] OIDC (e-demo)
 - Shell
   - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf clusters).
     - That is, opening new shell sessions in other workspaces or other clusters within the same
