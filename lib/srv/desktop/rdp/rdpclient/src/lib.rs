@@ -166,6 +166,7 @@ impl From<RdpError> for ConnectError {
 }
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
 struct ConnectParams {
     username: String,
@@ -201,7 +202,10 @@ fn connect_rdp_inner(
     // rdpdr: derive redirection (smart cards)
     // rdpsnd: sound (for some reason we need to request this)
     // cliprdr: clipboard
-    let mut static_channels = vec![rdpdr::CHANNEL_NAME.to_string(), "rdpsnd".to_string()];
+    let mut static_channels = vec![
+        rdpdr::CHANNEL_NAME.to_string(),
+        RDPSND_CHANNEL_NAME.to_string(),
+    ];
     if params.allow_clipboard {
         static_channels.push(cliprdr::CHANNEL_NAME.to_string())
     }
@@ -288,6 +292,10 @@ impl<S: Read + Write> RdpClient<S> {
                 Some(ref mut clip) => clip.read(message, &mut self.mcs),
                 None => Ok(()),
             },
+            RDPSND_CHANNEL_NAME => {
+                debug!("skipping RDPSND message, audio output not supported");
+                Ok(())
+            }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 &format!("Invalid channel name {:?}", channel_name),

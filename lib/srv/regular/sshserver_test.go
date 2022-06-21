@@ -492,7 +492,9 @@ func TestAdvertiseAddr(t *testing.T) {
 func TestAgentForwardPermission(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 	ctx := context.Background()
 
 	// make sure the role does not allow agent forwarding
@@ -504,6 +506,13 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
 	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -706,7 +715,9 @@ func TestX11Forward(t *testing.T) {
 	}
 
 	t.Parallel()
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
@@ -721,6 +732,13 @@ func TestX11Forward(t *testing.T) {
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Open two x11 sessions, the server should handle multiple

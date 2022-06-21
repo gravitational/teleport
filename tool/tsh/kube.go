@@ -45,6 +45,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -278,6 +279,11 @@ func (o *StreamOptions) SetupTTY() term.TTY {
 	// if we get to here, the user wants to attach stdin, wants a TTY, and o.In is a terminal, so we
 	// can safely set t.Raw to true
 	t.Raw = true
+
+	if o.overrideStreams == nil {
+		// use dockerterm.StdStreams() to get the right I/O handles on Windows
+		o.overrideStreams = dockerterm.StdStreams
+	}
 
 	stdin, stdout, _ := o.overrideStreams()
 	o.In = stdin
@@ -647,6 +653,7 @@ type kubeLSCommand struct {
 	predicateExpr  string
 	searchKeywords string
 	format         string
+	listAll        bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
@@ -656,14 +663,45 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
+}
+
+type kubeListing struct {
+	Proxy       string `json:"proxy"`
+	Cluster     string `json:"cluster"`
+	KubeCluster string `json:"kube_cluster"`
+}
+
+type kubeListings []kubeListing
+
+func (l kubeListings) Len() int {
+	return len(l)
+}
+
+func (l kubeListings) Less(i, j int) bool {
+	if l[i].Proxy != l[j].Proxy {
+		return l[i].Proxy < l[j].Proxy
+	}
+	if l[i].Cluster != l[j].Cluster {
+		return l[i].Cluster < l[j].Cluster
+	}
+	return l[i].KubeCluster < l[j].KubeCluster
+}
+
+func (l kubeListings) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
 }
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.UserHost = c.labels
 	cf.PredicateExpression = c.predicateExpr
+
+	if c.listAll {
+		return trace.Wrap(c.runAllClusters(cf))
+	}
 
 	tc, err := makeClient(cf, true)
 	if err != nil {
@@ -720,6 +758,74 @@ func serializeKubeClusters(kubeClusters []string, selectedCluster, format string
 		out, err = utils.FastMarshalIndent(clusterInfo, "", "  ")
 	} else {
 		out, err = yaml.Marshal(clusterInfo)
+	}
+	return string(out), trace.Wrap(err)
+}
+
+func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
+	var listings kubeListings
+
+	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		req := proto.ListResourcesRequest{
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			Labels:              tc.Labels,
+		}
+
+		kubeClusters, err := tc.ListKubeClustersWithFiltersAllClusters(cf.Context, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for clusterName, kubeClusters := range kubeClusters {
+			for _, kc := range kubeClusters {
+				listings = append(listings, kubeListing{
+					Proxy:       profile.ProxyURL.Host,
+					Cluster:     clusterName,
+					KubeCluster: kc,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sort.Sort(listings)
+
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		var t asciitable.Table
+		if cf.Quiet {
+			t = asciitable.MakeHeadlessTable(3)
+		} else {
+			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name"})
+		}
+		for _, listing := range listings {
+			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster})
+		}
+		fmt.Println(t.AsBuffer().String())
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeKubeListings(listings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("Unrecognized format %q", c.format)
+	}
+
+	return nil
+}
+
+func serializeKubeListings(kubeListings []kubeListing, format string) (string, error) {
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(kubeListings, "", "  ")
+	} else {
+		out, err = yaml.Marshal(kubeListings)
 	}
 	return string(out), trace.Wrap(err)
 }
