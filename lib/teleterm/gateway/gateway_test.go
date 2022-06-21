@@ -30,19 +30,18 @@ func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
 	return command, nil
 }
 
-func TestSetGatewayTargetSubresourceName(t *testing.T) {
+func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 	gateway := Gateway{
-		CLICommand: "",
 		Config: Config{
-			TargetName: "foo",
-			Protocol:   defaults.ProtocolPostgres,
+			TargetName:            "foo",
+			TargetSubresourceName: "bar",
+			Protocol:              defaults.ProtocolPostgres,
 		},
 		cliCommandProvider: mockCLICommandProvider{},
 	}
 
-	err := gateway.SetTargetSubresourceName("bar")
+	command, err := gateway.CLICommand()
 	require.NoError(t, err)
 
-	require.Equal(t, "bar", gateway.TargetSubresourceName)
-	require.Equal(t, "foo/bar", gateway.CLICommand)
+	require.Equal(t, "foo/bar", command)
 }

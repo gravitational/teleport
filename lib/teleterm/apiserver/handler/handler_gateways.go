@@ -38,7 +38,12 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	return newAPIGateway(gateway), nil
+	apiGateway, err := newAPIGateway(gateway)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiGateway, nil
 }
 
 // ListGateways lists all gateways
@@ -50,7 +55,12 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 
 	apiGws := []*api.Gateway{}
 	for _, gw := range gws {
-		apiGws = append(apiGws, newAPIGateway(gw))
+		apiGateway, err := newAPIGateway(gw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		apiGws = append(apiGws, apiGateway)
 	}
 
 	return &api.ListGatewaysResponse{
@@ -67,7 +77,12 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway *gateway.Gateway) *api.Gateway {
+func newAPIGateway(gateway *gateway.Gateway) (*api.Gateway, error) {
+	command, err := gateway.CLICommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &api.Gateway{
 		Uri:                   gateway.URI.String(),
 		TargetUri:             gateway.TargetURI,
@@ -77,8 +92,8 @@ func newAPIGateway(gateway *gateway.Gateway) *api.Gateway {
 		Protocol:              gateway.Protocol,
 		LocalAddress:          gateway.LocalAddress,
 		LocalPort:             gateway.LocalPort,
-		CliCommand:            gateway.CLICommand,
-	}
+		CliCommand:            command,
+	}, nil
 }
 
 // RestartGateway stops a gateway and starts a new with identical parameters, keeping the original
@@ -101,5 +116,10 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	return newAPIGateway(gateway), nil
+	apiGateway, err := newAPIGateway(gateway)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiGateway, nil
 }
