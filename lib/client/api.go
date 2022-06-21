@@ -1966,7 +1966,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
 		return trace.Wrap(err)
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
-		return trace.NotImplemented("session joining is not supported in proxy recording mode")
+		return trace.BadParameter("session joining is not supported in proxy recording mode")
 	}
 
 	session, err := site.GetSessionTracker(ctx, string(sessionID))
@@ -1979,7 +1979,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	if session.GetSessionKind() != types.SSHSessionKind {
-		return trace.NotImplemented("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
+		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
 
 	// connect to server:
