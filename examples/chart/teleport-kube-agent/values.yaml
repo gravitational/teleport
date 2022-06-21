@@ -61,6 +61,15 @@ databases: []
 
 # Version of teleport image, if different from appVersion in Chart.yaml.
 teleportVersionOverride: ""
+
+# Optional CA pins of the auth server. This enables a more secure way of
+# adding new nodes to a cluster. See "Adding Nodes to the Cluster"
+# (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
+# Each list element can be the pin itself (recommended), or a path to a file
+# containing the pin. For the latter it is your responsibility to mount
+# the file, using extraVolumes.
+caPin: []
+
 # When set to true, the agent will skip the verification of proxy TLS
 # certificate.
 insecureSkipProxyTLSVerify: false
