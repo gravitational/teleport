@@ -14,24 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package protocol
+package parse
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func FuzzMongoRead(f *testing.F) {
-	f.Add([]byte{})
-	f.Add([]byte("000\xa4000000000000"))
-
-	f.Fuzz(func(t *testing.T, msgBytes []byte) {
-		msg := bytes.NewReader(msgBytes)
-
+func FuzzNewExpression(f *testing.F) {
+	f.Fuzz(func(t *testing.T, variable string) {
 		require.NotPanics(t, func() {
-			_, _ = ReadMessage(msg)
+			NewExpression(variable)
+		})
+	})
+}
+
+func FuzzNewMatcher(f *testing.F) {
+	f.Fuzz(func(t *testing.T, value string) {
+		require.NotPanics(t, func() {
+			NewMatcher(value)
 		})
 	})
 }

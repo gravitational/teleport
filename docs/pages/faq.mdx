@@ -1,47 +1,42 @@
 ---
 title: Teleport FAQ
-description: Frequently asked questions about using Teleport
-h1: FAQ
+description: Frequently Asked Questions About Using Teleport
+h1: Teleport FAQ
 ---
 
-## Community FAQ
+## Can I use Teleport in production today?
 
-### Can I use Teleport in production today?
-
-Teleport has been deployed on server clusters with thousands of nodes at
+Teleport has been deployed on server clusters with thousands of hosts at
 Fortune 500 companies. It has been through several security audits from
 nationally recognized technology security companies, so we are comfortable with
 the stability of Teleport from a security perspective.
 
-### Can Teleport be deployed in agentless mode?
+## Can Teleport be deployed in agentless mode?
 
 Yes. Teleport can be deployed with a tiny footprint as an authentication
-gateway/proxy and you can keep your existing SSH servers on the nodes. But some
-innovating Teleport features, such as cluster introspection, will not be
-available unless the Teleport SSH daemon is present on all cluster nodes.
+gateway/proxy and you can keep your existing SSH servers on Teleport Nodes. But
+some innovating Teleport features, such as cluster introspection, will not be
+available unless the Teleport SSH daemon is present on all cluster Nodes.
 
-### Can I use OpenSSH with a Teleport cluster?
+## Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
 look at [Using OpenSSH Guide](./server-access/guides/openssh.mdx).
 
-### Can I connect to nodes behind a firewall?
+## Can I connect to Nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to [Trusted Clusters](./setup/admin/trustedclusters.mdx)
-section of the Admin Manual.
+behind-firewall clusters refer to our
+[Trusted Clusters](./setup/admin/trustedclusters.mdx) guide.
 
-### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
+## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
-This was a popular customer
-[request](https://github.com/gravitational/teleport/issues/803) that was added
-in Teleport version 4.0. Change the node config option `--auth-server` flag when
-running the `teleport` daemon on an agent to point to the Proxy Service address
-(this would be `public_addr` and `web_listen_addr` in file configuration). For
-more information, see
+Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
+Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
+file configuration). For more information, see
 [Adding Nodes to the Cluster](./setup/admin/adding-nodes.mdx).
 
-### Can nodes use a single port for reverse tunnels?
+## Can Nodes use a single port for reverse tunnels?
 
 Yes, Teleport supports tunnel multiplexing on a single port. Set the
 `tunnel_listen_addr` to use the same port as the `web_listen_addr` address
@@ -50,99 +45,35 @@ multiplexing with that configuration.
 
 ## How is Open Source different from Enterprise?
 
-Open Source Teleport is licensed under the Apache 2 License, and must be
-self-hosted. Enterprise Teleport is commercially licensed and is available in
-both self-hosted and cloud deployments.
+Teleport provides three offerings:
 
-<table>
-  <thead>
-    <tr>
-      <th>Capability/Offering</th>
-      <th>Open Source</th>
-      <th>Enterprise</th>
-    </tr>
-  </thead>
+- Open Source
+- Enterprise
+- Cloud
 
-  <tbody>
-    <tr>
-      <td>License</td>
-      <td>Apache 2</td>
-      <td>Commercial</td>
-    </tr>
-    <tr>
-      <td>Role-Based Access Control</td>
-      <td>&#10004;</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>Cloud-hosted</td>
-      <td>&#10006;</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>Self-hosted</td>
-      <td>&#10004;</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>Single Sign-On</td>
-      <td>GitHub only</td>
-      <td>GitHub, Google, OIDC, SAML</td>
-    </tr>
-    <tr>
-      <td>Access Requests</td>
-      <td>Limited</td>
-      <td>&#10004; [Dual authorization, mandatory requests](./access-controls/guides/dual-authz.mdx)</td>
-    </tr>
-    <tr>
-      <td>FedRAMP Control</td>
-      <td>&#10006;</td>
-      <td>[Compiled with FIPS-certified crypto libraries, FedRAMP control features](./enterprise/fedramp.mdx)</td>
-    </tr>
-    <tr>
-      <td>PCI DSS Features</td>
-      <td>Limited</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>SOC2 Features</td>
-      <td>Limited</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>Annual or Multi-Year contracts, Volume Discounts</td>
-      <td>&#10006;</td>
-      <td>&#10004;</td>
-    </tr>
-    <tr>
-      <td>Support</td>
-      <td>Best-effort, community</td>
-      <td>24x7 support with premium SLAs & account managers</td>
-    </tr>
-  </tbody>
-</table>
+||Open Source|Enterprise|Cloud|
+|---|---|---|---|
+|Auth and Proxy Service management|Self-hosted|Self-hosted|Fully managed|
+|License|Apache 2|Commercial|Commercial|
+|Role-Based Access Control|&#10004;|&#10004;|&#10004;|
+|Single Sign-On|GitHub|GitHub, Google Workspace, OIDC, SAML|GitHub, Google Workspace, OIDC, SAML|
+|[Access Requests](./access-controls/guides/dual-authz.mdx)|Limited|&#10004;|&#10004;|
+|[FedRAMP Control](./enterprise/fedramp.mdx)|&#10006;|&#10004;|&#10006;|
+|PCI DSS Features|Limited|&#10004;|&#10004;|&#10004;|
+|SOC2 Features|Limited|&#10004;|&#10004;|
+|Annual or multi-year contracts, volume discounts|&#10006;|&#10004;|&#10004;|
+|Support|Best-effort, community|24x7 support with premium SLAs and account managers|24x7 support with premium SLAs and account managers|
+|[Hardware Security Module support](./enterprise/hsm.mdx)|&#10006;|&#10004;|&#10006;|
+|[Moderated Sessions](./access-controls/guides/moderated-sessions.mdx)|&#10006;|&#10004;|&#10004;|
 
 ## Which version of Teleport is supported?
 
 Teleport provides security-critical support for the current and two previous releases. With our typical release cadence, this means a release is usually supported for 9 months.
 
-| Release | Long Term Support | Release Date | Min tsh version |
-| - | - | - | - |
-| 6.2 | No | May 21th, 2021 | 3.0.0 |
-| 6.1 | No | April 9th, 2021 | 3.0.0|
-| 6 | Yes | March 4th, 2021 | 3.0.0 |
-| 5.0 | Yes | November 24th, 2020 | 3.0.0 |
-| 4.4 | Yes | October 20th, 2020 | 3.0.0 |
-| 4.3 (EOL) | Yes | July 8th, 2020 | 3.0.0 |
-| 4.2 (EOL) | Yes | December 19th, 2019 | 3.0.0 |
+See our [Upgrading](./setup/operations/upgrading.mdx) guide for more
+information.
 
-
-**How should I upgrade my cluster?**
-
-Please follow our guidelines for [upgrading](./setup/admin/graceful-restarts.mdx).
-We recommend that the Auth Server should be upgraded first, and the proxy bumped thereafter.
-
-### Does Web UI support copy and paste?
+## Does the Web UI support copy and paste?
 
 Yes. You can copy and paste using a mouse. If you prefer a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, use the `Ctrl`+`A` keyboard shortcut.
@@ -154,26 +85,29 @@ mode by pressing `[`. When in text selection mode:
 - Select text by toggling `space`.
 - And, copy it via `Ctrl`+`C`.
 
-### What TCP ports does Teleport use?
+## What TCP ports does Teleport use?
 
-Please refer to the [Ports](./setup/reference/networking.mdx) section of the Admin Manual.
+Please refer to our [Networking](./setup/reference/networking.mdx) guide.
 
-### Does Teleport support authentication via OAuth, SAML, or Active Directory?
+## Does Teleport support authentication via OAuth, SAML, or Active Directory?
 
 Teleport offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.mdx).
 
-### Does Teleport send any data back to the cloud?
+## Does Teleport send any data back to the cloud?
 
-The Open-Source Edition of Teleport does not send any information to
-Gravitational and can be used on servers without internet access. The
-commercial versions of Teleport may or may not be configured to send anonymized information to Gravitational, depending on the license purchased. This information contains the following:
+The open source and Enterprise editions of Teleport do not send any information
+to our company, and can be used on servers without internet access. 
+
+The commercial editions of Teleport can optionally be configured to send
+anonymized information, depending on the license purchased. This information
+contains the following:
 
 - Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
 - Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
 
-This allows Teleport to print a warning if users are exceeding the usage limits
-of their license. The reporting library code is
+This allows Teleport Cloud and Teleport Enterprise to print a warning if users
+are exceeding the usage limits of their license. The reporting library code is
 [on GitHub](https://github.com/gravitational/reporting).
 
 Reach out to `sales@goteleport.com` if you have questions about the commercial
-edition of Teleport.
+editions of Teleport.
