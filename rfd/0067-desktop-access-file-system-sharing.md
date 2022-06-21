@@ -6,7 +6,6 @@ state: draft
 ## Required Approvers
 
 - Engineering: @zmb3 && (@probakowski || @LKozlowski)
-- Product: (@klizhentas || @xinding33)
 
 # Desktop Access File System Sharing
 
