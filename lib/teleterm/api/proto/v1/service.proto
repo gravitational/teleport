@@ -63,6 +63,9 @@ service TerminalService {
     //
     // In Connect this is used to update the db name of a db connection along with the CLI command.
     rpc SetGatewayTargetSubresourceName(SetGatewayTargetSubresourceNameRequest) returns (Gateway);
+    // SetGatewayLocalPort changes the LocalPort field of gateway.Gateway, restarts the gateway
+    // without fetching new certs and returns the updated version of gateway.Gateway.
+    rpc SetGatewayLocalPort(SetGatewayLocalPortRequest) returns (Gateway);
 
     // GetAuthSettings returns cluster auth settigns
     rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
@@ -152,6 +155,11 @@ message RestartGatewayRequest { string gateway_uri = 1; }
 message SetGatewayTargetSubresourceNameRequest {
     string gateway_uri = 1;
     string target_subresource_name = 2;
+}
+
+message SetGatewayLocalPortRequest {
+    string gateway_uri = 1;
+    string local_port = 2;
 }
 
 message ListServersRequest { string cluster_uri = 1; }
