@@ -4273,7 +4273,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			return false
-		}, 30*time.Second, 250*time.Millisecond, "failed to converge to phase %q", phase)
+		}, 60*time.Second, 250*time.Millisecond, "failed to converge to phase %q", phase)
 	}
 
 	waitForPhase(types.RotationPhaseInit)
