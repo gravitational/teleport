@@ -265,9 +265,7 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := gateway.SetTargetSubresourceName(targetSubresourceName); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	gateway.TargetSubresourceName = targetSubresourceName
 
 	return gateway, nil
 }

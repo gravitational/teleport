@@ -99,13 +99,6 @@ func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 		cliCommandProvider: cliCommandProvider,
 	}
 
-	cliCommand, err := cliCommandProvider.GetCommand(gateway)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gateway.CLICommand = cliCommand
-
 	ok = true
 	return gateway, nil
 }
@@ -137,25 +130,19 @@ func (g *Gateway) LocalPortInt() int {
 	return port
 }
 
-func (g *Gateway) SetTargetSubresourceName(targetSubresourceName string) error {
-	g.TargetSubresourceName = targetSubresourceName
-
+// CLICommand returns a command which launches a CLI client pointed at the given gateway.
+func (g *Gateway) CLICommand() (string, error) {
 	cliCommand, err := g.cliCommandProvider.GetCommand(g)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	g.CLICommand = cliCommand
-
-	return nil
+	return cliCommand, nil
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
 	Config
-	// CLICommand is set by cluster.Cluster methods as dbcmd.NewCmdBuilder needs an instance of
-	// TeleportClient to build the command.
-	CLICommand string
 
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
