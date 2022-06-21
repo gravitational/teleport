@@ -298,6 +298,7 @@ func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 	return gateway, nil
 }
 
+// findGateway assumes that mu is already held by a public method.
 func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	for _, gateway := range s.gateways {
 		if gateway.URI.String() == gatewayURI {
