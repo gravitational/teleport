@@ -17,6 +17,7 @@ package webauthncli
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -67,6 +68,17 @@ func Login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	// origin vs RPID sanity check.
+	// Doesn't necessarily means a failure, but it's likely to be one.
+	switch rpID := assertion.Response.RelyingPartyID; {
+	case origin == "", assertion == nil: // let downstream handle empty/nil
+	case !strings.HasPrefix(origin, "https://"+rpID):
+		log.Warnf(""+
+			"WebAuthn: origin and RPID mismatch, "+
+			"if you are having authentication problems double check your proxy address "+
+			"(%q vs %q)", origin, rpID)
+	}
+
 	var attachment AuthenticatorAttachment
 	var user string
 	if opts != nil {

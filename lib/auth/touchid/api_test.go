@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
@@ -162,16 +163,193 @@ func TestRegister_rollback(t *testing.T) {
 	require.Equal(t, touchid.ErrCredentialNotFound, err, "unexpected Login error")
 }
 
+func TestLogin_findsCorrectCredential(t *testing.T) {
+	// The "correct" login credential is the newest credential for the specified
+	// user
+	// In case of MFA, it's the "newest" allowed credential.
+	// In case of Passwordless, it's the newest credential.
+	// Credentials from different users shouldn't mix together.
+
+	n := *touchid.Native
+	t.Cleanup(func() {
+		*touchid.Native = n
+	})
+
+	var timeCounter int64
+	fake := &fakeNative{
+		timeNow: func() time.Time {
+			timeCounter++
+			return time.Unix(timeCounter, 0)
+		},
+	}
+	*touchid.Native = fake
+
+	// Users.
+	userLlama := &fakeUser{
+		id:   []byte{1, 1, 1, 1, 1},
+		name: "llama",
+	}
+	userAlpaca := &fakeUser{
+		id:   []byte{1, 1, 1, 1, 2},
+		name: "alpaca",
+	}
+
+	// WebAuthn setup.
+	const origin = "https://goteleport.com"
+	web, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Teleport",
+		RPID:          "teleport",
+		RPOrigin:      origin,
+	})
+	require.NoError(t, err)
+
+	// Credential setup, in temporal order.
+	for i, u := range []*fakeUser{userAlpaca, userLlama, userLlama, userLlama, userAlpaca} {
+		cc, _, err := web.BeginRegistration(u)
+		require.NoError(t, err, "BeginRegistration #%v failed, user %v", i+1, u.name)
+
+		reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
+		require.NoError(t, err, "Register #%v failed, user %v", i+1, u.name)
+		require.NoError(t, reg.Confirm(), "Confirm failed")
+	}
+
+	// Register a few credentials for a second RPID.
+	// If everything is correct this shouldn't interfere with the test, despite
+	// happening last.
+	web2, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "TeleportO",
+		RPID:          "teleportO",
+		RPOrigin:      "https://goteleportO.com",
+	})
+	require.NoError(t, err)
+	for _, u := range []*fakeUser{userAlpaca, userLlama} {
+		cc, _, err := web2.BeginRegistration(u)
+		require.NoError(t, err, "web2 BeginRegistration failed")
+
+		reg, err := touchid.Register(web2.Config.RPOrigin, (*wanlib.CredentialCreation)(cc))
+		require.NoError(t, err, "web2 Register failed")
+		require.NoError(t, reg.Confirm(), "Confirm failed")
+	}
+
+	require.GreaterOrEqual(t, len(fake.creds), 5, "creds len sanity check failed")
+	alpaca1 := fake.creds[0]
+	llama1 := fake.creds[1]
+	llama2 := fake.creds[2]
+	llama3 := fake.creds[3]
+	alpaca2 := fake.creds[4]
+	// Log credentials so it's possible to understand eventual test failures.
+	t.Logf("llama1 = %v", llama1)
+	t.Logf("llama2 = %v", llama2)
+	t.Logf("llama3 = %v", llama3)
+	t.Logf("alpaca1 = %v", alpaca1)
+	t.Logf("alpaca2 = %v", alpaca2)
+
+	// All tests run against the "web" configuration.
+	tests := []struct {
+		name         string
+		user         string
+		allowedCreds []credentialHandle
+		// wantUser is only present if it's different from user.
+		wantUser       string
+		wantCredential string
+	}{
+		{
+			name:           "prefers newer credential (alpaca)",
+			user:           userAlpaca.name,
+			wantCredential: alpaca2.id,
+		},
+		{
+			name:           "prefers newer credential (llama)",
+			user:           userLlama.name,
+			wantCredential: llama3.id,
+		},
+		{
+			name:           "prefers newer credential (no user)",
+			wantUser:       userAlpaca.name,
+			wantCredential: alpaca2.id,
+		},
+		{
+			name:           "allowed credentials first",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama1},
+			wantCredential: llama1.id,
+		},
+		{
+			name:           "allowed credentials second",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama1, llama2},
+			wantCredential: llama2.id,
+		},
+		{
+			name:           "allowed credentials last (1)",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama1, llama2, llama3},
+			wantCredential: llama3.id,
+		},
+		{
+			name:           "allowed credentials last (2)",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama2, llama3},
+			wantCredential: llama3.id,
+		},
+		{
+			name:           "allowed credentials last (3)",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama1, llama3},
+			wantCredential: llama3.id,
+		},
+		{
+			name:           "allowed credentials last (4)",
+			user:           userLlama.name,
+			allowedCreds:   []credentialHandle{llama3},
+			wantCredential: llama3.id,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var allowedCreds []protocol.CredentialDescriptor
+			for _, cred := range test.allowedCreds {
+				allowedCreds = append(allowedCreds, protocol.CredentialDescriptor{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: []byte(cred.id),
+				})
+			}
+
+			_, gotUser, err := touchid.Login(origin, test.user, &wanlib.CredentialAssertion{
+				Response: protocol.PublicKeyCredentialRequestOptions{
+					Challenge:          []byte{1, 2, 3, 4, 5}, // arbitrary
+					RelyingPartyID:     web.Config.RPID,
+					AllowedCredentials: allowedCreds,
+				},
+			})
+			require.NoError(t, err, "Login failed")
+
+			wantUser := test.wantUser
+			if wantUser == "" {
+				wantUser = test.user
+			}
+			assert.Equal(t, wantUser, gotUser, "Login user mismatch")
+			assert.Equal(t, test.wantCredential, fake.lastAuthnCredential, "Login credential mismatch")
+		})
+	}
+}
+
 type credentialHandle struct {
 	rpID, user string
 	id         string
 	userHandle []byte
+	createTime time.Time
 	key        *ecdsa.PrivateKey
 }
 
 type fakeNative struct {
+	timeNow              func() time.Time
 	creds                []credentialHandle
 	nonInteractiveDelete []string
+
+	// lastAuthnCredential is the last credential ID used in a successful
+	// Authenticate call.
+	lastAuthnCredential string
 }
 
 func (f *fakeNative) Diag() (*touchid.DiagResult, error) {
@@ -197,7 +375,12 @@ func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, err
 		return nil, touchid.ErrCredentialNotFound
 	}
 
-	return key.Sign(rand.Reader, data, crypto.SHA256)
+	sig, err := key.Sign(rand.Reader, data, crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	f.lastAuthnCredential = credentialID
+	return sig, nil
 }
 
 func (f *fakeNative) DeleteCredential(credentialID string) error {
@@ -226,6 +409,7 @@ func (f *fakeNative) FindCredentials(rpID, user string) ([]touchid.CredentialInf
 				RPID:         cred.rpID,
 				User:         cred.user,
 				PublicKey:    &cred.key.PublicKey,
+				CreateTime:   cred.createTime,
 			})
 		}
 	}
@@ -243,13 +427,17 @@ func (f *fakeNative) Register(rpID, user string, userHandle []byte) (*touchid.Cr
 	}
 
 	id := uuid.NewString()
-	f.creds = append(f.creds, credentialHandle{
+	cred := credentialHandle{
 		rpID:       rpID,
 		user:       user,
 		id:         id,
 		userHandle: userHandle,
 		key:        key,
-	})
+	}
+	if f.timeNow != nil {
+		cred.createTime = f.timeNow()
+	}
+	f.creds = append(f.creds, cred)
 
 	// Marshal key into the raw Apple format.
 	pubKeyApple := make([]byte, 1+32+32)
