@@ -931,6 +931,19 @@ message ClusterAuditConfigSpecV2 {
         (gogoproto.casttype) = "Duration",
         (gogoproto.nullable) = true
     ];
+
+    // FIPSEndpointState represents an AWS FIPS endpoint state.
+    enum FIPSEndpointState {
+        // FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
+        // environment variables
+        FIPS_UNSET = 0;
+        // FIPS_ENABLED explicitly enables FIPS support for AWS S3/Dynamo
+        FIPS_ENABLED = 1;
+        // FIPS_DISABLED explicitly disables FIPS support for AWS S3/Dynamo
+        FIPS_DISABLED = 2;
+    }
+    // UseFIPSEndpoint configures AWS endpoints to use FIPS.
+    FIPSEndpointState UseFIPSEndpoint = 15 [ (gogoproto.jsontag) = "use_fips_endpoint,omitempty" ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
