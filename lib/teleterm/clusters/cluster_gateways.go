@@ -33,11 +33,12 @@ type CreateGatewayParams struct {
 	// name on a database server.
 	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort string
+	LocalPort          string
+	CLICommandProvider gateway.CLICommandProvider
 }
 
 // CreateGateway creates a gateway
-func (c *Cluster) CreateGateway(ctx context.Context, cliCommandProvider DbcmdCLICommandProvider, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	db, err := c.GetDatabase(ctx, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,7 +60,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, cliCommandProvider DbcmdCLI
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	}, cliCommandProvider)
+	}, params.CLICommandProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -126,7 +126,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -139,7 +139,7 @@ func (s *Service) CreateGateway(ctx context.Context, params clusters.CreateGatew
 }
 
 // createGateway assumes that mu is already held by a public method.
-func (s *Service) createGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	cluster, err := s.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,7 +147,15 @@ func (s *Service) createGateway(ctx context.Context, params clusters.CreateGatew
 
 	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage)
 
-	gateway, err := cluster.CreateGateway(ctx, cliCommandProvider, params)
+	clusterCreateGatewayParams := clusters.CreateGatewayParams{
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetSubresourceName: params.TargetSubresourceName,
+		LocalPort:             params.LocalPort,
+		CLICommandProvider:    cliCommandProvider,
+	}
+
+	gateway, err := cluster.CreateGateway(ctx, clusterCreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -231,7 +239,7 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 
 	s.removeGateway(gateway)
 
-	newGateway, err := s.createGateway(ctx, clusters.CreateGatewayParams{
+	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
 		TargetURI:             gateway.TargetURI,
 		TargetUser:            gateway.TargetUser,
 		TargetSubresourceName: gateway.TargetSubresourceName,
@@ -332,4 +340,11 @@ type Service struct {
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
 	gateways []*gateway.Gateway
+}
+
+type CreateGatewayParams struct {
+	TargetURI             string
+	TargetUser            string
+	TargetSubresourceName string
+	LocalPort             string
 }
