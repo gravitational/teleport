@@ -4841,7 +4841,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make bash
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
@@ -5716,6 +5716,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 038337b1c42b5556139aeb2c56dbff567d04953744c1fe6df63e1e6b677d0899
+hmac: c6090f26fa8ed0edf58114ba881c4370514382f6182d18bdebf495e28cb1ebe6
 
 ...
