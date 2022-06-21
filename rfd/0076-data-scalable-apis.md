@@ -43,6 +43,10 @@ type Iter[T any] interface {
 
 ### Working with Iterators
 
+#### Producers
+
+todo
+
 #### Transformers
 
 There are two ways of working with iterators as a concept. Each part of code that interacts with an iterator is either a transformer or a consumer. Transformers are functions that take an iterator of type `T` as a parameter and return an iterator of some other type `U`. One can liken this to many internal functions in Teleport. A function like `filterNodes(ctx *AuthContext, nodes []types.Server) []types.Server` could be rewritten using iterators as `filterNodes(ctx *AuthContext, nodes Iter[types.Server]) Iter[types.Server]`. Transformers therefore apply operations like type transforms, filtering and others to the iterator. Because transformers modify the iterator, they themselves don't do any work at the point of the function call, they merely chain logic onto the iterator object that is run when `Next()` is called.
@@ -54,7 +58,6 @@ todo
 Consumers are non-lazy functions that take an iterator and consume it to produce something else, i.e they are the final link in the chain that drive the logic contained in the iterator by calling `Next()`. For example, a function in `tsh` might be `printTrackers(ctx context.Context, trackers Iter[types.SessionTracker])`. This function would consume the iterator and for every value it receives, print it to `stdout`.
 
 todo
-
 
 #### Examples
 
