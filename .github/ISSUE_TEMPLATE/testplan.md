@@ -1166,3 +1166,25 @@ TODO(lxea): replace links with actual docs once merged
 	- [ ] Invalid sudoers files are _not_ created
   - [ ] existing host users are not modified
   - [ ] setting `disable_create_host_user: true` stops user creation from occurring
+
+## CA rotations
+
+- Verify the CA rotation functionality itself (by checking in the backend or with `tctl get cert_authority`)
+  - [ ] `standby` phase: only `active_keys`, no `additional_trusted_keys`
+  - [ ] `init` phase: `active_keys` and `additional_trusted_keys`
+  - [ ] `update_clients` and `update_servers` phases: the certs from the `init` phase are swapped
+  - [ ] `standby` phase: only the new certs remain in `active_keys`, nothing in `additional_trusted_keys`
+  - [ ] `rollback` phase (second pass, after completing a regular rotation): same content as in the `init` phase
+  - [ ] `standby` phase after `rollback`: same content as in the previous `standby` phase
+- Verify functionality in all phases (clients might have to log in again in lieu of waiting for credentials to expire between phases)
+  - [ ] SSH session in tsh from a previous phase
+  - [ ] SSH session in web UI from a previous phase
+  - [ ] New SSH session with tsh
+  - [ ] New SSH session with web UI
+  - [ ] New SSH session in a child cluster on the same major version
+  - [ ] New SSH session in a child cluster on the previous major version
+  - [ ] New SSH session from a parent cluster
+  - [ ] Application access through a browser
+  - [ ] Application access through curl with `tsh app login`
+  - [ ] `kubectl get po` after `tsh kube login`
+  - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
