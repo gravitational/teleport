@@ -37,8 +37,9 @@ To see the list of roles in a Teleport cluster, an administrator can execute:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your cluster with tsh so you can use tctl.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl get roles
 ```

@@ -435,23 +435,11 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	})
 
 	// Verify infos against allowed credentials, if any.
-	var cred *CredentialInfo
-	if len(assertion.Response.AllowedCredentials) > 0 {
-		for _, info := range infos {
-			for _, allowedCred := range assertion.Response.AllowedCredentials {
-				if info.CredentialID == string(allowedCred.CredentialID) {
-					cred = &info
-					break
-				}
-			}
-		}
-	} else {
-		cred = &infos[0]
-	}
-	if cred == nil {
+	cred, ok := findAllowedCredential(infos, assertion.Response.AllowedCredentials)
+	if !ok {
 		return nil, "", ErrCredentialNotFound
 	}
-	log.Debugf("Using Touch ID credential %q", cred.CredentialID)
+	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
@@ -481,6 +469,23 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 			UserHandle:        cred.UserHandle,
 		},
 	}, cred.User, nil
+}
+
+func findAllowedCredential(infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor) (CredentialInfo, bool) {
+	if len(infos) > 0 && len(allowedCredentials) == 0 {
+		// Default to "first" credential for passwordless
+		return infos[0], true
+	}
+
+	for _, info := range infos {
+		for _, cred := range allowedCredentials {
+			if info.CredentialID == string(cred.CredentialID) {
+				return info, true
+			}
+		}
+	}
+
+	return CredentialInfo{}, false
 }
 
 // ListCredentials lists all registered Secure Enclave credentials.
