@@ -24,21 +24,7 @@
             {
               "title": "Docker Compose",
               "slug": "/getting-started/docker-compose/",
-              "forScopes": ["oss"]
-            },
-            {
-              "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
-            },
-            {
-              "title": "Local Kubernetes Lab",
-              "slug": "/getting-started/local-kubernetes/",
-              "forScopes": ["oss"]
-            },
-            {
-              "title": "Kubernetes Cluster",
-              "slug": "/getting-started/kubernetes-cluster/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": "oss"
             }
           ]
         },
@@ -117,7 +103,13 @@
             {
               "title": "IBM",
               "slug": "/setup/deployments/ibm/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["oss", "enterprise"],
+              "slug": "/setup/deployments/ibm/"
+            },
+            {
+              "title": "Digital Ocean",
+              "forScopes": "oss",
+              "slug": "/setup/deployments/digitalocean/"
             }
           ]
         },
@@ -1261,6 +1253,11 @@
     {
       "source": "/docs/kubernetes-access/getting-started/local/",
       "destination": "/docs/getting-started/local-kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
       "permanent": true
     }
   ]
