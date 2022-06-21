@@ -18,7 +18,7 @@ import (
 	"context"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
-	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
 	"github.com/gravitational/trace"
@@ -26,7 +26,7 @@ import (
 
 // CreateGateway creates a gateway
 func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayRequest) (*api.Gateway, error) {
-	params := clusters.CreateGatewayParams{
+	params := daemon.CreateGatewayParams{
 		TargetURI:             req.TargetUri,
 		TargetUser:            req.TargetUser,
 		TargetSubresourceName: req.TargetSubresourceName,
