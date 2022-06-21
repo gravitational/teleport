@@ -80,7 +80,7 @@ func (rd *debouncer) attempt() {
 	})
 }
 
-const caWatchRetryLimit = 15
+const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
 // cancelled. This allows the watcher to be re-established if an error occurs.
@@ -107,20 +107,21 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 	}
 	jitter := libUtils.NewJitter()
 
-	for ctx.Err() == nil {
-		for attempt := 1; attempt <= caWatchRetryLimit; attempt++ {
-			err := b.watchCARotations(ctx, rd.attempt)
-			if err == nil || ctx.Err() != nil {
-				break
-			}
+	for {
+		err := b.watchCARotations(ctx, rd.attempt)
+		if ctx.Err() != nil {
+			return nil
+		}
 
-			backoffPeriod := jitter(time.Second * 2)
-			b.log.WithError(err).Warnf("Error occurred whilst watching CA rotations, retrying in %s", backoffPeriod)
-			time.Sleep(backoffPeriod)
+		backoffPeriod := jitter(caRotationRetryBackoff)
+		b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+		select {
+		case <-ctx.Done():
+			b.log.Warn("Context cancelled during backoff for CA rotation watcher. Aborting.")
+			return nil
+		case <-time.After(backoffPeriod):
 		}
 	}
-
-	return nil
 }
 
 // watchCARotations establishes a watcher for CA rotations in the cluster, and
