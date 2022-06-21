@@ -1222,8 +1222,8 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
 - Refreshing certs
   - To test scenarios from this section, create a user with a role that has TTL of `1m`
     (`spec.options.max_session_ttl`).
-  - Log in, create a db connection and run the CLI command; wait 1 minute, click "Sync" on the
-    cluster tab.
+  - Log in, create a db connection and run the CLI command; wait for the cert to expire, click
+    "Sync" on the cluster tab.
     - Verify that after successfully logging in:
       - [ ] the cluster info is synced
       - [ ] the connection in the running CLI db client wasn't dropped; try executing `select
@@ -1233,11 +1233,14 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
             managed to expire.
     - [ ] Verify that closing the login modal without logging in shows an error related to syncing
       the cluster.
-  - Log in; wait 1 minute, click "Connect" next to a db in the cluster tab.
+  - Log in; wait for the cert to expire, click "Connect" next to a db in the cluster tab.
     - [ ] Verify that clicking "Connect" and then navigating to a different tab before the request
           completes doesn't show the login modal and instead immediately shows the error.
     - For this one, you might want to use a sever in our Cloud if the introduced latency is high
       enough. Perhaps enabling throttling in dev tools can help too.
+  - [ ] Log in; create two db connections, then remove access to one of the db servers for that
+    user; wait for the cert to expire, click "Sync", verify that the db tab with no access shows an
+    appropriate error and that the other db tab still handles old and new connections.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 
