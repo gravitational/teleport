@@ -216,16 +216,21 @@ kind: role
 metadata:
   name: access-sample
 spec:
-  # This example defines a typical role. It allows listing all resources
-  # with typical developer credentials.
   allow:
+    # The logins array defines the OS/UNIX logins a user is allowed to use.
+    # Using the variable internal.logins allows including user logins
+    # from the user's traits and logins from a root cluster in Trusted Clusters.    
     logins: ['{{internal.logins}}', root]
+    # List of node labels a user will be allowed to ssh to
     node_labels:
       '*': '*'
+    # List of allowed Teleport resources for the user
     rules:
+    # User can view the event log details
     - resources:
       - event
       verbs: [list, read]
+    # User is allowed to view their own session recordings
     - resources:
       - session
       verbs: [list, read]
