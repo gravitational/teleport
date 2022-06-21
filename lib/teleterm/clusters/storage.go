@@ -45,7 +45,7 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
-		cluster, err := s.fromProfile(name)
+		cluster, err := s.fromProfile(name, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -56,32 +56,16 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 	return clusters, nil
 }
 
-// GetByName returns a cluster by name
-func (s *Storage) GetByName(clusterName string) (*Cluster, error) {
-	cluster, err := s.fromProfile(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cluster, nil
-}
-
 // GetByURI returns a cluster by URI
 func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	URI := uri.New(clusterURI)
 	rootClusterName := URI.GetRootClusterName()
 	leafClusterName := URI.GetLeafClusterName()
 
-	cluster, err := s.fromProfile(rootClusterName)
+	cluster, err := s.fromProfile(rootClusterName, leafClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if leafClusterName != "" {
-		cluster.clusterClient.SiteName = leafClusterName
-	}
-
-	cluster.URI = URI
 
 	return cluster, nil
 }
@@ -105,7 +89,11 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			return nil, trace.BadParameter("cluster %v already exists", clusterName)
+			cluster, err := s.fromProfile(clusterName, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
 		}
 	}
 
@@ -161,19 +149,27 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 }
 
 // fromProfile creates a new cluster from its profile
-func (s *Storage) fromProfile(clusterName string) (*Cluster, error) {
-	if clusterName == "" {
+func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, error) {
+	if profileName == "" {
 		return nil, trace.BadParameter("cluster name is missing")
 	}
 
+	clusterNameForKey := profileName
+	clusterURI := uri.NewClusterURI(profileName)
+
 	cfg := client.MakeDefaultConfig()
-	if err := cfg.LoadProfile(s.Dir, clusterName); err != nil {
+	if err := cfg.LoadProfile(s.Dir, profileName); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	cfg.KeysDir = s.Dir
 	cfg.HomePath = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+
+	if leafClusterName != "" {
+		clusterNameForKey = leafClusterName
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+		cfg.SiteName = leafClusterName
+	}
 
 	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
@@ -183,13 +179,13 @@ func (s *Storage) fromProfile(clusterName string) (*Cluster, error) {
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	_, err = clusterClient.LocalAgent().GetKey(clusterName)
+	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
 	if err != nil {
-		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterName)
+		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterNameForKey)
 	}
 
 	if err == nil && cfg.Username != "" {
-		status, err = client.ReadProfileStatus(s.Dir, clusterName)
+		status, err = client.ReadProfileStatus(s.Dir, profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -202,10 +198,11 @@ func (s *Storage) fromProfile(clusterName string) (*Cluster, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterURI := uri.NewClusterURI(clusterName)
 	return &Cluster{
-		URI:           clusterURI,
-		Name:          clusterName,
+		URI: clusterURI,
+		// TODO(ravicious): This should probably use leafClusterName if available, but at this point I'm
+		// worried that changing it might break something else in the app.
+		Name:          profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,

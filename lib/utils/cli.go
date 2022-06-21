@@ -496,3 +496,17 @@ Aliases:
 {{end}}\
 {{end}}
 `
+
+// IsPredicateError determines if the error is from failing to parse predicate expression
+// by checking if the error as a string contains predicate keywords.
+func IsPredicateError(err error) bool {
+	return strings.Contains(err.Error(), "predicate expression")
+}
+
+type PredicateError struct {
+	Err error
+}
+
+func (p PredicateError) Error() string {
+	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+}

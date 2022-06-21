@@ -85,6 +85,8 @@ func TestEnvironment(t *testing.T) {
 			require.NoError(t, err)
 			err = os.Setenv(githubEventPath, test.path)
 			require.NoError(t, err)
+			err = os.Setenv(githubRunID, "1")
+			require.NoError(t, err)
 
 			environment, err := New()
 			if test.err {

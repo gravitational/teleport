@@ -125,7 +125,7 @@ func (l *SemaphoreLock) Renewed() <-chan struct{} {
 	return l.renewalC
 }
 
-func (l *SemaphoreLock) KeepAlive(ctx context.Context) {
+func (l *SemaphoreLock) keepAlive(ctx context.Context) {
 	var nodrop bool
 	var err error
 	lease := l.lease0
@@ -227,7 +227,7 @@ func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetr
 }
 
 // AcquireSemaphoreLock attempts to acquire and hold a semaphore lease.  If successfully acquired,
-// background keepalive processes are started and an associated lock handle is returned.  Cancelling
+// background keepalive processes are started and an associated lock handle is returned. Cancelling
 // the supplied context releases the semaphore.
 func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*SemaphoreLock, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -255,6 +255,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		renewalC: make(chan struct{}),
 		cond:     sync.NewCond(&sync.Mutex{}),
 	}
+	go lock.keepAlive(ctx)
 	return lock, nil
 }
 

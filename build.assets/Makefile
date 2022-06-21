@@ -16,11 +16,12 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-BUILDBOX_VERSION ?= teleport10
-GOLANG_VERSION ?= go1.17.9
-RUST_VERSION ?= 1.58.1
+BUILDBOX_VERSION ?= teleport11
+GOLANG_VERSION ?= go1.18.3
+RUST_VERSION ?= 1.58.1 # don't bump this without checking GLIBC compatibility
+NODE_VERSION ?= 16.13.2
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
-LIBBPF_VERSION ?= 0.3.1
+LIBBPF_VERSION ?= 0.7.0-teleport
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -157,8 +158,11 @@ buildbox-centos7:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg PROTOC_VER=$(PROTOC_VER) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
@@ -213,6 +217,7 @@ buildbox-teleterm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_TELETERM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_TELETERM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 		--cache-from $(BUILDBOX) \
@@ -408,15 +413,15 @@ release-centos7-fips:
 .PHONY:release-windows
 release-windows: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
-# Create a Windows Teleport package using the build container.
+# Create an unsigned Windows Teleport package using the build container.
 #
 .PHONY:release-windows-unsigned
 release-windows-unsigned: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows
+		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
 #
 # Run docs tester to detect problems.
@@ -443,6 +448,13 @@ print-go-version:
 .PHONY:print-rust-version
 print-rust-version:
 	@echo $(RUST_VERSION)
+
+#
+# Print the Node version used to build Teleport Connect.
+#
+.PHONY:print-node-version
+print-node-version:
+	@echo $(NODE_VERSION)
 
 #
 # Print the buildbox version used to build Teleport.

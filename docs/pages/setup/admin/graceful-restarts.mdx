@@ -1,53 +1,58 @@
 ---
-title: Graceful Restarts
-description: Graceful restarts of Teleport.
+title: Upgrading the Teleport Binary
+description: How to upgrade a teleport binary without sacrificing availability.
 ---
 
-<Notice scope={["cloud"]} type="tip">
+In this guide, we will show you how to upgrade the `teleport` binary on a Linux
+host without sacrificing availability.
 
-These instructions apply to `teleport` processes running on Teleport Nodes. In
-Teleport Cloud, the Auth and Proxy Services are monitored and managed for you.
+<Details title="Using containers?">
 
-</Notice>
+If you are running `teleport` as a container, see
+[How to Run Teleport Using Docker](../guides/docker.mdx) for information on
+specifying a version.
 
-## Signals
+</Details>
 
-You can send signals to a `teleport` process to get diagnostic information or
-gracefully shut it down:
+## Prerequisites
 
-| Signal | Teleport Daemon Behavior |
-| - | - |
-| `USR1` | Dumps diagnostics/debugging information into syslog. |
-| `QUIT`| Graceful shutdown. The daemon will wait until connections are dropped. |
-| `TERM` , `INT` or `KILL` | Immediate non-graceful shutdown. All existing connections will be dropped. |
-| `USR2` | Forks a new Teleport daemon to serve new connections. |
-| `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process when there are no more clients connected to it. |
-
-## Graceful upgrades
-
-In this guide we will try a manual graceful
-upgrade of a binary and a rollback using signals.
-
-Locate a running teleport daemon PID:
+This guide requires a host where the `teleport` binary is running. The version
+of the binary must be behind the latest.
+  
+Get the latest available version of Teleport by running the following command:
 
 ```code
-# Locate teleport process PID
-$ pidof teleport
-235119
+$ curl https://api.github.com/repos/gravitational/teleport/releases | \
+jq '[.[].tag_name] | sort | last'
+"v(=teleport.version=)"
 ```
 
-Unpack a new binary and replace a binary without stopping a `teleport` process.
+Compare this to the version of Teleport you have installed on the host:
+
+```code
+$ teleport version
+Teleport v8.3.7 git:v8.3.7-0-ga8d066935 go1.17.3
+  ```
+
+## Step 1/3. Download a new Teleport binary
+
 Preserve the old binary, just in case the upgrade goes wrong.
 
 ```code
-$ mv /usr/bin/teleport /usr/bin/teleport.bak
-$ cp /new/binary/teleport /usr/bin/teleport
+$ DIR=$(which teleport | xargs dirname)
+$ sudo mv ${DIR}/teleport ${DIR}/teleport.bak
 ```
 
-Fork a new `teleport` process:
+Install the newest version of Teleport on the host:
+
+(!/docs/pages/includes/install-linux.mdx!)
+
+## Step 2/3. Fork the `teleport` process
+
+Fork a new `teleport` process by sending it the `USR2` signal:
 
 ```code
-$ kill -USR2 $(pidof teleport)
+$ sudo kill -USR2 $(pidof teleport)
 ```
 
 The original `teleport` process forked a new child process and passed existing file descriptors
@@ -60,6 +65,19 @@ $ pidof teleport
 
 In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
 
+<Details type="tip" opened={false} title="Not sure which process is the parent?">
+
+You can use the following command, which prints the parent for each PID returned
+by `pidof`:
+
+```code
+$ ps -o ppid= -p $(pidof teleport)
+   1494
+   1495
+```
+
+</Details>
+
 In the logs you will see that the parent process reports that it has forked a new child
 process, and the child accepts file descriptors from its parent.
 
@@ -68,31 +86,40 @@ process, and the child accepts file descriptors from its parent.
 2021-08-19T10:16:51-07:00 [PROC:1]  INFO Using file descriptor diag 127.0.0.1:3434 passed by the parent process. service/signals.go:207
 ```
 
-Examine the logs and use the system. You have two options:
+## Step 3/3. Return to a single `teleport` process
+
+After forking the new `teleport` process, check the logs to ensure that the
+process is running as expected. After that, you should either roll back or
+complete the upgrade:
 
 <Tabs>
   <TabItem label="Rollback">
   If the new binary behaves with errors, shut down the child process:
   ```code
-  $ kill -TERM 235276
+  $ sudo kill -TERM 235276
+  2022-04-20T15:33:58Z INFO [PROC:1]    Got signal "terminated", exiting immediately. service/signals.go:86
+  2022-04-20T15:33:58Z WARN [PROC:1]    Forked teleport process 235276 has exited with status: 0. service/signals.go:506
   ```
+  
   <Admonition
   type="danger"
   title="WARNING"
   >
+
     Do not forget to restore the original binary
     ```code
-    $ mv /usr/bin/teleport.bak /usr/bin/teleport
+    $ sudo mv ${DIR}/teleport.bak ${DIR}/teleport
     ```
   </Admonition>
     
   You can retry the process again later.
   </TabItem>
   <TabItem label="Finish the upgrade">
-    <Admonition
-     type="danger"
-     title="WARNING"
-     >
+
+  <Admonition
+    type="danger"
+    title="WARNING"
+  >
 
     If you are upgrading a `teleport` daemon using an SSH connection established
     via Teleport, make sure to connect to the newly upgraded `teleport` process
@@ -109,12 +136,13 @@ Examine the logs and use the system. You have two options:
     #          └─bash,190718
     #              └─pstree,242371 -aps 190718
     ```
-    </Admonition>
+
+  </Admonition>
      
     Shut down the parent process gracefully using `SIGQUIT`:
 
     ```code
-    $ kill -QUIT 235119
+    $ sudo kill -QUIT 235119
     ```
 
     The parent process will log a graceful shutdown:
@@ -134,9 +162,20 @@ Examine the logs and use the system. You have two options:
     existing connections to finish), you can shut it down non-gracefully:
 
     ```code
-    $ kill -TERM 235119
+    $ sudo kill -TERM 235119
     ```
 
     You are all set.
   </TabItem>
 </Tabs>
+
+## Further reading
+
+In this guide, we explained how to upgrade the `teleport` binary on a single
+host. If you would like to learn how to upgrade all of the components in a
+Teleport cluster while preserving compatibility, read
+[Upgrading a Teleport Cluster](../operations/upgrading.mdx).
+
+See the full list of supported signals in the
+[Teleport Signals Reference](../reference/signals.mdx).
+

@@ -58,6 +58,31 @@ spec:
   uri: "localhost:5432"
 ```
 
+
+The user creating the dynamic registration needs to have a role with access to the 
+database labels and the `db` resource.  In this example role the user can only
+create and maintain database services labeled `env: prod` and `engine: postgres`.
+```yaml
+kind: role
+metadata:
+  name: dynamicregexample
+spec:
+  allow:
+    db_labels:
+      engine: postgres
+      env: prod
+    rules:
+    - resources:
+      - db
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+version: v5
+```
+
 See the full database resource spec [reference](../reference/configuration.mdx#database-resource).
 
 To create a database resource, run:

@@ -47,7 +47,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newTestServerContext(t *testing.T, srv Server) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -59,6 +59,7 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext: &sshutils.ConnectionContext{
@@ -67,12 +68,15 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 		env:                    make(map[string]string),
 		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
 		IsTestStub:             true,
-		ClusterName:            "localhost",
+		ClusterName:            clusterName,
 		srv:                    srv,
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
 			Certificate:  cert,
+			// roles do not actually exist in mock backend, just need a non-nil
+			// access checker to avoid panic
+			AccessChecker: services.NewAccessChecker(&services.AccessInfo{RoleSet: roleSet}, clusterName),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
@@ -137,23 +141,23 @@ type mockServer struct {
 
 // ID is the unique ID of the server.
 func (m *mockServer) ID() string {
-	return "test"
+	return "testID"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
 func (m *mockServer) HostUUID() string {
-	return "test"
+	return "testHostUUID"
 }
 
 // GetNamespace returns the namespace the server was created in.
 func (m *mockServer) GetNamespace() string {
-	return "test"
+	return "testNamespace"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
 func (m *mockServer) AdvertiseAddr() string {
-	return "test"
+	return "testAdvertiseAddr"
 }
 
 // Component is the type of server, forwarding or regular.
@@ -179,7 +183,7 @@ func (m *mockServer) GetSessionServer() rsession.Service {
 
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "test"
+	return "testDataDir"
 }
 
 // GetPAM returns PAM configuration for this server.
@@ -249,6 +253,17 @@ func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
 
 // GetLockWatcher gets the server's lock watcher.
 func (m *mockServer) GetLockWatcher() *services.LockWatcher {
+	return nil
+}
+
+// GetCreateHostUser gets whether the server allows host user creation
+// or not
+func (m *mockServer) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUsers
+func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
 }
 

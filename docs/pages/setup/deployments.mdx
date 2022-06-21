@@ -4,14 +4,54 @@ description: Teleport Installation and Configuration Reference Deployment Guides
 layout: tocless-doc
 ---
 
-<ul>
-  <li>
-    [AWS Terraform](./deployments/aws-terraform.mdx). Deploy HA Teleport with Terraform Provider on AWS.
-  </li>
-  <li>
-    [GCP](./deployments/gcp.mdx). Deploy HA Teleport on GCP.
-  </li>
-  <li>
-    [IBM Cloud](./deployments/ibm.mdx). Deploy HA Teleport on IBM cloud.
-  </li>
-</ul>
+These guides show you how to set up a full self-hosted Teleport deployment on
+the platform of your choice.
+
+<ScopedBlock scope="cloud">
+<TileSet>
+    <Tile 
+    icon="wrench"
+    title="Open Source Teleport"
+    href="./deployments.mdx/?scope=oss"
+  >
+    View our deployment guides as an Open Source Teleport user.
+    </Tile>
+    <Tile 
+    icon="wrench"
+    title="Teleport Enterprise"
+    href="./deployments.mdx/?scope=enterprise"
+  >
+    View our deployment guides as a Teleport Enterprise user.
+    </Tile>
+  </TileSet>
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+<TileSet>
+  <ScopedBlock scope="oss">
+  <Tile
+  title="DigitalOcean"
+  href="./deployments/digitalocean/"
+  >
+
+    Use our DigitalOcean 1-Click App to quickly spin up Teleport on a droplet.
+    
+  </Tile>
+  </ScopedBlock>
+  <Tile href="./deployments/aws-terraform.mdx" title="AWS Terraform">
+
+    Deploy HA Teleport with Terraform Provider on AWS.
+
+  </Tile>
+  <Tile href="./deployments/gcp.mdx" title="GCP">
+
+    Deploy HA Teleport on GCP.
+
+  </Tile>
+  <Tile href="./deployments/ibm.mdx" title="IBM Cloud">
+
+    Deploy HA Teleport on IBM cloud.
+
+  </Tile>
+</TileSet>
+</ScopedBlock>

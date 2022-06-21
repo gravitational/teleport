@@ -41,6 +41,9 @@ type Client interface {
 	// GetPullRequest returns a specific Pull Request.
 	GetPullRequest(ctx context.Context, organization string, repository string, number int) (github.PullRequest, error)
 
+	// CreatePullRequest will create a Pull Request.
+	CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error)
+
 	// ListPullRequests returns a list of Pull Requests.
 	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error)
 
@@ -50,11 +53,17 @@ type Client interface {
 	// AddLabels will add labels to an Issue or Pull Request.
 	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
 
+	// CreateComment will leave a comment on an Issue or Pull Request.
+	CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error
+
 	// ListWorkflows lists all workflows within a repository.
 	ListWorkflows(ctx context.Context, organization string, repository string) ([]github.Workflow, error)
 
 	// ListWorkflowRuns is used to list all workflow runs for an ID.
 	ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]github.Run, error)
+
+	// ListWorkflowJobs lists all jobs for a workflow run.
+	ListWorkflowJobs(ctx context.Context, organization string, repository string, runID int64) ([]github.Job, error)
 
 	// DeleteWorkflowRun is used to delete a workflow run.
 	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error

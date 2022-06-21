@@ -3,8 +3,20 @@ title: Database Access with MySQL on GCP Cloud SQL
 description: How to configure Teleport Database Access with GCP Cloud SQL MySQL.
 ---
 
-In this guide, we will show you how to use Teleport Database Access with MySQL
-on Google Cloud SQL.
+This guide will help you to:
+
+- Install Teleport `(=teleport.version=)`.
+- Set up Teleport to access your MySQL on Google Cloud SQL.
+- Connect to your databases through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access CloudSQL Self-Hosted](../../../img/database-access/guides/cloudsql_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access CloudSQL Cloud](../../../img/database-access/guides/cloudsql_cloud.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -107,6 +119,10 @@ Teleport Database Access for Cloud SQL MySQL is available starting from the
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ### Create a user
 

@@ -2,6 +2,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ .Values.clusterRoleBindingName | default .Release.Name }}
+{{- if .Values.extraLabels.clusterRoleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.clusterRoleBinding | nindent 4 }}
+{{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

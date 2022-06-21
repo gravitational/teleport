@@ -25,10 +25,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -43,14 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
-	"github.com/siddontang/go-mysql/client"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TestDatabaseAccessPostgresRootCluster tests a scenario where a user connects
@@ -269,7 +271,7 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 			Clock:     p.clock,
 			Client:    p.siteAPI,
 		},
-		WatchCertTypes: []types.CertAuthType{p.certType},
+		Types: []types.CertAuthType{p.certType},
 	})
 	if err != nil {
 		return err
@@ -280,16 +282,30 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 		return trace.Wrap(err)
 	}
 
+	sub, err := watcher.Subscribe(ctx, services.CertAuthorityTarget{
+		ClusterName: p.clusterRootName,
+		Type:        p.certType,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	var lastPhase string
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
 			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
-		case cas := <-watcher.CertAuthorityC:
-			for _, ca := range cas {
-				if ca.GetClusterName() == p.clusterRootName &&
-					ca.GetType() == p.certType &&
-					ca.GetRotation().Phase == phase {
+		case <-sub.Done():
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, sub.Error())
+		case evt := <-sub.Events():
+			switch evt.Type {
+			case types.OpPut:
+				ca, ok := evt.Resource.(types.CertAuthority)
+				if !ok {
+					return trace.BadParameter("expected a ca got type %T", evt.Resource)
+				}
+				if ca.GetRotation().Phase == phase {
 					return nil
 				}
 				lastPhase = ca.GetRotation().Phase
@@ -596,7 +612,7 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 // TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
 func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separatePostgresPortSetup),
+		withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
 	)
 
 	// Connect to the database service in root cluster.
@@ -745,7 +761,7 @@ func TestDatabaseAccessHALeafCluster(t *testing.T) {
 // TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
 func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separateMongoPortSetup),
+		withPortSetupDatabaseTest(helpers.SeparateMongoPortSetup),
 	)
 
 	// Connect to the database service in root cluster.
@@ -857,7 +873,7 @@ type databasePack struct {
 }
 
 type databaseClusterPack struct {
-	cluster         *TeleInstance
+	cluster         *helpers.TeleInstance
 	user            types.User
 	role            types.Role
 	dbProcess       *service.TeleportProcess
@@ -875,7 +891,7 @@ type databaseClusterPack struct {
 
 type testOptions struct {
 	clock             clockwork.Clock
-	instancePortsFunc func() *InstancePorts
+	instancePortsFunc func() *helpers.InstancePorts
 	rootConfig        func(config *service.Config)
 	leafConfig        func(config *service.Config)
 	nodeName          string
@@ -888,7 +904,7 @@ func (o *testOptions) setDefaultIfNotSet() {
 		o.clock = clockwork.NewRealClock()
 	}
 	if o.instancePortsFunc == nil {
-		o.instancePortsFunc = standardPortSetup
+		o.instancePortsFunc = helpers.StandardPortSetup
 	}
 	if o.nodeName == "" {
 		o.nodeName = Host
@@ -907,7 +923,7 @@ func withNodeName(nodeName string) testOptionFunc {
 	}
 }
 
-func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
+func withPortSetupDatabaseTest(portFn func() *helpers.InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
 	}
@@ -936,7 +952,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
@@ -946,37 +961,37 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 	}
 
 	// Create root cluster.
-	p.root.cluster = NewInstance(InstanceConfig{
+	p.root.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.instancePortsFunc(),
 	})
 
 	// Create leaf cluster.
-	p.leaf.cluster = NewInstance(InstanceConfig{
+	p.leaf.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.
@@ -987,6 +1002,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -999,6 +1015,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1069,12 +1086,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
+	rdConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		p.root.dbProcess.Close()
-	})
+	t.Cleanup(func() { require.NoError(t, p.root.dbProcess.Close()) })
 
 	// Create and start database services in the leaf cluster.
 	p.leaf.postgresService = service.Database{
@@ -1108,6 +1124,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.mongoService,
 	}
 	ldConf.Clock = p.clock
+	ldConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1210,6 +1227,7 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 }
 
 func (p *databasePack) waitForLeaf(t *testing.T) {
+	waitForProxyCount(p.leaf.cluster, p.root.cluster.Secrets.SiteName, 1)
 	site, err := p.root.cluster.Tunnel.GetSite(p.leaf.cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
@@ -1225,15 +1243,15 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.root.cluster.log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				p.root.cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.leaf.mysqlService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.leaf.postgresService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
 			return
@@ -1255,7 +1273,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.Token = "static-token-value"
-	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
+	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", helpers.NewPortStr())}
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1266,6 +1284,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.Enabled = true
 	conf.Databases.Databases = params.databases
 	conf.Databases.ResourceMatchers = params.resourceMatchers
+	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	server, authClient, err := p.root.cluster.StartDatabase(conf)
 	require.NoError(t, err)
@@ -1283,4 +1302,54 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestDatabaseAccessLargeQuery tests a scenario where a user connects
+// to a MySQL database running in a root cluster.
+func TestDatabaseAccessLargeQuery(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mysqlService.Name,
+			Protocol:    pack.root.mysqlService.Protocol,
+			Username:    "root",
+		},
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
+	result, err := client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	require.Len(t, ee, 1)
+
+	query = "select 1"
+	result, err = client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.Eventually(t, func() bool {
+		ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+		return len(ee) == 2
+	}, time.Second*3, time.Millisecond*500)
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
 }

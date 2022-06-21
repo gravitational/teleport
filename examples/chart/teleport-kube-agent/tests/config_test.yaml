@@ -32,6 +32,18 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot and tests for extra-labels.yaml
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: config
+      - matchSnapshot: {}
+
   - it: matches snapshot and tests for annotations.yaml
     values:
       - ../.lint/annotations.yaml

@@ -19,6 +19,7 @@ package env
 import (
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -34,6 +35,9 @@ type Environment struct {
 
 	// Number is the PR number.
 	Number int
+
+	// RunID is the GitHub Actions workflow run ID.
+	RunID int64
 
 	// Author is the author of the PR.
 	Author string
@@ -80,10 +84,16 @@ func New() (*Environment, error) {
 		}, nil
 	}
 
+	runID, err := strconv.ParseInt(os.Getenv(githubRunID), 10, 64)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Environment{
 		Organization: event.Repository.Owner.Login,
 		Repository:   event.Repository.Name,
 		Number:       event.PullRequest.Number,
+		RunID:        runID,
 		Author:       event.PullRequest.User.Login,
 		UnsafeHead:   event.PullRequest.UnsafeHead.UnsafeRef,
 		UnsafeBase:   event.PullRequest.UnsafeBase.UnsafeRef,
@@ -128,4 +138,7 @@ const (
 	// githubRepository is an environment variable that contains the organization
 	// and repository name.
 	githubRepository = "GITHUB_REPOSITORY"
+
+	// githubRunID is an environment variable that contains the workflow run ID.
+	githubRunID = "GITHUB_RUN_ID"
 )

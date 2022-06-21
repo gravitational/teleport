@@ -60,16 +60,17 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.Equal(t, config.KEXAlgorithms, []string{
+		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"ecdh-sha2-nistp521",
+		"diffie-hellman-group14-sha256",
 	})
 	require.Equal(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
 	})
-	require.Nil(t, config.CASignatureAlgorithm)
 
 	// auth section
 	auth := config.Auth
@@ -343,9 +344,24 @@ func TestCheckDatabase(t *testing.T) {
 			},
 			outErr: true,
 		},
+		{
+			desc: "MySQL with server version",
+			inDatabase: Database{
+				Name:     "mysql-foo",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				MySQL: MySQLOptions{
+					ServerVersion: "8.0.31",
+				},
+			},
+			outErr: false,
+		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
 			err := test.inDatabase.CheckAndSetDefaults()
 			if test.outErr {
 				require.Error(t, err)

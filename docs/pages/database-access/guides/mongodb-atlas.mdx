@@ -10,6 +10,15 @@ In this guide you will:
 2. Configure self-managed X.509 authentication on your Atlas cluster.
 3. Connect to your Atlas cluster via Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodbatlas_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster.
@@ -29,6 +38,10 @@ In this guide you will:
 ### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 Next, start the Database Service.
 
@@ -96,7 +109,7 @@ On the node where you will run the Database Service, start Teleport, pointing th
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \

@@ -34,7 +34,7 @@ import (
 
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
-	// Username is a user name
+	// Username is a username
 	Username string `json:"username"`
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
@@ -44,6 +44,15 @@ type AuthenticateUserRequest struct {
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
+	// ClientMetadata includes forwarded information about a client
+	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
+}
+
+// ForwardedClientMetadata can be used by the proxy web API to forward information about
+// the client to the auth service for logging purposes.
+type ForwardedClientMetadata struct {
+	UserAgent  string `json:"user_agent,omitempty"`
+	RemoteAddr string `json:"remote_addr,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -64,7 +73,7 @@ type PassCreds struct {
 	Password []byte `json:"password"`
 }
 
-// OTPCreds is a two factor authencication credentials
+// OTPCreds is a two-factor authentication credentials
 type OTPCreds struct {
 	// Password is a user password
 	Password []byte `json:"password"`
@@ -106,6 +115,10 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	if mfaDev != nil {
 		m := mfaDeviceEventMetadata(mfaDev)
 		event.MFADevice = &m
+	}
+	if req.ClientMetadata != nil {
+		event.RemoteAddr = req.ClientMetadata.RemoteAddr
+		event.UserAgent = req.ClientMetadata.UserAgent
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -349,7 +362,7 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 // SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type SSHLoginResponse struct {
-	// User contains a logged in user informationn
+	// User contains a logged-in user information
 	Username string `json:"username"`
 	// Cert is a PEM encoded  signed certificate
 	Cert []byte `json:"cert"`
@@ -369,7 +382,7 @@ type TrustedCerts struct {
 	// HostCertificates is a list of SSH public keys that can be used to check
 	// host certificate signatures
 	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authoritiy
+	// TLSCertificates  is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }
@@ -432,10 +445,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
@@ -449,6 +463,18 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		authority,
 	}
 
+	sourceIP := ""
+	if checker.PinSourceIP() {
+		md := req.ClientMetadata
+		if md == nil {
+			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
+		}
+		host, err := utils.Host(md.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sourceIP = host
+	}
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
 		ttl:               req.TTL,
@@ -458,6 +484,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		traits:            user.GetTraits(),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
+		sourceIP:          sourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

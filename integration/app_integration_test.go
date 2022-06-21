@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -36,9 +37,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -314,6 +317,11 @@ func TestAppAccessJWT(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
+	// Verify JWT token.
+	verifyJWT(t, pack, token, pack.jwtAppURI)
+}
+
+func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
 	// Get and unmarshal JWKs
 	status, body, err := pack.makeRequest("", http.MethodGet, "/.well-known/jwks.json")
 	require.NoError(t, err)
@@ -335,7 +343,7 @@ func TestAppAccessJWT(t *testing.T) {
 	claims, err := key.Verify(jwt.VerifyParams{
 		Username: pack.username,
 		RawToken: token,
-		URI:      pack.jwtAppURI,
+		URI:      appURI,
 	})
 	require.NoError(t, err)
 	require.Equal(t, pack.username, claims.Username)
@@ -445,6 +453,11 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						// Make sure we can insert JWT token in custom header.
+						{
+							Name:  "X-JWT",
+							Value: teleport.TraitInternalJWTVariable,
+						},
 					},
 				},
 			},
@@ -462,17 +475,25 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, resp, "X-Teleport-Cluster: root")
-	require.Contains(t, resp, "X-External-Env: production")
-	require.Contains(t, resp, "Host: example.com")
-	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
-	require.NotContains(t, resp, "X-Existing: existing")
-	require.NotContains(t, resp, "rewritten-app-jwt-header")
-	require.NotContains(t, resp, "rewritten-app-cf-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+
+	// Dumper app just dumps HTTP request so we should be able to read it back.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
+	require.Equal(t, req.Host, "example.com")
+	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
+	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+
+	// Verify JWT tokens.
+	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
+		verifyJWT(t, pack, req.Header.Get(header), dumperServer.URL)
+	}
 }
 
 // TestAppAccessRewriteHeadersLeaf validates that http headers from application
@@ -815,7 +836,7 @@ type pack struct {
 	webCookie string
 	webToken  string
 
-	rootCluster    *TeleInstance
+	rootCluster    *helpers.TeleInstance
 	rootAppServers []*service.TeleportProcess
 	rootCertPool   *x509.CertPool
 
@@ -840,7 +861,7 @@ type pack struct {
 	jwtAppClusterName string
 	jwtAppURI         string
 
-	leafCluster    *TeleInstance
+	leafCluster    *helpers.TeleInstance
 	leafAppServers []*service.TeleportProcess
 
 	leafAppName        string
@@ -875,14 +896,13 @@ type appTestOptions struct {
 	extraLeafApps       []service.App
 	userLogins          []string
 	userTraits          map[string][]string
-	rootClusterPorts    *InstancePorts
-	leafClusterPorts    *InstancePorts
+	rootClusterPorts    *helpers.InstancePorts
+	leafClusterPorts    *helpers.InstancePorts
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig          func(config *service.Config)
-	leafConfig          func(config *service.Config)
-	skipSettingTimeouts bool
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -900,10 +920,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
-
-	if !opts.skipSettingTimeouts {
-		SetTestTimeouts(time.Millisecond * time.Duration(500))
-	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1035,24 +1051,24 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = NewInstance(InstanceConfig{
+	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = NewInstance(InstanceConfig{
+	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.leafClusterPorts,
 	})
 
@@ -1067,6 +1083,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1082,6 +1099,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1212,13 +1230,13 @@ func (p *pack) initWebSession(t *testing.T) {
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T) {
-	creds, err := GenerateUserCreds(UserCredsRequest{
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  p.rootCluster.Process,
 		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
-	tc, err := p.rootCluster.NewClientWithCreds(ClientConfig{
+	tc, err := p.rootCluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
@@ -1270,6 +1288,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)
@@ -1519,6 +1538,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1589,6 +1609,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,

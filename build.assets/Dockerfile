@@ -33,7 +33,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 
 # Install libfido2.
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
@@ -94,6 +94,7 @@ RUN apt-get update -y --fix-missing && \
         pkg-config \
         shellcheck \
         softhsm2 \
+        sudo \
         tree \
         unzip \
         zip \
@@ -142,8 +143,8 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
@@ -166,10 +167,15 @@ ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
+# Tell prost to use the system protoc instead of building it from source
+ENV PROTOC_NO_VENDOR true
+ENV PROTOC /usr/local/bin/protoc
+
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
      curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
+     chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
@@ -218,11 +224,11 @@ COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.10.0 \
+    /usr/local/lib/libfido2.so.1.11.0 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.10.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /

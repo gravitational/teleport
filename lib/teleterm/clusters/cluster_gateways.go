@@ -18,7 +18,9 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -58,7 +60,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              db.GetProtocol(),
 		KeyPath:               c.status.KeyPath(),
-		CertPath:              c.status.DatabaseCertPathForCluster("", db.GetName()),
+		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
@@ -71,7 +73,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gw.CLICommand = cliCommand.String()
+	gw.CLICommand = fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String())
 
 	return gw, nil
 }
@@ -84,7 +86,14 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		Database:    gw.TargetSubresourceName,
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.GetActualName(),
+	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb,
+		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though, because this argument is used only for
+		// generating correct CA paths. But we use dbcmd.WithNoTLS here, which doesn't include CA paths
+		// in the returned CLI command.
+		c.GetActualName(),
 		dbcmd.WithLogger(gw.Log),
 		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),

@@ -388,7 +388,7 @@ func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
 
 	fn, ok := ifn.(predicate.BoolPredicate)
 	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
+		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
 	}
 
 	return fn(), nil
@@ -600,7 +600,7 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 			default:
-				return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+				return nil, trace.NotFound("identifier %q is not defined", strings.Join(fields, "."))
 			}
 		},
 		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {

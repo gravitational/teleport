@@ -17,21 +17,18 @@ limitations under the License.
 package auth
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
-	"encoding/json"
 	"fmt"
-	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/stretchr/testify/require"
@@ -46,12 +43,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -131,7 +126,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
 	c.Assert(err, check.IsNil)
 
-	_, err = remoteAuth.GetDomainName()
+	_, err = remoteAuth.GetDomainName(ctx)
 	fixtures.ExpectAccessDenied(c, err)
 }
 
@@ -844,14 +839,19 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 
 	// User is not authorized to perform any actions
 	// as local cluster does not trust the remote cluster yet
-	_, err = remoteClient.GetDomainName()
-	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
+	_, err = remoteClient.GetDomainName(ctx)
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// Establish trust, the request will still fail, there is
 	// no role mapping set up
 	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
 	c.Assert(err, check.IsNil)
-	_, err = remoteClient.GetDomainName()
+
+	// Create fresh client now trust is established
+	remoteClient, err = remoteServer.NewRemoteClient(
+		TestUser(remoteUser.GetName()), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
+	_, err = remoteClient.GetDomainName(ctx)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// Establish trust and map remote role to local admin role
@@ -861,7 +861,7 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	err = s.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
 	c.Assert(err, check.IsNil)
 
-	_, err = remoteClient.GetDomainName()
+	_, err = remoteClient.GetDomainName(ctx)
 	c.Assert(err, check.IsNil)
 }
 
@@ -873,7 +873,7 @@ func (s *TLSSuite) TestNopUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Nop User can get cluster name
-	_, err = client.GetDomainName()
+	_, err = client.GetDomainName(ctx)
 	c.Assert(err, check.IsNil)
 
 	// But can not get users or nodes
@@ -915,6 +915,36 @@ func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
 	fixtures.ExpectAccessDenied(c, err)
+}
+
+func TestGetCurrentUser(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	require.NoError(t, err)
+
+	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	require.NoError(t, err)
+
+	currentUser, err := client1.GetCurrentUser(ctx)
+	require.NoError(t, err)
+	require.Equal(t, &types.UserV2{
+		Kind:    "user",
+		SubKind: "",
+		Version: "v2",
+		Metadata: types.Metadata{
+			Name:        "user1",
+			Namespace:   "default",
+			Description: "",
+			Labels:      nil,
+			Expires:     nil,
+			ID:          currentUser.GetMetadata().ID,
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{"user:user1"},
+		},
+	}, currentUser)
 }
 
 func (s *TLSSuite) TestAuthPreference(c *check.C) {
@@ -1044,166 +1074,9 @@ func (s *TLSSuite) TestTokens(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	out, err := clt.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Not(check.Equals), 0)
-}
-
-func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
-	serverID, err := s.server.Identity.ID.HostID()
-	c.Assert(err, check.IsNil)
-
-	tests := []struct {
-		inServerID string
-		outError   bool
-	}{
-		// Invalid.
-		{
-			inServerID: "00000000-0000-0000-0000-000000000000",
-			outError:   true,
-		},
-		// Valid.
-		{
-			inServerID: serverID,
-			outError:   false,
-		},
-	}
-	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
-		c.Assert(err, check.IsNil)
-
-		sessionID := session.NewID()
-
-		recording, err := makeSessionRecording(sessionID.String(), tt.inServerID)
-		c.Assert(err, check.IsNil)
-
-		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		sess := session.Session{
-			ID:             sessionID,
-			TerminalParams: session.TerminalParams{W: 100, H: 100},
-			Created:        date,
-			LastActive:     date,
-			Login:          "bob",
-			Namespace:      apidefaults.Namespace,
-		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
-
-		err = clt.UploadSessionRecording(events.SessionRecording{
-			Namespace: apidefaults.Namespace,
-			SessionID: sess.ID,
-			Recording: recording,
-		})
-		c.Assert(err != nil, check.Equals, tt.outError)
-	}
-}
-
-func makeSessionRecording(sessionID string, serverID string) (io.Reader, error) {
-	marshal := func(f events.EventFields) []byte {
-		data, err := json.Marshal(f)
-		if err != nil {
-			panic(err)
-		}
-		return data
-	}
-
-	var zbuf bytes.Buffer
-	zw := gzip.NewWriter(&zbuf)
-
-	zw.Name = fmt.Sprintf("%v-0.events", sessionID)
-	_, err := zw.Write(marshal(events.EventFields{
-		events.SessionServerID: serverID,
-	}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = zw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var tbuf bytes.Buffer
-	tw := tar.NewWriter(&tbuf)
-
-	hdr := &tar.Header{
-		Name: fmt.Sprintf("%v-0.events.gz", sessionID),
-		Mode: 0600,
-		Size: int64(zbuf.Len()),
-	}
-	err = tw.WriteHeader(hdr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = tw.Write(zbuf.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = tw.Close()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &tbuf, nil
-}
-
-func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
-	serverID, err := s.server.Identity.ID.HostID()
-	c.Assert(err, check.IsNil)
-
-	tests := []struct {
-		inServerID string
-		outError   bool
-	}{
-		// Invalid.
-		{
-			inServerID: "00000000-0000-0000-0000-000000000000",
-			outError:   true,
-		},
-		// Valid.
-		{
-			inServerID: serverID,
-			outError:   false,
-		},
-	}
-	for _, tt := range tests {
-		clt, err := s.server.NewClient(TestServerID(types.RoleNode, serverID))
-		c.Assert(err, check.IsNil)
-
-		date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		sess := session.Session{
-			ID:             session.NewID(),
-			TerminalParams: session.TerminalParams{W: 100, H: 100},
-			Created:        date,
-			LastActive:     date,
-			Login:          "bob",
-			Namespace:      apidefaults.Namespace,
-		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
-
-		marshal := func(f events.EventFields) []byte {
-			data, err := json.Marshal(f)
-			if err != nil {
-				panic(err)
-			}
-			return data
-		}
-
-		err = clt.PostSessionSlice(events.SessionSlice{
-			Namespace: apidefaults.Namespace,
-			SessionID: string(sess.ID),
-			Chunks: []*events.SessionChunk{
-				{
-					Time:       time.Now().UTC().UnixNano(),
-					EventIndex: 0,
-					EventType:  events.SessionStartEvent,
-					Data: marshal(events.EventFields{
-						events.SessionServerID: tt.inServerID,
-					}),
-				},
-			},
-			Version: events.V3,
-		})
-		c.Assert(err != nil, check.Equals, tt.outError)
-	}
 }
 
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
@@ -1292,7 +1165,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(WebSessionReq{
+	new, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1309,7 +1182,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(WebSessionReq{
+	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1363,7 +1236,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1376,7 +1249,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
-	roles, _, err := services.ExtractFromCertificate(sshcert)
+	roles, err := services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.HasLen, 2)
 
@@ -1405,7 +1278,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -1417,7 +1290,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
 	c.Assert(err, check.IsNil)
 
-	roles, _, err = services.ExtractFromCertificate(sshcert)
+	roles, err = services.ExtractRolesFromCert(sshcert)
 	c.Assert(err, check.IsNil)
 	c.Assert(roles, check.DeepEquals, []string{initialRole})
 
@@ -1482,195 +1355,6 @@ func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 		Type:       types.HostCA,
 	}, true)
 	fixtures.ExpectAccessDenied(c, err)
-}
-
-func (s *TLSSuite) TestAccessRequest(c *check.C) {
-	priv, pub, err := native.GenerateKeyPair()
-	c.Assert(err, check.IsNil)
-
-	// make sure we can parse the private and public key
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	c.Assert(err, check.IsNil)
-
-	_, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	c.Assert(err, check.IsNil)
-
-	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	c.Assert(err, check.IsNil)
-
-	// create a user with one requestable role
-	user := "user1"
-	role := "some-role"
-	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
-	c.Assert(err, check.IsNil)
-
-	testUser := TestUser(user)
-	testUser.TTL = time.Hour
-	userClient, err := s.server.NewClient(testUser)
-	c.Assert(err, check.IsNil)
-
-	// Verify that user has correct requestable roles
-	caps, err := userClient.GetAccessCapabilities(context.TODO(), types.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(caps.RequestableRoles, check.DeepEquals, []string{role})
-
-	// create a user with no requestable roles
-	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
-	c.Assert(err, check.IsNil)
-
-	testUser2 := TestUser(user2.GetName())
-	testUser2.TTL = time.Hour
-	userClient2, err := s.server.NewClient(testUser2)
-	c.Assert(err, check.IsNil)
-
-	// verify that no requestable roles are shown for user2
-	caps2, err := userClient2.GetAccessCapabilities(context.TODO(), types.AccessCapabilitiesRequest{
-		RequestableRoles: true,
-	})
-	c.Assert(err, check.IsNil)
-	c.Assert(caps2.RequestableRoles, check.HasLen, 0)
-
-	// create an allowable access request for user1
-	req, err := services.NewAccessRequest(user, role)
-	c.Assert(err, check.IsNil)
-
-	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
-
-	// sanity check; ensure that roles for which no `allow` directive
-	// exists cannot be requested.
-	badReq, err := services.NewAccessRequest(user, "some-fake-role")
-	c.Assert(err, check.IsNil)
-	c.Assert(userClient.CreateAccessRequest(context.TODO(), badReq), check.NotNil)
-
-	// generateCerts executes a GenerateUserCerts request, optionally applying
-	// one or more access-requests to the certificate.
-	generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
-		return userClient.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
-			PublicKey:      pub,
-			Username:       user,
-			Expires:        time.Now().Add(time.Hour).UTC(),
-			Format:         constants.CertificateFormatStandard,
-			AccessRequests: reqIDs,
-		})
-	}
-
-	// certContainsRole checks if a PEM encoded TLS cert contains the
-	// specified role.
-	certContainsRole := func(tlsCert []byte, role string) bool {
-		cert, err := tlsca.ParseCertificatePEM(tlsCert)
-		c.Assert(err, check.IsNil)
-
-		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-		c.Assert(err, check.IsNil)
-
-		return apiutils.SliceContainsStr(identity.Groups, role)
-	}
-
-	// certRequests extracts the active requests from a PEM encoded TLS cert.
-	certRequests := func(tlsCert []byte) []string {
-		cert, err := tlsca.ParseCertificatePEM(tlsCert)
-		c.Assert(err, check.IsNil)
-
-		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-		c.Assert(err, check.IsNil)
-
-		return identity.ActiveRequests
-	}
-
-	// certLogins extracts the logins from an ssh certificate
-	certLogins := func(sshCert []byte) []string {
-		cert, err := sshutils.ParseCertificate(sshCert)
-		c.Assert(err, check.IsNil)
-		return cert.ValidPrincipals
-	}
-
-	// sanity check; ensure that role is not held if no request is applied.
-	userCerts, err := generateCerts()
-	c.Assert(err, check.IsNil)
-	if certContainsRole(userCerts.TLS, role) {
-		c.Errorf("unexpected role %s", role)
-	}
-	// ensure that the default identity doesn't have any active requests
-	c.Assert(certRequests(userCerts.TLS), check.HasLen, 0)
-
-	// verify that cert for user with no static logins is generated with
-	// exactly one login and that it is an invalid unix login (indicated
-	// by preceding dash (-).
-	logins := certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
-	c.Assert(rune(logins[0][0]), check.Equals, '-')
-
-	// attempt to apply request in PENDING state (should fail)
-	_, err = generateCerts(req.GetName())
-	c.Assert(err, check.NotNil)
-
-	ctx := context.Background()
-
-	// verify that user does not have the ability to approve their own request (not a special case, this
-	// user just wasn't created with the necessary roles for request management).
-	c.Assert(userClient.SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
-
-	// attempt to apply request in APPROVED state (should succeed)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.IsNil)
-	userCerts, err = generateCerts(req.GetName())
-	c.Assert(err, check.IsNil)
-	// ensure that the requested role was actually applied to the cert
-	if !certContainsRole(userCerts.TLS, role) {
-		c.Errorf("missing requested role %s", role)
-	}
-	// ensure that the request is stored in the certs
-	c.Assert(certRequests(userCerts.TLS), check.DeepEquals, []string{req.GetName()})
-
-	// verify that dynamically applied role granted a login,
-	// which is is valid and has replaced the dummy login.
-	logins = certLogins(userCerts.SSH)
-	c.Assert(len(logins), check.Equals, 1)
-	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
-
-	elevatedCert, err := tls.X509KeyPair(userCerts.TLS, priv)
-	c.Assert(err, check.IsNil)
-	elevatedClient := s.server.NewClientWithCert(elevatedCert)
-
-	newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user,
-		Expires:   time.Now().Add(time.Hour).UTC(),
-		Format:    constants.CertificateFormatStandard,
-		// no new access requests
-		AccessRequests: nil,
-	})
-	c.Assert(err, check.IsNil)
-
-	// in spite of having no access requests, we still have elevated roles...
-	if !certContainsRole(newCerts.TLS, role) {
-		c.Errorf("missing requested role %s", role)
-	}
-	// ...and the certificate shows the access request
-	c.Assert(certRequests(newCerts.TLS), check.DeepEquals, []string{req.GetName()})
-
-	// attempt to apply request in DENIED state (should fail)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_DENIED}), check.IsNil)
-	_, err = generateCerts(req.GetName())
-	c.Assert(err, check.NotNil)
-
-	// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_PENDING}), check.NotNil)
-
-	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{RequestID: req.GetName(), State: types.RequestState_APPROVED}), check.NotNil)
-
-	// ensure that identities with requests in the DENIED state can't reissue new certs.
-	_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: pub,
-		Username:  user,
-		Expires:   time.Now().Add(time.Hour).UTC(),
-		Format:    constants.CertificateFormatStandard,
-		// no new access requests
-		AccessRequests: nil,
-	})
-	c.Assert(err, check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {
@@ -2563,6 +2247,7 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2571,11 +2256,12 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestTLSFailover tests client failover between two tls servers
+// TestTLSFailover tests HTTP client failover between two tls servers
 func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	otherServer, err := s.server.AuthServer.NewTestTLSServer()
 	c.Assert(err, check.IsNil)
 	defer otherServer.Close()
+	ctx := context.Background()
 
 	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
 	c.Assert(err, check.IsNil)
@@ -2589,13 +2275,14 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName()
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 
 	// stop the server to get response
@@ -2604,8 +2291,8 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 
 	// client detects closed sockets and reconnect to the backup server
 	for i := 0; i < 4; i++ {
-		_, err = client.GetDomainName()
-		c.Assert(err, check.IsNil)
+		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
+		fixtures.ExpectNotFound(c, err)
 	}
 }
 
@@ -2614,11 +2301,11 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
-	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
-		TTL: time.Hour,
+		TTL: proto.Duration(time.Hour),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2631,7 +2318,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pin should be.
-	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert()
+	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
 	c.Assert(err, check.IsNil)
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
@@ -2720,7 +2407,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pins should be.
-	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert()
+	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
 	c.Assert(err, check.IsNil)
 	caPins, err = tlsca.CalculatePins(localCAResponse.TLSCA)
 	c.Assert(err, check.IsNil)
@@ -2749,11 +2436,11 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	ctx := context.Background()
 	// Generate a token to use.
-	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
-		TTL: time.Hour,
+		TTL: proto.Duration(time.Hour),
 	})
 	c.Assert(err, check.IsNil)
 

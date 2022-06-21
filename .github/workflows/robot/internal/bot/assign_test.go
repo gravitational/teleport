@@ -49,9 +49,11 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-pr-number-approved",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Backport #0 to branch/v8",
 				UnsafeBody:  "",
 				Fork:        false,
@@ -66,9 +68,11 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-url-approved",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Fixed an issue",
 				UnsafeBody:  "https://github.com/gravitational/teleport/pull/0",
 				Fork:        false,
@@ -83,9 +87,12 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-multiple-reviews",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
+
 				UnsafeTitle: "Fixed feature",
 				UnsafeBody:  "",
 				Fork:        false,
@@ -103,9 +110,11 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-not-found",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Fixed feature",
 				UnsafeBody:  "",
 				Fork:        false,
