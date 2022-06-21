@@ -1243,6 +1243,9 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
     appropriate error and that the other db tab still handles old and new connections.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
+- [ ] Verify that the password from the login form is not saved in the renderer log.
+- [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
+  works properly after that.
 
 ## Host users creation
 
