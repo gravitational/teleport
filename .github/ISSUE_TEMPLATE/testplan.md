@@ -1170,6 +1170,7 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Check if those connections are available after the app restart.
   - [ ] Check that those connections are removed after you log out of the root cluster that they
         belong to.
+  - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
 - Cluster resources (servers/databases)
   - [ ] Verify that the app shows the same resources as the Web UI.
   - [ ] Verify that search is working for the resources lists.
@@ -1179,6 +1180,10 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
       `spec.allow.db_users`.
   - [ ] Repeat the above steps for resources in leaf clusters.
   - [ ] Verify that tabs have correct titles set.
+  - [ ] Verify that the port number remains the same for a db connection between app restarts.
+  - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the app.
+        Verify that the app doesn't crash and the db connection tab shows you the error (address in
+        use) and offers a way to retry creating the connection.
 - Shortcuts
   - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
   - [ ] Verify that other shortcuts are shown after you close all tabs.
