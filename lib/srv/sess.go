@@ -1637,7 +1637,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
 		accessContext := auth.SessionAccessContext{
-			Roles: ctx.Identity.AccessChecker.Roles(),
+			Username: ctx.Identity.TeleportUser,
+			Roles:    ctx.Identity.AccessChecker.Roles(),
 		}
 
 		modes := s.access.CanJoin(accessContext)
