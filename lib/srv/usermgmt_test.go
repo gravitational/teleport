@@ -241,4 +241,11 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, remainingUsers, resultingUsers)
+
+	users = HostUserManagement{
+		backend: newTestUserMgmt(),
+		storage: pres,
+	}
+	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
+	require.NoError(t, users.DeleteAllUsers())
 }

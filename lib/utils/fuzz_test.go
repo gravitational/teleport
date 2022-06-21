@@ -14,24 +14,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package protocol
+package utils
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"net/http"
 )
 
-func FuzzMongoRead(f *testing.F) {
-	f.Add([]byte{})
-	f.Add([]byte("000\xa4000000000000"))
+func FuzzParseProxyJump(f *testing.F) {
+	f.Fuzz(func(t *testing.T, in string) {
+		require.NotPanics(t, func() {
+			ParseProxyJump(in)
+		})
+	})
+}
 
-	f.Fuzz(func(t *testing.T, msgBytes []byte) {
-		msg := bytes.NewReader(msgBytes)
+func FuzzParseWebLinks(f *testing.F) {
+	f.Fuzz(func(t *testing.T, s string) {
+		links := strings.Split(s, "|")
+		require.NotPanics(t, func() {
+			inResponse := &http.Response{
+				Header: http.Header{
+					"Link": links,
+				},
+			}
+			ParseWebLinks(inResponse)
+		})
+	})
+}
+
+func FuzzReadYAML(f *testing.F) {
+	f.Fuzz(func(t *testing.T, dataBytes []byte) {
+		data := bytes.NewReader(dataBytes)
 
 		require.NotPanics(t, func() {
-			_, _ = ReadMessage(msg)
+			ReadYAML(data)
 		})
 	})
 }
