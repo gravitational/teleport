@@ -1460,6 +1460,10 @@ message AccessRequestSpecV3 {
     // LoginHint is used as a hint for search-based access requests to select
     // roles based on the login the user is attempting.
     string LoginHint = 15 [ (gogoproto.jsontag) = "login_hint,omitempty" ];
+
+    // DryRun indicates that the request should not actually be created, the
+    // auth server should only validate the access request.
+    bool DryRun = 16 [ (gogoproto.jsontag) = "dry_run,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
