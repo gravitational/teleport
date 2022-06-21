@@ -198,7 +198,7 @@ spec:
         emptyDir: {}
       {{- end }}
       {{- if .Values.tls.existingCASecretName }}
-      - name: teleport-tls-ca
+      - name: "teleport-tls-ca"
         secret:
           secretName: {{ .Values.tls.existingCASecretName }}
       {{- end }}
