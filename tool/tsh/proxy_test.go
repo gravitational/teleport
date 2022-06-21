@@ -587,5 +587,5 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, av []apievents.AuditEvent, nod
 			return
 		}
 	}
-	t.Error("failed to find AuthAttemptFailureCode event")
+	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
 }
