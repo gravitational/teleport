@@ -57,7 +57,8 @@ func TestUserCreation(t *testing.T) {
 		require.Equal(t, tUser.GetName(), userName)
 
 		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		//require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginCloud)
 
 		return true
 	})
@@ -123,7 +124,8 @@ func TestUserUpdate(t *testing.T) {
 		}
 
 		// User does not have the Origin Label
-		require.NotEqual(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		// require.NotEqual(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.NotEqual(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginCloud)
 		return true
 	})
 

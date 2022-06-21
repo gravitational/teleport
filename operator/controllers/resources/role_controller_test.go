@@ -57,7 +57,8 @@ func TestRoleCreation(t *testing.T) {
 		require.Equal(t, tRole.GetName(), roleName)
 
 		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		//require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginCloud)
 
 		return true
 	})
@@ -128,7 +129,8 @@ func TestRoleUpdate(t *testing.T) {
 		}
 
 		// Role does not have the Origin Label
-		require.NotEqual(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		//require.NotEqual(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		require.NotEqual(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginCloud)
 		return true
 	})
 

@@ -116,7 +116,8 @@ func addOriginLabel(ctx context.Context, k8sClient kclient.Client, obj kclient.O
 		k8sObjLabels = make(map[string]string)
 	}
 
-	k8sObjLabels[types.OriginLabel] = types.OriginKubernetes
+	// k8sObjLabels[types.OriginLabel] = types.OriginKubernetes
+	k8sObjLabels[types.OriginLabel] = types.OriginCloud
 	obj.SetLabels(k8sObjLabels)
 
 	return trace.Wrap(k8sClient.Update(ctx, obj))
