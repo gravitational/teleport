@@ -1159,6 +1159,12 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
   - [ ] Verify that the app remembers size & position after restart.
   - [ ] Verify that [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575)
         works.
+  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh`
+        doesn't crash the app.
+  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json`
+        but not the `tsh` dir doesn't crash the app.
+  - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
+        remember previous tabs (they should be cleared on logout).
 - Connections picker
   - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
   - [ ] Check if those connections are available after the app restart.
