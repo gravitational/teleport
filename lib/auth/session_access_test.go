@@ -168,32 +168,12 @@ func failFilterStartTestCase(t *testing.T) startTestCase {
 	}
 }
 
-func versionFallbackStartTestCase(t *testing.T) startTestCase {
-	hostRole, err := types.NewRoleV3("host", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
-		Filter: "contains(user.roles, \"participant\")",
-		Kinds:  []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
-		Count:  2,
-		Modes:  []string{"peer"},
-	}})
-
-	return startTestCase{
-		name:         "versionFallbackStartTestCase",
-		host:         []types.Role{hostRole},
-		sessionKinds: []types.SessionKind{types.SSHSessionKind, types.KubernetesSessionKind},
-		expected:     []bool{true, false},
-	}
-}
-
 func TestSessionAccessStart(t *testing.T) {
 	testCases := []startTestCase{
 		successStartTestCase(t),
 		failCountStartTestCase(t),
 		failFilterStartTestCase(t),
 		succeedDiscardPolicySetStartTestCase(t),
-		versionFallbackStartTestCase(t),
 	}
 
 	for _, testCase := range testCases {
