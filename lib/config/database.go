@@ -120,17 +120,21 @@ db_service:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
     uri: {{ .StaticDatabaseURI }}
-    {{- if .DatabaseAWSRegion }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
     aws:
+      {{- if .DatabaseAWSRegion }}
       region: {{ .DatabaseAWSRegion }}
+      {{- end }}
       {{- if .DatabaseAWSRedshiftClusterID }}
       redshift:
         cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
       {{- end }}
     {{- end }}
-    {{- if .DatabaseADDomain }}
+    {{- if or .DatabaseADDomain .DatabaseADSPN }}
     ad:
+      {{- if .DatabaseADDomain }}
       domain: {{ .DatabaseADDomain }}
+      {{- end }}
       {{- if .DatabaseADSPN }}
       spn: {{ .DatabaseADSPN }}
       {{- end }}
