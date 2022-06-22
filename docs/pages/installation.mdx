@@ -40,8 +40,18 @@ All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
 
 (!docs/pages/includes/install-linux.mdx!)
 
+<ScopedBlock scope="oss">
+
 Check the [Downloads](https://goteleport.com/download/) page for the most
 up-to-date information.
+
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+
+Check the [Downloads](./cloud/downloads.mdx) page for the most
+up-to-date information.
+
+</ScopedBlock>
 
 ## Docker
 
@@ -102,6 +112,7 @@ chart.
 
 ## macOS
 
+<ScopedBlock scope={["oss", "cloud"]}>
 <Tabs>
   <TabItem label="Installer">
 
@@ -215,6 +226,30 @@ chart.
   </TabItem>
 
 </Tabs>
+</ScopedBlock>
+<ScopedBlock scope="enterprise">
+  You can download one of the following .pkg installers for macOS:
+
+  |Link|Binaries|
+  |-|-|
+  |[`teleport-ent-(=teleport.version=).pkg`](https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg)|`teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`|
+  |[`tsh-(=teleport.version=).pkg`](https://get.gravitational.com/tsh-(=teleport.version=).pkg)|`tsh`|
+
+  You can also fetch an installer via the command line: 
+
+  ```code
+  $ curl -O https://get.gravitational.com/teleport-ent-(=teleport.version=).pkg
+  # Installs on Macintosh HD
+  $ sudo installer -pkg teleport-ent-(=teleport.version=).pkg -target / 
+  # Password:
+  # installer: Package name is teleport-ent-(=teleport.version=)
+  # installer: Upgrading at base path /
+  # installer: The upgrade was successful.
+  $ which teleport
+  # /usr/local/bin/teleport
+  ```
+
+</ScopedBlock>
 
 ## Windows (tsh client only)
 
