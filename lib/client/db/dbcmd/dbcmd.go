@@ -25,6 +25,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -32,10 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -164,7 +164,7 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 		return c.getMongoCommand(), nil
 
 	case defaults.ProtocolRedis:
-		return c.getRedisCommand(), nil
+		return c.getRedisCommand()
 
 	case defaults.ProtocolSQLServer:
 		return c.getSQLServerCommand(), nil
@@ -414,7 +414,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
-func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getRedisCommand() (*exec.Cmd, error) {
 	// TODO(jakub): Add "-3" when Teleport adds support for Redis RESP3 protocol.
 	args := []string{
 		"-h", c.host,
@@ -441,7 +441,64 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return c.exe.Command(redisBin, args...)
+	if err := c.checkRedisVersion(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.exe.Command(redisBin, args...), nil
+}
+
+// checkRedisVersion checks the version of the Redis binary and returns an user
+// friendly error if older/unsupported version is found.
+func (c *CLICommandBuilder) checkRedisVersion() error {
+	if c.options.tolerateMissingCLIClient {
+		return nil
+	}
+
+	// Run redis-cli --version.
+	versionOutput, err := c.exe.RunCommand(redisBin, "--version")
+	if err != nil {
+		// Seems not a valid redis-cli binary. Or it could be some
+		// unknown/future version of the redis-cli that does not support
+		// "--version". Either way, return nil here and run the actual command.
+		c.options.log.WithError(err).Debugf("Failed to run: %v --version.", redisBin)
+		return nil
+	}
+
+	// Get version from output. Sample outputs:
+	// - redis-cli 7.0.0
+	// - redis-cli 6.2.7 (git:xxxxx)
+	var version *semver.Version
+	if fields := strings.Fields(string(versionOutput)); len(fields) >= 2 {
+		version, _ = semver.NewVersion(fields[1])
+	}
+	if version == nil {
+		// Unknown format. Return nil and run the actual command.
+		c.options.log.Debugf("Unknown Redis version: %v.", versionOutput)
+		return nil
+	}
+
+	// TLS support starting 6.0.
+	minVersion := semver.New("6.0.0")
+	if c.tc.InsecureSkipVerify {
+		// "--insecure" flag starting 6.2.
+		minVersion = semver.New("6.2.0")
+	}
+
+	if version.LessThan(*minVersion) {
+		path, err := c.exe.LookPath(redisBin)
+		if err != nil {
+			// Should not happen since RunCommand suceeded, but just in case.
+			path = redisBin
+		}
+		return trace.CompareFailed(
+			"'%s' (version '%s') is too old. Please upgrade '%s' to a minimum version of '%s' and try again.",
+			path,
+			version,
+			redisBin,
+			minVersion,
+		)
+	}
+	return nil
 }
 
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {

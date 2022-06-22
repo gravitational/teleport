@@ -63,7 +63,7 @@ func (f fakeExec) RunCommand(cmd string, _ ...string) ([]byte, error) {
 
 func (f fakeExec) LookPath(path string) (string, error) {
 	if _, found := f.execOutput[path]; found {
-		return "", nil
+		return path, nil
 	}
 	return "", trace.NotFound("not found")
 }
@@ -88,6 +88,14 @@ func (f fakeExec) Command(name string, arg ...string) *exec.Cmd {
 		return cmd
 	}
 	panic("Unknown commandPathBehavior")
+}
+
+func newFakeExecWithRedisVersion(versionOutput string) *fakeExec {
+	return &fakeExec{
+		execOutput: map[string][]byte{
+			redisBin: []byte(versionOutput),
+		},
+	}
 }
 
 func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
@@ -437,7 +445,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:         "redis-cli with db",
 			dbProtocol:   defaults.ProtocolRedis,
 			databaseName: "2",
-			execer:       &fakeExec{},
+			execer:       newFakeExecWithRedisVersion("redis-cli 7.0.0"),
 			cmd: []string{"redis-cli",
 				"-h", "localhost",
 				"-p", "12345",
@@ -451,11 +459,18 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			name:       "redis-cli no TLS",
 			dbProtocol: defaults.ProtocolRedis,
 			opts:       []ConnectCommandFunc{WithNoTLS()},
-			execer:     &fakeExec{},
+			execer:     newFakeExecWithRedisVersion("redis-cli 7.0.0 (git:xxxxx)"),
 			cmd: []string{"redis-cli",
 				"-h", "localhost",
 				"-p", "12345"},
 			wantErr: false,
+		},
+		{
+			name:       "redis-cli is too old",
+			dbProtocol: defaults.ProtocolRedis,
+			opts:       []ConnectCommandFunc{},
+			execer:     newFakeExecWithRedisVersion("redis-cli 3.5.0"),
+			wantErr:    true,
 		},
 		{
 			name:       "snowsql no TLS",
@@ -509,6 +524,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				if err == nil {
 					t.Errorf("getConnectCommand() should return an error, but it didn't")
 				}
+				t.Log("getConnectCommand() returns error:", err)
 				return
 			}
 
