@@ -53,6 +53,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -177,6 +179,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
+		ServerID:        cfg.HostUUID,
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
@@ -184,6 +187,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
+		unstable:        local.NewUnstableService(cfg.Backend),
 		Services: Services{
 			Trust:                 cfg.Trust,
 			Presence:              cfg.Presence,
@@ -202,6 +206,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		},
 		keyStore:     keyStore,
 		getClaimsFun: getClaims,
+		inventory:    inventory.NewController(cfg.Presence),
 	}
 	for _, o := range opts {
 		o(&as)
@@ -328,6 +333,13 @@ type Server struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
+	// ServerID is the server ID of this auth server.
+	ServerID string
+
+	// unstable implements unstable backend methods not suitable
+	// for inclusion in Services.
+	unstable local.UnstableService
+
 	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure
 	Services
@@ -362,6 +374,12 @@ type Server struct {
 
 	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
 	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
+
+	inventory *inventory.Controller
+}
+
+func (a *Server) CloseContext() context.Context {
+	return a.closeCtx
 }
 
 // SetCache sets cache used by auth server
@@ -558,10 +576,19 @@ func (a *Server) updateVersionMetrics() {
 
 func (a *Server) Close() error {
 	a.cancelFunc()
-	if a.bk != nil {
-		return trace.Wrap(a.bk.Close())
+
+	var errs []error
+
+	if err := a.inventory.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return nil
+
+	if a.bk != nil {
+		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 func (a *Server) GetClock() clockwork.Clock {
@@ -958,6 +985,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
+		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	}
+
 	// Reject the cert request if there is a matching lock in force.
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -1058,7 +1089,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
-	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
@@ -2165,11 +2196,21 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
+		return nil, trace.BadParameter("cannot generate instance cert with no system roles")
+	}
+
+	systemRoles := make([]string, 0, len(req.SystemRoles))
+	for _, r := range req.SystemRoles {
+		systemRoles = append(systemRoles, string(r))
+	}
+
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
+		SystemRoles:     systemRoles,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2203,6 +2244,52 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+// instances to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	return trace.Wrap(a.unstable.AssertSystemRole(ctx, req))
+}
+
+func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
+	set, err := a.unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
+}
+
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+	a.inventory.RegisterControlStream(ics, hello)
+}
+
+func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+	var rsp proto.InventoryStatusSummary
+	if req.Connected {
+		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+			rsp.Connected = append(rsp.Connected, handle.Hello())
+		})
+	}
+	return rsp
+}
+
+func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	if !ok {
+		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
+	}
+
+	d, err := stream.Ping(ctx)
+	if err != nil {
+		return proto.InventoryPingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.InventoryPingResponse{
+		Duration: d,
+	}, nil
+}
+
+// TokenExpiredOrNotFound is a special message returned by the auth server when provisioning
+// tokens are either past their TTL, or could not be found.
+const TokenExpiredOrNotFound = "token expired or not found"
+
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
@@ -2224,10 +2311,13 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied("token expired")
+		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -2472,6 +2562,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			req.SetExpiry(pexp)
 		}
 	}
+
+	if req.GetDryRun() {
+		// Made it this far with no errors, return before creating the request
+		// if this is a dry run.
+		return nil
+	}
+
 	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

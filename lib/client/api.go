@@ -721,6 +721,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return nil
 	}
 
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}
@@ -1860,7 +1864,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer nodeClient.Close()
 
 	// If forwarding ports were specified, start port forwarding.
-	tc.startPortForwarding(ctx, nodeClient)
+	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// If no remote command execution was requested, block on the context which
 	// will unblock upon error or SIGINT.
@@ -1901,14 +1907,13 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
+				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 			}
 			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 		}
@@ -1918,12 +1923,12 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
+				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 			}
 			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
+	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -1983,7 +1988,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer nc.Close()
 
 	// Start forwarding ports if configured.
-	tc.startPortForwarding(ctx, nc)
+	if err := tc.startPortForwarding(ctx, nc); err != nil {
+		return trace.Wrap(err)
+	}
 
 	presenceCtx, presenceCancel := context.WithCancel(ctx)
 	defer presenceCancel()

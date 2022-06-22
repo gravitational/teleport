@@ -29,12 +29,13 @@
               "slug": "/getting-started/docker-compose/"
             },
             {
-              "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/",
-              "hideInScopes": [
-                "enterprise",
-                "cloud"
-              ]
+              "title": "Local Kubernetes Lab",
+              "slug": "/getting-started/local-kubernetes/"
+            },
+            {
+              "title": "Kubernetes Cluster",
+              "slug": "/getting-started/kubernetes-cluster/",
+              "hideInScopes": "cloud"
             }
           ]
         },
@@ -113,6 +114,11 @@
               "title": "IBM",
               "slug": "/setup/deployments/ibm/",
               "hideInScopes": "cloud"
+            },
+            {
+              "title": "Digital Ocean",
+              "slug": "/setup/deployments/digitalocean/",
+              "hideInScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -1262,6 +1268,26 @@
     {
       "source": "/application-access/guides/jwt/",
       "destination": "/application-access/jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/agent/",
+      "destination": "/docs/kubernetes-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/cluster/",
+      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/local/",
+      "destination": "/docs/getting-started/local-kubernetes/",
       "permanent": true
     }
   ]
