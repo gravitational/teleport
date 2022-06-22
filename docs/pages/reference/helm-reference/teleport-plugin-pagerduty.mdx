@@ -1,0 +1,270 @@
+---
+title: teleport-plugin-pagerduty Chart Reference
+description: Values that can be set using the teleport-plugin-pagerduty Helm chart
+---
+
+The `teleport-plugin-pagerduty` Helm chart is used to configure the PagerDuty Teleport plugin which allows users to receive access requests as pages via PagerDuty.
+
+You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/pagerduty).
+
+This reference details available values for the `teleport-plugin-pagerduty` chart.
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## `teleport.address`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+This parameter contains the host/port combination of the teleport auth server.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    address: "teleport.example.com:3025"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.address="teleport.example.com:3025"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Name of the Kubernetes secret that contains the credentials for the connection.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-pagerduty-identity
+data:
+  auth_id: ...
+```
+
+Check out the [PagerDuty Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/pagerduty#prerequisites) for more information about how to acquire these credentials!
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretName: "teleport-plugin-pagerduty-identity"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretName="teleport-plugin-pagerduty-identity"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"auth_id"` | No |
+
+Name of the key in the Kubernetes secret that holds the credentials for the connection. If the secret follows the format above, it can be omitted.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretPath: "auth_id"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretPath="auth_id"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.url`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Base URL of the PagerDuty instance
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    url: "https://pagerduty.example.com/"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.url="https://pagerduty.example.com/"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.apiKey`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | No |
+
+PagerDuty apiKey of the bot user to impersonate when sending the messages.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    apiKey: "pagerdutyapikey"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.apiKey="pagerdutyapikey"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.apiKeyFromSecret`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | No |
+
+Secret containing the PagerDuty token of the bot user.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    apiKeyFromSecret: "teleport-pagerduty-plugin-token"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.apiKeyFromSecret="teleport-pagerduty-plugin-token"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.apiKeySecretPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"pagerdutyApiKey"` | No |
+
+Key where the token is located inside the secret specified by `pagerduty.apiKeyFromSecret`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    apiKeySecretPath: "apiKey"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.apiKeySecretPath="apiKey"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.userEmail`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Key where the token is located inside the secret specified by `pagerduty.apiKeyFromSecret`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    userEmail: "apiKey"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.userEmail="apiKey"
+  ```
+  </TabItem>
+</Tabs>
+
+## `pagerduty.recipients`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `array` | `[]` | Yes |
+
+List of recipients who will receive notifications about access requests.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  pagerduty:
+    recipients:
+      - user1@example.com
+      - user2@example.com
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set pagerduty.recipients[0]="user1@example.com",pagerduty.recipients[0]="user1@example.com"
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.output`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/pagerduty.log"
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: /var/log/teleport/pagerduty.log
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.output="/var/log/teleport/pagerduty.log"
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.severity`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger severity. Possible values are "INFO", "ERROR", "DEBUG" or "WARN".
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    severity: DEBUG
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.severity="DEBUG"
+  ```
+  </TabItem>
+</Tabs>
