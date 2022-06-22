@@ -570,7 +570,7 @@ func (a *ServerWithRoles) DeactivateCertAuthority(id types.CertAuthID) error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *ServerWithRoles) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
+func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -610,16 +610,175 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	if a.context.User.GetName() != HostFQDN(req.HostID, clusterName) {
 		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), HostFQDN(req.HostID, clusterName))
 	}
+
+	if req.Role == types.RoleInstance {
+		if err := a.checkAdditionalSystemRoles(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if len(req.SystemRoles) != 0 {
+			return nil, trace.AccessDenied("additional system role encoding not supported for certs of type %q", req.Role)
+		}
+	}
+
 	existingRoles, err := types.NewTeleportRoles(a.context.User.GetRoles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// prohibit privilege escalations through role changes
-	if !existingRoles.Equals(types.SystemRoles{req.Role}) {
+	// prohibit privilege escalations through role changes (except the instance cert exception, handled above).
+	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	return a.authServer.GenerateHostCerts(ctx, req)
+}
+
+// checkAdditionalSystemRoles verifies additional system roles in host cert request.
+func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
+	// ensure requesting cert's primary role is a server role.
+	role, ok := a.context.Identity.(BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
+	}
+
+	// check that additional system roles are theoretically valid (distinct from permissibility, which
+	// is checked in the following loop).
+	for _, r := range req.SystemRoles {
+		if r.Check() != nil {
+			return trace.AccessDenied("additional system role %q cannot be applied (not a valid system role)", r)
+		}
+		if !r.IsLocalService() {
+			return trace.AccessDenied("additional system role %q cannot be applied (not a builtin service role)", r)
+		}
+	}
+
+	// load system role assertions if relevant
+	var assertions proto.UnstableSystemRoleAssertionSet
+	var err error
+	if req.UnstableSystemRoleAssertionID != "" {
+		assertions, err = a.authServer.UnstableGetSystemRoleAssertions(ctx, req.HostID, req.UnstableSystemRoleAssertionID)
+		if err != nil {
+			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
+			// of a general backend outage.
+			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.UnstableSystemRoleAssertionID, req.HostID, err)
+			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.UnstableSystemRoleAssertionID)
+		}
+	}
+
+	// check if additional system roles are permissible
+Outer:
+	for _, requestedRole := range req.SystemRoles {
+		if a.hasBuiltinRole(requestedRole) {
+			// instance is already known to hold this role
+			continue Outer
+		}
+
+		for _, assertedRole := range assertions.SystemRoles {
+			if requestedRole == assertedRole {
+				// instance recently demonstrated that it holds this role
+				continue Outer
+			}
+		}
+
+		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
+	}
+
+	return nil
+}
+
+func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	role, ok := a.context.Identity.(BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
+	}
+
+	if req.ServerID != role.GetServerID() {
+		return trace.AccessDenied("system role assertions do not support impersonation (%q -> %q)", role.GetServerID(), req.ServerID)
+	}
+
+	if !a.hasBuiltinRole(req.SystemRole) {
+		return trace.AccessDenied("cannot assert unheld system role %q", req.SystemRole)
+	}
+
+	if !req.SystemRole.IsLocalService() {
+		return trace.AccessDenied("cannot assert non-service system role %q", req.SystemRole)
+	}
+
+	return a.authServer.UnstableAssertSystemRole(ctx, req)
+}
+
+func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) error {
+	// Ensure that caller is a teleport server
+	role, ok := a.context.Identity.(BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
+	}
+
+	// wait for upstream hello
+	var upstreamHello proto.UpstreamInventoryHello
+	select {
+	case msg := <-ics.Recv():
+		switch m := msg.(type) {
+		case proto.UpstreamInventoryHello:
+			upstreamHello = m
+		default:
+			return trace.BadParameter("expected upstream hello, got: %T", m)
+		}
+	case <-ics.Done():
+		return trace.Wrap(ics.Error())
+	case <-a.CloseContext().Done():
+		return trace.Errorf("auth server shutdown")
+	}
+
+	// verify that server is creating stream on behalf of itself.
+	if upstreamHello.ServerID != role.GetServerID() {
+		return trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), upstreamHello.ServerID)
+	}
+
+	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
+	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
+	var filteredServices []types.SystemRole
+	for _, service := range upstreamHello.Services {
+		if !a.hasBuiltinRole(service) {
+			log.Warnf("Omitting service %q for control stream of instance %q (unknown or unauthorized).", service, role.GetServerID())
+			continue
+		}
+		filteredServices = append(filteredServices, service)
+	}
+
+	upstreamHello.Services = filteredServices
+
+	// send downstream hello (note: in theory we could send hellos simultaneously to slightly
+	// improve perf, but there is a potential benefit to having the downstream hello serve
+	// double-duty as an indicator of successful auth).
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: a.authServer.ServerID,
+	}
+	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
+	return nil
+}
+
+func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
+	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
+	// the inventory APIs once they are more developed.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
+	}
+	return a.authServer.GetInventoryStatus(ctx, req), nil
+}
+
+func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
+	// the inventory APIs once they are more developed.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
+	}
+	return a.authServer.PingInventory(ctx, req)
 }
 
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
@@ -1014,7 +1173,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1245,7 +1404,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		// Extract kube clusters into its own list.
-		clusters := []types.KubeCluster{}
+		var clusters []types.KubeCluster
 		for _, svc := range kubeservices {
 			for _, legacyCluster := range svc.GetKubernetesClusters() {
 				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
@@ -1256,7 +1415,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			}
 		}
 
-		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		sortedClusters := types.KubeClusters(clusters)
 		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2885,6 +3044,9 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case features.AdvancedAccessWorkflows == false && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
+	case features.ResourceAccessRequests == false && len(allowReq.SearchAsRoles) != 0:
+		return trace.AccessDenied(
+			"role field allow.search_as_roles is only available in enterprise subscriptions licensed for resource access requests")
 	default:
 		return nil
 	}

@@ -106,7 +106,6 @@ func TestCreateOIDCUser(t *testing.T) {
 	user, err := s.a.createOIDCUser(&createUserParams{
 		connectorName: "oidcService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, true)
@@ -121,7 +120,6 @@ func TestCreateOIDCUser(t *testing.T) {
 	_, err = s.a.createOIDCUser(&createUserParams{
 		connectorName: "oidcService",
 		username:      "foo@example.com",
-		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
 	}, false)
@@ -223,7 +221,7 @@ func TestSSODiagnostic(t *testing.T) {
 	oidcRequest := types.OIDCAuthRequest{
 		ConnectorID:   "-sso-test-okta",
 		Type:          constants.OIDC,
-		CertTTL:       types.Duration(defaults.OIDCAuthRequestTTL),
+		CertTTL:       defaults.OIDCAuthRequestTTL,
 		SSOTestFlow:   true,
 		ConnectorSpec: &spec,
 	}

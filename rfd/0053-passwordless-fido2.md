@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 53 - Passwordless for FIDO2 clients
@@ -351,7 +351,7 @@ Example of a login with multiple hardware keys, PIN, and multiple credentials
 [CLI-native authentication](#cli-native-authentication) section):
 
 ```shell
-$ tsh login --proxy=example.com --pwdless
+$ tsh login --proxy=example.com --auth=passwordless
 > Tap your security key
 *taps*
 > Enter your security key PIN:

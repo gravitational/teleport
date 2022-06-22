@@ -1,3 +1,9 @@
+---
+name: Test Plan
+about: Manual test plan for Teleport major releases
+labels: testplan
+---
+
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
@@ -336,7 +342,7 @@ Passwordless requires `tsh` compiled with libfido2 for most operations (apart
 from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
 
 Touch ID requires a properly built and signed `tsh` binary. Ask for a
-pre-release binary so you may run the tests.
+pre-release binary, so you may run the tests.
 
 This sections complements "Users -> Managing MFA devices". Ideally both macOS
 and Linux `tsh` binaries are tested for FIDO2 items.
@@ -892,24 +898,34 @@ and non interactive tsh bench loads.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
+  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis Cluster.
+  - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] Snowflake.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
+  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis Cluster.
+  - [ ] Self-hosted MSSQL.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
+  - [ ] Snowflake.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -932,11 +948,17 @@ and non interactive tsh bench loads.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
   - [ ] Can detect and register Redshift clusters.
   - [ ] Can detect and register ElastiCache Redis clusters.
+  - [ ] Can detect and register MemoryDB clusters.
+- [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
+  - [ ] Can detect and manage ElastiCache users
+  - [ ] Can detect and manage MemoryDB users 
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
+- [ ] Other
+  - [ ] MySQL server version reported by Teleport is correct.
 
 ## TLS Routing
 
@@ -967,6 +989,9 @@ and non interactive tsh bench loads.
     - [ ] MariaDB
     - [ ] MongoDB
     - [ ] CockroachDB
+    - [ ] Redis
+    - [ ] MSSQL
+    - [ ] Snowflake
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
@@ -1019,7 +1044,7 @@ and non interactive tsh bench loads.
   - When a user has a role with clipboard sharing enabled and is using a chromium based browser
     - [ ] Going to a desktop when clipboard permissions are in "Ask" mode (aka "prompt") causes the browser to show a prompt while the UI shows a spinner
     - [ ] X-ing out of the prompt (causing the clipboard permission to remain in "Ask" mode) causes the prompt to show up again
-    - [ ] Denying clibpoard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
+    - [ ] Denying clipboard permissions brings up a relevant error alert (with "Clipboard Sharing Disabled" in the top bar)
     - [ ] Allowing clipboard permissions allows you to see the desktop session, with "Clipboard Sharing Enabled" highlighted in the top bar
     - [ ] Copy text from local workstation, paste into remote desktop
     - [ ] Copy text from remote desktop, paste into local workstation
@@ -1091,3 +1116,178 @@ Ensure the above tests are completed for both:
 With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
 
 - [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+
+## Teleport Connect
+
+- Auth methods
+  - Verify that the app supports clusters using different auth settings
+    (`auth_service.authentication` in the cluster config):
+    - [ ] `type: local`, `second_factor: "off"`
+    - [ ] `type: local`, `second_factor: "otp"`
+    - [ ] `type: local`, `second_factor: "webauthn"`
+    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
+    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
+    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
+    - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+    - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
+    - [Authentication connectors](https://goteleport.com/docs/setup/reference/authentication/#authentication-connectors):
+      - For those you might want to use clusters that are deployed on the web, specified in parens.
+        Or set up the connectors on a local enterprise cluster following [the guide from our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
+      - [ ] GitHub (asteroid)
+        - [ ] local login on a GitHub-enabled cluster
+      - [ ] SAML (platform cluster)
+      - [ ] OIDC (e-demo)
+- Shell
+  - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf clusters).
+    - That is, opening new shell sessions in other workspaces or other clusters within the same
+      workspace should have no impact on the original shell session.
+  - [ ] Verify that the local shell is opened with correct env vars.
+    - `TELEPORT_PROXY` and `TELEPORT_CLUSTER` should pin the session to the correct cluster.
+    - `TELEPORT_HOME` should point to `~/Library/Application Support/Teleport Connect/tsh`.
+    - `PATH` should include `/Applications/Teleport Connect.app/Contents/Resources/bin`.
+  - [ ] Verify that the working directory in the tab title is updated when you change the directory
+        (only for local terminals).
+  - [ ] Verify that terminal resize works for both local and remote shells.
+    - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
+    - Run the program: `$ mc`
+    - Resize Teleport Connect to see if the panels resize with it
+  - [ ] Verify that the tab automatically closes on `$ exit` command.
+- State restoration
+  - [ ] Verify that the app asks about restoring the previous tabs when launched and restores them
+        properly.
+  - [ ] Verify that the app opens with the cluster that was active when you closed the app.
+  - [ ] Verify that the app remembers size & position after restart.
+  - [ ] Verify that [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575)
+        works.
+  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/tsh`
+        doesn't crash the app.
+  - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport Connect/app_state.json`
+        but not the `tsh` dir doesn't crash the app.
+  - [ ] Verify that logging out of a cluster and then logging in to the same cluster doesn't
+        remember previous tabs (they should be cleared on logout).
+- Connections picker
+  - [ ] Verify that the connections picker shows new connections when ssh & db tabs are opened.
+  - [ ] Check if those connections are available after the app restart.
+  - [ ] Check that those connections are removed after you log out of the root cluster that they
+        belong to.
+  - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
+- Cluster resources (servers/databases)
+  - [ ] Verify that the app shows the same resources as the Web UI.
+  - [ ] Verify that search is working for the resources lists.
+  - [ ] Verify that you can connect to these resources.
+  - [ ] Verify that clicking "Connect" shows available logins and db usernames.
+    - Logins and db usernames are taken from the role, under `spec.allow.logins` and
+      `spec.allow.db_users`.
+  - [ ] Repeat the above steps for resources in leaf clusters.
+  - [ ] Verify that tabs have correct titles set.
+  - [ ] Verify that the port number remains the same for a db connection between app restarts.
+  - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the app.
+        Verify that the app doesn't crash and the db connection tab shows you the error (address in
+        use) and offers a way to retry creating the connection.
+- Shortcuts
+  - [ ] Verify that switching between tabs works on `Cmd+[1...9]`.
+  - [ ] Verify that other shortcuts are shown after you close all tabs.
+  - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
+        elements.
+- Workspaces
+  - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to the
+        workspace of that cluster automatically.
+  - [ ] Verify that the state of the current workspace is preserved when you change the workspace (by
+        switching to another cluster) and return to the previous workspace.
+- Command bar & autocomplete
+  - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
+  - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
+  - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
+        autocompletes them.
+  - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
+  - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
+  - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
+        autocompletes them.
+  - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
+        running.
+  - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
+        various points.
+  - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
+        command bar.
+  - [ ] Verify that launching any other command that's not supported by the autocomplete opens a new
+        local shell with that command running.
+- Resilience when resources become unavailable
+  - For each scenario, create at least one tab for each available kind (minus k8s for now).
+  - For each scenario, first do the external action, then click "Sync" on the relevant cluster tab.
+    Verify that no unrecoverable error was raised. Then restart the app and verify that it was
+    restarted gracefully (no unrecoverable error on restart, the user can continue using the app).
+    * [ ] Stop the root cluster.
+    * [ ] Stop a leaf cluster.
+    * [ ] Disconnect your device from the internet.
+- Refreshing certs
+  - To test scenarios from this section, create a user with a role that has TTL of `1m`
+    (`spec.options.max_session_ttl`).
+  - Log in, create a db connection and run the CLI command; wait for the cert to expire, click
+    "Sync" on the cluster tab.
+    - Verify that after successfully logging in:
+      - [ ] the cluster info is synced
+      - [ ] the connection in the running CLI db client wasn't dropped; try executing `select
+            now();`, the client should be able to automatically reinstantiate the connection.
+      - [ ] the database proxy is able to handle new connections; click "Run" in the db tab and see
+            if it connects without problems. You might need to resync the cluster again in case they
+            managed to expire.
+    - [ ] Verify that closing the login modal without logging in shows an error related to syncing
+      the cluster.
+  - Log in; wait for the cert to expire, click "Connect" next to a db in the cluster tab.
+    - [ ] Verify that clicking "Connect" and then navigating to a different tab before the request
+          completes doesn't show the login modal and instead immediately shows the error.
+    - For this one, you might want to use a sever in our Cloud if the introduced latency is high
+      enough. Perhaps enabling throttling in dev tools can help too.
+  - [ ] Log in; create two db connections, then remove access to one of the db servers for that
+    user; wait for the cert to expire, click "Sync", verify that the db tab with no access shows an
+    appropriate error and that the other db tab still handles old and new connections.
+- [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
+  `~/Library/Application\ Support/Teleport\ Connect/logs`.
+- [ ] Verify that the password from the login form is not saved in the renderer log.
+- [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
+  works properly after that.
+
+## Host users creation
+
+[Host users creation docs](https://github.com/gravitational/teleport/pull/13056)
+[Host users creation RFD](https://github.com/gravitational/teleport/pull/11077)
+<!---
+TODO(lxea): replace links with actual docs once merged
+
+[Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
+[Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
+-->
+
+- Verify host users creation functionality
+  - [ ] non-existing users are created automatically
+  - [ ] users are added to groups
+    - [ ] non existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
+  - [ ] sudoers file creation is successful
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
+  - [ ] setting `disable_create_host_user: true` stops user creation from occurring
+
+## CA rotations
+
+- Verify the CA rotation functionality itself (by checking in the backend or with `tctl get cert_authority`)
+  - [ ] `standby` phase: only `active_keys`, no `additional_trusted_keys`
+  - [ ] `init` phase: `active_keys` and `additional_trusted_keys`
+  - [ ] `update_clients` and `update_servers` phases: the certs from the `init` phase are swapped
+  - [ ] `standby` phase: only the new certs remain in `active_keys`, nothing in `additional_trusted_keys`
+  - [ ] `rollback` phase (second pass, after completing a regular rotation): same content as in the `init` phase
+  - [ ] `standby` phase after `rollback`: same content as in the previous `standby` phase
+- Verify functionality in all phases (clients might have to log in again in lieu of waiting for credentials to expire between phases)
+  - [ ] SSH session in tsh from a previous phase
+  - [ ] SSH session in web UI from a previous phase
+  - [ ] New SSH session with tsh
+  - [ ] New SSH session with web UI
+  - [ ] New SSH session in a child cluster on the same major version
+  - [ ] New SSH session in a child cluster on the previous major version
+  - [ ] New SSH session from a parent cluster
+  - [ ] Application access through a browser
+  - [ ] Application access through curl with `tsh app login`
+  - [ ] `kubectl get po` after `tsh kube login`
+  - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)

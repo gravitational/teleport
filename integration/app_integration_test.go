@@ -41,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -835,7 +836,7 @@ type pack struct {
 	webCookie string
 	webToken  string
 
-	rootCluster    *TeleInstance
+	rootCluster    *helpers.TeleInstance
 	rootAppServers []*service.TeleportProcess
 	rootCertPool   *x509.CertPool
 
@@ -860,7 +861,7 @@ type pack struct {
 	jwtAppClusterName string
 	jwtAppURI         string
 
-	leafCluster    *TeleInstance
+	leafCluster    *helpers.TeleInstance
 	leafAppServers []*service.TeleportProcess
 
 	leafAppName        string
@@ -895,14 +896,13 @@ type appTestOptions struct {
 	extraLeafApps       []service.App
 	userLogins          []string
 	userTraits          map[string][]string
-	rootClusterPorts    *InstancePorts
-	leafClusterPorts    *InstancePorts
+	rootClusterPorts    *helpers.InstancePorts
+	leafClusterPorts    *helpers.InstancePorts
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig          func(config *service.Config)
-	leafConfig          func(config *service.Config)
-	skipSettingTimeouts bool
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -920,10 +920,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
-
-	if !opts.skipSettingTimeouts {
-		SetTestTimeouts(time.Millisecond * time.Duration(500))
-	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1055,24 +1051,24 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = NewInstance(InstanceConfig{
+	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = NewInstance(InstanceConfig{
+	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.leafClusterPorts,
 	})
 
@@ -1234,13 +1230,13 @@ func (p *pack) initWebSession(t *testing.T) {
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T) {
-	creds, err := GenerateUserCreds(UserCredsRequest{
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  p.rootCluster.Process,
 		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
-	tc, err := p.rootCluster.NewClientWithCreds(ClientConfig{
+	tc, err := p.rootCluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
@@ -1292,6 +1288,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)
