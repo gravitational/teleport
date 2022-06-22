@@ -1,0 +1,268 @@
+---
+title: teleport-plugin-event-handler Chart Reference
+description: Values that can be set using the teleport-plugin-event-handler Helm chart
+---
+
+The `teleport-plugin-event-handler` Helm chart is used to configure the Event Handler Teleport plugin which allows users to send events and session logs to a Fluentd instance for further processing or storage.
+
+You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/event-handler).
+
+This reference details available values for the `teleport-plugin-event-handler` chart.
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## `teleport.address`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+This parameter contains the host/port combination of the teleport auth server.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    address: "teleport.example.com:3025"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.address="teleport.example.com:3025"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Name of the Kubernetes secret that contains the credentials for the connection.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-event-handler-identity
+data:
+  auth_id: ...
+```
+
+Check out the [Event Handler Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/event-handler#prerequisites) for more information about how to acquire these credentials!
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretName: "teleport-plugin-event-handler-identity"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretName="teleport-plugin-event-handler-identity"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"auth_id"` | No |
+
+Name of the key in the Kubernetes secret that holds the credentials for the connection. If the secret follows the format above, it can be omitted.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretPath: "auth_id"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretPath="auth_id"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.url`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Fluentd URL where the events will be sent.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    url: "https://fluentd:24224/events.log"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.url="https://fluentd:24224/events.log"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.sessionUrl`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Fluentd URL where the session logs will be sent.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    sessionUrl: "https://fluentd:24224/session.log"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.sessionUrl="https://fluentd:24224/session.log"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.certificate.secretName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Secret containing the credentials to connect to Fluentd. It must to contain the CA certificate, the client key and the client certificate.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    secretName: "teleport-plugin-event-handler-fluentd"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.secretName="teleport-plugin-event-handler-fluentd"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.certificate.caPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"ca.crt"` | No |
+
+Name of the key which contains the CA certificate inside the secret.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    caPath: "ca.crt"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.caPath="ca.crt"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.certificate.keyPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"client.key"` | No |
+
+Name of the key which contains the client's private key inside the secret.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    keyPath: "client.key"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.keyPath="client.key"
+  ```
+  </TabItem>
+</Tabs>
+
+## `fluentd.certificate.certPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"client.crt"` | No |
+
+Name of the key which contains the client's certificate inside the secret.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  fluentd:
+    certPath: "client.crt"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set fluentd.certPath="client.crt"
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.output`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/fluentd.log"
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: /var/log/teleport/fluentd.log
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.output="/var/log/teleport/fluentd.log"
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.severity`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger severity. Possible values are "INFO", "ERROR", "DEBUG" or "WARN".
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    severity: DEBUG
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.severity="DEBUG"
+  ```
+  </TabItem>
+</Tabs>
