@@ -1,0 +1,10 @@
+teleport:
+  address: "teleportauth:3025"                        # Teleport Auth Server GRPC API address
+  identitySecretName: teleport-plugin-slack-identity  # Secret containing identity
+
+slack:
+  token: "xoxb-11xx"  # Slack Bot OAuth token
+
+# Mapping from role to recipients
+roleToRecipients:
+  '*': access-requests@example.com
