@@ -4352,14 +4352,13 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC time.
 		return nil, "", trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	decodedEvents, lastKey, err := authClient.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, nil)
+	decodedEvents, lastKey, err := authClient.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, nil, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
 	return decodedEvents, lastKey, nil
 }

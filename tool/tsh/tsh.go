@@ -69,9 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/tctl/common"
 
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
-
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -361,6 +358,12 @@ type CLIConf struct {
 
 	// disableAccessRequest disables automatic resource access requests.
 	disableAccessRequest bool
+
+	// FromUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	FromUTC string
+
+	// ToUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	ToUTC string
 }
 
 // Stdout returns the stdout writer.
@@ -594,6 +597,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	sessions := app.Command("sessions", "View and control recorded sessions.").Alias("session")
 	lsSessions := sessions.Command("ls", "List recorded sessions.")
 	lsSessions.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	lsSessions.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s", time.RFC3339)).StringVar(&cf.FromUTC)
+	lsSessions.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s", time.RFC3339)).StringVar(&cf.ToUTC)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -3898,6 +3903,22 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 const defaultSearchSessionPageLimit = 50
 
 func onSessions(cf *CLIConf) error {
+	fromUTC := time.Unix(0, 0)
+	toUTC := time.Now()
+	var err error
+	if cf.FromUTC != "" {
+		fromUTC, err = time.Parse(time.RFC3339, cf.FromUTC)
+		if err != nil {
+			return trace.Errorf("parsing session listing start time: %v", err)
+		}
+	}
+	if cf.ToUTC != "" {
+		toUTC, err = time.Parse(time.RFC3339, cf.ToUTC)
+		if err != nil {
+			return trace.Errorf("parsing session listing end time: %v", err)
+		}
+	}
+
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3909,7 +3930,7 @@ func onSessions(cf *CLIConf) error {
 		sessions = []apievents.AuditEvent{}
 		for {
 			nextEvents, eventKey, err := tc.SearchSessionEvents(cf.Context,
-				time.Unix(0, 0), time.Now(), defaultSearchSessionPageLimit,
+				fromUTC, toUTC, defaultSearchSessionPageLimit,
 				types.EventOrderDescending, prevEventKey)
 			if err != nil {
 				return err
