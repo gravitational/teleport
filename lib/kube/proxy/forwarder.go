@@ -1011,7 +1011,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		policySets = append(policySets, &policySet)
 	}
 
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
