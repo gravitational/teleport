@@ -128,6 +128,10 @@ db_service:
         cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
       {{- end }}
     {{- end }}
+    {{- if .DatabaseADDomain }}
+    ad:
+      domain: {{ .DatabaseADDomain }}
+    {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
     {{- range $name, $value := .StaticDatabaseStaticLabels }}
@@ -284,6 +288,8 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
+	// DatabaseADDomain is the Active Directory domain for authentication.
+	DatabaseADDomain string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
