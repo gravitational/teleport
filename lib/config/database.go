@@ -131,6 +131,9 @@ db_service:
     {{- if .DatabaseADDomain }}
     ad:
       domain: {{ .DatabaseADDomain }}
+      {{- if .DatabaseADSPN }}
+      spn: {{ .DatabaseADSPN }}
+      {{- end }}
     {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
@@ -290,6 +293,8 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseADDomain is the Active Directory domain for authentication.
 	DatabaseADDomain string
+	// DatabaseADSPN is the database Service Principal Name.
+	DatabaseADSPN string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
