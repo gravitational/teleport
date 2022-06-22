@@ -461,6 +461,8 @@ For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC 
 
 ## Access Requests
 
+Access Request is a Enterprise feature and is not available for OSS.
+
 ### Creating Access Requests (Role Based)
 Create a role with limited permissions `allow-roles-and-nodes`. This role allows you to see the Role screen and ssh into all nodes.
 
