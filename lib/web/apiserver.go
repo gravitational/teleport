@@ -1970,8 +1970,6 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 //
 // {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
-// Session id can be empty
-//
 // Successful response is a websocket stream that allows read write to the server
 //
 func (h *Handler) siteNodeConnect(
