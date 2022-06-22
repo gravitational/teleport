@@ -693,14 +693,15 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	if err == nil {
 		return nil
 	}
+
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	// Assume that failed handshake is a result of expired credentials,
 	// retry the login procedure
 	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && !trace.IsTrustError(err) {
 		return trace.Wrap(err)
-	}
-
-	if utils.IsPredicateError(err) {
-		return trace.Wrap(utils.PredicateError{Err: err})
 	}
 
 	// Don't try to login when using an identity file.
