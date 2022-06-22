@@ -49,6 +49,8 @@ func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, di
 		// dont use User.String() because it performs url encoding (rfc 1738),
 		// which we don't want in our header
 		password, _ := proxyURL.User.Password()
+		// empty user/pass is permitted by the spec. The minimum required is a single colon.
+		// see: https://datatracker.ietf.org/doc/html/rfc1945#section-11
 		creds := proxyURL.User.Username() + ":" + password
 		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
 		header.Add("Proxy-Authorization", basicAuth)
