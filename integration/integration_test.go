@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -88,7 +89,6 @@ type integrationTestSuite struct {
 }
 
 func newSuite(t *testing.T) *integrationTestSuite {
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	suite := &integrationTestSuite{}
 
@@ -207,6 +207,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
+	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -624,6 +625,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if len(os.Args) == 2 &&
@@ -6091,6 +6093,308 @@ func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
 			services, err := userSite.GetKubeServices(ctx)
 			require.NoError(t, err)
 			require.Len(t, services, testCase.wantsLen)
+		})
+	}
+}
+
+func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *TeleInstance, *TeleInstance)) *client.TeleportClient {
+	ctx := context.Background()
+	username := suite.me.Username
+	name := "test"
+	rootName := fmt.Sprintf("root-%s", name)
+	leafName := fmt.Sprintf("leaf-%s", name)
+
+	// Create root and leaf clusters.
+	root := NewInstance(InstanceConfig{
+		ClusterName: rootName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+	leaf := NewInstance(InstanceConfig{
+		ClusterName: leafName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		log:         suite.log,
+		Ports:       standardPortsOrMuxSetup(false),
+	})
+
+	role, err := types.NewRole("dev", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{username},
+		},
+	})
+	require.NoError(t, err)
+	root.AddUserWithRole(username, role)
+
+	makeConfig := func() (*testing.T, []*InstanceSecrets, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = false
+		return t, nil, tconf
+	}
+
+	oldInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(oldInsecure)
+
+	require.NoError(t, root.CreateEx(makeConfig()))
+	require.NoError(t, leaf.CreateEx(makeConfig()))
+	require.NoError(t, leaf.Process.GetAuthServer().UpsertRole(ctx, role))
+
+	// Connect leaf to root.
+	tcToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(tcToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	require.NoError(t, root.Process.GetAuthServer().UpsertToken(ctx, tokenResource))
+	trustedCluster := root.AsTrustedCluster(tcToken, types.RoleMap{
+		{Remote: "dev", Local: []string{"dev"}},
+	})
+
+	require.NoError(t, root.Start())
+	require.NoError(t, leaf.Start())
+
+	t.Cleanup(func() { root.StopAll() })
+	t.Cleanup(func() { leaf.StopAll() })
+
+	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
+
+	rootSSHPort := ports.PopInt()
+	rootProxySSHPort := ports.PopInt()
+	rootProxyWebPort := ports.PopInt()
+	require.NoError(t, root.StartNodeAndProxy("root-zero", rootSSHPort, rootProxyWebPort, rootProxySSHPort))
+	leafSSHPort := ports.PopInt()
+	leafProxySSHPort := ports.PopInt()
+	leafProxyWebPort := ports.PopInt()
+	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
+
+	// Add any extra services.
+	if extraServices != nil {
+		extraServices(t, root, leaf)
+	}
+
+	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
+	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
+
+	// Create client.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        root.Process,
+		Username:       username,
+		RouteToCluster: rootName,
+	})
+	require.NoError(t, err)
+
+	tc, err := root.NewClientWithCreds(ClientConfig{
+		Login:   username,
+		Cluster: rootName,
+		Host:    Loopback,
+		Port:    rootProxySSHPort,
+	}, *creds)
+	require.NoError(t, err)
+
+	leafCAs, err := leaf.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, leafCA := range leafCAs {
+		require.NoError(t, tc.AddTrustedCA(leafCA))
+	}
+
+	return tc
+}
+
+func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *TeleInstance) {
+		rootNodes := []string{"root-one", "root-two"}
+		leafNodes := []string{"leaf-one", "leaf-two"}
+
+		// Start a Teleport node that has SSH, Apps, Databases, and Kubernetes.
+		startNode := func(name string, i *TeleInstance) {
+			conf := suite.defaultServiceConfig()
+			conf.Auth.Enabled = false
+			conf.Proxy.Enabled = false
+
+			conf.DataDir = t.TempDir()
+			conf.Token = "token"
+			conf.UploadEventsC = i.UploadEventsC
+			conf.AuthServers = []utils.NetAddr{
+				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortWeb())),
+			}
+			conf.HostUUID = name
+			conf.Hostname = name
+			conf.SSH.Enabled = true
+			conf.CachePolicy = service.CachePolicy{
+				Enabled: true,
+			}
+			conf.SSH.Addr = utils.NetAddr{
+				Addr: fmt.Sprintf("%s:%d", Host, ports.PopInt()),
+			}
+			conf.Proxy.Enabled = false
+
+			conf.Apps.Enabled = true
+			conf.Apps.Apps = []service.App{
+				{
+					Name: name,
+					URI:  name,
+				},
+			}
+
+			conf.Databases.Enabled = true
+			conf.Databases.Databases = []service.Database{
+				{
+					Name:     name,
+					URI:      name,
+					Protocol: "postgres",
+				},
+			}
+
+			conf.Kube.KubeconfigPath = filepath.Join(conf.DataDir, "kube_config")
+			require.NoError(t, enableKube(conf, name))
+			conf.Kube.ListenAddr = nil
+			process, err := service.NewTeleport(conf)
+			require.NoError(t, err)
+			i.Nodes = append(i.Nodes, process)
+
+			expectedEvents := []string{
+				service.NodeSSHReady,
+				service.AppsReady,
+				service.DatabasesIdentityEvent,
+				service.DatabasesReady,
+				service.KubeIdentityEvent,
+				service.KubernetesReady,
+				service.TeleportReadyEvent,
+			}
+
+			receivedEvents, err := startAndWait(process, expectedEvents)
+			require.NoError(t, err)
+			log.Debugf("Teleport Kube Server (in instance %v) started: %v/%v events received.",
+				i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+		}
+
+		for _, node := range rootNodes {
+			startNode(node, root)
+		}
+		for _, node := range leafNodes {
+			startNode(node, leaf)
+		}
+	})
+
+	nodeTests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all nodes",
+			expected: []string{"root-zero", "root-one", "root-two",
+				"leaf-zero", "leaf-one", "leaf-two"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-zero", "leaf-one", "leaf-two"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range nodeTests {
+		t.Run("node - "+test.name, func(t *testing.T) {
+			if test.search != "" {
+				tc.SearchKeywords = strings.Split(test.search, " ")
+			} else {
+				tc.SearchKeywords = nil
+			}
+			clusters, err := tc.ListNodesWithFiltersAllClusters(context.TODO())
+			require.NoError(t, err)
+			nodes := make([]string, 0)
+			for _, v := range clusters {
+				for _, node := range v {
+					nodes = append(nodes, node.GetHostname())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, nodes)
+		})
+	}
+
+	// Everything other than ssh nodes.
+	tests := []struct {
+		name     string
+		search   string
+		expected []string
+	}{
+		{
+			name: "all",
+			expected: []string{"root-one", "root-two",
+				"leaf-one", "leaf-two"},
+		},
+		{
+			name:     "leaf only",
+			search:   "leaf",
+			expected: []string{"leaf-one", "leaf-two"},
+		},
+		{
+			name:     "two only",
+			search:   "two",
+			expected: []string{"root-two", "leaf-two"},
+		},
+	}
+
+	for _, test := range tests {
+		if test.search != "" {
+			tc.SearchKeywords = strings.Split(test.search, " ")
+		} else {
+			tc.SearchKeywords = nil
+		}
+
+		t.Run("apps - "+test.name, func(t *testing.T) {
+			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
+			require.NoError(t, err)
+			apps := make([]string, 0)
+			for _, v := range clusters {
+				for _, app := range v {
+					apps = append(apps, app.GetName())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, apps)
+		})
+
+		t.Run("databases - "+test.name, func(t *testing.T) {
+			clusters, err := tc.ListDatabasesAllClusters(context.TODO(), nil)
+			require.NoError(t, err)
+			databases := make([]string, 0)
+			for _, v := range clusters {
+				for _, db := range v {
+					databases = append(databases, db.GetName())
+				}
+			}
+
+			require.ElementsMatch(t, test.expected, databases)
+		})
+
+		t.Run("kube - "+test.name, func(t *testing.T) {
+			req := proto.ListResourcesRequest{}
+			if test.search != "" {
+				req.SearchKeywords = strings.Split(test.search, " ")
+			}
+			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(context.TODO(), req)
+			require.NoError(t, err)
+			clusters := make([]string, 0)
+			for _, cl := range clusterMap {
+				clusters = append(clusters, cl...)
+			}
+			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
 }
