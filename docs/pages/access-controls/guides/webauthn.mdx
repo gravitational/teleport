@@ -224,7 +224,9 @@ supported.
 
 If you have an existing U2F configuration, but haven't explicitly configured
 WebAuthn yet, Teleport will automatically derive your WebAuthn configuration
-from U2F. You may write the WebAuthn configuration yourself, but keep the U2F
+from your existing U2F configuration. 
+
+You may write the WebAuthn configuration yourself, but keep the U2F
 "app_id" field - doing so ensures any already-registered U2F devices won't need
 to be re-registered.
 
