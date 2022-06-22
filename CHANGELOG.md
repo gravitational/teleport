@@ -1168,7 +1168,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Reference](https://goteleport.com/teleport/docs/api-reference/) to simply developing applications against Teleport.
+We've added an [API Reference](https://goteleport.com/docs/api-reference/) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 
