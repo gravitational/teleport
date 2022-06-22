@@ -2079,13 +2079,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	participants := tracker.GetParticipants()
 	parties := make([]session.Party, 0, len(participants))
 
-	found := map[string]struct{}{}
 	for _, participant := range participants {
-		if _, ok := found[participant.User]; ok {
-			continue
-		}
-
-		found[participant.User] = struct{}{}
 		parties = append(parties, session.Party{
 			ID:         session.ID(participant.ID),
 			User:       participant.User,
