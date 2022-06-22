@@ -360,7 +360,7 @@ func (c *authContext) eventUserMeta() apievents.UserMetadata {
 	return meta
 }
 
-type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
+type dialFunc func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error)
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
 // proxy endpoint in a remote cluster.
@@ -374,7 +374,7 @@ type teleportClusterClient struct {
 
 // dialEndpoint dials a connection to a kube cluster using the given kube cluster endpoint
 func (c *teleportClusterClient) dialEndpoint(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-	return c.dial(ctx, network, endpoint.addr, endpoint.serverID)
+	return c.dial(ctx, network, endpoint)
 }
 
 // handlerWithAuthFunc is http handler with passed auth context
@@ -615,12 +615,13 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return nil, trace.Wrap(err)
 		}
 
-		dialFn = func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
+		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			return targetCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
 				ConnType: types.KubeTunnel,
-				ServerID: serverID,
+				ServerID: endpoint.serverID,
+				ProxyIDs: endpoint.proxyIDs,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed
@@ -634,19 +635,20 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return nil, trace.Wrap(err)
 		}
 
-		dialFn = func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
+		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			return localCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
 				ConnType: types.KubeTunnel,
-				ServerID: serverID,
+				ServerID: endpoint.serverID,
+				ProxyIDs: endpoint.proxyIDs,
 			})
 		}
 		isRemoteClosed = localCluster.IsClosed
 	} else {
 		// Don't have a reverse tunnel server, so we can only dial directly.
-		dialFn = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
-			return new(net.Dialer).DialContext(ctx, network, addr)
+		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+			return new(net.Dialer).DialContext(ctx, network, endpoint.addr)
 		}
 		isRemoteClosed = func() bool { return false }
 	}
@@ -1594,6 +1596,9 @@ type kubeClusterEndpoint struct {
 	// serverID is the server:cluster ID of the endpoint,
 	// which is used to find its corresponding reverse tunnel.
 	serverID string
+	// proxyIDs is the list of proxy ids that the cluster is
+	// connected to.
+	proxyIDs []string
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
@@ -1722,6 +1727,7 @@ outer:
 			endpoints = append(endpoints, kubeClusterEndpoint{
 				serverID: fmt.Sprintf("%s.%s", s.GetName(), ctx.teleportCluster.name),
 				addr:     s.GetAddr(),
+				proxyIDs: s.GetProxyIDs(),
 			})
 			continue outer
 		}
