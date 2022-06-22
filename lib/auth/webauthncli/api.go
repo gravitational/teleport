@@ -70,13 +70,13 @@ func Login(
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	// origin vs RPID sanity check.
 	// Doesn't necessarily means a failure, but it's likely to be one.
-	switch rpID := assertion.Response.RelyingPartyID; {
+	switch {
 	case origin == "", assertion == nil: // let downstream handle empty/nil
-	case !strings.HasPrefix(origin, "https://"+rpID):
+	case !strings.HasPrefix(origin, "https://"+assertion.Response.RelyingPartyID):
 		log.Warnf(""+
 			"WebAuthn: origin and RPID mismatch, "+
 			"if you are having authentication problems double check your proxy address "+
-			"(%q vs %q)", origin, rpID)
+			"(%q vs %q)", origin, assertion.Response.RelyingPartyID)
 	}
 
 	var attachment AuthenticatorAttachment
