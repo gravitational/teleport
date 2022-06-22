@@ -548,11 +548,15 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		FirstField:       eventNamespaceDocProperty,
 		SecondField:      createdAtDocProperty,
 		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
+		ThirdField:       firestore.DocumentID,
+		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:       eventNamespaceDocProperty,
 		SecondField:      createdAtDocProperty,
 		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
+		ThirdField:       firestore.DocumentID,
+		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:       eventTypeDocProperty,
