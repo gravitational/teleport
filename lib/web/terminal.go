@@ -277,7 +277,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(ws, r, t.join)
+	tc, err := t.makeClient(ws, r)
 	if err != nil {
 		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
 		writeErr := t.writeError(err, ws)
@@ -299,7 +299,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	go t.streamTerminal(ws, tc, t.join)
+	go t.streamTerminal(ws, tc)
 	go t.streamEvents(ws, tc)
 
 	// Block until the terminal session is complete.
@@ -308,7 +308,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request, join bool) (*client.TeleportClient, error) {
+func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
 	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -318,7 +318,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request, join b
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	if join {
+	if t.join {
 		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
 	} else {
 		clientConfig.HostLogin = t.params.Login
@@ -447,11 +447,11 @@ func promptMFAChallenge(
 
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
-func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient, join bool) {
+func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
 	defer t.terminalCancel()
 	var err error
 
-	if join {
+	if t.join {
 		err = tc.Join(t.terminalContext, types.SessionPeerMode, apidefaults.Namespace, t.params.SessionID, tc.Stdin)
 	} else {
 		// Establish SSH connection to the server. This function will block until
