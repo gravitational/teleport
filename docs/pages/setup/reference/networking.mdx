@@ -123,7 +123,7 @@ Read more in our [TLS Routing](../../architecture/tls-routing.mdx) guide.
 
 | Port | Service | Description |
 | - | - | - |
-| 443 | Proxy | In TLS Routing mode, Proxy handles all protocols, including Web UI, HTTPS, Kubernetes SSH, all databases on a single port. |
+| 443 | Proxy | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport Node is replacing SSH.|
 | 3025 | Auth | SSH port used by the Auth Service to serve its API to other Nodes in a cluster.|
 
