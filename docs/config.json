@@ -266,7 +266,7 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Console Access",
+              "title": "AWS Console & API Access",
               "slug": "/application-access/guides/aws-console/"
             },
             {
@@ -472,6 +472,10 @@
             {
               "title": "AWS Redshift",
               "slug": "/database-access/guides/postgres-redshift/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
