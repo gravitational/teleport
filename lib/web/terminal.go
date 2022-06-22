@@ -448,11 +448,10 @@ func promptMFAChallenge(
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
 	defer t.terminalCancel()
-	var err error
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 
 	// TODO IN: 5.0
 	//
