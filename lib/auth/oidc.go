@@ -621,7 +621,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
