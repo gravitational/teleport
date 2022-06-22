@@ -139,6 +139,10 @@ db_service:
       spn: {{ .DatabaseADSPN }}
       {{- end }}
     {{- end }}
+    {{- if .DatabaseGCPProjectID }}
+    gcp:
+      project_id: {{ .DatabaseGCPProjectID }}
+    {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
     {{- range $name, $value := .StaticDatabaseStaticLabels }}
@@ -299,6 +303,8 @@ type DatabaseSampleFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
+	DatabaseGCPProjectID string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
