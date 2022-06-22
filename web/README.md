@@ -2,11 +2,11 @@
 
 This mono-repository contains the source code for:
 
-* the web UIs served by the `teleport` server
-   * [`packages/teleport`](packages/teleport) for the OSS version
-   * `packages/webapps.e` for the enterprise version
-* the Electron app of [Teleport Connect](https://goteleport.com/connect/)
-   * [`packages/teleterm`](packages/teleterm)
+- the web UIs served by the `teleport` server
+  - [`packages/teleport`](packages/teleport) for the OSS version
+  - `packages/webapps.e` for the enterprise version
+- the Electron app of [Teleport Connect](https://goteleport.com/connect/)
+  - [`packages/teleterm`](packages/teleterm)
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
@@ -160,12 +160,12 @@ auth_service:
     type: local
     second_factor: optional
     webauthn:
-      rp_id: proxy.0.0.0.0.nip.io
+      rp_id: proxy.127.0.0.1.nip.io
 
 proxy_service:
   enabled: yes
   # setting public_addr is optional, useful if using different port e.g. 8080 instead of default 3080
-  public_addr: ['proxy.0.0.0.0.nip.io']
+  public_addr: ['proxy.127.0.0.1.nip.io']
 ```
 
-Then start the dev server like `yarn start-teleport --target=https://proxy.0.0.0.0.nip.io:3080` and access it at https://proxy.0.0.0.0.nip.io:8080.
+Then start the dev server like `yarn start-teleport --target=https://proxy.127.0.0.1.nip.io:3080` and access it at https://proxy.127.0.0.1.nip.io:8080.
