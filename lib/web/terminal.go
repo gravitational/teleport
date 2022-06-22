@@ -453,7 +453,6 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-	panic(trace.DebugReport(err))
 
 	// TODO IN: 5.0
 	//

@@ -544,7 +544,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if existing.Login != rsess.Login {
+			if existing.Login != rsess.Login && rsess.Login != teleport.SSHSessionJoinPrincipal {
 				return nil, trace.AccessDenied(
 					"can't switch users from %v to %v for session %v",
 					rsess.Login, existing.Login, id)
@@ -1544,7 +1544,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.login != p.login {
+	if s.login != p.login && p.login != teleport.SSHSessionJoinPrincipal {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
 			s.login, p.login, s.id)
