@@ -291,16 +291,7 @@ func (s *SessionTrackerV1) GetParticipants() []Participant {
 
 // AddParticipant adds a participant to the session tracker.
 func (s *SessionTrackerV1) AddParticipant(participant Participant) {
-	contains := false
-	for _, p := range s.Spec.Participants {
-		if p.User == participant.User {
-			contains = true
-		}
-	}
-
-	if !contains {
-		s.Spec.Participants = append(s.Spec.Participants, participant)
-	}
+	s.Spec.Participants = append(s.Spec.Participants, participant)
 }
 
 // RemoveParticipant removes a participant from the session tracker.
