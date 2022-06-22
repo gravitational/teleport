@@ -907,12 +907,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if process.Config.Auth.Enabled && len(process.Config.AuthServers) == 0 {
-		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.SSHAddr}
+		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.ListenAddr}
 	}
 
 	if len(process.Config.AuthServers) != 0 && process.Config.AuthServers[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
-		listener, err := process.importOrCreateListener(listenerAuthSSH, process.Config.Auth.SSHAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
 			process.Config.AuthServers = []utils.NetAddr{utils.FromAddr(listener.Addr())}
 		}
@@ -1605,14 +1605,13 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// auth server listens on SSH and TLS, reusing the same socket
-	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerAuth, cfg.Auth.ListenAddr.Addr)
 	if err != nil {
-		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
+		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.ListenAddr.Addr, err)
 		return trace.Wrap(err)
 	}
 
-	// use listener addr instead of cfg.Auth.SSHAddr in order to support
+	// use listener addr instead of cfg.Auth.ListenAddr in order to support
 	// binding to a random port (e.g. `127.0.0.1:0`).
 	authAddr := listener.Addr().String()
 
@@ -1621,6 +1620,8 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.EnableProxyProtocol {
 		log.Infof("Starting Auth service with PROXY protocol support.")
 	}
+
+	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:            listener,
