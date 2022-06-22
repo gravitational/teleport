@@ -1478,7 +1478,7 @@ func TestActiveSessions(t *testing.T) {
 	sess := sessResp.Sessions[0]
 	require.Equal(t, sid, sess.ID)
 	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
-	require.Len(t, sess.Parties, 1)
+	require.NotNil(t, sess.Parties)
 	require.Greater(t, sess.TerminalParams.H, 0)
 	require.Greater(t, sess.TerminalParams.W, 0)
 	require.Equal(t, pack.login, sess.Login)
