@@ -80,6 +80,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			DatabaseADKeytabFile:         "/path/to/keytab",
 			DatabaseGCPProjectID:         "xxx-1234",
 			DatabaseGCPInstanceID:        "example",
+			DatabaseCACertFile:           "/path/to/pem",
 		}
 
 		databases := generateAndParseConfig(t, flags)
@@ -95,6 +96,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Equal(t, flags.DatabaseADKeytabFile, databases.Databases[0].AD.KeytabFile)
 		require.Equal(t, flags.DatabaseGCPProjectID, databases.Databases[0].GCP.ProjectID)
 		require.Equal(t, flags.DatabaseGCPInstanceID, databases.Databases[0].GCP.InstanceID)
+		require.Equal(t, flags.DatabaseCACertFile, databases.Databases[0].TLS.CACertFile)
 
 		require.Len(t, databases.Databases[0].DynamicLabels, 1)
 		require.ElementsMatch(t, []CommandLabel{

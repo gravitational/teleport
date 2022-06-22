@@ -120,6 +120,10 @@ db_service:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
     uri: {{ .StaticDatabaseURI }}
+    {{- if .DatabaseCACertFile }}
+    tls:
+      ca_cert_file: {{ .DatabaseCACertFile }}
+    {{- end }}
     {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
     aws:
       {{- if .DatabaseAWSRegion }}
@@ -317,6 +321,8 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseCACertFile is the database CA cert path.
+	DatabaseCACertFile string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
