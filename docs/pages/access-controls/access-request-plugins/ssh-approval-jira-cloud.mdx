@@ -82,7 +82,7 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access. 
+and Teleport Auth Service access.
 
 <Tabs>
 <TabItem label="Download">
@@ -111,6 +111,15 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 </TabItem>
 </Tabs>
 
+<Details title="Installing via Helm?">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm install teleport-plugin-jira teleport/teleport-plugin-jira --values teleport-jira-helm.yaml
+  ```
+
+  See an example for `teleport-jira-helm.yaml` under [Running Teleport in Kubernetes?](#running-teleport-in-kubernetes)
+</Details>
+
 ### Configuration file
 
 The Teleport Jira plugin uses a config file in TOML format. Generate a boilerplate config by
@@ -135,6 +144,34 @@ By default, the Jira Teleport plugin will use a config in `/etc/teleport-jira.to
 ```
 </TabItem>
 </Tabs>
+
+<Details title="Running Teleport in Kubernetes?">
+  <Tabs>
+    <TabItem label="Self-hosted" scope={["oss","enterprise","cloud"]}>
+
+```yaml
+(!examples/resources/plugins/teleport-jira-helm-self.yaml!)
+```
+
+  </TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
+
+```yaml
+(!examples/resources/plugins/teleport-jira-helm-cloud.yaml!)
+```
+
+    </TabItem>
+  </Tabs>
+
+Use the following command to create a Kubernetes secret from the identity file
+generated in the [export identity](#step-37-export-the-access-plugin-identity) section:
+
+```console
+kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
+```
+
+For installation instructions, see [Installing via Helm?](#installing-via-helm)
+</Details>
 
 The `[teleport]` section describes where the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated.
 

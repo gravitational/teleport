@@ -1,0 +1,33 @@
+---
+title: Helm chart reference
+description: A list of values that can be set using Teleport Helm charts and their purpose
+---
+
+# Teleport
+
+<TileSet>
+<Tile href="./reference/teleport-cluster.mdx" icon="kubernetes" title="teleport-cluster">
+![Teleport ](../../../img/k8s/mini-diagrams/teleport-in-k8s-mono.svg)
+
+Deploy the `teleport` daemon on Kubernetes with preset configurations for the
+Auth and Proxy Services and support for any Teleport service configuration.
+
+</Tile>
+<Tile href="./reference/teleport-kube-agent.mdx" icon="kubernetes" title="teleport-kube-agent">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Deploy the Teleport Kubernetes Service, Application Service, or Database Service on Kubernetes.
+
+</Tile>
+</TileSet>
+
+# Plugins
+
+<TileSet>
+<Tile href="./reference/teleport-plugin-jira.mdx" icon="kubernetes" title="teleport-plugin-jira">
+![Kubernetes agent](../../../img/k8s/mini-diagrams/k8s-to-teleport-mono.svg)
+
+Send notifications about acccess requests and can automatically approve them via PagerDuty.
+
+</Tile>
+</TileSet>

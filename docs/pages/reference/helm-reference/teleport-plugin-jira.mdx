@@ -1,0 +1,314 @@
+---
+title: teleport-plugin-jira Chart Reference
+description: Values that can be set using the teleport-plugin-jira Helm chart
+---
+
+The `teleport-plugin-jira` Helm chart is used to configure the Jira Teleport plugin which allows users to receive and manage access requests as tasks in a Jira project.
+
+You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/jira).
+
+This reference details available values for the `teleport-plugin-jira` chart.
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## `teleport.address`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+This parameter contains the host/port combination of the teleport auth server.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    address: "teleport.example.com:3025"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.address="teleport.example.com:3025"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretName`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Name of the Kubernetes secret that contains the credentials for the connection.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-jira-identity
+data:
+  auth_id: ...
+```
+
+Check out the [Jira Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/jira#prerequisites) for more information about how to acquire these credentials!
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretName: "teleport-plugin-jira-identity"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretName="teleport-plugin-jira-identity"
+  ```
+  </TabItem>
+</Tabs>
+
+## `teleport.identitySecretPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"auth_id"` | No |
+
+Name of the key in the Kubernetes secret that holds the credentials for the connection. If the secret follows the format above, it can be omitted.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  teleport:
+    identitySecretPath: "auth_id"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set teleport.identitySecretPath="auth_id"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.url`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Base URL of the Jira instance
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    url: "https://jira.example.com/"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.url="https://jira.example.com/"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.token`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | No |
+
+Jira token of the bot user to impersonate when sending the messages. Ignored when `jira.apiTokenFromSecret` is set.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    token: "jiraapitoken"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.token="jiraapitoken"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.apiTokenFromSecret`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | No |
+
+Secret containing the Jira token of the bot user.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    apiTokenFromSecret: "teleport-jira-plugin-token"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.apiTokenFromSecret="teleport-jira-plugin-token"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.apiTokenSecretPath`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"jiraApiToken"` | No |
+
+Key where the token is located inside the secret specified by `jira.apiTokenFromSecret`.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    apiTokenSecretPath: "token"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.apiTokenSecretPath="token"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.username`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+Jira username / email address associated with the token.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    username: "user@example.com"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.username="user@example.com"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.recipients`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `array` | `[]` | Yes |
+
+List of recipients who will receive notifications about access requests.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    recipients:
+      - user1@example.com
+      - user2@example.com
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.recipients[0]="user1@example.com",jira.recipients[0]="user1@example.com"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.project`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+List of project who will receive notifications about access requests.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    project: MYPROJ
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.project=MYPROJ
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.issueType`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `"Task"` | Yes |
+
+List of issueType who will receive notifications about access requests.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    issueType: Task
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.issueType=Task
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.output`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/jira.log"
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    output: /var/log/teleport/jira.log
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.output="/var/log/teleport/jira.log"
+  ```
+  </TabItem>
+</Tabs>
+
+## `log.severity`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `stdout` | No |
+
+Logger severity. Possible values are "INFO", "ERROR", "DEBUG" or "WARN".
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  log:
+    severity: DEBUG
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set log.severity="DEBUG"
+  ```
+  </TabItem>
+</Tabs>
