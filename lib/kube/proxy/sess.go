@@ -1071,11 +1071,6 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		State:       types.SessionState_SessionStatePending,
 		Hostname:    s.podName,
 		ClusterName: s.ctx.teleportCluster.name,
-		Participants: []types.Participant{{
-			ID:         p.ID.String(),
-			User:       p.Ctx.User.GetName(),
-			LastActive: time.Now().UTC(),
-		}},
 		KubernetesCluster: s.ctx.kubeCluster,
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
