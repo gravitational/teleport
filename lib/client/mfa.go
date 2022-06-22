@@ -71,23 +71,25 @@ type PromptMFAChallengeOpts struct {
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
+// If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
 // See client.PromptMFAChallenge.
 func (tc *TeleportClient) PromptMFAChallenge(
-	ctx context.Context, c *proto.MFAAuthenticateChallenge, optsOverride *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
+	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	addr := proxyAddr
+	if addr == "" {
+		addr = tc.WebProxyAddr
+	}
+
 	opts := &PromptMFAChallengeOpts{
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 		PreferOTP:               tc.PreferOTP,
 	}
-	if optsOverride != nil {
-		opts.PromptDevicePrefix = optsOverride.PromptDevicePrefix
-		opts.Quiet = optsOverride.Quiet
-		if optsOverride.AuthenticatorAttachment != wancli.AttachmentAuto {
-			opts.AuthenticatorAttachment = optsOverride.AuthenticatorAttachment
-		}
-		opts.PreferOTP = optsOverride.PreferOTP
-		opts.AllowStdinHijack = optsOverride.AllowStdinHijack
+	if applyOpts != nil {
+		applyOpts(opts)
 	}
-	return PromptMFAChallenge(ctx, c, tc.WebProxyAddr, opts)
+
+	return PromptMFAChallenge(ctx, c, addr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
