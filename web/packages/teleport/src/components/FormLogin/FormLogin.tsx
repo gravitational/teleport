@@ -42,7 +42,7 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
-import Slider, { SliderProps } from 'teleport/components/StepSlider';
+import { StepSlider, StepComponentProps } from 'design/StepSlider';
 import { UserCredentials } from 'teleport/services/auth';
 import SSOButtonList from './SsoButtons';
 
@@ -100,7 +100,7 @@ export default function LoginForm(props: Props) {
           {attempt.message}
         </Alerts.Danger>
       )}
-      <Slider<typeof loginViews>
+      <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
         {...props}
@@ -315,7 +315,7 @@ const Primary = ({
   refCallback,
   willTransition,
   ...otherProps
-}: Props & SliderProps<'default'>) => {
+}: Props & StepComponentProps) => {
   const ssoEnabled = otherProps.authProviders?.length > 0;
   let otherOptionsAvailable = true;
   let $primary;
@@ -359,7 +359,7 @@ const Secondary = ({
   prev,
   refCallback,
   ...otherProps
-}: Props & SliderProps<'default'>) => {
+}: Props & StepComponentProps) => {
   const ssoEnabled = otherProps.authProviders?.length > 0;
   const { primaryAuthType, isPasswordlessEnabled } = otherProps;
 

@@ -428,6 +428,50 @@ exports[`auth2faType: optional rendering 1`] = `
   align-items: flex-end;
 }
 
+.c3 .prev-slide-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .prev-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .prev-slide-exit {
+  transform: translateX(100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .next-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-exit {
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
 .c12 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
@@ -497,50 +541,6 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c12 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
-}
-
-.c3 .prev-slide-enter {
-  transform: translateX(-100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .prev-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .prev-slide-exit {
-  transform: translateX(100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-enter {
-  transform: translateX(100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .next-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-exit {
-  transform: translateX(-100%);
-  opacity: 1;
-  transition: transform 500ms ease;
 }
 
 <div
@@ -867,6 +867,50 @@ exports[`auth2faType: otp rendering 1`] = `
   align-items: flex-end;
 }
 
+.c3 .prev-slide-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .prev-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .prev-slide-exit {
+  transform: translateX(100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .next-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-exit {
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
 .c12 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
@@ -936,50 +980,6 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c12 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
-}
-
-.c3 .prev-slide-enter {
-  transform: translateX(-100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .prev-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .prev-slide-exit {
-  transform: translateX(100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-enter {
-  transform: translateX(100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .next-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-exit {
-  transform: translateX(-100%);
-  opacity: 1;
-  transition: transform 500ms ease;
 }
 
 <div
@@ -1320,6 +1320,50 @@ exports[`auth2faType: webauthn rendering 1`] = `
   align-items: flex-end;
 }
 
+.c3 .prev-slide-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .prev-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .prev-slide-exit {
+  transform: translateX(100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .next-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-exit {
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
 .c12 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
@@ -1389,50 +1433,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c12 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
-}
-
-.c3 .prev-slide-enter {
-  transform: translateX(-100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .prev-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .prev-slide-exit {
-  transform: translateX(100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-enter {
-  transform: translateX(100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .next-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-exit {
-  transform: translateX(-100%);
-  opacity: 1;
-  transition: transform 500ms ease;
 }
 
 <div
@@ -1826,6 +1826,50 @@ exports[`cloud auth2faType: on rendering 1`] = `
   align-items: flex-end;
 }
 
+.c3 .prev-slide-enter {
+  transform: translateX(-100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .prev-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .prev-slide-exit {
+  transform: translateX(100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-enter {
+  transform: translateX(100%);
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.c3 .next-slide-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
+.c3 .next-slide-exit {
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: transform 500ms ease;
+}
+
 .c17 .react-select-container {
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
@@ -1895,50 +1939,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c17 .react-select--is-disabled .react-select__indicator {
   color: rgba(0,0,0,0.14);
-}
-
-.c3 .prev-slide-enter {
-  transform: translateX(-100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .prev-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .prev-slide-exit {
-  transform: translateX(100%);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-enter {
-  transform: translateX(100%);
-  opacity: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-.c3 .next-slide-enter-active {
-  transform: translateX(0);
-  opacity: 1;
-  transition: transform 500ms ease;
-}
-
-.c3 .next-slide-exit {
-  transform: translateX(-100%);
-  opacity: 1;
-  transition: transform 500ms ease;
 }
 
 <div

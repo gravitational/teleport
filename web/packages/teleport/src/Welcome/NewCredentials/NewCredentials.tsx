@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 import { Card } from 'design';
 import { PrimaryAuthType } from 'shared/services';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
-import StepSlider from 'teleport/components/StepSlider';
+import { StepSlider, NewFlow, StepComponentProps } from 'design/StepSlider';
 import useToken, { State } from '../useToken';
 import { Expired } from './Expired';
 import { RegisterSuccess } from './Success';
@@ -27,6 +27,10 @@ import { NewPasswordlessDevice } from './NewPasswordlessDevice';
 import { NewPassword } from './NewPassword';
 
 export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;
+export type SliderProps = StepComponentProps & {
+  changeFlow(f: NewFlow<LoginFlow>): void;
+};
+
 const loginFlows = {
   local: [NewPassword, NewMfaDevice],
   passwordless: [NewPasswordlessDevice],
@@ -72,6 +76,7 @@ export function NewCredentials(props: State & Props) {
 
   // Check which flow to render as default.
   const [password, setPassword] = useState('');
+  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
   const [flow, setFlow] = useState<LoginFlow>(() => {
     if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
       return 'local';
@@ -79,8 +84,12 @@ export function NewCredentials(props: State & Props) {
     return 'passwordless';
   });
 
-  function onSwitchFlow(flow: keyof typeof loginFlows) {
+  function onSwitchFlow(flow: LoginFlow) {
     setFlow(flow);
+  }
+
+  function onNewFlow(flow: NewFlow<LoginFlow>) {
+    setNewFlow(flow);
   }
 
   function updatePassword(password: string) {
@@ -93,6 +102,8 @@ export function NewCredentials(props: State & Props) {
         flows={loginFlows}
         currFlow={flow}
         onSwitchFlow={onSwitchFlow}
+        newFlow={newFlow}
+        changeFlow={onNewFlow}
         {...props}
         password={password}
         updatePassword={updatePassword}

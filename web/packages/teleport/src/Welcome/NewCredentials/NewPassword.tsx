@@ -23,8 +23,7 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
-import { SliderProps } from 'teleport/components/StepSlider';
-import { Props as CredentialsProps, LoginFlow } from './NewCredentials';
+import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 
 export function NewPassword(props: Props) {
   const {
@@ -36,7 +35,7 @@ export function NewPassword(props: Props) {
     primaryAuthType,
     password,
     updatePassword,
-    switchFlow,
+    changeFlow,
     next,
     refCallback,
     willTransition,
@@ -64,7 +63,7 @@ export function NewPassword(props: Props) {
 
   function switchToPasswordlessFlow(e, applyNextAnimation = false) {
     e.preventDefault();
-    switchFlow('passwordless', applyNextAnimation);
+    changeFlow({ flow: 'passwordless', applyNextAnimation });
   }
 
   return (
@@ -140,7 +139,7 @@ export function NewPassword(props: Props) {
 }
 
 type Props = CredentialsProps &
-  SliderProps<LoginFlow> & {
+  SliderProps & {
     password: string;
     updatePassword(pwd: string): void;
   };

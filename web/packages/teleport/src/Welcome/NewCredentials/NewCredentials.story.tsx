@@ -16,8 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Card } from 'design';
-import { SliderProps } from 'teleport/components/StepSlider';
-import { Props, NewCredentials } from './NewCredentials';
+import { Props, NewCredentials, SliderProps } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
 
 export default {
@@ -150,13 +149,13 @@ function CardWrapper({ children }) {
   );
 }
 
-const sliderProps: SliderProps<any> & {
+const sliderProps: SliderProps & {
   password: string;
   updatePassword(): void;
 } = {
   next: () => null,
   prev: () => null,
-  switchFlow: () => null,
+  changeFlow: () => null,
   refCallback: () => null,
   willTransition: false,
   password: '',
