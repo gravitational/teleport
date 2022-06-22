@@ -130,8 +130,11 @@ db_service:
         cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
       {{- end }}
     {{- end }}
-    {{- if or .DatabaseADDomain .DatabaseADSPN }}
+    {{- if or .DatabaseADDomain .DatabaseADSPN .DatabaseADKeytabFile }}
     ad:
+      {{- if .DatabaseADKeytabFile }}
+      keytab_file: {{ .DatabaseADKeytabFile }}
+      {{- end }}
       {{- if .DatabaseADDomain }}
       domain: {{ .DatabaseADDomain }}
       {{- end }}
@@ -308,6 +311,8 @@ type DatabaseSampleFlags struct {
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
 	DatabaseADSPN string
+	// DatabaseADKeytabFile is the path to Kerberos keytab file.
+	DatabaseADKeytabFile string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
