@@ -53,7 +53,7 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 		return nil, trace.Wrap(err)
 	}
 
-	apiGws := []*api.Gateway{}
+	apiGws := make([]*api.Gateway, 0, len(gws))
 	for _, gw := range gws {
 		apiGateway, err := newAPIGateway(gw)
 		if err != nil {
