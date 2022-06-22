@@ -1762,18 +1762,13 @@ func (p *party) closeUnderSessionLock() {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:   s.id.String(),
-		Kind:        string(types.SSHSessionKind),
-		State:       types.SessionState_SessionStatePending,
-		Hostname:    s.registry.Srv.GetInfo().GetHostname(),
-		Address:     s.scx.srv.ID(),
-		ClusterName: s.scx.ClusterName,
-		Login:       s.login,
-		Participants: []types.Participant{{
-			ID:         teleportUser,
-			User:       teleportUser,
-			LastActive: s.registry.clock.Now(),
-		}},
+		SessionID:    s.id.String(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStatePending,
+		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
+		Address:      s.scx.srv.ID(),
+		ClusterName:  s.scx.ClusterName,
+		Login:        s.login,
 		HostUser:     teleportUser,
 		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,

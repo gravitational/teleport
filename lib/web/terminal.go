@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -84,6 +85,7 @@ type TerminalRequest struct {
 type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -116,6 +118,17 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
+	var join bool
+	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
+	switch {
+	case trace.IsNotFound(err):
+		join = false
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		join = true
+	}
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -129,6 +142,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
+		join:         join,
 	}, nil
 }
 
@@ -178,6 +192,9 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
+
+	// join is set if we're joining an existing session
+	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -260,7 +277,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(ws, r)
+	tc, err := t.makeClient(ws, r, t.join)
 	if err != nil {
 		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
 		writeErr := t.writeError(err, ws)
@@ -282,7 +299,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	go t.startPingLoop(ws)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	go t.streamTerminal(ws, tc)
+	go t.streamTerminal(ws, tc, t.join)
 	go t.streamEvents(ws, tc)
 
 	// Block until the terminal session is complete.
@@ -291,7 +308,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
+func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request, join bool) (*client.TeleportClient, error) {
 	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,8 +318,14 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
+	if join {
+		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
+	} else {
+		clientConfig.HostLogin = t.params.Login
+	}
+
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
@@ -313,7 +336,6 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
 	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
@@ -425,12 +447,17 @@ func promptMFAChallenge(
 
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
-func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
+func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient, join bool) {
 	defer t.terminalCancel()
+	var err error
 
-	// Establish SSH connection to the server. This function will block until
-	// either an error occurs or it completes successfully.
-	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	if join {
+		err = tc.Join(t.terminalContext, types.SessionPeerMode, apidefaults.Namespace, t.params.SessionID, tc.Stdin)
+	} else {
+		// Establish SSH connection to the server. This function will block until
+		// either an error occurs or it completes successfully.
+		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	}
 
 	// TODO IN: 5.0
 	//

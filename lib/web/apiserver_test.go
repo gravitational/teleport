@@ -1478,7 +1478,7 @@ func TestActiveSessions(t *testing.T) {
 	sess := sessResp.Sessions[0]
 	require.Equal(t, sid, sess.ID)
 	require.Equal(t, s.node.GetNamespace(), sess.Namespace)
-	require.NotNil(t, sess.Parties)
+	require.Len(t, sess.Parties, 1)
 	require.Greater(t, sess.TerminalParams.H, 0)
 	require.Greater(t, sess.TerminalParams.W, 0)
 	require.Equal(t, pack.login, sess.Login)
@@ -3310,6 +3310,10 @@ func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Se
 
 func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
+}
+
+func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, trace.NotFound("foo")
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
