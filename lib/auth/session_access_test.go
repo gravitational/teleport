@@ -28,6 +28,7 @@ type startTestCase struct {
 	host         []types.Role
 	sessionKinds []types.SessionKind
 	participants []SessionAccessContext
+	owner        string
 	expected     []bool
 }
 
@@ -185,7 +186,7 @@ func TestSessionAccessStart(t *testing.T) {
 			}
 
 			for i, kind := range testCase.sessionKinds {
-				evaluator := NewSessionAccessEvaluator(policies, kind)
+				evaluator := NewSessionAccessEvaluator(policies, kind, testCase.owner)
 				result, _, err := evaluator.FulfilledFor(testCase.participants)
 				require.NoError(t, err)
 				require.Equal(t, testCase.expected[i], result)
@@ -199,6 +200,7 @@ type joinTestCase struct {
 	host         types.Role
 	sessionKinds []types.SessionKind
 	participant  SessionAccessContext
+	owner        string
 	expected     []bool
 }
 
@@ -247,6 +249,25 @@ func successGlobJoinTestCase(t *testing.T) joinTestCase {
 			Roles:    []types.Role{participantRole},
 		},
 		expected: []bool{true, true},
+	}
+}
+
+func successSameUserJoinTestCase(t *testing.T) joinTestCase {
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	return joinTestCase{
+		name:         "successSameUser",
+		host:         hostRole,
+		sessionKinds: []types.SessionKind{types.SSHSessionKind},
+		participant: SessionAccessContext{
+			Username: "john",
+			Roles:    []types.Role{participantRole},
+		},
+		owner:    "john",
+		expected: []bool{true},
 	}
 }
 
@@ -314,6 +335,7 @@ func TestSessionAccessJoin(t *testing.T) {
 	testCases := []joinTestCase{
 		successJoinTestCase(t),
 		successGlobJoinTestCase(t),
+		successSameUserJoinTestCase(t),
 		failRoleJoinTestCase(t),
 		failKindJoinTestCase(t),
 		versionDefaultJoinTestCase(t),
@@ -323,7 +345,7 @@ func TestSessionAccessJoin(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			for i, kind := range testCase.sessionKinds {
 				policy := testCase.host.GetSessionPolicySet()
-				evaluator := NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{&policy}, kind)
+				evaluator := NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{&policy}, kind, testCase.owner)
 				result := evaluator.CanJoin(testCase.participant)
 				require.Equal(t, testCase.expected[i], len(result) > 0)
 			}
