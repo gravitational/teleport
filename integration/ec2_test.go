@@ -103,12 +103,12 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	config.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.SSHAddr)
+	config.AuthServers = append(config.AuthServers, config.Auth.ListenAddr)
 	config.Auth.StorageConfig = storageConfig
 	config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -162,7 +162,7 @@ func TestEC2NodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: iid.AccountID,
 					AWSRegions: []string{iid.Region},
 				},
@@ -192,7 +192,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.Empty(t, nodes)
 
 	// create and start the node
-	nodeConfig := newNodeConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodEC2)
+	nodeConfig := newNodeConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodEC2)
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -234,7 +234,7 @@ func TestIAMNodeJoin(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles: []types.SystemRole{types.RoleNode, types.RoleProxy},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: *id.Account,
 				},
 			},
@@ -252,7 +252,7 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// create and start the proxy, will use the IAM method to join by connecting
 	// directly to the auth server
-	proxyConfig := newProxyConfig(t, authConfig.Auth.SSHAddr, tokenName, types.JoinMethodIAM)
+	proxyConfig := newProxyConfig(t, authConfig.Auth.ListenAddr, tokenName, types.JoinMethodIAM)
 	proxySvc, err := service.NewTeleport(proxyConfig)
 	require.NoError(t, err)
 	require.NoError(t, proxySvc.Start())
@@ -331,8 +331,8 @@ func TestEC2Labels(t *testing.T) {
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
@@ -434,8 +434,8 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())

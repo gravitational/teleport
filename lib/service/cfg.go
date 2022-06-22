@@ -512,8 +512,8 @@ type AuthConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// SSHAddr is the listening address of SSH tunnel to HTTP service
-	SSHAddr utils.NetAddr
+	// ListenAddr is the listening address of the auth service
+	ListenAddr utils.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -1262,7 +1262,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
