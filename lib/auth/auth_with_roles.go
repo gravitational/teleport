@@ -273,7 +273,7 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 
 func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
 	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Roles: joinerRoles})
+	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.String(), Roles: joinerRoles})
 
 	if len(modes) == 0 {
 		return false
