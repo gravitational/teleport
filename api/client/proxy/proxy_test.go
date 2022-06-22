@@ -164,7 +164,7 @@ func buildProxyAddr(addr, user, pass string) (string, error) {
 	if strings.HasPrefix(addr, "http") {
 		u, err := url.Parse(addr)
 		if err != nil {
-			return "", err
+			return "", trace.Wrap(err)
 		}
 		u.User = userInfo
 		return u.String(), nil
