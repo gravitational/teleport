@@ -29,8 +29,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/trace"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -207,7 +207,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 // on a single proxy port setup.
 func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// start the http proxy
-	ph := &helpers.proxyHandler{}
+	ph := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -245,7 +245,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 // on a multiple proxy port setup.
 func TestMultiPortHTTPSProxy(t *testing.T) {
 	// start the http proxy
-	ph := &helpers.proxyHandler{}
+	ph := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
@@ -820,12 +820,12 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcAddr, err := getLocalIP()
 	require.NoError(t, err)
 
-	rc := NewInstance(InstanceConfig{
+	rc := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		log:         utils.NewLoggerForTests(),
-		Ports:       singleProxyPortSetup(),
+		Log:         utils.NewLoggerForTests(),
+		Ports:       helpers.SingleProxyPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -854,8 +854,8 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	validPass := "open sesame"
 
 	// Create and start http_proxy server.
-	ph := &proxyHandler{}
-	authorizer := newProxyAuthorizer(ph, map[string]string{validUser: validPass})
+	ph := &helpers.ProxyHandler{}
+	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
 	ts := httptest.NewServer(authorizer)
 	defer ts.Close()
 
@@ -872,14 +872,14 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with incorrect password
-	t.Setenv("http_proxy", makeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
+	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, "incorrectPassword", proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("second-root-node", rcProxyAddr))
 	require.Error(t, err)
 	require.ErrorIs(t, authorizer.LastError(), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
 
 	// proxy url is user:password@host with correct password
-	t.Setenv("http_proxy", makeProxyAddr(validUser, validPass, proxyURL.Host))
+	t.Setenv("http_proxy", helpers.MakeProxyAddr(validUser, validPass, proxyURL.Host))
 	_, err = rc.StartNode(makeNodeConfig("third-root-node", rcProxyAddr))
 	require.NoError(t, err)
 	err = waitForNodeCount(ctx, rc, "root.example.com", 1)

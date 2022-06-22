@@ -19,8 +19,6 @@ package integration
 import (
 	"fmt"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"

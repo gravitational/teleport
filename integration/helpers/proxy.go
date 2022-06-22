@@ -106,7 +106,7 @@ type ProxyAuthorizer struct {
 	authDB    map[string]string
 }
 
-func newProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
+func NewProxyAuthorizer(handler http.Handler, authDB map[string]string) *ProxyAuthorizer {
 	return &ProxyAuthorizer{next: handler, authDB: authDB}
 }
 
@@ -166,7 +166,7 @@ func parseProxyAuth(proxyAuth string) (user, password string, ok bool) {
 	return fakeReq.BasicAuth()
 }
 
-func makeProxyAddr(user, pass, host string) string {
+func MakeProxyAddr(user, pass, host string) string {
 	userPass := url.UserPassword(user, pass).String()
 	return fmt.Sprintf("%v@%v", userPass, host)
 }
