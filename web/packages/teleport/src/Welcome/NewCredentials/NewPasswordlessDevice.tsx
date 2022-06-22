@@ -20,16 +20,15 @@ import { Danger, Info } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { SliderProps } from 'teleport/components/StepSlider';
-import { Props, LoginFlow } from './NewCredentials';
+import { Props, SliderProps } from './NewCredentials';
 
-export function NewPasswordlessDevice(props: Props & SliderProps<LoginFlow>) {
+export function NewPasswordlessDevice(props: Props & SliderProps) {
   const {
     submitAttempt,
     onSubmitWithWebauthn,
     primaryAuthType,
     isPasswordlessEnabled,
-    switchFlow,
+    changeFlow,
     refCallback,
     willTransition,
     clearSubmitAttempt,
@@ -52,7 +51,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps<LoginFlow>) {
   function switchToLocalFlow(e, applyNextAnimation = false) {
     e.preventDefault();
     clearSubmitAttempt();
-    switchFlow('local', applyNextAnimation);
+    changeFlow({ flow: 'local', applyNextAnimation });
   }
 
   // Firefox currently does not support passwordless and when
