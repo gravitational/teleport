@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -324,7 +323,6 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 		clientConfig.HostLogin = t.params.Login
 	}
 
-	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
@@ -336,6 +334,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	}
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
+	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
 	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
@@ -451,13 +450,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	defer t.terminalCancel()
 	var err error
 
-	if t.join {
-		err = tc.Join(t.terminalContext, types.SessionPeerMode, apidefaults.Namespace, t.params.SessionID, tc.Stdin)
-	} else {
-		// Establish SSH connection to the server. This function will block until
-		// either an error occurs or it completes successfully.
-		err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
-	}
+	// Establish SSH connection to the server. This function will block until
+	// either an error occurs or it completes successfully.
+	err = tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
+	panic(trace.DebugReport(err))
 
 	// TODO IN: 5.0
 	//
