@@ -139,9 +139,14 @@ db_service:
       spn: {{ .DatabaseADSPN }}
       {{- end }}
     {{- end }}
-    {{- if .DatabaseGCPProjectID }}
+    {{- if or .DatabaseGCPProjectID .DatabaseGCPInstanceID }}
     gcp:
+      {{- if .DatabaseGCPProjectID }}
       project_id: {{ .DatabaseGCPProjectID }}
+      {{- end }}
+      {{- if .DatabaseGCPInstanceID }}
+      instance_id: {{ .DatabaseGCPInstanceID }}
+      {{- end }}
     {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
@@ -305,6 +310,8 @@ type DatabaseSampleFlags struct {
 	DatabaseADSPN string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
+	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
+	DatabaseGCPInstanceID string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
