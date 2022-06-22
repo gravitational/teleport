@@ -44,7 +44,7 @@ export function IdentityList(props: IdentityListProps) {
               isSelected={i.active}
               userName={i.userName}
               clusterName={i.clusterName}
-              isSyncing={i.clusterSyncStatus}
+              isSyncing={i.isSyncing}
               onSelect={() => props.onSelectCluster(i.uri)}
               onLogout={() => props.onLogout(i.uri)}
             />

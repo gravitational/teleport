@@ -37,8 +37,7 @@ export function useIdentity() {
       userName: cluster.loggedInUser?.name,
       uri: cluster.uri,
       connected: cluster.connected,
-      clusterSyncStatus: ctx.clustersService.getClusterSyncStatus(cluster.uri)
-        .syncing,
+      isSyncing: ctx.clustersService.getClusterSyncStatus(cluster.uri).syncing,
     }));
 
   return {
@@ -56,5 +55,5 @@ export interface IdentityRootCluster {
   userName: string;
   uri: string;
   connected: boolean;
-  clusterSyncStatus: boolean;
+  isSyncing: boolean;
 }

@@ -1,1 +1,2 @@
-export * from './Identity';
+export { IdentityContainer as Identity } from './Identity';
+
