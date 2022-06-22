@@ -151,6 +151,9 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
+			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+			}
 			return nil, nil, trace.Wrap(err)
 		}
 		var found bool
@@ -273,6 +276,10 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	}
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
+		if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+			log.Debugf("'teleport-service' group not found, not deleting users")
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 	var errs []error

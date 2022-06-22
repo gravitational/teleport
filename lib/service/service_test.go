@@ -211,7 +211,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		ServerIdentity: tlsServer.Identity,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inPrincipals  []string
 		inDNS         []string
 		outRegenerate bool
@@ -290,7 +290,6 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-
 			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
 			if tt.isErr {
 				require.Error(t, err)
