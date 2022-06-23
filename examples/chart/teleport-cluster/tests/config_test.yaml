@@ -58,6 +58,36 @@ tests:
           value: 2
       - matchSnapshot: {}
 
+  - it: matches snapshot for aws.yaml
+    values:
+      - ../.lint/aws.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-dynamodb-autoscaling.yaml
+    values:
+      - ../.lint/aws-dynamodb-autoscaling.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for aws-ha.yaml
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for aws-ha-acme.yaml
     values:
       - ../.lint/aws-ha-acme.yaml
@@ -81,26 +111,6 @@ tests:
   - it: matches snapshot for aws-ha-log.yaml
     values:
       - ../.lint/aws-ha-log.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: matches snapshot for aws-ha.yaml
-    values:
-      - ../.lint/aws-ha.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
-  - it: matches snapshot for aws.yaml
-    values:
-      - ../.lint/aws.yaml
     asserts:
       - hasDocuments:
           count: 1

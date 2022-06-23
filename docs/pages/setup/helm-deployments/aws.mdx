@@ -343,6 +343,7 @@ aws:
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
+  autoScaling: false                              # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
   certManager:
@@ -363,6 +364,7 @@ aws:
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
+  autoScaling: false                              # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
   certManager:
@@ -529,6 +531,54 @@ Here's an example where we set the chart to use 3 replicas:
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
 </Admonition>
+
+### Autoscaling
+
+In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
+This can be done manually or delegated to Teleport.
+
+This is step is usually done after a successful Teleport deployment, once you have gathered some data
+about Teleport's DynamoDB usage and know what a regular usage looks like and how autoscaling should be tuned.
+See [the DynamoDB autoscaling section](../../../setup/reference/backends.mdx#dynamodb-autoscaling) for more details.
+
+To go further you have to know the desired read/write minimum, maximum and target capacity.
+If you decide to let Teleport set up the autoscaling proceed as follow:
+
+<Tabs>
+  <TabItem label="Using values.yaml">
+  Set the following fields in your existing `aws-values.yaml` file and replace the numeric values by yours:
+
+  ```yaml
+  aws:
+    # [...] already present values under `aws`
+    autoScaling: true
+    readMinCapacity: 0     # integer
+    readMaxCapacity: 1     # integer
+    readTargetValue: 0.5   # float
+    writeMinCapacity: 0    # integer
+    writeMaxCapacity: 1    # integer
+    writeTargetValue: 0.5  # float
+  ```
+
+  Then perform [a cluster upgrade](#upgrading-the-cluster-after-deployment) with the new values.
+
+  </TabItem>
+  <TabItem label="Using --set via CLI">
+  Run this command, editing your command line parameters as appropriate:
+
+  ```code
+  $ helm upgrade teleport teleport/teleport-cluster \
+    --namespace teleport \
+    --set aws.autoScaling=true
+    --set aws.readMinCapacity=0          `# integer` \
+    --set aws.readMaxCapacity=1          `# integer` \
+    --set aws.readTargetValue=0.5        `# float` \
+    --set aws.writeMinCapacity=0         `# integer` \
+    --set aws.writeMaxCapacity=1         `# integer` \
+    --set aws.writeTargetValue=0.5       `# float`
+  ```
+  </TabItem>
+</Tabs>
 
 ## Uninstalling Teleport
 
