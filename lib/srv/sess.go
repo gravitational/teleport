@@ -497,7 +497,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
-		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, ctx.Identity.TeleportUser),
 		scx:                            ctx,
 		presenceEnabled:                ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 		io:                             NewTermManager(),
@@ -1493,7 +1493,8 @@ func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionPar
 	if ctx.Identity.TeleportUser != s.initiator {
 		roles := []types.Role(ctx.Identity.RoleSet)
 		accessContext := auth.SessionAccessContext{
-			Roles: roles,
+			Username: ctx.Identity.TeleportUser,
+			Roles:    roles,
 		}
 
 		modes := s.access.CanJoin(accessContext)

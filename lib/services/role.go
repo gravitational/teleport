@@ -150,6 +150,14 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
 			},
+			JoinSessions: []*types.SessionJoinPolicy{
+				{
+					Name:  "foo",
+					Roles: []string{"*"},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionPeerMode)},
+				},
+			},
 		},
 	})
 	return role
