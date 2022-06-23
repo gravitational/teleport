@@ -609,6 +609,7 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode 
 fn read_rdp_output_inner(client: &Client) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
+
     // Read incoming events.
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
@@ -632,7 +633,15 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                        // This callback can be called multiple times per rdp_client.read()
+                        // (if multiple messages were received since the last call). Therefore,
+                        // we check that the previous call to handle_bitmap succeeded, so we don't
+                        // have a situation where handle_bitmap fails repeatedly and creates a
+                        // bunch of repetitive error messages in the logs. If it fails once,
+                        // we assume the connection is broken and stop trying to send bitmaps.
+                        if err == CGOErrCode::ErrCodeSuccess {
+                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                        }
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -831,7 +840,7 @@ unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
