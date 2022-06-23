@@ -63,51 +63,82 @@ This reference details available values for the `teleport-cluster` chart.
 
 `kubeClusterName` sets the name used for the Kubernetes cluster. This name will be shown to Teleport users connecting to the cluster.
 
-## `authenticationType`
+## `authentication`
+
+### `authentication.type`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
 | `string` | `local` | Yes | `auth_service.authentication.type` | ❌ |
 
-`authenticationType` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc`, `saml`, and `false` for Enterprise.
+`authentication.type` controls the authentication scheme used by Teleport. Possible values are `local` and `github` for OSS, plus `oidc` and `saml` for Enterprise.
 
-## `authenticationSecondFactor`
+### `authentication.connectorName`
 
-### `authenticationSecondFactor.secondFactor`
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | No | `auth_service.authentication.connector_name` | ❌ |
+
+`authentication.connectorName` sets the default authentication connector.
+See [the SSO documentation](../../entreprise/sso.mdx). Other possible values are `local` and
+[`passwordless`](../../access-controls/guides/passwordless.mdx#optional-enabled-passwordless-by-default).
+Defaults to `local`.
+
+### `authentication.localAuth`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `bool` | `true` | No | `auth_service.authentication.local_auth` | ❌ |
+
+`authentication.localAuth` controls whether local authentication is enabled.
+When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
+
+[Disabling local auth is required for FedRAMP / FIPS](../../enterprise/fedramp.mdx#teleport-auth-server).
+
+### `authentication.lockingMode`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | No | `auth_service.authentication.locking_mode` | ❌ |
+
+`authentication.lockingMode` controls the locking mode cluster-wide.
+See [the locking modes documentation](../../access-controls/guides/locking.mdx#next-steps-locking-modes)
+
+### `authentication.secondFactor`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
 | `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
 
-`authenticationSecondFactor.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
 are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
 
 When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
-the FQDN which is used to access the Teleport cluster.
+the FQDN which is used to access the Teleport cluster cluster-wide.
 
-### `authenticationSecondFactor.webauthn`
+### `authentication.webauthn`
 
 See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
 
-#### `authenticationSecondFactor.webauthn.attestationAllowedCas`
+#### `authentication.webauthn.attestationAllowedCas`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
 | `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_allowed_cas` | ❌ |
 
-`authenticationSecondFactor.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
+`authentication.webauthn.attestationAllowedCas` is an optional allow list of certificate authorities (as local file paths or in-line PEM certificate string) for
 [device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
 This field allows you to restrict which device models and vendors you trust.
 Devices outside of the list will be rejected during registration.
 By default all devices are allowed.
 
-#### `authenticationSecondFactor.webauthn.attestationDeniedCas`
+#### `authentication.webauthn.attestationDeniedCas`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
 | `array` | `[]` | No | `auth_service.authentication.webauthn.attestation_denied_cas` | ❌ |
 
-`authenticationSecondFactor.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
+`authentication.webauthn.attestationDeniedCas` is optional deny list of certificate authorities (as local file paths or in-line PEM certificate string) for
 [device verification](https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
 This field allows you to forbid specific device models and vendors, while allowing all others (provided they clear attestation_allowed_cas as well).
 Devices within this list will be rejected during registration.
