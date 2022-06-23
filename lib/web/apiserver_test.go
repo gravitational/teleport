@@ -3312,6 +3312,10 @@ func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p b
 	return []events.EventFields{}, nil
 }
 
+func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, trace.NotFound("foo")
+}
+
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
 	var sessionID session.ID
 	if len(opts) == 0 {
