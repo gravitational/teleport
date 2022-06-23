@@ -418,6 +418,10 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 							Name:  "X-External-Env",
 							Value: "{{external.env}}",
 						},
+						{
+							Name:  "X-Github-Login",
+							Value: "{{array.join(external.github_teams)}}",
+						},
 						// Make sure can rewrite Host header.
 						{
 							Name:  "Host",
@@ -482,6 +486,7 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 	require.Equal(t, req.Host, "example.com")
 	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
 	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Github-Login"), "Team Galaxy, Team Space")
 	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
 	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
@@ -527,6 +532,10 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 							Value: "{{internal.logins}}",
 						},
 						{
+							Name:  "X-Github-Login",
+							Value: "{{array.join(external.github_teams)}}",
+						},
+						{
 							Name:  "X-External-Env",
 							Value: "{{external.env}}",
 						},
@@ -570,7 +579,7 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 			},
 		},
 		userLogins: []string{"root", "ubuntu"},
-		userTraits: map[string][]string{"env": {"staging"}},
+		userTraits: map[string][]string{"env": {"staging"}, "github_teams": {"Team Galaxy", "Team Space"}},
 	})
 
 	// Create an application session for dumper app in leaf cluster.
@@ -586,6 +595,7 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 	require.Contains(t, resp, "X-Teleport-Login: root")
 	require.Contains(t, resp, "X-Teleport-Login: ubuntu")
 	require.Contains(t, resp, "X-External-Env: staging")
+	require.Contains(t, resp, "X-Github-Login: Team Galaxy, Team Space")
 	require.Contains(t, resp, "Host: example.com")
 	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
 	require.NotContains(t, resp, "X-Existing: existing")

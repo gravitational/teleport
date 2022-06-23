@@ -48,6 +48,19 @@ type Expression struct {
 	suffix string
 	// transform is an optional transformer for the variable.
 	transform transformer
+	// tranform is an optional array transformer for the variable.
+	arrayTransform transformerArray
+}
+
+// arrayJoinTransformer join an array together.
+type arrayJoinTransformer struct{
+	in []string
+}
+
+// ArrayJoin returns join of an array
+func (arrayJoinTransformer) arrayTransform(in []string) ([]string, error) {
+	var join = strings.Join(in, ", ")
+	return []string{join}, nil
 }
 
 // emailLocalTransformer extracts local part of the email.
@@ -119,19 +132,30 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 		return nil, trace.NotFound("variable is not found")
 	}
 	var out []string
-	for i := range values {
-		val := values[i]
-		var err error
-		if p.transform != nil {
-			val, err = p.transform.transform(val)
-			if err != nil {
-				return nil, trace.Wrap(err)
+
+	if p.arrayTransform == nil {
+		for i := range values {
+			val := values[i]
+			var err error
+			if p.transform != nil {
+				val, err = p.transform.transform(val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			if len(val) > 0 {
+				out = append(out, p.prefix+val+p.suffix)
 			}
 		}
-		if len(val) > 0 {
-			out = append(out, p.prefix+val+p.suffix)
+	} else {
+		val, err := p.arrayTransform.arrayTransform(values)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		vals := strings.Join(val, "")
+		out = append(out, p.prefix+vals+p.suffix)
 	}
+
 	return out, nil
 }
 
@@ -189,6 +213,7 @@ func NewExpression(variable string) (*Expression, error) {
 		variable:  result.parts[1],
 		suffix:    strings.TrimRightFunc(suffix, unicode.IsSpace),
 		transform: result.transform,
+		arrayTransform: result.arrayTransform,
 	}, nil
 }
 
@@ -342,12 +367,20 @@ const (
 	RegexpNotMatchFnName = "not_match"
 	// RegexpReplaceFnName is a name for regexp.replace function.
 	RegexpReplaceFnName = "replace"
+	// ArrayNamespace is a name for array function
+	ArrayNamespace = "array"
+	// ArrayJoinFnName is a name for array.join function
+	ArrayJoinFnName = "join"
 )
 
 // transformer is an optional value transformer function that can take in
 // string and replace it with another value
 type transformer interface {
-	transform(in string) (string, error)
+	transform(in string) (string, error)	
+}
+
+type transformerArray interface {
+	arrayTransform(in []string) ([]string, error)	
 }
 
 // getBasicString checks that arg is a properly quoted basic string and returns
@@ -375,6 +408,7 @@ const maxASTDepth = 1000
 type walkResult struct {
 	parts     []string
 	transform transformer
+	arrayTransform transformerArray
 	match     Matcher
 }
 
@@ -400,6 +434,23 @@ func walk(node ast.Node, depth int) (*walkResult, error) {
 			namespace := namespaceNode.Name
 			fn := call.Sel.Name
 			switch namespace {
+			case ArrayNamespace:
+				// This is a function name
+				if fn != ArrayJoinFnName {
+					return nil, trace.BadParameter("unsupported function %v.%v, supported functions are: array.join", namespace, fn)
+				}
+				// Because only one function is supported for now,
+				// this makes sure that the function call has exactly one argument
+				if len(n.Args) != 1 {
+					return nil, trace.BadParameter("expected 1 argument for %v.%v got %v", namespace, fn, len(n.Args))
+				}
+				result.arrayTransform = arrayJoinTransformer{}
+				ret, err := walk(n.Args[0], depth+1)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				result.parts = ret.parts
+				return &result, nil
 			case EmailNamespace:
 				// This is a function name
 				if fn != EmailLocalFnName {
@@ -464,7 +515,7 @@ func walk(node ast.Node, depth int) (*walkResult, error) {
 					return nil, trace.BadParameter("unsupported function %v.%v, supported functions are: regexp.match, regexp.not_match", namespace, fn)
 				}
 			default:
-				return nil, trace.BadParameter("unsupported function namespace %v, supported namespaces are %v and %v", call.X, EmailNamespace, RegexpNamespace)
+				return nil, trace.BadParameter("unsupported function namespace %v, supported namespaces are %v, %v and %v", call.X, EmailNamespace, RegexpNamespace, ArrayNamespace)
 			}
 		default:
 			return nil, trace.BadParameter("unsupported function %T", n.Fun)

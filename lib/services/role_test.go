@@ -1881,6 +1881,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "logins substitute in allow rule with array function",
+			inTraits: map[string][]string{
+				"foo": {"bar", "alice"},
+			},
+			allow: rule{
+				inLogins:  []string{`{{array.join(external.foo)}}`, "root"},
+				outLogins: []string{"root"},
+			},
+		},
+		{
 			comment: "logins substitute in allow rule with regexp",
 			inTraits: map[string][]string{
 				"foo": {"bar-baz"},
@@ -2076,6 +2086,15 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "invalid array function call in logins does not get passed along",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inLogins: []string{`{{array.join(external.foo, 1)}}`},
+			},
+		},
+		{
 			comment: "invalid function call in logins does not get passed along",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
@@ -2085,12 +2104,30 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "invalid array function call in logins does not get passed along",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inLogins: []string{`{{array.join()}}`},
+			},
+		},
+		{
 			comment: "invalid function call in logins does not get passed along",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins: []string{`{{email.local(email.local)}}`, `{{email.local(email.local())}}`},
+			},
+		},
+		{
+			comment: "invalid array function call in logins does not get passed along",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inLogins: []string{`{{array.join(array.join)}}`, `{{array.join(array.join())}}`},
 			},
 		},
 		{
