@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sort"
@@ -659,12 +660,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	log.Debug(cmd.String())
+
+	peakStderr := utils.NewCaptureNBytesWriter(100)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = io.MultiWriter(os.Stdout, peakStderr)
 	cmd.Stdin = os.Stdin
+
 	err = cmd.Run()
 	if err != nil {
-		return trace.Wrap(err)
+		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
 	return nil
 }
