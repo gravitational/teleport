@@ -87,6 +87,14 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.Databases, error
 	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log), nil
 }
 
+func (f *rdsDBInstancesFetcher) GetEC2Instances(context.Context) (*EC2Instances, error) {
+	return nil, trace.NotImplemented("db fetcher")
+}
+
+func (f *rdsDBInstancesFetcher) Kind() fetcherKind {
+	return dbFetcher
+}
+
 // getRDSDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
 	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxPages)
@@ -170,6 +178,14 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.Databases, er
 	}
 
 	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log), nil
+}
+
+func (f *rdsAuroraClustersFetcher) GetEC2Instances(context.Context) (*EC2Instances, error) {
+	return nil, trace.NotImplemented("db fetcher")
+}
+
+func (f *rdsAuroraClustersFetcher) Kind() fetcherKind {
+	return dbFetcher
 }
 
 // getAuroraDatabases returns a list of database resources representing RDS clusters.

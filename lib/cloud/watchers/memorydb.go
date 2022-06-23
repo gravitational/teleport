@@ -135,6 +135,14 @@ func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
+func (f *memoryDBFetcher) GetEC2Instances(context.Context) (*EC2Instances, error) {
+	return nil, trace.NotImplemented("db fetcher")
+}
+
+func (f *memoryDBFetcher) Kind() fetcherKind {
+	return dbFetcher
+}
+
 // getMemoryDBClusters fetches all MemoryDB clusters.
 func getMemoryDBClusters(ctx context.Context, client memorydbiface.MemoryDBAPI) ([]*memorydb.Cluster, error) {
 	var clusters []*memorydb.Cluster

@@ -169,6 +169,14 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
+func (f *elastiCacheFetcher) GetEC2Instances(context.Context) (*EC2Instances, error) {
+	return nil, trace.NotImplemented("db fetcher")
+}
+
+func (f *elastiCacheFetcher) Kind() fetcherKind {
+	return dbFetcher
+}
+
 // String returns the fetcher's string description.
 func (f *elastiCacheFetcher) String() string {
 	return fmt.Sprintf("elastiCacheFetcher(Region=%v, Labels=%v)",

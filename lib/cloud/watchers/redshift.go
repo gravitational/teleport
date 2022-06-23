@@ -105,6 +105,14 @@ func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
+func (f *redshiftFetcher) GetEC2Instances(context.Context) (*EC2Instances, error) {
+	return nil, trace.NotImplemented("db fetcher")
+}
+
+func (f *redshiftFetcher) Kind() fetcherKind {
+	return dbFetcher
+}
+
 // String returns the fetcher's string description.
 func (f *redshiftFetcher) String() string {
 	return fmt.Sprintf("redshiftFetcher(Region=%v, Labels=%v)",

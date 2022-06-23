@@ -40,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud/watchers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -215,10 +217,13 @@ type Server struct {
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
 
+	cloudWatcher *watchers.Watcher
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
 	// awsInviteToken used to fill the default installer script
 	awsInviteToken string
+	awsMatchers    []services.AWSMatcher
+	cloudClients   common.CloudClients
 }
 
 // GetClock returns server clock implementation
@@ -787,6 +792,18 @@ func New(addr utils.NetAddr,
 	// common term handlers
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
+	}
+
+	if len(s.awsMatchers) != 0 {
+		s.cloudClients = common.NewCloudClients()
+		s.cloudWatcher, err = watchers.NewWatcher(s.ctx, watchers.WatcherConfig{
+			AWSMatchers: s.awsMatchers,
+			Clients:     s.cloudClients,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.cloudWatcher.Start()
 	}
 
 	server, err := sshutils.NewServer(
