@@ -27,17 +27,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
+	libmongodb "github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -410,10 +411,10 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getMongoAddress() string {
 	query := make(url.Values)
 
-	// Use 5 seconds for server selection timeout to be more align with the
-	// backend. The environment variable serves as a hidden option to force a
+	// Use the same default server selection timeout that the backend engine is
+	// using. The environment variable serves as a hidden option to force a
 	// different timeout for debugging purpose or extreme situations.
-	serverSelectionTimeoutMS := "5000"
+	serverSelectionTimeoutMS := strconv.Itoa(int(libmongodb.DefaultServerSelectionTimeout.Milliseconds()))
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
 		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue
@@ -421,7 +422,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
 
 	address := url.URL{
-		Scheme:   "mongodb",
+		Scheme:   connstring.SchemeMongoDB,
 		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
@@ -522,6 +523,17 @@ func WithNoTLS() ConnectCommandFunc {
 
 // WithPrintFormat is the connect command option that hints the command will be
 // printed instead of being executed.
+//
+// For example, when enabled, a quote will be used for Postgres and MongoDB
+// connection strings to avoid "&" getting interpreted by the shell.
+//
+// WithPrintFormat is known to be used for the following situations:
+// - tsh db config --format cmd <database>
+// - tsh proxy db --tunnel <database>
+// - Teleport Connect where the command is put into a terminal.
+//
+// WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
+// client application.
 func WithPrintFormat() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.printFormat = true
