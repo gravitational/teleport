@@ -209,18 +209,18 @@ func onDatabaseLogin(cf *CLIConf) error {
 	return nil
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase, quiet bool) error {
-	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteToDatabase, quiet bool) error {
+	log.Debugf("Fetching database access certificate for %s on cluster %v.", dbRoute, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
-	if db.Protocol == defaults.ProtocolMongoDB && db.Username == "" {
+	if dbRoute.Protocol == defaults.ProtocolMongoDB && dbRoute.Username == "" {
 		return trace.BadParameter("please provide the database user name using --db-user flag")
 	}
-	if db.Protocol == defaults.ProtocolRedis && db.Username == "" {
+	if dbRoute.Protocol == defaults.ProtocolRedis && dbRoute.Username == "" {
 		// Default to "default" in the same way as Redis does. We need the username to check access on our side.
 		// ref: https://redis.io/commands/auth
-		db.Username = defaults.DefaultRedisUsername
+		dbRoute.Username = defaults.DefaultRedisUsername
 	}
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -238,10 +238,10 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
-					ServiceName: db.ServiceName,
-					Protocol:    db.Protocol,
-					Username:    db.Username,
-					Database:    db.Database,
+					ServiceName: dbRoute.ServiceName,
+					Protocol:    dbRoute.Protocol,
+					Username:    dbRoute.Username,
+					Database:    dbRoute.Database,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 			})
@@ -260,13 +260,13 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(cf.Context, tc, db, *profile)
+	err = dbprofile.Add(cf.Context, tc, dbRoute, *profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Print after-connect message.
 	if !quiet {
-		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
+		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, dbRoute))
 		return nil
 	}
 	return nil
@@ -624,17 +624,17 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+	dbRoute, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
-	relogin, err := needRelogin(cf, tc, routeToDatabase, profile)
+	relogin, err := needRelogin(cf, tc, dbRoute, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if relogin {
-		if err := databaseLogin(cf, tc, *routeToDatabase, true); err != nil {
+		if err := databaseLogin(cf, tc, *dbRoute, true); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -648,13 +648,13 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, routeToDatabase, database, rootClusterName)
+	opts, err := maybeStartLocalProxy(cf, tc, profile, dbRoute, database, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	opts = append(opts, dbcmd.WithLogger(log))
 
-	cmd, err := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...).GetConnectCommand()
+	cmd, err := dbcmd.NewCmdBuilder(tc, profile, dbRoute, rootClusterName, opts...).GetConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -669,12 +669,12 @@ func onDatabaseConnect(cf *CLIConf) error {
 	return nil
 }
 
-// getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
+// getDatabaseInfo fetches information about the database from tsh profile if DB is active in profile. Otherwise,
 // the ListDatabases endpoint is called.
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
-	database, err := pickActiveDatabase(cf)
+	dbRoute, err := pickActiveDatabase(cf)
 	if err == nil {
-		return database, nil, nil
+		return dbRoute, nil, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
@@ -854,7 +854,7 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	}
 
 	if len(activeDatabases) == 0 {
-		return nil, trace.NotFound("Please login using 'tsh db login' first")
+		return nil, trace.NotFound("please login using 'tsh db login' first")
 	}
 
 	name := cf.DatabaseService
@@ -864,7 +864,7 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 			for _, database := range activeDatabases {
 				services = append(services, database.ServiceName)
 			}
-			return nil, trace.BadParameter("Multiple databases are available (%v), please specify one using CLI argument",
+			return nil, trace.BadParameter("multiple databases are available (%v), please specify one using CLI argument",
 				strings.Join(services, ", "))
 		}
 		name = activeDatabases[0].ServiceName
@@ -882,7 +882,7 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 			return &db, nil
 		}
 	}
-	return nil, trace.NotFound("Not logged into database %q", name)
+	return nil, trace.NotFound("not logged into database %q", name)
 }
 
 func formatDatabaseListCommand(clusterFlag string) string {

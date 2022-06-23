@@ -28,10 +28,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -98,7 +99,7 @@ func NewImplicitRole() types.Role {
 		Version: types.V3,
 		Metadata: types.Metadata{
 			Name:      constants.DefaultImplicitRole,
-			Namespace: defaults.Namespace,
+			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
@@ -111,7 +112,7 @@ func NewImplicitRole() types.Role {
 				},
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{defaults.Namespace},
+				Namespaces: []string{apidefaults.Namespace},
 				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
 			},
 		},
@@ -125,13 +126,13 @@ func RoleForUser(u types.User) types.Role {
 	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
-			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
 			PortForwarding:    types.NewBoolOption(true),
 			ForwardAgent:      types.NewBool(true),
-			BPF:               defaults.EnhancedEvents(),
+			BPF:               apidefaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
+			Namespaces:       []string{apidefaults.Namespace},
 			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -167,10 +168,10 @@ func RoleForUser(u types.User) types.Role {
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 	role, _ := types.NewRoleV3(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
+			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
+			Namespaces:       []string{apidefaults.Namespace},
 			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -810,12 +811,28 @@ func (result *EnumerationResult) filtered(value bool) []string {
 	return filtered
 }
 
-// Denied returns all explicitly denied users.
+// Check if the given entity is allowed.
+func (result *EnumerationResult) IsAllowed(entity string) bool {
+	if answer, ok := result.allowedDeniedMap[entity]; ok {
+		return answer
+	}
+	return result.WildcardAllowed()
+}
+
+// Check if any entity is allowed.
+func (result *EnumerationResult) IsAnyAllowed() bool {
+	if result.WildcardDenied() {
+		return false
+	}
+	return result.WildcardAllowed() || len(result.Allowed()) > 0
+}
+
+// Denied returns all explicitly denied entities.
 func (result *EnumerationResult) Denied() []string {
 	return result.filtered(false)
 }
 
-// Allowed returns all known allowed users.
+// Allowed returns all known allowed entities.
 func (result *EnumerationResult) Allowed() []string {
 	if result.WildcardDenied() {
 		return nil
@@ -823,12 +840,12 @@ func (result *EnumerationResult) Allowed() []string {
 	return result.filtered(true)
 }
 
-// WildcardAllowed is true if there * username allowed for given rule set.
+// WildcardAllowed is true if the wildcard entity is allowed and not denied for a given rule set.
 func (result *EnumerationResult) WildcardAllowed() bool {
 	return result.wildcardAllowed && !result.wildcardDenied
 }
 
-// WildcardDenied is true if there * username deny for given rule set.
+// WildcardDenied is true if the wildcard entity is denied for a given rule set.
 func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
@@ -850,47 +867,109 @@ func NewEnumerationResult() EnumerationResult {
 // For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
 // This extra set of users may be sourced e.g. from user connection history.
 func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	getter := func(role types.Role, cond types.RoleConditionType) []string {
+		return role.GetDatabaseUsers(cond)
+	}
+	matchMaker := func(user string) RoleMatcher {
+		return &DatabaseUserMatcher{User: user}
+	}
+	return set.enumerateEntities(database, getter, matchMaker, extraUsers...)
+}
+
+func (set RoleSet) EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult {
+	getter := func(role types.Role, cond types.RoleConditionType) []string {
+		return role.GetDatabaseNames(cond)
+	}
+	matchMaker := func(name string) RoleMatcher {
+		return &DatabaseNameMatcher{Name: name}
+	}
+	return set.enumerateEntities(database, getter, matchMaker, extraNames...)
+}
+
+type EntityGetter func(types.Role, types.RoleConditionType) []string
+type RoleMatchMaker func(string) RoleMatcher
+
+func (set RoleSet) enumerateEntities(r AccessCheckable, getter EntityGetter, matchMaker RoleMatchMaker, extraEntities ...string) EnumerationResult {
 	result := NewEnumerationResult()
 
-	// gather users for checking from the roles, check wildcards.
-	var users []string
+	// gather entities for checking from the roles, check wildcards.
+	var entities []string
 	for _, role := range set {
 		wildcardAllowed := false
 		wildcardDenied := false
 
-		for _, user := range role.GetDatabaseUsers(types.Allow) {
-			if user == types.Wildcard {
+		for _, entity := range getter(role, types.Allow) {
+			if entity == types.Wildcard {
 				wildcardAllowed = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, entity)
 			}
 		}
 
-		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			if user == types.Wildcard {
+		for _, entity := range getter(role, types.Deny) {
+			if entity == types.Wildcard {
 				wildcardDenied = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, entity)
 			}
 		}
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(database, AccessMFAParams{Verified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(r, AccessMFAParams{Verified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
-
 	}
 
-	users = apiutils.Deduplicate(append(users, extraUsers...))
+	entities = apiutils.Deduplicate(append(entities, extraEntities...))
 
-	// check each individual user against the database.
-	for _, user := range users {
-		err := set.checkAccess(database, AccessMFAParams{Verified: true}, &DatabaseUserMatcher{User: user})
-		result.allowedDeniedMap[user] = err == nil
+	// check each individual entity against the database.
+	for _, entity := range entities {
+		err := set.checkAccess(r, AccessMFAParams{Verified: true}, matchMaker(entity))
+		result.allowedDeniedMap[entity] = err == nil
 	}
 
 	return result
+}
+
+
+// Check if a roleset is allowed to access a database.
+// This check is not exhaustive - it is more permissive than a real authorization check.
+// If db_user/db_name are blank, then we do not know what db_user/db_name will be used by default - A full RBAC check would deny blank db_user/db_name unless there is a wildcard allow rule.
+func (set RoleSet) CheckAccessToDatabase(dbRoute tlsca.RouteToDatabase, database types.Database) error {
+	dbUsers := set.EnumerateDatabaseUsers(database)
+	if dbUsers.WildcardDenied() {
+		// TODO(review): is this giving away too much information? Is this minus the parentheses tip still too much info? Concern re: security implications. But a user can always get their own role spec from tctl.
+		return trace.AccessDenied("all db_users are denied (user has a role that denies the wildcard %q)", types.Wildcard)
+	}
+	if dbRoute.Username != "" {
+		// if the user asked for a specific --db-user we can check access
+		if !dbUsers.IsAllowed(dbRoute.Username) {
+			return trace.AccessDenied("user is not allowed to login as db_user %q", dbRoute.Username)
+		}
+	} else if !dbUsers.IsAnyAllowed() {
+		// catch the case where a user will be denied no matter what.
+		return trace.AccessDenied("user has no allowed db_users for database %q", dbRoute.ServiceName)
+	}
+
+	// we only enforce db_name access for postgres and mongo
+	if dbRoute.Protocol == defaults.ProtocolPostgres || dbRoute.Protocol == defaults.ProtocolMongoDB {
+		dbNames := set.EnumerateDatabaseNames(database)
+		if dbNames.WildcardDenied() {
+			// TODO(review): Same concern as above re: security. Keep?
+			return trace.AccessDenied("all db_names are denied (user has a role that denies the wildcard %q)", types.Wildcard)
+		}
+		if dbRoute.Database != "" {
+			// if the user asked for a specific --db-name we can check access
+			if !dbNames.IsAllowed(dbRoute.Database) {
+				return trace.AccessDenied("user is not allowed to login to db_name %q (required for %q protocol)", dbRoute.Database, dbRoute.Protocol)
+			}
+		} else if !dbNames.IsAnyAllowed() {
+			// catch the case where a user will be denied no matter what.
+			return trace.AccessDenied("user has no allowed db_names for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
+		}
+	}
+	return nil
 }
 
 // EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
@@ -1193,37 +1272,40 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
 // names or users.
-func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
-	names := make(map[string]struct{})
-	users := make(map[string]struct{})
+func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error) {
+	nameSet := make(map[string]struct{})
+	userSet := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, name := range role.GetDatabaseNames(types.Allow) {
-				names[name] = struct{}{}
+				nameSet[name] = struct{}{}
 			}
 			for _, user := range role.GetDatabaseUsers(types.Allow) {
-				users[user] = struct{}{}
+				userSet[user] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
 		for _, name := range role.GetDatabaseNames(types.Deny) {
-			delete(names, name)
+			delete(nameSet, name)
 		}
 		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			delete(users, user)
+			delete(userSet, user)
 		}
 	}
 	if !matchedTTL {
 		return nil, nil, trace.AccessDenied("this user cannot request database access for %v", ttl)
 	}
-	if len(names) == 0 && len(users) == 0 {
-		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned database names or users")
+	if len(nameSet) == 0 && len(userSet) == 0 {
+		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned db names or db users")
 	}
-	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
+	if len(userSet) == 0 {
+		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned db users")
+	}
+	return utils.StringsSliceFromSet(nameSet), utils.StringsSliceFromSet(userSet), nil
 }
 
 // CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
@@ -1916,7 +1998,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchLabels {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied", r.GetKind())
+			return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
 		}
 
 		// Deny rules are greedy on purpose. They will always match if
@@ -1928,7 +2010,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchMatchers {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied", r.GetKind())
+			return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
 		}
 	}
 
@@ -1966,7 +2048,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if !matchMatchers {
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
-					role.GetName(), err))
+					role.GetName(), matchers))
 			}
 			continue
 		}
@@ -1996,7 +2078,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied", r.GetKind())
+	return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.

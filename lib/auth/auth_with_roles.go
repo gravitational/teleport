@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -2257,6 +2258,35 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
+	dbService := req.RouteToDatabase.ServiceName
+	if dbService != "" {
+		dbServers, err := a.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var database types.Database
+		for _, dbServer := range dbServers {
+			db := dbServer.GetDatabase()
+			if db.GetName() == dbService {
+				database = dbServer.GetDatabase()
+				break
+			}
+		}
+		if database == nil {
+			return nil, trace.NotFound("database %q", dbService)
+		}
+		dbRoute := tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol: req.RouteToDatabase.Protocol,
+			Username: req.RouteToDatabase.Username,
+			Database: req.RouteToDatabase.Database,
+		}
+		// rough sanity check for db login. Full RBAC checks will ultimately happen on db connect.
+		err = roleSet.CheckAccessToDatabase(dbRoute, database)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3530,7 +3560,7 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 	return a.authServer.ProcessKubeCSR(req)
 }
 
-// GetDatabaseServers returns all registered database servers.
+// GetDatabaseServers returns all registered database servers that the caller has access to.
 func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	if err := a.action(namespace, types.KindDatabaseServer, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

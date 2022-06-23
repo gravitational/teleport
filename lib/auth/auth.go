@@ -3075,7 +3075,7 @@ func (a *Server) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSess
 	return a.SessionTrackerService.UpdateSessionTracker(ctx, req)
 }
 
-// GetDatabaseServers returns all registers database proxy servers.
+// GetDatabaseServers returns all registered database proxy servers.
 func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
 }
