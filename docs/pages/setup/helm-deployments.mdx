@@ -1,0 +1,34 @@
+---
+title: Guides for running Teleport using Helm
+description: How to install and configure Teleport in Kubernetes using Helm
+layout: tocless-doc
+---
+
+## Helm deployment guides
+
+These guides show you how to set up a full self-hosted Teleport deployment using
+our `teleport-cluster` Helm chart.
+
+<TileSet>
+    <Tile icon="kubernetes" title="HA AWS Teleport Cluster" href="./helm-deployments/aws.mdx">
+        Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster
+    </Tile>
+    <Tile icon="kubernetes" title="HA GCP Teleport Cluster" href="./helm-deployments/gcp.mdx">
+        Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE cluster
+    </Tile>
+    <Tile icon="kubernetes" title="Custom Teleport config" href="./helm-deployments/custom.mdx">
+        Running a Teleport cluster in Kubernetes with a custom Teleport config
+    </Tile>
+</TileSet>
+
+## Migration Guides
+
+<TileSet>
+<Tile
+href="./guides/migration.mdx"
+title="Migrating from the legacy Teleport chart"
+icon="kubernetes"
+>
+</Tile>
+</TileSet>
+
