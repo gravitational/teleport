@@ -17,7 +17,9 @@ limitations under the License.
 package filesessions
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"os"
@@ -165,6 +167,13 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			}
 		}()
 
+		// If the part file is just a reservation file, skip it to avoid
+		// generating broken upload files.
+		if isReservationFile(file) {
+			h.Debugf("Skipping reservation file %q", path)
+			return nil
+		}
+
 		_, err = io.Copy(f, file)
 		return err
 	}
@@ -302,10 +311,12 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 		return trace.ConvertSystemError(err)
 	}
 
-	// Create a buffer with the max size that a part file can have.
-	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
+	contents, err := generateReservationFileContents(partNumber)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	_, err = file.Write(buf)
+	_, err = file.Write(contents)
 	if err = trace.NewAggregate(err, file.Close()); err != nil {
 		if rmErr := os.Remove(partPath); rmErr != nil {
 			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
@@ -382,6 +393,46 @@ func checkUploadID(uploadID string) error {
 		return trace.WrapWithMessage(err, "bad format of upload ID")
 	}
 	return nil
+}
+
+// generateReservationFileContent generates the content placed on the
+// reservation files.
+func generateReservationFileContents(partNumber int64) ([]byte, error) {
+	// Create a buffer with the max size that a part file can have.
+	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
+
+	// Encode reservation content.
+	encoded := &bytes.Buffer{}
+	encoder := gob.NewEncoder(encoded)
+	err := encoder.Encode(events.StreamPart{Number: partNumber})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Copy into the final contents.
+	copy(buf[0:], encoded.Bytes())
+
+	return buf, nil
+}
+
+// isReservationFile verifies if the provided file is a reservation file
+// generate by `ReservePartUpload`.
+func isReservationFile(f *os.File) bool {
+	// Reset the file pointer to the begining.
+	defer f.Seek(0, 0)
+
+	streamPart := &events.StreamPart{}
+	decoder := gob.NewDecoder(f)
+	err := decoder.Decode(streamPart)
+	if err != nil {
+		return false
+	}
+
+	if streamPart.Number > 0 {
+		return true
+	}
+
+	return false
 }
 
 const (
