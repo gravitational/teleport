@@ -17,8 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
-	"embed"
 	"flag"
 	"os"
 	"time"
@@ -34,25 +32,19 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
-	"github.com/gravitational/teleport/operator/crd"
 	"github.com/gravitational/teleport/operator/sidecar"
-	"github.com/gravitational/trace"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-
-	//go:embed config/crd/bases/*.teleport.dev_*.yaml
-	crdFS embed.FS
 )
 
 func init() {
@@ -140,24 +132,6 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	// Install CRDs
-	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-		if synced := mgr.GetCache().WaitForCacheSync(ctx); !synced {
-			setupLog.Error(err, "cache is not ready")
-			return trace.Wrap(err)
-		}
-
-		setupLog.Info("installing CRDs")
-		if err := crd.Upsert(ctx, setupLog, crdFS, mgr.GetClient()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})); err != nil {
-		setupLog.Error(err, "unable to set up CRDs")
 		os.Exit(1)
 	}
 
