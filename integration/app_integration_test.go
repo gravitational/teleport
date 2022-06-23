@@ -654,7 +654,6 @@ func TestAppAuditEvents(t *testing.T) {
 }
 
 func TestAppServersHA(t *testing.T) {
-
 	type packInfo struct {
 		clusterName    string
 		publicHTTPAddr string
@@ -664,6 +663,7 @@ func TestAppServersHA(t *testing.T) {
 	testCases := map[string]struct {
 		packInfo        func(pack *pack) packInfo
 		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		waitForTunnels  func(pack *pack, count int)
 	}{
 		"RootServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -677,6 +677,9 @@ func TestAppServersHA(t *testing.T) {
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
+			waitForTunnels: func(pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootAppClusterName, count)
+			},
 		},
 		"LeafServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -689,6 +692,9 @@ func TestAppServersHA(t *testing.T) {
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			waitForTunnels: func(pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafAppClusterName, count)
 			},
 		},
 	}
@@ -754,6 +760,8 @@ func TestAppServersHA(t *testing.T) {
 			// Start an additional app server and stop all current running
 			// ones.
 			test.startAppServers(pack, 1)
+			test.waitForTunnels(pack, 4)
+
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
 
