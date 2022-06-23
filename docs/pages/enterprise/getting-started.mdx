@@ -220,7 +220,8 @@ spec:
     # The logins array defines the OS/UNIX logins a user is allowed to use
     # for accessing Nodes in the Teleport cluster. The internal.logins variable 
     # allows populating from a Teleport DB user's logins traits which could 
-    # include user logins like root, ec2-user,ubuntu and debian. That variable 
+    # include user logins like root, ec2-user,ubuntu and debian. You then
+    # don't need to keep changing the role for each user. That variable 
     # also populates logins from a root Teleport Cluster in Trusted Clusters.
   Using the variable internal.logins allows including user logins
     # from the user's traits and logins from a root cluster in Trusted Clusters.    
