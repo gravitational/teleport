@@ -45,6 +45,9 @@ export function useNewRequest(ctx: Ctx) {
     // So we reset all states.
     setFetchedData(getEmptyFetchedDataState());
     clearAddedResources();
+    setAgentFilter({
+      sort: getDefaultSort(selectedResource),
+    });
   }, [clusterId]);
 
   // TODO (lisa): this is pretty hacky, maybe expose the ref for selector,
