@@ -45,7 +45,7 @@ Teleport can provide secure, unified access to your Kubernetes clusters. This gu
 While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
 <Admonition type="tip" title="Have an existing Teleport cluster?">
-If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](./agent.mdx) to connect your Kubernetes cluster to Teleport.
+If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](../kubernetes-access/getting-started.mdx) to connect your Kubernetes cluster to Teleport.
 </Admonition>
 
 ## Follow along with our video guide
@@ -64,7 +64,7 @@ If you are already running Teleport on another platform, you can use your existi
 - A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
 
 <Admonition title="Local-only setups" type="tip">
-Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../getting-started/docker-compose.mdx).
+Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](./docker-compose.mdx).
 </Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
@@ -213,7 +213,7 @@ $ kubectl exec -ti ${POD?} -- tctl  users add alice --roles=member
 ```
 
 Let's install `tsh` and `tctl` on Linux.
-For other install options, check out [install guide](../../installation.mdx)
+For other install options, check out the [installation guide](../installation.mdx)
 
 <Tabs>
   <TabItem label="Open Source">
@@ -295,8 +295,8 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
   </TabItem>
 
   <TabItem label="Enterprise" scope={["enterprise"]}>
-    Follow the [SAML Okta Guide](../../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
-    Check out [OIDC guides](../../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
+    Follow the [SAML Okta Guide](../enterprise/sso/okta.mdx#configure-okta) to create a SAML app.
+    Check out [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
     Any member in Okta group `okta-admin` will assume a builtin role `access`.
 
@@ -372,9 +372,9 @@ the default one in case there is a problem.
 
 ## Next steps
 
-- [Connect Multiple Kubernetes Clusters](../guides/multiple-clusters.mdx)
-- [Setup CI/CD Access with Teleport](../guides/cicd.mdx)
-- [Federated Access using Trusted Clusters](../guides/federation.mdx)
-- [Single-Sign On and Kubernetes Access Control](../controls.mdx)
+- [Connect Multiple Kubernetes Clusters](../kubernetes-access/guides/multiple-clusters.mdx)
+- [Setup CI/CD Access with Teleport](../kubernetes-access/guides/cicd.mdx)
+- [Federated Access using Trusted Clusters](../kubernetes-access/guides/federation.mdx)
+- [Single-Sign On and Kubernetes Access Control](../kubernetes-access/controls.mdx)
 
 </ScopedBlock>
