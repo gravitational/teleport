@@ -5,13 +5,13 @@ h1: Trusted Clusters
 ---
 
 Teleport can partition compute infrastructure into multiple clusters. A cluster
-is a group of Teleport resources connected to the cluster's Auth Service, which
-acts as a certificate authority (CA) for all users and Nodes in the cluster.
+is a group of Teleport resources connected. Each clustes
+manages a separate certificate authority (CA) for all users and resources.
 
 Trusted Clusters allow the users of one cluster, the **root cluster**, to
 seamlessly SSH into the Nodes of another cluster, the **leaf cluster**, while
 remaining authenticated with only a single Auth Service. The leaf cluster can
-be running behind a firewall with no TCP ports open to the root cluster.
+be running behind a firewall without any ingress ports open.
 
 Uses for Trusted Clusters include:
 
@@ -20,14 +20,18 @@ Uses for Trusted Clusters include:
 - Large cloud software vendors managing multiple data centers using a common proxy.
 
 Here is an example of an MSP using Trusted Clusters to obtain access to client clusters:
-![MSP Example](../../../img/trusted-clusters/TrustedClusters-MSP.svg)
+![MSP Example](../../../img/trusted-clusters/trusted-clusters@1.5x.svg)
 
-This setup works as follows: a leaf cluster creates an outbound reverse SSH
-tunnel to the root cluster and keeps the tunnel open. When a user tries to
-connect to a Node inside the leaf cluster using the root's Proxy Service, the
-reverse tunnel is used to establish this connection.
+A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster and keeps the tunnel open.
 
-![Tunnels](../../../img/tunnel.svg)
+<Notice type="tip">
+Individual nodes and proxies can create reverse tunnels to proxy serivices without creating a new cluster.
+You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
+databases behind a firewall. For more information, see [Adding Nodes to the Cluster](./adding-nodes.mdx).
+</Notice>
+
+When a user tries to connect to any resource inside the leaf cluster using the root's proxy, the
+the connection goes through the reverse tunnel.
 
 This guide will explain how to:
 
