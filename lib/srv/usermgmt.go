@@ -151,6 +151,9 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
+			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+			}
 			return nil, nil, trace.Wrap(err)
 		}
 		var found bool

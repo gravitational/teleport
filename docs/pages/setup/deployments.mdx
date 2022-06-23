@@ -27,15 +27,31 @@ the platform of your choice.
 </ScopedBlock>
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-<ul>
-  <li>
-    [AWS Terraform](./deployments/aws-terraform.mdx). Deploy HA Teleport with Terraform Provider on AWS.
-  </li>
-  <li>
-    [GCP](./deployments/gcp.mdx). Deploy HA Teleport on GCP.
-  </li>
-  <li>
-    [IBM Cloud](./deployments/ibm.mdx). Deploy HA Teleport on IBM cloud.
-  </li>
-</ul>
+<TileSet>
+  <ScopedBlock scope="oss">
+  <Tile
+  title="DigitalOcean"
+  href="./deployments/digitalocean/"
+  >
+
+    Use our DigitalOcean 1-Click App to quickly spin up Teleport on a droplet.
+    
+  </Tile>
+  </ScopedBlock>
+  <Tile href="./deployments/aws-terraform.mdx" title="AWS Terraform">
+
+    Deploy HA Teleport with Terraform Provider on AWS.
+
+  </Tile>
+  <Tile href="./deployments/gcp.mdx" title="GCP">
+
+    Deploy HA Teleport on GCP.
+
+  </Tile>
+  <Tile href="./deployments/ibm.mdx" title="IBM Cloud">
+
+    Deploy HA Teleport on IBM cloud.
+
+  </Tile>
+</TileSet>
 </ScopedBlock>
