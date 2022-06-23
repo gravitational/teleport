@@ -145,14 +145,13 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
   return {
-    quickstart: withUTM('https://goteleport.com/teleport/docs/quickstart'),
-    userManual: withUTM('https://goteleport.com/teleport/docs/user-manual'),
-    adminGuide: withUTM('https://goteleport.com/teleport/docs/admin-guide'),
+    quickstart: withUTM('https://goteleport.com/docs/getting-started'),
+    userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
+    adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
     troubleshooting: withUTM(
-      'https://goteleport.com/teleport/docs/setup/admin/troubleshooting',
-      '#troubleshooting'
+      'https://goteleport.com/docs/setup/admin/troubleshooting'
     ),
-    faq: withUTM('https://goteleport.com/teleport/docs/faq'),
+    faq: withUTM('https://goteleport.com/docs/faq'),
   };
 };
 
@@ -165,7 +164,7 @@ const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
     return 'https://dashboard.gravitational.com/web/downloads';
   }
 
-  return 'https://goteleport.com/teleport/download';
+  return 'https://goteleport.com/download/';
 };
 
 const SupportLink = ({ title = '', url = '' }) => (

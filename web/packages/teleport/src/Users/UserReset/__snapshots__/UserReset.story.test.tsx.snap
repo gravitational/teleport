@@ -225,7 +225,7 @@ exports[`failed state 1`] = `
           class="c5"
           color="text.primary"
         >
-          Reset User Password?
+          Reset User Authentication?
         </div>
       </div>
       <div
@@ -240,13 +240,13 @@ exports[`failed state 1`] = `
         <div
           class="c8"
         >
-          You are about to reset password for user
+          You are about to reset authentication for user
           <span
             class="c9"
           >
              smith 
           </span>
-          . This will generate a temporary URL which can be used to set up a new password.
+          . This will generate a temporary URL which can be used to set up new authentication.
         </div>
       </div>
       <div
@@ -474,7 +474,7 @@ exports[`processing state 1`] = `
           class="c5"
           color="text.primary"
         >
-          Reset User Password?
+          Reset User Authentication?
         </div>
       </div>
       <div
@@ -483,13 +483,13 @@ exports[`processing state 1`] = `
         <div
           class="c7"
         >
-          You are about to reset password for user
+          You are about to reset authentication for user
           <span
             class="c8"
           >
              smith 
           </span>
-          . This will generate a temporary URL which can be used to set up a new password.
+          . This will generate a temporary URL which can be used to set up new authentication.
         </div>
       </div>
       <div

@@ -92,7 +92,7 @@ export function Roles(props: State) {
               <Link
                 color="light"
                 target="_blank"
-                href="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
+                href="https://goteleport.com/docs/access-controls/guides/role-templates/"
               >
                 the cluster management (RBAC)
               </Link>{' '}
@@ -103,7 +103,7 @@ export function Roles(props: State) {
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
+          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
           title={title}
           text={resources.item.content}
           name={resources.item.name}

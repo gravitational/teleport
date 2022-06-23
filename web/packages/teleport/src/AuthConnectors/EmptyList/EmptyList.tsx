@@ -42,7 +42,7 @@ export default function EmptyList({ onCreate }: Props) {
           <Text
             as="a"
             color="light"
-            href="https://goteleport.com/teleport/docs/admin-guide/#github-oauth-20"
+            href="https://goteleport.com/docs/setup/admin/github-sso/"
             target="_blank"
           >
             view our documentation

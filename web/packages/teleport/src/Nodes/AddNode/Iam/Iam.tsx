@@ -50,7 +50,10 @@ export default function Iam({ token, attempt, onGenerate, onClose }: Props) {
               </Text>
               <Text mt={1}>
                 For more information, see documentation{' '}
-                <Link href="https://goteleport.com/docs/setup/guides/joining-nodes-aws/">
+                <Link
+                  href="https://goteleport.com/docs/setup/guides/joining-nodes-aws/"
+                  target="_blank"
+                >
                   here
                 </Link>
                 .

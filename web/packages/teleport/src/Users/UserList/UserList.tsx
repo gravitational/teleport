@@ -40,6 +40,19 @@ export default function UserList({
           key: 'roles',
           headerText: 'Roles',
           isSortable: true,
+          onSort: (a: string[], b: string[]) => {
+            const aStr = a.toString();
+            const bStr = b.toString();
+
+            if (aStr < bStr) {
+              return -1;
+            }
+            if (aStr > bStr) {
+              return 1;
+            }
+
+            return 0;
+          },
           render: ({ roles }) => <RolesCell roles={roles} />,
         },
         {
@@ -88,7 +101,9 @@ const ActionCell = ({
     <Cell align="right">
       <MenuButton>
         <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>
-        <MenuItem onClick={() => onReset(user)}>Reset Password...</MenuItem>
+        <MenuItem onClick={() => onReset(user)}>
+          Reset Authentication...
+        </MenuItem>
         <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
@@ -96,7 +111,7 @@ const ActionCell = ({
 };
 
 const RolesCell = ({ roles }: Pick<User, 'roles'>) => {
-  const $roles = roles.sort().map(role => (
+  const $roles = roles.map(role => (
     <Label mb="1" mr="1" key={role} kind="secondary">
       {role}
     </Label>

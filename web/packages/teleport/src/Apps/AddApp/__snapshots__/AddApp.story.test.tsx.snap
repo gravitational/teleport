@@ -1550,7 +1550,7 @@ exports[`render manual tab with local user 1`] = `
             Learn more about application access 
             <a
               class="c12"
-              href="https://goteleport.com/teleport/docs/application-access/"
+              href="https://goteleport.com/docs/application-access/introduction/"
               rel="noreferrer"
               target="_blank"
             >
@@ -2018,7 +2018,7 @@ exports[`render manual tab with sso user 1`] = `
             Learn more about application access 
             <a
               class="c12"
-              href="https://goteleport.com/teleport/docs/application-access/"
+              href="https://goteleport.com/docs/application-access/introduction/"
               rel="noreferrer"
               target="_blank"
             >
