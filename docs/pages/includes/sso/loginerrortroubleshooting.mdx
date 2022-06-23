@@ -37,15 +37,7 @@ Example of a user being denied because the role `clusteradmin` wasn't set up:
 
 ### Teleport does not show the expected Nodes
 
-When Teleport's Auth Service receives a request to list Teleport Nodes,
-it only returns the Nodes that a user is authorized to access. 
-
-A user's Teleport roles must grant the user explicit access to Nodes with a particular label
- before the user can view those Nodes. The Auth Service compares the user's 
-`traits.logins` with the `allow` and `deny` rules defined in each of the user's roles. 
-If the user's logins match a role's `allow` and `deny` rules, and a Node's labels match 
-the keys and values listed within a role's `node_labels` field, then the Auth Service will
-list the Node in response to the user's request.
+(!docs/pages/includes/node-logins.mdx!)
 
 When configuring SSO, ensure that the identity provider is populating each user's 
 traits correctly. For a user to see a Node in Teleport, the result of populating a
