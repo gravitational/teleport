@@ -53,13 +53,13 @@ Kubernetes.
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
 Create a new [DigitalOcean Kubernetes Cluster](https://cloud.digitalocean.com/kubernetes/clusters/)
 <Figure align="left" bordered caption="Create DigitalOcean Kubernetes cluster">
-  ![Create DigitalOcean Kubernetes cluster](../../../../img/helm/digitalocean/create-k8s.png)
+  ![Create DigitalOcean Kubernetes cluster](../../../img/helm/digitalocean/create-k8s.png)
 </Figure>
 
 <br />
 While the Kubernetes cluster is being provisioned, follow the "Getting Started" guide as shown below:
 <Figure align="left" bordered caption="Set up DigitalOcean Kubernetes client">
-  ![Set up DigitalOcean Kubernetes client](../../../../img/helm/digitalocean/setup-k8s.png)
+  ![Set up DigitalOcean Kubernetes client](../../../img/helm/digitalocean/setup-k8s.png)
 </Figure>
 
 
@@ -98,7 +98,7 @@ NAME               TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)     
 ```
 Once you get the value for the external IP (it may take a few minutes for this field to be populated), update your DNS record such that the clusterName's A record points to this IP address. For example `192.168.200.200` is the external IP in the above case.
 <Figure align="left" bordered caption="Configure DNS">
-  ![Configure DNS](../../../../img/helm/digitalocean/fqdn.png)
+  ![Configure DNS](../../../img/helm/digitalocean/fqdn.png)
 </Figure>
 
 ## Step 3/4. Create and set up Teleport user
@@ -114,7 +114,7 @@ $ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl user
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.teleporters.dev:443/web/invite/<invite-token>` in the above case).
 <Figure align="left" bordered caption="Setup user">
-  ![Setup user](../../../../img/helm/digitalocean/setup-user.png)
+  ![Setup user](../../../img/helm/digitalocean/setup-user.png)
 </Figure>
 
 
@@ -154,12 +154,12 @@ $ kubectl --namespace=teleport-cluster exec -i ${POD?} -- tctl create -f < membe
 Now we will assign Teleport user **tadmin** with this role. The example below shows a process using Teleport Web UI:
 First, lets select user edit menu:
 <Figure align="left" bordered caption="Edit user">
-  ![Edit user](../../../../img/helm/digitalocean/edit-user.png)
+  ![Edit user](../../../img/helm/digitalocean/edit-user.png)
 </Figure>
 
 Second, update the **tadmin** user role to assign the **member** role:
 <Figure align="left" bordered caption="Update role">
-  ![Update role](../../../../img/helm/digitalocean/update-role.png)
+  ![Update role](../../../img/helm/digitalocean/update-role.png)
 </Figure>
 
 We've updated the user **tadmin** to have the **member** role, which is allowed to access a Kubernetes cluster with privilege `system:master`.
@@ -219,14 +219,14 @@ Voila! User **tadmin** was able to list the pods in their DigitalOcean Kubernete
 
 Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot below, the Teleport audit log shows that the user **tadmin** has logged into the cluster.
 <Figure align="left" bordered caption="View audit log">
-  ![View audit log](../../../../img/helm/digitalocean/view-activity.png)
+  ![View audit log](../../../img/helm/digitalocean/view-activity.png)
 </Figure>
 
 
 ## Next steps
-- [Connect Multiple Kubernetes Clusters](../../guides/multiple-clusters.mdx)
-- [Setup CI/CD Access with Teleport](../../guides/cicd.mdx)
-- [Federated Access using Trusted Clusters](../../guides/federation.mdx)
-- [Single-Sign On and Kubernetes Access Control](../../controls.mdx)
+- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
+- [Setup CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
+- [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
+- [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)
 
 </ScopedBlock>

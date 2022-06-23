@@ -4,23 +4,20 @@ description: How to install and configure Teleport in Kubernetes using Helm
 layout: tocless-doc
 ---
 
-## Helm guides
+## Helm deployment guides
 
 These guides show you how to set up a full self-hosted Teleport deployment using
 our `teleport-cluster` Helm chart.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 <TileSet>
-    <Tile icon="kubernetes" title="Standalone Teleport Cluster" href="../getting-started.mdx">
-        Getting started with Kubernetes Access
-    </Tile>
-    <Tile icon="kubernetes" title="HA AWS Teleport Cluster" href="./guides/aws.mdx">
+    <Tile icon="kubernetes" title="HA AWS Teleport Cluster" href="./helm-deployments/aws.mdx">
         Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster
     </Tile>
-    <Tile icon="kubernetes" title="HA GCP Teleport Cluster" href="./guides/gcp.mdx">
+    <Tile icon="kubernetes" title="HA GCP Teleport Cluster" href="./helm-deployments/gcp.mdx">
         Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE cluster
     </Tile>
-    <Tile icon="kubernetes" title="Custom Teleport config" href="./guides/custom.mdx">
+    <Tile icon="kubernetes" title="Custom Teleport config" href="./helm-deployments/custom.mdx">
         Running a Teleport cluster in Kubernetes with a custom Teleport config
     </Tile>
 </TileSet>
@@ -44,21 +41,6 @@ our `teleport-cluster` Helm chart.
   </TileSet>
 </ScopedBlock>
 
-## Detailed Helm chart references
-
-<TileSet>
-<Tile href="./reference/teleport-cluster.mdx" icon="kubernetes" title="teleport-cluster">
-
-Deploy the `teleport` daemon on Kubernetes with preset configurations for the
-Auth and Proxy Services and support for any Teleport service configuration.
-
-</Tile>
-<Tile href="./reference/teleport-kube-agent.mdx" icon="kubernetes" title="teleport-kube-agent">
-
-Deploy the Teleport Kubernetes Service, Application Service, or Database Service on Kubernetes.
-
-</Tile>
-</TileSet>
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Migration Guides

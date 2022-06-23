@@ -93,8 +93,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
-	require.Equal(t, config.RestartThreshold.Amount, defaults.MaxConnectionErrorsBeforeRestart)
-	require.Equal(t, config.RestartThreshold.Time, defaults.ConnectionErrorMeasurementPeriod)
 }
 
 // TestCheckApp validates application configuration.
