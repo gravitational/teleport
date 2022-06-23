@@ -18,7 +18,6 @@ import (
 	"context"
 	"sync"
 
-	apiuri "github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -98,12 +97,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 
 // ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	clusterURI, err := apiuri.ParseClusterURI(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := s.Storage.GetByURI(clusterURI.String())
+	cluster, err := s.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

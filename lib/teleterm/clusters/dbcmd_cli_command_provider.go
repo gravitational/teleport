@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	apiuri "github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -39,7 +38,7 @@ func NewDbcmdCLICommandProvider(storage *Storage) DbcmdCLICommandProvider {
 }
 
 func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
-	cluster, err := d.resolveCluster(gateway.TargetURI)
+	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -71,18 +70,4 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
 
 	return cmdString, nil
-}
-
-func (d DbcmdCLICommandProvider) resolveCluster(uri string) (*Cluster, error) {
-	clusterURI, err := apiuri.ParseClusterURI(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := d.storage.GetByURI(clusterURI.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cluster, nil
 }
