@@ -15,10 +15,8 @@ RUN go mod download
 
 COPY *.go ./
 COPY lib/ lib/
-COPY operator/config/crd/bases/ operator/config/crd/bases/
 COPY operator/apis/ operator/apis/
 COPY operator/controllers/ operator/controllers/
-COPY operator/crd/ operator/crd/
 COPY operator/sidecar/ operator/sidecar/
 COPY operator/main.go operator/main.go
 
