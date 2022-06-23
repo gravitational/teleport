@@ -3,7 +3,7 @@ title: Running Teleport with a Custom Configuration using Helm
 description: Install and configure a Teleport cluster with a custom configuration using Helm
 ---
 
-In this guide, we'll go through how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../../../setup/reference/config.mdx)
+In this guide, we'll go through how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../reference/config.mdx)
 config file using Teleport Helm charts.
 
 This setup can be useful when you already have an existing Teleport cluster and would like to start running it in Kubernetes, or when
@@ -61,7 +61,7 @@ icon="building"
 In `custom` mode, the `teleport-cluster` Helm chart does not create a `ConfigMap` containing a `teleport.yaml` file for you, but
 expects that you will provide this yourself.
 
-For this example, we'll be using this `teleport.yaml` configuration file with a static join token (for more information on join tokens, see [Adding Nodes to the Cluster](../../../setup/admin/adding-nodes.mdx)):
+For this example, we'll be using this `teleport.yaml` configuration file with a static join token (for more information on join tokens, see [Adding Nodes to the Cluster](../admin/adding-nodes.mdx)):
 
 ```code
 $ cat << EOF > teleport.yaml
@@ -252,7 +252,7 @@ $ helm upgrade teleport teleport/teleport-cluster \
 <Admonition type="warning">
   When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
 
-  [Information on supported Teleport storage backends](../../../architecture/authentication.mdx#storage-back-ends)
+  [Information on supported Teleport storage backends](../../architecture/authentication.mdx#storage-back-ends)
 
   Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT** supported for an HA deployment and will result in errors.
 </Admonition>
@@ -271,7 +271,7 @@ $ helm --namespace teleport uninstall teleport
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../../setup/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
+You can follow our [Getting Started with Teleport guide](../guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
 
 </ScopedBlock>
