@@ -1929,7 +1929,7 @@ func getLocalIP() (string, error) {
 		default:
 			continue
 		}
-		if !ip.IsLoopback() {
+		if !ip.IsLoopback() && ip.IsPrivate() {
 			return ip.String(), nil
 		}
 	}
