@@ -538,7 +538,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.SSHAddr = *addr
+		cfg.Auth.ListenAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -1962,7 +1962,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2069,8 +2069,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.SSHAddr,
-		&cfg.Auth.SSHAddr,
+		&cfg.Auth.ListenAddr,
+		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
