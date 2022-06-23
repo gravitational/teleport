@@ -59,8 +59,8 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyAddr := proxy.GetProxyAddress(addr); proxyAddr != nil {
-			return DialProxyWithDialer(ctx, proxyAddr.Host, addr, dialer)
+		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
+			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	})
