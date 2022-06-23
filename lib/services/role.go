@@ -932,7 +932,6 @@ func (set RoleSet) enumerateEntities(r AccessCheckable, getter EntityGetter, mat
 	return result
 }
 
-
 // Check if a roleset is allowed to access a database.
 // This check is not exhaustive - it is more permissive than a real authorization check.
 // If db_user/db_name are blank, then we do not know what db_user/db_name will be used by default - A full RBAC check would deny blank db_user/db_name unless there is a wildcard allow rule.

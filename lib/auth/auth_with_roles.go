@@ -2277,9 +2277,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 		dbRoute := tlsca.RouteToDatabase{
 			ServiceName: dbService,
-			Protocol: req.RouteToDatabase.Protocol,
-			Username: req.RouteToDatabase.Username,
-			Database: req.RouteToDatabase.Database,
+			Protocol:    req.RouteToDatabase.Protocol,
+			Username:    req.RouteToDatabase.Username,
+			Database:    req.RouteToDatabase.Database,
 		}
 		// rough sanity check for db login. Full RBAC checks will ultimately happen on db connect.
 		err = roleSet.CheckAccessToDatabase(dbRoute, database)
