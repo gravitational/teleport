@@ -69,6 +69,9 @@ type PromptMFAChallengeOpts struct {
 	PreferOTP bool
 }
 
+// promptMFAStandalone is used to mock PromptMFAChallenge for tests.
+var promptMFAStandalone = PromptMFAChallenge
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
 // If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
@@ -89,7 +92,7 @@ func (tc *TeleportClient) PromptMFAChallenge(
 		applyOpts(opts)
 	}
 
-	return PromptMFAChallenge(ctx, c, addr, opts)
+	return promptMFAStandalone(ctx, c, addr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
