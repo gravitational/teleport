@@ -1088,6 +1088,32 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 	return profileStatus, others, nil
 }
 
+// FetchRoleSet fetches a user's roles for a specified cluster.
+func FetchRoleSet(ctx context.Context, log *logrus.Entry, cluster auth.ClientI, profile *ProfileStatus) (services.RoleSet, error) {
+	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
+	roles := profile.Roles
+	traits := profile.Traits
+
+	// GetCurrentUser() may not be implemented, fail gracefully.
+	user, err := cluster.GetCurrentUser(ctx)
+	if err == nil {
+		roles = user.GetRoles()
+		traits = user.GetTraits()
+	} else {
+		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// get the role definition for all roles of user.
+	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+	// example scenario when this may happen:
+	// 1. we have set of roles [foo bar] from profile.
+	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+	roleSet, err := services.FetchRoles(roles, cluster, traits)
+	return roleSet, trace.Wrap(err)
+}
+
 // LoadProfile populates Config with the values stored in the given
 // profiles directory. If profileDir is an empty string, the default profile
 // directory ~/.tsh is used.
