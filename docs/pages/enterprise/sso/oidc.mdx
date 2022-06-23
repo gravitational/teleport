@@ -90,8 +90,9 @@ Create the connector:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create oidc-connector.yaml
 ```
@@ -100,7 +101,7 @@ $ tctl create oidc-connector.yaml
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely
+# Log in to your Teleport cluster so you can use tctl remotely.
 $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create oidc-connector.yaml
 ```
