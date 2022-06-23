@@ -896,20 +896,16 @@
       "title": "Architecture",
       "entries": [
         {
-          "title": "Architecture Overview",
+          "title": "Overview",
           "slug": "/architecture/overview/"
         },
         {
-          "title": "Teleport Users",
-          "slug": "/architecture/users/"
-        },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
-        {
-          "title": "Teleport Auth",
+          "title": "Authentication",
           "slug": "/architecture/authentication/"
+        },
+        {
+          "title": "Authorization",
+          "slug": "/architecture/authorization/"
         },
         {
           "title": "Teleport Proxy",
@@ -917,7 +913,11 @@
         },
         {
           "title": "Trusted Clusters",
-          "slug": "/trustedclusters/"
+          "slug": "/architecture/trustedclusters/"
+        },
+        {
+          "title": "Teleport Nodes",
+          "slug": "/architecture/nodes/"
         },
         {
           "title": "TLS Routing",
@@ -1014,6 +1014,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/architecture/users/",
+      "destination": "/architecture/authorization/",
+      "permanent": true
+    },
     {
       "source": "/user-manual/",
       "destination": "/server-access/guides/tsh/",
