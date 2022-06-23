@@ -59,6 +59,8 @@ Most of the security standards that will be applied to the infrastructure for th
 
 All employee interaction with the registry and repositories will require our existing Okta SSO w/ MFA. Teleport employees will have read access to the internal ECR registry in order to test images before promoting them. Teleport employees will not have direct write access to images. Teleport Release Engineers responsible for the artifacts will have limited write access through an assumed role. This role must be logged to the audit logs. Release engineers shall have no ability to modify or change audit logs.
 
+In case of an urgent fix, core release engineers will be able to assume an admin role that gives them permissions to write to repositories. This role assumption and all other actions taken by the engineer will be audited and alerted upon as defined in the [Artifact Storage Standards](https://github.com/gravitational/cloud/blob/9124947fdfb0773fa9bd567160481bed4ec84b7e/rfd/0017-artifact-storage-standards.md).
+
 Service Accounts with least privilege permissions will handle pushing and promoting the images to the registries. For instance, a service account that is used during tags will have limited access to push to the internal ECR repositories. Another service account that handles promotions will have access to pull from AWS ECR and push to AWS ECR Public. Example terraform for the repository and promotion can be seen [below](#appendix-a-example-terraform)
 
 ### Observabilty
