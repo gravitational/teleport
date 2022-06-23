@@ -200,7 +200,6 @@ func TestGenerateCredentials(t *testing.T) {
 	require.True(t, foundKeyUsage)
 	require.True(t, foundAltName)
 }
-
 func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	s := &WindowsService{

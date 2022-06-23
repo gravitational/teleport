@@ -22,11 +22,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"gopkg.in/check.v1"
 )
 
@@ -41,6 +46,27 @@ type ServicesSuite struct {
 }
 
 var _ = check.Suite(&ServicesSuite{})
+
+func TestSemaphoreKeepAliveDoesntLeak(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // should terminate any goroutines
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	_, err = services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+		Service: NewPresenceService(bk),
+		Expiry:  24 * time.Hour,
+		Params: types.AcquireSemaphoreRequest{
+			SemaphoreKind: types.SemaphoreKindConnection,
+			SemaphoreName: "alice",
+			MaxLeases:     1,
+		},
+	})
+	require.NoError(t, err)
+}
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
