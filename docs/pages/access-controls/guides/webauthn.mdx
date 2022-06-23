@@ -131,9 +131,12 @@ $ tctl create -f cap.yaml
 ```
 </ScopedBlock>
 
-<Admonition type="tip" title="U2F">
+<Details
+  title="Using U2F?"
+  opened={true}
+>
   Starting on Teleport v10, WebAuthn replaces U2F. See the [U2F](#u2f) section.
-</Admonition>
+</Details>
 
 `rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
   (`https://`) and port number.
