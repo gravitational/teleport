@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
-	libmongodb "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	libdbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -414,7 +414,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	// Use the same default server selection timeout that the backend engine is
 	// using. The environment variable serves as a hidden option to force a
 	// different timeout for debugging purpose or extreme situations.
-	serverSelectionTimeoutMS := strconv.Itoa(int(libmongodb.DefaultServerSelectionTimeout.Milliseconds()))
+	serverSelectionTimeoutMS := strconv.Itoa(int(libdbcommon.DefaultMongoDBServerSelectionTimeout.Milliseconds()))
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
 		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue
