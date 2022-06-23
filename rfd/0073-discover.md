@@ -11,8 +11,8 @@ state: draft
 
 ## What
 
-Proposes the `teleport discover` command that simplifies the UX for the
-first-time users who are connecting their cloud resources to Teleport.
+Proposes a set of UX updates that improve the UX for the users connecting their
+resources to Teleport.
 
 ## Related RFDs
 
@@ -22,316 +22,182 @@ first-time users who are connecting their cloud resources to Teleport.
 ## Why
 
 The proposal is aimed at providing an easy way for Teleport administrators to
-connect their cloud-hosted resources (EC2 instances, RDS databases, EKS clusters
-an so on) to a Teleport cluster.
+connect their resources such as SSH servers, databases and Kubernetes clusters
+to a Teleport cluster.
 
 Over the past few releases Teleport has been adding automatic discovery
 capabilities allowing it to find and register AWS databases, EC2 instances
 and (WIP as of this writing) EKS clusters. Despite providing an improved UX
 compared to registering the resources manually, connecting resources to cluster
 and setting up auto-discovery remains cumbersome with multiple different
-`teleport configure` commands and does not provide good visibility into the
-discovered resources.
+`teleport configure` CLI commands to run, configuration files to update and
+so on.
 
-The `teleport discover` approach aims to take advantage of the existing auto
+Improvements proposed in thie RFD aim to take advantage of the existing auto
 discovery mechanisms Teleport has and provide a unified approach for users to
-enroll their cloud resources.
+connect their resources.
 
 ## Scope
 
 - Works with both self-hosted edition and Teleport Cloud.
-- Focuses on discovering resources in AWS, other clouds to follow.
-- Covers currently supported cloud resources: EC2 instances and RDS databases.
-- The phase 1 of the implementation will only support EC2 instances and SSH.
+- Works with the environments we currently support: AWS and self-hosted.
+- Phase 1 will focus on the "Day 1" experience described below.
+- Phase 2 and beyond will focus on "Day 2" and further tweaks to "Day 1" experience.
 
-## Prerequisites
+## UX
 
-In order to use `teleport discover` the user will need:
+The Teleport Discover flow will aim to provide a guided experience for users
+connecting their resources to a Teleport cluster in 2 main scenarios:
 
-- Running Auth and Proxy, or a Cloud account.
-- An AWS EC2 instance to run `teleport discover` command from. The node must have
-  IAM identity allowing it to perform discovery operations in AWS account.
+1. "Day-1 users": These users are new to Teleport and are exploring what it has
+   to offer. Most likely they don't want to connect all their resources yet but
+   would like to quickly get to success by connecting their first server or a
+   database and see it work.
 
-## Command
+2. "Day-2 users": Users who are already somewhat familiar with Teleport, got
+   their first resource connected and are exploring go-to-production options.
+   They would like to have Teleport automatically discover and connect their
+   cloud resources.
 
-The goal for `teleport discover` is to eventually support multiple cloud
-providers. Given that different providers often have different concepts and
-different names for similar things, it may be hard to unify them all under a
-single `teleport discover` command without making UX confusing, having
-overlapping or prefixed flags, etc.
+Let's explore in more detail what the flow for both of these user personas
+would look like.
 
-Hence, the proposal is to have a family of subcommands for different cloud
-providers:
+## Day 1
 
-```
-$ teleport discover aws ...
-$ teleport discover gcp ...
-```
+Day 1 users should be greeted by a wizard-style dialog upon logging into the
+web UI of a cluster that does not have any connected resources. The wizard
+will guide the user through the flow of connecting their first resource.
 
-This RFD will focus on `teleport discover aws`.
+Teleport web UI already provides some of the building blocks for the wizard in
+the form of "Add server", "Add database", etc. pop-up dialogs but their
+instructions are not friendly for newcomers and make it almost impossible to
+use successfully without referring to the documentation.
 
-## Usage
+Instead of separate dialogs, Teleport Discover wizard will provide a unified
+experience to enable the flow described below.
 
-The default mode of operation of the `teleport discover` command is to support
-the UI wizard users will use to join their resources to the cluster.
+Users should be able to navigate between the dialog steps back and forth to
+connect multiple resource if needed. The unified "Add resource" wizard should
+also be available and prominently visible in the web UI allowing users to go
+through the same flow in a non-empty cluster.
 
-Users will go through the following flow in the wizard-style dialog in the
-Teleport Web UI:
+### Step 1. Gather information
 
-- Select which environment to look for resources in. E.g. self-hosted (which
-  will use existing automatic join scipts), AWS or other cloud (which will use
-  the discover flow), as well as regions.
-- Select types of resources to import. For AWS users will be offered all types
-  we currently support auto-discovery for: EC2, RDS/Aurora, Redshift, Elasticache,
-  MemoryDB. The dialog may optionally allow to specify tags to filter the
-  resources by.
-- Based on the selected resources, display appropriate `teleport discover aws`
-  command to run and the IAM policy required for the command to successfully
-  discover and join resources.
+Ask the user what type of resource they would like to connect: an SSH server,
+a database, an application, etc.
 
-Users will launch the `teleport discover aws` command on an AWS instance that
-has IAM permissions required to discover and connect resoures. We'll detail
-those permissions later.
+Then ask the user where the resource is located: self-hosted or AWS. For
+databases, also present the supported protocol options. For self-hosted:
+PostgreSQL, MySQL, MongoDB, Redis, SQL Server. For AWS: RDS PostgreSQL, RDS
+MySQL, RDS SQL Server, Elasticache, MemoryDB.
 
-The command will:
+### Step 2. Install Teleport
 
-1. Join the Teleport cluster as a "discover" agent using the same cluster join
-   mechanism as any other agent. Join token will be generated by the server
-   and included in the CLI command displayed to a user.
-2. Using the node's IAM credentials, search the cloud account for the requested
-   resources according to the command's filters.
-3. Once discovered, the agent will start heartbeating the discovered resources
-   to the cluster with TTL using the same heartbeat mechanism as any other
-   type of resource. Heartbeating resources to the cluster will allow the UI
-   to pick them up and show to the user.
-4. Wait for the user to inspect discovered resources in the UI wizard and select
-   those they would like to connect.
-5. Once confirmed, proceed with importing resources to the cluster. Details
-   below on how this works for each particular resource type.
-6. After importing all resources, `teleport discover` will generate Teleport
-   config file `/etc/teleport.yaml`, start the Teleport service on the node
-   and exit.
+For SSH, instruct the user to download and install `teleport` binary on the
+server they're intending to connect. Use tabs to display per-distro install
+instructions similar to [the docs](https://goteleport.com/docs/server-access/getting-started/#step-14-install-teleport-on-your-linux-host).
 
-## Details
+For a database, display the same instructions making it clear that Teleport
+should be installed on a node that can reach the database.
 
-### 1. Join
+### Step 3. Configure node
 
-Running as an agent and joining the Teleport cluster allows `teleport discover`
-to share progress with the UI wizard served by the Proxy. The command will also
-have a CLI-only mode which will be detailed later.
+For SSH, this step is a no-op as it doesn't need any additional configuration
+so users will proceed to starting an agent at step 4.
 
-Discover agent will use the same cluster join mechanism as any other type of
-agent e.g. SSH node, application or database service. A new auth token type
-`discover` will be introduced for the discover agent. Users will be able to
-create it same way as any other token type:
+For databases, this step will inform the user of any additional configuration
+they may need in order to get database access to work. It will depend on the
+database type and where the database is hosted.
 
-```
-$ tctl tokens add --type=discover
-```
+For self-hosted databases, in the initial version the wizard will display the
+links to the respective sections of the documentation guides for preparing
+the node (e.g. joining to AD domain for SQL Server) and show the commands for
+creating a database user.
 
-The `teleport discover` command shown to a user by the UI wizard will include
-a pre-generated short-lived auth token:
+For AWS databases that use IAM authentication (PostgreSQL, MySQL), the wizard
+will additionally display an appropriate `teleport db configure bootstrap`
+command for the user to run which will configure IAM permissions.
 
-```
-$ teleport discover aws --proxy=proxy.example.com:443 --token=abc123
-```
+### Step 4. Start agent
 
-When running `teleport discover` manually in a CLI mode, users will generate
-dynamic auth token using `tctl tokens add` command.
+For SSH, display the command for the user to run on their node, showing either
+"Automatic" or "AWS" commands from the existing "Add server" dialog depending
+on whether self-hosted or AWS option was picked in step 1.
 
-### 2. Search
+For a database, display the appropriate `teleport db start` command similar to
+the existing "Add database" dialog.
 
-The `teleport discover` command will use default credential provider chain to
-determine the cloud account credentials. For AWS this includes IAM role, then
-environment variables, then shared credentials file - all of which is handled
-by the SDK automatically.
+### Step 5. Configure role
 
-`teleport discover` will use respective `Describe*` AWS SDK methods to scan
-the cloud account for the requested resources in the requested regions.
+Teleport roles by default only include internal user traits as allowed SSH
+logins (`{{internal.logins}}`) and database users (`{{internal.db_users}}`)
+and database names (`{{internal.db_names}}`). This results into users getting
+access denied errors unless they update their roles explicitly.
 
-```
-$ teleport discover aws \
-    --regions=us-east-1,us-west-2 \
-    --types=ec2,rds,redshift \
-    --labels=teleport:true
-```
+On this step the wizard will ask the user for their intended SSH logins and/or
+database users/names and update the internal user traits appropriately so the
+users with the built-in `access` role will be allowed access to their resources.
 
-If not specified explicitly, the discover agent will default to searching for
-all supported resources matching any labels in the US regions.
+### Step 6. Connect
 
-### 3. Heartbeat
+This step will ask the user to test the connectivity by logging into their
+cluster with `tsh login` and running appropriate connect command, `tsh ssh`
+or `tsh db connect`.
 
-`teleport discover` will periodically heartbeat discovered resources to the
-cluster's Auth server with some TTL.
+### Day 2
 
-The discovery heartbeat will use similar mechanism as used by other agents and
-each discovered resource will be converted to a Teleport resource. For example,
-each EC2 instance will be heartbeat as a `Server` resource, each RDS database
-as a `Database` resource, etc. Each resource will include cloud metadata needed
-to later identify the cloud resource it corresponds to.
+Day 2 users already have gotten an initial success with connecting their
+resources to Teleport by going through the guided wizard described above.
+They have SSH and/or database agent(-s) installed and running.
 
-To prevent mixing up the resources that are already part of the cluster with
-the resources from the discover flow, the discover heartbeat will keep them
-under a different path in the Auth backend.
+As they're thinking about bringing a larger part of their infrastructure into
+their Teleport cluster, this is where it makes sense for them to use Teleport's
+auto-discovery mechanisms.
 
-Each `teleport discover` run will have a unique ID which will allow to retrieve
-resources discovered during this particular run. This will allow the UI (or the
-CLI in the CLI-only mode) to display the discovered resources to the user.
-
-The ID will be auto-generated as a UUIDv4 or can be optionally specified on the
-command line:
-
-```
-$ teleport discover aws --discover-id=abc123
-```
-
-Every discovered resource will be associated with this ID by being stored under
-a particular path in the backend during the heartbeat, e.g.
-
-```
-/discover/abc123/discovered/server/node-1
-/discover/abd123/discovered/db/mysql
-```
-
-A set of backend APIs will need to be implemented to enable this flow, as well
-as a web API handler for the UI to retrieve discovered resources:
-
-```
-GET /webapi/sites/:site/discover/:id/servers
-GET /webapi/sites/:site/discover/:id/databases
-...
-// returns a list of JSON-dumped resources
-```
-
-### 4. Confirmation
-
-After launching the discover and heartbeat service, the discover command will
-block waiting for the user to inspect the resources in the UI and select those
-they want to connect.
-
-All resources selected by the user will be saved under a different path in the
-backend for the same discover run:
-
-```
-/discover/abc123/connect/server/node-1
-/discover/abd123/connect/db/mysql
-```
-
-The web UI will call a new API handler to post resources selected by the user:
-
-```
-POST /webapi/sites/:site/discover/:id/servers
-POST /webapi/sites/:site/discover/:id/databases
-...
-```
-
-The `teleport discover` command will watch the `/discover/<id>/connect` key and
-bring the resources that appear there into the cluster.
-
-### 5. Import
-
-For EC2 nodes `teleport discover` will:
-
-- Use SSM to install a Teleport SSH agent on each EC2 instance using the same
-  approach as described in RFD 57.
-
-For RDS and other AWS databases `teleport discover` will:
-
-- Register discovered databases in Teleport using dynamic resource registration.
-
-Doing so will require appropriate IAM permissions to run SSM commands (for SSH)
-and setup IAM policies (for RDS).
-
-### 6. Shutdown
-
-After importing all resources, `teleport discover` will print out a summary of
-all connected resources, generate the `/etc/teleport.yaml` configuration file,
-start Teleport service on the node and then exit.
-
-Generated configuration file will enable services matching the discovery
-configuration, for example:
+Currently, the auto-discovery can only be configured by updating the static
+Teleport agent configuration file `teleport.yaml`:
 
 ```yaml
 ssh_service:
   enabled: "yes"
   aws:
   - types: ["ec2"]
-    regions: ["us-east-1"]
+    regions: ["us-west-1"]
     tags:
       "*": "*"
 db_service:
   enabled: "yes"
   aws:
-  - types: ["rds", "redshift", ...]
-    regions: ["us-east-1"]
+  - types: ["rds"]
+    regions: ["us-west-1"]
     tags:
       "*": "*"
 ```
 
-## CLI mode
+Instead, Teleport will implement ability to configure auto-discovery (enable,
+disable, specify resources types to discover, tags, etc.) dynamically via the
+API which web UI will utilize.
 
-With the `--cli-mode` flag, the command will allow the user to view discovered
-resources and connect them using CLI only flow:
+Similar to application and database dynamic registration, auto-discovery
+configuration will be turned into a resource (e.g. `kind: Discovery`) which
+will be tied to a particular SSH or a database agent.
 
-```sh
-$ teleport discover aws --proxy=proxy.example.com --token=xxx --cli-mode
-🔑 Found AWS credentials, account 1234567890, user alice
-🔍 Looking for EC2, RDS, Redshift and EKS resources in us-east-1, us-east-2 regions
-🔍 Hint: use --types and --regions flags to narrow down the search
-🔍 Found the following matching resources:
+Web UI will provide a wizard-like dialog that will allow users to enable AWS
+auto-discovery by going through the following flow:
 
-Type          Name/ID            Region      Tags
----------------------------------------------------------------------
-AWS EC2       node-1/i-12345     us-east-1   env:prod,os:ubuntu
-AWS EC2       node-2/i-67890     us-east-1   env:prod,os:centos
-AWS EC2       node-1/i-54321     us-west-2   env:test
-AWS RDS       mysql-prod         us-east-1   env:prod,engine:mysql
-AWS RDS       postgres           us-east-1   env:test,engine:postgres
-AWS Redshift  redshift-1         us-west-2   team:warehouse
-
-❓ Would you like to connect all discovered resources? yes/no
-🚜 Installing Teleport SSH service on [node-1/i-12345] in us-east-1... ✅
-🚜 Installing Teleport SSH service on [node-2/i-67890] in us-east-1... ✅
-🚜 Installing Teleport SSH service on [node-1/i-54321] in us-west-2... ✅
-🛢 Registering RDS MySQL database [mysql-prod] from us-east-1... ✅
-🛢 Registering Aurora PostgreSQL database [postgres] from us-east-1... ✅
-🛢 Registering Redshift database [redshift-1] from us-west-2... ✅
-🔨 Updating IAM permissions for auto-discovery for this instance's role... ✅
-🔨 Generated Teleport configuration file /etc/teleport.yaml ✅
-🔨 Starting Teleport service... ✅
-🎉 Done!
-```
-
-Optional command flags:
-
-`--regions`          | Cloud regions to search in. Defaults to US regions.
-`--types`            | Resource types to consider. Defaults to `ec2`, `rds`, `redshift`, `eks` (when implemented).
-`--labels`           | Labels (tags in AWS) resources should match. Defaults to `*: *`.
-`--ec2`              | Selectors for EC2 nodes e.g. `us-east-1:env:prod` or `us-west-2:*:*`.
-`--rds`              | Selectors for RDS databases.
-`--redshift`         | Selectors for Redshift clusters.
-`--elasticache`      | Selectors for Elasticache clusters.
-`--memorydb`         | Selectors for MemoryDB clusters.
-`--eks`              | Selectors for EKS clusters (when implemented).
-`--disable-discovery`| Disables auto-discovery on the agent.
-`--config-out`       | If provided, write config file to specified path instead of starting Teleport.
-
-## Security
-
-The instance where the user runs `teleport discover` will need to have the
-following AWS IAM permissions:
-
-* List/describe permissions for EC2, RDS and other resources user wants to connect.
-* SSM permissions to be able to run commands on EC2 instances to install agents.
-* IAM permissions to be able to setup IAM permissions for auto-discovery.
-
-The discover command will never ask the user to enter any credentials and instead
-rely on standard cloud provider credential chain.
-
-### IAM
-
-Auto-discovery requires specific IAM permissions on the node that runs an agent
-performing discovery.
-
-`teleport discover` will use the same mechanism for attaching appropriate IAM
-roles used by `teleport db configure` and `teleport ssh configure` commands.
+1. Select the type of resource to discover e.g. EC2 instances, RDS databases,
+   as well as regions and tags to filter by.
+2. Select an existing agent that will be running the auto-discovery. In order
+   to run EC2 discovery, there should be a running SSH agent. For RDS discovery,
+   a database agent.
+3. The selected agent will perform initial discovery according to the provided
+   filters. This can be implemented by providing an API for the web UI to create
+   a "discovery request" which agents will watch.
+4. The agent will attempt to fullfill the discovery request and will report
+   errors, e.g. insufficient IAM policy, to the user. This can be implemented
+   by filling out a Status field on the agent's resource spec.
+5. If successful, the UI wizard will display all resources matching the
+   discovery request for the user to inspect and confirm. If unsatisfied, the
+   user can retrace to an earlier step to re-run the discovery.
+6. After user confirmation, the agent will update its auto-discovery config
+   which will kick-off regular auto-discovery mechanisms for SSH and RDS.
