@@ -21,7 +21,7 @@ export default function makeUser(json): User {
   const [name, roles, authType] = at(json, ['name', 'roles', 'authType']);
   return {
     name,
-    roles: roles || [],
+    roles: roles ? roles.sort() : [],
     authType: authType === 'local' ? 'teleport local user' : authType,
     isLocal: authType === 'local',
   };

@@ -214,21 +214,21 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Admin Guide
@@ -242,7 +242,7 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           FAQ
@@ -272,7 +272,7 @@ exports[`support Cloud 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev#troubleshooting"
+          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Monitoring & Debugging
@@ -599,21 +599,21 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/getting-started?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/setup/admin?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           Admin Guide
@@ -627,7 +627,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=e_4.4.0-dev"
+          href="https://goteleport.com/docs/faq?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           FAQ
@@ -657,7 +657,7 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev#troubleshooting"
+          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
         >
           Monitoring & Debugging
@@ -977,35 +977,35 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/quickstart?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Quickstart Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/user-manual?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           tsh User Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/admin-guide?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Admin Guide
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/download"
+          href="https://goteleport.com/download/"
           rel="noreferrer"
         >
           Download Page
         </a>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/faq?product=teleport&version=oss_4.4.0-dev"
+          href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           FAQ
@@ -1035,7 +1035,7 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c8"
-          href="https://goteleport.com/teleport/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev#troubleshooting"
+          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
         >
           Monitoring & Debugging

@@ -147,7 +147,14 @@ export function NewMfaDevice(props: Props) {
           >
             {mfaType?.value === 'otp' && (
               <>
-                <Image src={imgSrc} width="145px" height="145px" />
+                <Image
+                  src={imgSrc}
+                  width="145px"
+                  height="145px"
+                  css={`
+                    border: 4px solid white;
+                  `}
+                />
                 <Text
                   fontSize={1}
                   textAlign="center"
