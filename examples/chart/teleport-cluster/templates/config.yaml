@@ -90,10 +90,11 @@ data:
   {{- else }}
       kube_cluster_name: {{ .Values.clusterName }}
   {{- end }}
-  {{- if .Values.labels }}
       labels:
-    {{- toYaml .Values.labels | nindent 8 }}
-  {{- end }}
+        version: "{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+      {{- if .Values.labels }}
+        {{- toYaml .Values.labels | nindent 8 }}
+      {{- end }}
     proxy_service:
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
   {{- if not .Values.proxyListenerMode }}
