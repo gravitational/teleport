@@ -217,7 +217,8 @@ metadata:
   name: access-sample
 spec:
   allow:
-    # The logins array defines the OS/UNIX logins a user is allowed to use.
+    # The logins array defines the OS/UNIX logins a user is allowed to use
+    # for accessing Nodes in the Teleport cluster.
     # Using the variable internal.logins allows including user logins
     # from the user's traits and logins from a root cluster in Trusted Clusters.    
     logins: ['{{internal.logins}}', root]
