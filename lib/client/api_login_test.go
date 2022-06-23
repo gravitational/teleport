@@ -289,13 +289,13 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	})
 	require.NoError(t, err)
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.SSHAddr = randomAddr
+	cfg.Auth.ListenAddr = randomAddr
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
-	authAddr, err := authProcess.AuthSSHAddr()
+	authAddr, err := authProcess.AuthAddr()
 	require.NoError(t, err)
 
 	// Use the same clock on AuthServer, it doesn't appear to cascade from
