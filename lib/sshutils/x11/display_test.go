@@ -138,8 +138,5 @@ func TestDisplay(t *testing.T) {
 		unixSock, err := display.unixSocket()
 		require.NoError(t, err)
 		require.Equal(t, unixSocket, unixSock.String())
-
-		_, err = display.tcpSocket()
-		require.Error(t, err)
 	})
 }
