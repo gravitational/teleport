@@ -659,6 +659,11 @@ const (
 	DatabaseTypeMemoryDB = "memorydb"
 )
 
+// GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
+func (gcp GCPCloudSQL) GetServerName() string {
+	return fmt.Sprintf("%s:%s", gcp.ProjectID, gcp.InstanceID)
+}
+
 // DeduplicateDatabases deduplicates databases by name.
 func DeduplicateDatabases(databases []Database) (result []Database) {
 	seen := make(map[string]struct{})

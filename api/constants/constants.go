@@ -321,3 +321,13 @@ const (
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
 )
+
+const (
+	// AWSInstanceStateName represents the state of the AWS EC2
+	// instance - (pending | running | shutting-down | terminated | stopping | stopped )
+	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
+	// Used for filtering instances for automatic EC2 discovery
+	AWSInstanceStateName = "instance-state-name"
+	// AWSVPCID is used to filter AWS describe-instances output by vpc
+	AWSVPCID = "vpc-id"
+)
