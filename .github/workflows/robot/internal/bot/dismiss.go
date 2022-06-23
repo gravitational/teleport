@@ -49,7 +49,7 @@ func (b *Bot) Dismiss(ctx context.Context) error {
 		if pull.Fork {
 			// HEAD could be controlled by an attacker, however, all this would allow is
 			// the attacker to dismiss a workflow run.
-			if err := b.dismiss(ctx, b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead); err != nil {
+			if err := b.dismiss(ctx, b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead.Ref); err != nil {
 				log.Printf("Failed to dismiss workflow: %v %v %v: %v.", b.c.Environment.Organization, b.c.Environment.Repository, pull.UnsafeHead, err)
 				continue
 			}

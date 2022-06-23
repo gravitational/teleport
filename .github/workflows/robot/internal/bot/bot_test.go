@@ -78,7 +78,7 @@ func TestParseChanges(t *testing.T) {
 						Number:       0,
 					},
 					GitHub: &fakeGithub{
-						test.files,
+						files: test.files,
 					},
 				},
 			}
@@ -91,15 +91,26 @@ func TestParseChanges(t *testing.T) {
 }
 
 type fakeGithub struct {
-	files []string
+	files     []string
+	pull      github.PullRequest
+	reviewers []string
+	reviews   []github.Review
 }
 
 func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	return nil
 }
 
-func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*github.Review, error) {
-	return nil, nil
+func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error) {
+	return f.reviews, nil
+}
+
+func (f *fakeGithub) ListReviewers(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	return f.reviewers, nil
+}
+
+func (f *fakeGithub) GetPullRequest(ctx context.Context, organization string, repository string, number int) (github.PullRequest, error) {
+	return f.pull, nil
 }
 
 func (f *fakeGithub) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]github.PullRequest, error) {
@@ -122,6 +133,18 @@ func (f *fakeGithub) ListWorkflowRuns(ctx context.Context, organization string, 
 	return nil, nil
 }
 
+func (f *fakeGithub) ListWorkflowJobs(ctx context.Context, organization string, repository string, runID int64) ([]github.Job, error) {
+	return nil, nil
+}
+
 func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	return nil
+}
+
+func (f *fakeGithub) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
+	return nil
+}
+
+func (f *fakeGithub) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {
+	return 0, nil
 }

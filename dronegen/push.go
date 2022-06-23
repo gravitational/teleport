@@ -103,9 +103,10 @@ func pushPipeline(b buildType) pipeline {
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
-		"RUNTIME": goRuntime,
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
+		"BUILDBOX_VERSION": buildboxVersion,
+		"RUNTIME":          goRuntime,
+		"UID":              {raw: "1000"},
+		"GID":              {raw: "1000"},
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}

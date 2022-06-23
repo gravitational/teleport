@@ -134,11 +134,8 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 }
 
 // getResources returns proxied databases as resources.
-func (s *Server) getResources() (resources types.ResourcesWithLabels) {
-	for _, database := range s.getProxiedDatabases() {
-		resources = append(resources, database)
-	}
-	return resources
+func (s *Server) getResources() types.ResourcesWithLabelsMap {
+	return s.getProxiedDatabases().AsResources().ToMap()
 }
 
 // onCreate is called by reconciler when a new database is created.
@@ -174,8 +171,14 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	if !ok {
 		return false
 	}
-	if database.IsRDS() || database.IsRedshift() {
+
+	// In the case of CloudOrigin CloudHosted resources the matchers should be skipped.
+	if cloudOrigin(resource) && database.IsCloudHosted() {
 		return true // Cloud fetchers return only matching databases.
 	}
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
+}
+
+func cloudOrigin(r types.ResourceWithLabels) bool {
+	return r.Origin() == types.OriginCloud
 }

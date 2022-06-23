@@ -1,0 +1,7 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+extraEnv:
+- name: HTTPS_PROXY
+  value: "http://username:password@my.proxy.host:3128"

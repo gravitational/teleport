@@ -30,8 +30,8 @@ func DatabaseRoleMatchers(dbProtocol string, user, database string) services.Rol
 		// queries once they're connected, apart from granting proper privileges
 		// in MySQL itself.
 		//
-		// As such, checking db_names for MySQL is quite pointless so we only
-		// check db_users. In future, if we implement some sort of access controls
+		// As such, checking db_names for MySQL is quite pointless, so we only
+		// check db_users. In the future, if we implement some sort of access controls
 		// on queries, we might be able to restrict db_names as well e.g. by
 		// detecting full-qualified table names like db.table, until then the
 		// proper way is to use MySQL grants system.
@@ -42,6 +42,11 @@ func DatabaseRoleMatchers(dbProtocol string, user, database string) services.Rol
 		// Cockroach uses the same wire protocol as Postgres but handling of
 		// databases is different and there's no way to prevent cross-database
 		// queries so only apply RBAC to db_users.
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
+	case defaults.ProtocolRedis:
+		// Redis integration doesn't support schema access control.
 		return services.RoleMatchers{
 			&services.DatabaseUserMatcher{User: user},
 		}

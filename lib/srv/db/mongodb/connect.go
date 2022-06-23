@@ -41,10 +41,10 @@ import (
 // When connecting to a replica set, returns connection to the server selected
 // based on the read preference connection string option. This allows users to
 // configure database access to always connect to a secondary for example.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, func(), error) {
 	options, selector, err := e.getTopologyOptions(ctx, sessionCtx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	// Using driver's "topology" package allows to retain low-level control
 	// over server connections (reading/writing wire messages) but at the
@@ -52,22 +52,31 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// in a replica set.
 	top, err := topology.New(options...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	err = top.Connect()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	server, err := top.SelectServer(ctx, selector)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	e.Log.Debugf("Cluster topology: %v, selected server %v.", top, server)
 	conn, err := server.Connection(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return conn, nil
+
+	closeFn := func() {
+		if err := top.Disconnect(ctx); err != nil {
+			e.Log.WithError(err).Warn("Failed to close topology")
+		}
+		if err := conn.Close(); err != nil {
+			e.Log.WithError(err).Error("Failed to close server connection.")
+		}
+	}
+	return conn, closeFn, nil
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.

@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"time"
 
@@ -31,48 +32,22 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Client implements the GitHub API.
-type Client interface {
-	// RequestReviewers is used to assign reviewers to a PR.
-	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
-
-	// ListReviews is used to list all submitted reviews for a PR.
-	ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error)
-
-	// ListPullRequests returns a list of Pull Requests.
-	ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error)
-
-	// ListFiles is used to list all the files within a PR.
-	ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error)
-
-	// AddLabels will add labels to an Issue or Pull Request.
-	AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error
-
-	// ListWorkflows lists all workflows within a repository.
-	ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error)
-
-	// ListWorkflowRuns is used to list all workflow runs for an ID.
-	ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error)
-
-	// DeleteWorkflowRun is used to delete a workflow run.
-	DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error
-}
-
-type client struct {
+type Client struct {
 	client *go_github.Client
 }
 
-// New returns a new GitHub client.
-func New(ctx context.Context, token string) (*client, error) {
+// New returns a new GitHub Client.
+func New(ctx context.Context, token string) (*Client, error) {
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
-	return &client{
+	return &Client{
 		client: go_github.NewClient(oauth2.NewClient(ctx, ts)),
 	}, nil
 }
 
-func (c *client) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+// RequestReviewers is used to assign reviewers to a Pull Requests.
+func (c *Client) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	_, _, err := c.client.PullRequests.RequestReviewers(ctx,
 		organization,
 		repository,
@@ -90,16 +65,17 @@ func (c *client) RequestReviewers(ctx context.Context, organization string, repo
 type Review struct {
 	// Author is the GitHub login of the user that created the PR.
 	Author string
-	// State is the state of the PR, for example APPROVED or CHANGES_REQUESTED.
+	// State is the state of the PR, for example APPROVED, COMMENTED,
+	// CHANGES_REQUESTED, or DISMISSED.
 	State string
 	// SubmittedAt is the time the PR was created.
 	SubmittedAt time.Time
 }
 
-func (c *client) ListReviews(ctx context.Context, organization string, repository string, number int) (map[string]*Review, error) {
-	reviews := map[string]*Review{}
+func (c *Client) ListReviews(ctx context.Context, organization string, repository string, number int) ([]Review, error) {
+	var reviews []Review
 
-	opt := &go_github.ListOptions{
+	opts := &go_github.ListOptions{
 		Page:    0,
 		PerPage: perPage,
 	}
@@ -108,33 +84,29 @@ func (c *client) ListReviews(ctx context.Context, organization string, repositor
 			organization,
 			repository,
 			number,
-			opt)
+			opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		for _, r := range page {
-			// Always pick up the last submitted review from each reviewer.
-			review, ok := reviews[r.GetUser().GetLogin()]
-			if ok {
-				if r.GetSubmittedAt().After(review.SubmittedAt) {
-					review.State = r.GetState()
-					review.SubmittedAt = r.GetSubmittedAt()
-				}
-			}
-
-			reviews[r.GetUser().GetLogin()] = &Review{
+			reviews = append(reviews, Review{
 				Author:      r.GetUser().GetLogin(),
 				State:       r.GetState(),
 				SubmittedAt: r.GetSubmittedAt(),
-			}
+			})
 		}
 
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
+
+	// Sort oldest review first.
+	sort.SliceStable(reviews, func(i, j int) bool {
+		return reviews[i].SubmittedAt.Before(reviews[j].SubmittedAt)
+	})
 
 	return reviews, nil
 }
@@ -145,17 +117,138 @@ type PullRequest struct {
 	Author string
 	// Repository is the name of the repository.
 	Repository string
-	// UnsafeHead is the name of the branch this PR is created from. It is marked
-	// unsafe as it can be attacker controlled.
-	UnsafeHead string
+	// Number is the Pull Request number.
+	Number int
+	// State is the state of the submitted review.
+	State string
+	// UnsafeBase is the base of the branch.
+	//
+	// UnsafeBase can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeBase Branch
+	// UnsafeHead is the name head of the branch.
+	//
+	// UnsafeHead can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeHead Branch
+	// UnsafeTitle is the title of the Pull Request.
+	//
+	// UnsafeTitle can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeTitle string
+	// UnsafeBody is the body of the Pull Request.
+	//
+	// UnsafeBody can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeBody string
+	// UnsafeLabels are the labels attached to the Pull Request.
+	//
+	// UnsafeLabels can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeLabels []string
 	// Fork determines if the pull request is from a fork.
 	Fork bool
 }
 
-func (c *client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
+// Branch is a git Branch.
+type Branch struct {
+	// Ref is a human readable name branch name.
+	Ref string
+	// SHA is the SHA1 hash of the commit.
+	SHA string
+}
+
+// ListReviewers returns a list of reviewers that have yet to submit a review.
+func (c *Client) ListReviewers(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	var reviewers []string
+
+	opts := &go_github.ListOptions{
+		Page:    0,
+		PerPage: perPage,
+	}
+	for {
+		page, resp, err := c.client.PullRequests.ListReviewers(ctx,
+			organization,
+			repository,
+			number,
+			opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range page.Users {
+			reviewers = append(reviewers, r.GetLogin())
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return reviewers, nil
+}
+
+// GetPullRequest returns a specific Pull Request.
+func (c *Client) GetPullRequest(ctx context.Context, organization string, repository string, number int) (PullRequest, error) {
+	pull, _, err := c.client.PullRequests.Get(ctx,
+		organization,
+		repository,
+		number)
+	if err != nil {
+		return PullRequest{}, trace.Wrap(err)
+	}
+
+	var labels []string
+	for _, label := range pull.Labels {
+		labels = append(labels, label.GetName())
+	}
+
+	return PullRequest{
+		Author:     pull.GetUser().GetLogin(),
+		Repository: repository,
+		Number:     pull.GetNumber(),
+		State:      pull.GetState(),
+		UnsafeBase: Branch{
+			Ref: pull.GetBase().GetRef(),
+			SHA: pull.GetBase().GetSHA(),
+		},
+		UnsafeHead: Branch{
+			Ref: pull.GetHead().GetRef(),
+			SHA: pull.GetHead().GetSHA(),
+		},
+		UnsafeTitle:  pull.GetTitle(),
+		UnsafeBody:   pull.GetBody(),
+		UnsafeLabels: labels,
+		Fork:         pull.GetHead().GetRepo().GetFork(),
+	}, nil
+}
+
+// ListPullRequests returns a list of Pull Requests.
+func (c *Client) ListPullRequests(ctx context.Context, organization string, repository string, state string) ([]PullRequest, error) {
 	var pulls []PullRequest
 
-	opt := &go_github.PullRequestListOptions{
+	opts := &go_github.PullRequestListOptions{
 		State: state,
 		ListOptions: go_github.ListOptions{
 			Page:    0,
@@ -166,32 +259,50 @@ func (c *client) ListPullRequests(ctx context.Context, organization string, repo
 		page, resp, err := c.client.PullRequests.List(ctx,
 			organization,
 			repository,
-			opt)
+			opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, pr := range page {
+		for _, pull := range page {
+			var labels []string
+			for _, label := range pull.Labels {
+				labels = append(labels, label.GetName())
+			}
+
 			pulls = append(pulls, PullRequest{
-				Author:     pr.GetUser().GetLogin(),
+				Author:     pull.GetUser().GetLogin(),
 				Repository: repository,
-				UnsafeHead: pr.GetHead().GetRef(),
-				Fork:       pr.GetHead().GetRepo().GetFork(),
+				Number:     pull.GetNumber(),
+				State:      pull.GetState(),
+				UnsafeBase: Branch{
+					Ref: pull.GetBase().GetRef(),
+					SHA: pull.GetBase().GetSHA(),
+				},
+				UnsafeHead: Branch{
+					Ref: pull.GetHead().GetRef(),
+					SHA: pull.GetHead().GetSHA(),
+				},
+				UnsafeTitle:  pull.GetTitle(),
+				UnsafeBody:   pull.GetBody(),
+				UnsafeLabels: labels,
+				Fork:         pull.GetHead().GetRepo().GetFork(),
 			})
 		}
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return pulls, nil
 }
 
-func (c *client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+// ListFiles is used to list all the files within a Pull Request.
+func (c *Client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
 	var files []string
 
-	opt := &go_github.ListOptions{
+	opts := &go_github.ListOptions{
 		Page:    0,
 		PerPage: perPage,
 	}
@@ -200,7 +311,7 @@ func (c *client) ListFiles(ctx context.Context, organization string, repository 
 			organization,
 			repository,
 			number,
-			opt)
+			opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,14 +323,14 @@ func (c *client) ListFiles(ctx context.Context, organization string, repository 
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return files, nil
 }
 
 // AddLabels will add labels to an Issue or Pull Request.
-func (c *client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
+func (c *Client) AddLabels(ctx context.Context, organization string, repository string, number int, labels []string) error {
 	_, _, err := c.client.Issues.AddLabelsToIssue(ctx,
 		organization,
 		repository,
@@ -242,10 +353,11 @@ type Workflow struct {
 	Path string
 }
 
-func (c *client) ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error) {
+// ListWorkflows lists all workflows within a repository.
+func (c *Client) ListWorkflows(ctx context.Context, organization string, repository string) ([]Workflow, error) {
 	var workflows []Workflow
 
-	opt := &go_github.ListOptions{
+	opts := &go_github.ListOptions{
 		Page:    0,
 		PerPage: perPage,
 	}
@@ -253,7 +365,7 @@ func (c *client) ListWorkflows(ctx context.Context, organization string, reposit
 		page, resp, err := c.client.Actions.ListWorkflows(ctx,
 			organization,
 			repository,
-			opt)
+			opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -273,7 +385,7 @@ func (c *client) ListWorkflows(ctx context.Context, organization string, reposit
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return workflows, nil
@@ -287,10 +399,11 @@ type Run struct {
 	CreatedAt time.Time
 }
 
-func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error) {
+// ListWorkflowRuns is used to list all workflow runs for an ID.
+func (c *Client) ListWorkflowRuns(ctx context.Context, organization string, repository string, branch string, workflowID int64) ([]Run, error) {
 	var runs []Run
 
-	opt := &go_github.ListWorkflowRunsOptions{
+	opts := &go_github.ListWorkflowRunsOptions{
 		Branch: branch,
 		ListOptions: go_github.ListOptions{
 			Page:    0,
@@ -302,7 +415,7 @@ func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repo
 			organization,
 			repository,
 			workflowID,
-			opt)
+			opts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -321,7 +434,7 @@ func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repo
 		if resp.NextPage == 0 {
 			break
 		}
-		opt.Page = resp.NextPage
+		opts.Page = resp.NextPage
 	}
 
 	return runs, nil
@@ -330,7 +443,7 @@ func (c *client) ListWorkflowRuns(ctx context.Context, organization string, repo
 // DeleteWorkflowRun is directly implemented because it is missing from go-github.
 //
 // https://docs.github.com/en/rest/reference/actions#delete-a-workflow-run
-func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
+func (c *Client) DeleteWorkflowRun(ctx context.Context, organization string, repository string, runID int64) error {
 	url := url.URL{
 		Scheme: "https",
 		Host:   "api.github.com",
@@ -345,6 +458,84 @@ func (c *client) DeleteWorkflowRun(ctx context.Context, organization string, rep
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// CreateComment will leave a comment on an Issue or Pull Request.
+func (c *Client) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
+	_, _, err := c.client.Issues.CreateComment(ctx,
+		organization,
+		repository,
+		number,
+		&go_github.IssueComment{
+			Body: &comment,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CreatePullRequest will create a Pull Request.
+func (c *Client) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {
+	pull, _, err := c.client.PullRequests.Create(ctx,
+		organization,
+		repository,
+		&go_github.NewPullRequest{
+			Title: &title,
+			Head:  &head,
+			Base:  &base,
+			Body:  &body,
+			Draft: &draft,
+		})
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return pull.GetNumber(), nil
+}
+
+// ListWorkflowJobs lists all jobs for a workflow run.
+func (c *Client) ListWorkflowJobs(ctx context.Context, organization string, repository string, runID int64) ([]Job, error) {
+	var jobs []Job
+
+	opts := &go_github.ListWorkflowJobsOptions{
+		ListOptions: go_github.ListOptions{
+			Page:    0,
+			PerPage: perPage,
+		},
+	}
+	for {
+		page, resp, err := c.client.Actions.ListWorkflowJobs(ctx,
+			organization,
+			repository,
+			runID,
+			opts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, job := range page.Jobs {
+			jobs = append(jobs, Job{
+				Name: job.GetName(),
+				ID:   job.GetID(),
+			})
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return jobs, nil
+}
+
+// Job is a job within a workflow run.
+type Job struct {
+	// Name of the workflow job.
+	Name string
+
+	// ID of the job.
+	ID int64
 }
 
 const (

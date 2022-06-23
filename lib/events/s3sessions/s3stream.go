@@ -91,8 +91,25 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	return &events.StreamPart{ETag: *resp.ETag, Number: partNumber}, nil
 }
 
+func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
+	req := &s3.AbortMultipartUploadInput{
+		Bucket:   aws.String(h.Bucket),
+		Key:      aws.String(h.path(upload.SessionID)),
+		UploadId: aws.String(upload.ID),
+	}
+	_, err := h.client.AbortMultipartUploadWithContext(ctx, req)
+	if err != nil {
+		return ConvertS3Error(err)
+	}
+	return nil
+}
+
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if len(parts) == 0 {
+		return h.abortUpload(ctx, upload)
+	}
+
 	start := time.Now()
 	defer func() { h.Infof("UploadPart(%v) completed in %v.", upload.ID, time.Since(start)) }()
 
@@ -154,8 +171,7 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	return parts, nil
 }
 
-// ListUploads lists uploads that have been initiated but not completed with
-// earlier uploads returned first
+// ListUploads lists uploads that have been initiated but not completed
 func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
 	var prefix *string
 	if h.Path != "" {
@@ -189,9 +205,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		keyMarker = re.KeyMarker
 		uploadIDMarker = re.UploadIdMarker
 	}
+
 	sort.Slice(uploads, func(i, j int) bool {
 		return uploads[i].Initiated.Before(uploads[j].Initiated)
 	})
+
 	return uploads, nil
 }
 
@@ -201,4 +219,9 @@ func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata 
 		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID),
 		SessionID: sessionID,
 	}
+}
+
+// ReserveUploadPart reserves an upload part.
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	return nil
 }

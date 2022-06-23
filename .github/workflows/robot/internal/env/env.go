@@ -19,6 +19,7 @@ package env
 import (
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -35,16 +36,32 @@ type Environment struct {
 	// Number is the PR number.
 	Number int
 
+	// RunID is the GitHub Actions workflow run ID.
+	RunID int64
+
 	// Author is the author of the PR.
 	Author string
 
-	// UnsafeBranch is the name of the branch the workflow is running in.
+	// UnsafeHead is the name of the branch the workflow is running in.
 	//
-	// UnsafeBranch can be attacker controlled and should not be used in any
-	// security sensitive context. See the following link for more details:
+	// UnsafeHead can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
-	UnsafeBranch string
+	UnsafeHead string
+
+	// UnsafeBase is the name of the base branch the user is trying to merge the
+	// PR into. For example: "master" or "branch/v8".
+	//
+	// UnsafeBase can be attacker controlled and should not be used in any
+	// security sensitive context. For example, don't use it when crafting a URL
+	// to send a request to or an access decision. See the following link for
+	// more details:
+	//
+	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
+	UnsafeBase string
 }
 
 // New returns a new execution environment for the workflow.
@@ -67,12 +84,19 @@ func New() (*Environment, error) {
 		}, nil
 	}
 
+	runID, err := strconv.ParseInt(os.Getenv(githubRunID), 10, 64)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Environment{
 		Organization: event.Repository.Owner.Login,
 		Repository:   event.Repository.Name,
 		Number:       event.PullRequest.Number,
+		RunID:        runID,
 		Author:       event.PullRequest.User.Login,
-		UnsafeBranch: event.PullRequest.UnsafeHead.UnsafeRef,
+		UnsafeHead:   event.PullRequest.UnsafeHead.UnsafeRef,
+		UnsafeBase:   event.PullRequest.UnsafeBase.UnsafeRef,
 	}, nil
 }
 
@@ -114,4 +138,7 @@ const (
 	// githubRepository is an environment variable that contains the organization
 	// and repository name.
 	githubRepository = "GITHUB_REPOSITORY"
+
+	// githubRunID is an environment variable that contains the workflow run ID.
+	githubRunID = "GITHUB_RUN_ID"
 )

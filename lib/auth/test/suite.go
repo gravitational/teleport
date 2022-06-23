@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 
@@ -37,12 +37,13 @@ import (
 )
 
 type AuthSuite struct {
-	A     sshca.Authority
-	Clock clockwork.Clock
+	A      sshca.Authority
+	Keygen func() ([]byte, []byte, error)
+	Clock  clockwork.Clock
 }
 
 func (s *AuthSuite) GenerateKeypairEmptyPass(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair("")
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
@@ -53,18 +54,8 @@ func (s *AuthSuite) GenerateKeypairEmptyPass(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *AuthSuite) GenerateKeypairPass(c *check.C) {
-	_, pub, err := s.A.GenerateKeyPair("pass1")
-	c.Assert(err, check.IsNil)
-
-	// make sure we can parse the private and public key
-	// TODO(klizhentas) test the private key actually
-	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	c.Assert(err, check.IsNil)
-}
-
 func (s *AuthSuite) GenerateHostCert(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair("")
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -73,7 +64,6 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
 			CASigner:      caSigner,
-			CASigningAlg:  defaults.CASignatureAlgorithm,
 			PublicHostKey: pub,
 			HostID:        "00000000-0000-0000-0000-000000000000",
 			NodeName:      "auth.example.com",
@@ -96,7 +86,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 }
 
 func (s *AuthSuite) GenerateUserCert(c *check.C) {
-	priv, pub, err := s.A.GenerateKeyPair("")
+	priv, pub, err := s.Keygen()
 	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -104,7 +94,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"centos", "root"},
@@ -122,7 +111,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -132,12 +120,11 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
-	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
+	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -147,12 +134,11 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
-	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
+	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -167,7 +153,6 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	impersonator := "alice"
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		Impersonator:          impersonator,

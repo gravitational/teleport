@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,48 +45,52 @@ func (c *StatusCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *StatusCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.status.FullCommand():
-		err = c.Status(client)
+		err = c.Status(ctx, client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
 }
 
+type caFetchError struct {
+	caType  types.CertAuthType
+	message string
+}
+
 // Status is called to execute "status" CLI command.
-func (c *StatusCommand) Status(client auth.ClientI) error {
-	pingRsp, err := client.Ping(context.TODO())
+func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
+	pingRsp, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	authorities := []types.CertAuthority{}
+	var (
+		authorities     []types.CertAuthority
+		authFetchErrors []caFetchError
+	)
 
-	hostCAs, err := client.GetCertAuthorities(types.HostCA, false)
-	if err != nil {
-		return trace.Wrap(err)
+	for _, caType := range types.CertAuthTypes {
+		ca, err := client.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			// Collect all errors, so they can be displayed to the user.
+			fetchError := caFetchError{
+				caType:  caType,
+				message: err.Error(),
+			}
+			authFetchErrors = append(authFetchErrors, fetchError)
+		} else {
+			authorities = append(authorities, ca...)
+		}
 	}
-	authorities = append(authorities, hostCAs...)
-
-	userCAs, err := client.GetCertAuthorities(types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authorities = append(authorities, userCAs...)
-
-	jwtKeys, err := client.GetCertAuthorities(types.JWTSigner, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authorities = append(authorities, jwtKeys...)
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +107,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			if ca.GetClusterName() != clusterName {
 				continue
 			}
-			info := fmt.Sprintf("%v CA ", strings.Title(string(ca.GetType())))
+			info := fmt.Sprintf("%v CA ", string(ca.GetType()))
 			rotation := ca.GetRotation()
 			standbyPhase := rotation.Phase == types.RotationPhaseStandby || rotation.Phase == ""
 			if standbyPhase && len(ca.GetAdditionalTrustedKeys().SSH) > 0 {
@@ -117,16 +120,22 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 					"has been completed.")
 			}
 			if c.config.Debug {
-				table.AddRow([]string{info,
+				table.AddRow([]string{
+					info,
 					fmt.Sprintf("%v, update_servers: %v, complete: %v",
 						rotation.String(),
 						rotation.Schedule.UpdateServers.Format(constants.HumanDateFormatSeconds),
 						rotation.Schedule.Standby.Format(constants.HumanDateFormatSeconds),
-					)})
+					),
+				})
 			} else {
 				table.AddRow([]string{info, rotation.String()})
 			}
 
+		}
+		for _, ca := range authFetchErrors {
+			info := fmt.Sprintf("%v CA ", string(ca.caType))
+			table.AddRow([]string{info, ca.message})
 		}
 		for _, caPin := range caPins {
 			table.AddRow([]string{"CA pin", caPin})
@@ -143,7 +152,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 				if ca.GetClusterName() == clusterName {
 					continue
 				}
-				info := fmt.Sprintf("Remote %v CA %q", strings.Title(string(ca.GetType())), ca.GetClusterName())
+				info := fmt.Sprintf("Remote %v CA %q", string(ca.GetType()), ca.GetClusterName())
 				rotation := ca.GetRotation()
 				table.AddRow([]string{info, rotation.String()})
 			}

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -95,6 +96,7 @@ func TestAddProfile(t *testing.T) {
 					WebProxyAddr:      test.webProxyAddrIn,
 					PostgresProxyAddr: test.postgresProxyAddrIn,
 					MySQLProxyAddr:    test.mysqlProxyAddrIn,
+					Tracer:            tracing.NoopProvider().Tracer("test"),
 				},
 			}
 			db := tlsca.RouteToDatabase{
@@ -105,13 +107,13 @@ func TestAddProfile(t *testing.T) {
 				Dir:  t.TempDir(),
 				Name: "alice",
 			}
-			actual, err := add(tc, db, ps, &testProfileFile{profiles: make(map[string]profile.ConnectProfile)})
+			actual, err := add(tc, db, ps, &testProfileFile{profiles: make(map[string]profile.ConnectProfile)}, "root-cluster")
 			require.NoError(t, err)
 			require.EqualValues(t, &profile.ConnectProfile{
 				Name:       profileName(tc.SiteName, db.ServiceName),
 				Host:       test.profileHostOut,
 				Port:       test.profilePortOut,
-				CACertPath: ps.CACertPath(),
+				CACertPath: ps.CACertPathForCluster("root-cluster"),
 				CertPath:   ps.DatabaseCertPathForCluster(tc.SiteName, db.ServiceName),
 				KeyPath:    ps.KeyPath(),
 			}, actual)

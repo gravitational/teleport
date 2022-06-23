@@ -20,14 +20,6 @@
 
     - include: vars.yaml
 
-    - name: Copy gops to target box (for debugging)
-      when: gops_path is defined
-      block:
-      - copy:
-          src: "{{gops_path}}"
-          dest: /usr/local/bin
-          mode: 0755
-
     - name: Copy binaries from local directory
       when: teleport_path is defined
       block:

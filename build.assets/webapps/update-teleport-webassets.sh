@@ -74,7 +74,9 @@ git submodule update --init --recursive
 # set variables based on context from webapps checkout
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT=$(git rev-parse --short HEAD)
-COMMIT_DESC=$(git log --decorate=off --oneline -1)
+# use the commit message from webapps, qualifying references to webapps PRs to that they
+# link to the correct PR from the teleport repo (#123 becomes gravitational/webapps#123)
+COMMIT_DESC=$(git log --decorate=off --oneline -1 | sed -E 's.(#[0-9]+).gravitational/webapps\1.g')
 COMMIT_URL="https://github.com/gravitational/webapps/commit/${COMMIT}"
 AUTO_BRANCH_NAME="webapps-auto-pr-$(date +%s)"
 

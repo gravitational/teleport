@@ -93,5 +93,17 @@ type mockRemoteSite struct {
 }
 
 func (r *mockRemoteSite) Dial(_ reversetunnel.DialParams) (net.Conn, error) {
-	return nil, r.dialErr
+	if r.dialErr != nil {
+		return nil, r.dialErr
+	}
+
+	return &mockDialConn{}, nil
+}
+
+type mockDialConn struct {
+	net.Conn
+}
+
+func (c *mockDialConn) Close() error {
+	return nil
 }

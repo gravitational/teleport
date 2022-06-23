@@ -26,30 +26,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/websocket"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -80,13 +75,16 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -119,6 +117,17 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
+	var join bool
+	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
+	switch {
+	case trace.IsNotFound(err):
+		join = false
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		join = true
+	}
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -131,6 +140,8 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		authProvider: authProvider,
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
+		wsLock:       &sync.Mutex{},
+		join:         join,
 	}, nil
 }
 
@@ -178,6 +189,11 @@ type TerminalHandler struct {
 	buffer []byte
 
 	closeOnce sync.Once
+
+	wsLock *sync.Mutex
+
+	// join is set if we're joining an existing session
+	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -189,15 +205,22 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	// We initial a server explicitly here instead of using websocket.HandlerFunc
-	// to set an empty origin checker (this is to make our lives easier in tests).
-	// The main use of the origin checker is to enforce the browsers same-origin
-	// policy. That does not matter here because even if malicious Javascript
-	// would try and open a websocket the request to this endpoint requires the
-	// bearer token to be in the URL so it would not be sent along by default
-	// like cookies are.
-	ws := &websocket.Server{Handler: t.handler}
-	ws.ServeHTTP(w, r)
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		errMsg := "Error upgrading to websocket"
+		t.log.Errorf("%v: %v", errMsg, err)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
+	}
+
+	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+	t.handler(ws, r)
 }
 
 // Close the websocket stream.
@@ -215,10 +238,37 @@ func (t *TerminalHandler) Close() error {
 	return nil
 }
 
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			// A short deadline is used here to detect a broken connection quickly.
+			// If this is just a temporary issue, we will retry shortly anyway.
+			deadline := time.Now().Add(time.Second)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
+		}
+	}
+}
+
 // handler is the main websocket loop. It creates a Teleport client and then
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
-func (t *TerminalHandler) handler(ws *websocket.Conn) {
+func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	defer ws.Close()
 
 	// Create a context for signaling when the terminal session is over.
@@ -226,7 +276,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(ws)
+	tc, err := t.makeClient(ws, r)
 	if err != nil {
 		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
 		writeErr := t.writeError(err, ws)
@@ -237,6 +287,12 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	}
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
+
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		return nil
+	})
 
 	// Start sending ping frames through websocket to client.
 	go t.startPingLoop(ws)
@@ -251,8 +307,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient, error) {
-	clientConfig, err := makeTeleportClientConfig(ws.Request().Context(), t.ctx)
+func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
+	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,8 +317,13 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
+	if t.join {
+		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
+	} else {
+		clientConfig.HostLogin = t.params.Login
+	}
+
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
@@ -274,7 +335,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	clientConfig.Host = t.hostName
 	clientConfig.HostPort = t.hostPort
 	clientConfig.Env = map[string]string{sshutils.SessionEnvVar: string(t.params.SessionID)}
-	clientConfig.ClientAddr = ws.Request().RemoteAddr
+	clientConfig.ClientAddr = r.RemoteAddr
 
 	if len(t.params.InteractiveCommand) > 0 {
 		clientConfig.Interactive = true
@@ -288,7 +349,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn) (*client.TeleportClient
 	// Save the *ssh.Session after the shell has been created. The session is
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
-	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
+	tc.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
 		t.windowChange(&t.params.Term)
 
@@ -323,7 +384,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 			Cert:    t.ctx.session.GetPub(),
 			TLSCert: t.ctx.session.GetTLSCert(),
 		},
-	}, t.promptMFAChallenge(ws))
+	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -336,137 +397,50 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	return nil
 }
 
-func (t *TerminalHandler) promptMFAChallenge(ws *websocket.Conn) client.PromptMFAChallengeHandler {
+func promptMFAChallenge(
+	ws *websocket.Conn,
+	wsLock *sync.Mutex,
+	codec mfaCodec,
+) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var chal *auth.MFAAuthenticateChallenge
+		var chal *client.MFAAuthenticateChallenge
 		var envelopeType string
 
 		// Convert from proto to JSON types.
 		switch {
-		// Webauthn takes precedence.
 		case c.GetWebauthnChallenge() != nil:
 			envelopeType = defaults.WebsocketWebauthnChallenge
-			chal = &auth.MFAAuthenticateChallenge{
+			chal = &client.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
-			}
-		case len(c.U2F) > 0:
-			u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
-			envelopeType = defaults.WebsocketU2FChallenge
-			for _, uc := range c.U2F {
-				u2fChals = append(u2fChals, u2f.AuthenticateChallenge{
-					Version:   uc.Version,
-					Challenge: uc.Challenge,
-					KeyHandle: uc.KeyHandle,
-					AppID:     uc.AppID,
-				})
-			}
-			chal = &auth.MFAAuthenticateChallenge{
-				AuthenticateChallenge: &u2f.AuthenticateChallenge{
-					// Get the common challenge fields from the first item.
-					// All of these fields should be identical for all u2fChals.
-					Challenge: u2fChals[0].Challenge,
-					AppID:     u2fChals[0].AppID,
-					Version:   u2fChals[0].Version,
-				},
-				U2FChallenges: u2fChals,
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
 		}
 
 		// Send the challenge over the socket.
-		chalEnc, err := json.Marshal(chal)
+		msg, err := codec.encode(chal, envelopeType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    envelopeType,
-			Payload: string(chalEnc),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = websocket.Message.Send(ws, envelopeBytes)
+
+		wsLock.Lock()
+		err = ws.WriteMessage(websocket.BinaryMessage, msg)
+		wsLock.Unlock()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// Read the challenge response.
 		var bytes []byte
-		if err = websocket.Message.Receive(ws, &bytes); err != nil {
+		ty, bytes, err := ws.ReadMessage()
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Reset envelope to zero value.
-		envelope = &Envelope{}
-		if err = proto.Unmarshal(bytes, envelope); err != nil {
-			return nil, trace.Wrap(err)
+		if ty != websocket.BinaryMessage {
+			return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
 		}
 
-		var mfaResponse *authproto.MFAAuthenticateResponse
-
-		// Convert from JSON to proto.
-		switch envelopeType {
-		case defaults.WebsocketWebauthnChallenge:
-			var webauthnResponse wanlib.CredentialAssertionResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &webauthnResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
-				},
-			}
-
-		default:
-			var u2fResponse u2f.AuthenticateChallengeResponse
-			if err := json.Unmarshal([]byte(envelope.Payload), &u2fResponse); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			mfaResponse = &authproto.MFAAuthenticateResponse{
-				Response: &authproto.MFAAuthenticateResponse_U2F{
-					U2F: &authproto.U2FResponse{
-						KeyHandle:  u2fResponse.KeyHandle,
-						ClientData: u2fResponse.ClientData,
-						Signature:  u2fResponse.SignatureData,
-					},
-				},
-			}
-		}
-
-		return mfaResponse, nil
-	}
-}
-
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	// Define our own marshal func to just return a ping payload type.
-	codec := websocket.Codec{Marshal: func(v interface{}) (data []byte, payloadType byte, err error) {
-		return nil, websocket.PingFrame, nil
-	}}
-
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
-	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// Pongs are internally handled by the websocket library.
-			// https://github.com/golang/net/blob/master/websocket/hybi.go#L291
-			if err := codec.Send(ws, nil); err != nil {
-				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
-				t.Close()
-				return
-			}
-		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
+		return codec.decode(bytes, envelopeType)
 	}
 }
 
@@ -512,7 +486,9 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		t.log.Errorf("Unable to marshal close event for web client.")
 		return
 	}
-	err = websocket.Message.Send(ws, envelopeBytes)
+	t.wsLock.Lock()
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	t.wsLock.Unlock()
 	if err != nil {
 		t.log.Errorf("Unable to send close event to web client.")
 		return
@@ -554,7 +530,9 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			}
 
 			// Send bytes over the websocket to the web client.
-			err = websocket.Message.Send(ws, envelopeBytes)
+			t.wsLock.Lock()
+			err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+			t.wsLock.Unlock()
 			if err != nil {
 				logger.Errorf("Unable to send audit event to web client: %v.", err)
 				continue
@@ -603,7 +581,7 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
-	var defaultPort = 0
+	defaultPort := 0
 
 	if servername == "" {
 		return "", defaultPort, trace.BadParameter("empty server name")
@@ -652,7 +630,9 @@ func (t *TerminalHandler) write(data []byte, ws *websocket.Conn) (n int, err err
 	}
 
 	// Send bytes over the websocket to the web client.
-	err = websocket.Message.Send(ws, envelopeBytes)
+	t.wsLock.Lock()
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	t.wsLock.Unlock()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -673,13 +653,17 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		return n, nil
 	}
 
-	var bytes []byte
-	err = websocket.Message.Receive(ws, &bytes)
+	ty, bytes, err := ws.ReadMessage()
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF || websocket.IsCloseError(err, 1006) {
 			return 0, io.EOF
 		}
+
 		return 0, trace.Wrap(err)
+	}
+
+	if ty != websocket.BinaryMessage {
+		return 0, trace.BadParameter("expected binary message, got %v", ty)
 	}
 
 	var envelope Envelope
@@ -748,12 +732,14 @@ func (w *terminalStream) Read(out []byte) (n int, err error) {
 	return w.terminal.read(out, w.ws)
 }
 
-// SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *terminalStream) SetReadDeadline(t time.Time) error {
-	return w.ws.SetReadDeadline(t)
-}
-
 // Close the websocket.
 func (w *terminalStream) Close() error {
 	return w.ws.Close()
+}
+
+// deadlineForInterval returns a suitable network read deadline for a given ping interval.
+// We chose to take the current time plus twice the interval to allow the timeframe of one interval
+// to wait for a returned pong message.
+func deadlineForInterval(interval time.Duration) time.Time {
+	return time.Now().Add(interval * 2)
 }

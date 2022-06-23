@@ -85,6 +85,8 @@ func TestEnvironment(t *testing.T) {
 			require.NoError(t, err)
 			err = os.Setenv(githubEventPath, test.path)
 			require.NoError(t, err)
+			err = os.Setenv(githubRunID, "1")
+			require.NoError(t, err)
 
 			environment, err := New()
 			if test.err {
@@ -95,7 +97,7 @@ func TestEnvironment(t *testing.T) {
 				require.Equal(t, environment.Repository, test.repository)
 				require.Equal(t, environment.Number, test.number)
 				require.Equal(t, environment.Author, test.author)
-				require.Equal(t, environment.UnsafeBranch, test.unsafeBranch)
+				require.Equal(t, environment.UnsafeHead, test.unsafeBranch)
 			}
 		})
 	}

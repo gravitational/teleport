@@ -344,7 +344,7 @@ func guessHostIP(addrs []net.Addr) (ip net.IP) {
 	return ip
 }
 
-// ReplaceUnspecifiedHost  replaces unspecified "0.0.0.0" host localhost since 0.0.0.0 is never a valid
+// ReplaceUnspecifiedHost replaces unspecified "0.0.0.0" with localhost since "0.0.0.0" is never a valid
 // principal (auth server explicitly removes it when issuing host certs) and when a reverse tunnel client used
 // establishes SSH reverse tunnel connection the host is validated against
 // the valid principal list.

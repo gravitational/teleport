@@ -37,6 +37,7 @@ import (
 
 var covPattern = regexp.MustCompile(`^coverage: (\d+\.\d+)\% of statements`)
 
+// matches `event` in src/cmd/internal/test2json/test2json.go
 type TestEvent struct {
 	Time           time.Time // encodes as an RFC3339-format string
 	Action         string
@@ -131,7 +132,7 @@ readloop:
 			if args.report == byTest {
 				switch event.Action {
 				case actionPass, actionFail, actionSkip:
-					fmt.Printf("%s: %s\n", event.Action, event.FullName())
+					fmt.Printf("%s (in %.2fs): %s\n", event.Action, event.ElapsedSeconds, event.FullName())
 				}
 			}
 
@@ -161,7 +162,7 @@ readloop:
 						}
 
 						// only display package results as progress messages
-						fmt.Printf("%s %s: %s\n", covText, event.Action, event.Package)
+						fmt.Printf("%s %s (in %.2fs): %s\n", covText, event.Action, event.ElapsedSeconds, event.Package)
 					}
 
 					// Don't need this no more

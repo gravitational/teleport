@@ -60,20 +60,21 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.Equal(t, config.KEXAlgorithms, []string{
+		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
 		"ecdh-sha2-nistp384",
 		"ecdh-sha2-nistp521",
+		"diffie-hellman-group14-sha256",
 	})
 	require.Equal(t, config.MACAlgorithms, []string{
 		"hmac-sha2-256-etm@openssh.com",
 		"hmac-sha2-256",
 	})
-	require.Nil(t, config.CASignatureAlgorithm)
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.SSHAddr, localAuthAddr)
+	require.Equal(t, auth.ListenAddr, localAuthAddr)
 	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
 	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
 	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
@@ -92,8 +93,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
-	require.Equal(t, config.RestartThreshold.Amount, defaults.MaxConnectionErrorsBeforeRestart)
-	require.Equal(t, config.RestartThreshold.Time, defaults.ConnectionErrorMeasurementPeriod)
 }
 
 // TestCheckApp validates application configuration.
@@ -290,9 +289,77 @@ func TestCheckDatabase(t *testing.T) {
 			},
 			outErr: false,
 		},
+		{
+			desc: "SQL Server correct configuration",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "SQL Server missing keytab",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain: "test-domain",
+					SPN:    "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing AD domain",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					SPN:        "test-spn",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing SPN",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					KeytabFile: "/etc/keytab",
+					Domain:     "test-domain",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "MySQL with server version",
+			inDatabase: Database{
+				Name:     "mysql-foo",
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				MySQL: MySQLOptions{
+					ServerVersion: "8.0.31",
+				},
+			},
+			outErr: false,
+		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
 			err := test.inDatabase.CheckAndSetDefaults()
 			if test.outErr {
 				require.Error(t, err)

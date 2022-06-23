@@ -18,6 +18,13 @@ package auth
 
 import (
 	"context"
+	"crypto"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -25,6 +32,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -43,14 +52,24 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
-		Type:       types.HostCA,
+	databaseCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			// Database CA doesn't exist. Fallback to Host CA.
+			// https://github.com/gravitational/teleport/issues/5029
+			databaseCA, err = s.GetCertAuthority(ctx, types.CertAuthID{
+				Type:       types.HostCA,
+				DomainName: clusterName.GetClusterName(),
+			}, true)
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(hostCA)
+	caCert, signer, err := getCAandSigner(s.GetKeyStore(), databaseCA, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,8 +93,22 @@ func (s *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 	}
 	return &proto.DatabaseCertResponse{
 		Cert:    cert,
-		CACerts: services.GetTLSCerts(hostCA),
+		CACerts: services.GetTLSCerts(databaseCA),
 	}, nil
+}
+
+// getCAandSigner returns correct signer and CA that should be used when generating database certificate.
+// This function covers the database CA rotation scenario when on rotation init phase additional/new TLS
+// key should be used to sign the database CA. Otherwise, the trust chain will break after the old CA is
+// removed - standby phase.
+func getCAandSigner(keyStore keystore.KeyStore, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
+) ([]byte, crypto.Signer, error) {
+	if req.RequesterName == proto.DatabaseCertRequest_TCTL &&
+		databaseCA.GetRotation().Phase == types.RotationPhaseInit {
+		return keyStore.GetAdditionalTrustedTLSCertAndSigner(databaseCA)
+	}
+
+	return keyStore.GetTLSCertAndSigner(databaseCA)
 }
 
 // getServerNames returns deduplicated list of server names from signing request.
@@ -102,7 +135,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+	hostCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
@@ -143,16 +176,24 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
+	caType := types.UserCA
+	if req.SignWithDatabaseCA {
+		// Field SignWithDatabaseCA was added in Teleport 10 when DatabaseCA was introduced.
+		// Previous Teleport versions used UserCA, and we still need to sign certificates with UserCA
+		// for compatibility reason. Teleport 10+ expects request signed with DatabaseCA.
+		caType = types.DatabaseCA
+	}
+
 	// Generate the TLS certificate.
-	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
-		Type:       types.UserCA,
+	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
+	cert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,5 +215,77 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return &proto.DatabaseCSRResponse{
 		Cert:    tlsCert,
 		CACerts: services.GetTLSCerts(hostCA),
+	}, nil
+}
+
+// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
+func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
+	if !modules.GetModules().Features().DB {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
+	}
+
+	accnName := strings.ToUpper(req.AccountName)
+	userName := strings.ToUpper(req.UserName)
+	log.Debugf("Signing database JWT token for %s %s", accnName, userName)
+
+	subject := fmt.Sprintf("%s.%s", accnName, userName)
+
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(ca.GetActiveKeys().TLS) == 0 {
+		return nil, trace.Errorf("incorrect database CA; missing TLS key")
+	}
+
+	tlsCert := ca.GetActiveKeys().TLS[0].Cert
+
+	block, _ := pem.Decode(tlsCert)
+	if block == nil {
+		return nil, trace.BadParameter("failed to parse TLS certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pubKey, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyFp := sha256.Sum256(pubKey)
+	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
+
+	// Generate issuer name in the Snowflake required format.
+	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnName, userName, keyFpStr)
+
+	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := privateKey.SignSnowflake(jwt.SignParams{
+		Username: subject,
+		Expires:  time.Now().Add(86400 * time.Second), // the same validity as the JWT generated by snowsql
+	}, issuer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.SnowflakeJWTResponse{
+		Token: token,
 	}, nil
 }

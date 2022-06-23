@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,18 +29,18 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
@@ -249,10 +248,11 @@ func TestHostCertVerification(t *testing.T) {
 	// By default user has not refused any hosts.
 	require.False(t, lka.UserRefusedHosts())
 
+	lka.AddKey(s.key)
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
-	caPriv, caPub, err := keygen.GenerateKeyPair("")
+	caPriv, caPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(caPriv)
 	require.NoError(t, err)
@@ -261,12 +261,16 @@ func TestHostCertVerification(t *testing.T) {
 	err = lka.keyStore.AddKnownHostKeys("example.com", s.hostname, []ssh.PublicKey{caPublicKey})
 	require.NoError(t, err)
 
+	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
+	// CA file certs.pem to per cluster CA files in cas profile directory.
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
+	require.NoError(t, err)
+
 	// Generate a host certificate for node with role "node".
-	_, hostPub, err := keygen.GenerateKeyPair("")
+	_, hostPub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
@@ -335,12 +339,18 @@ func TestHostKeyVerification(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	lka.AddKey(s.key)
+	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
+	// CA file certs.pem to per cluster CA files in cas profile directory.
+	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
+	require.NoError(t, err)
+
 	// by default user has not refused any hosts:
 	require.False(t, lka.UserRefusedHosts())
 
 	// make a fake host key:
 	keygen := testauthority.New()
-	_, pub, err := keygen.GenerateKeyPair("")
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
@@ -398,7 +408,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, keyBytes, err := keygen.GenerateKeyPair("")
+	_, keyBytes, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 	require.NoError(t, err)
@@ -468,7 +478,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
-	privateKey, publicKey, err := keygen.GenerateKeyPair("")
+	privateKey, publicKey, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +518,6 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,
 		Username:              username,
 		AllowedLogins:         allowedLogins,
@@ -536,7 +545,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 func startDebugAgent(t *testing.T) error {
 	// Create own tmp dir instead of using t.TmpDir
 	// because net.Listen("unix", path) has dir path length limitation
-	tempDir, err := ioutil.TempDir("", "teleport-test")
+	tempDir, err := os.MkdirTemp("", "teleport-test")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)

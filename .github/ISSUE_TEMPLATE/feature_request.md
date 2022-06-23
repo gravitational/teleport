@@ -3,14 +3,10 @@ name: Feature Request 💡
 about: Have an idea? Tell us about it.
 labels: feature-request
 ---
-### What
-What would you like Teleport to do differently?
+What would you like Teleport to do?
 
-### How
-How would you implement this?
 
-### Why
-Why do you need this?
+What problem does this solve?
 
-### Workaround
+
 If a workaround exists, please include it.

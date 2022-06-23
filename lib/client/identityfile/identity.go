@@ -19,8 +19,10 @@ package identityfile
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,12 +68,68 @@ const (
 	// configuring a CockroachDB database for mutual TLS.
 	FormatCockroach Format = "cockroachdb"
 
+	// FormatRedis produces CA and key pair in the format suitable for
+	// configuring a Redis database for mutual TLS.
+	FormatRedis Format = "redis"
+
+	// FormatSnowflake produces public key in the format suitable for
+	// configuration Snowflake JWT access.
+	FormatSnowflake Format = "snowflake"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
 
-// KnownFormats is a list of all above formats.
-var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo, FormatCockroach}
+// FormatList is a list of all possible FormatList.
+type FormatList []Format
+
+// KnownFileFormats is a list of all above formats.
+var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
+	FormatCockroach, FormatRedis, FormatSnowflake}
+
+// String returns human-readable version of FormatList, ex:
+// file, openssh, tls, kubernetes
+func (f FormatList) String() string {
+	elems := make([]string, len(f))
+	for i, format := range f {
+		elems[i] = string(format)
+	}
+	return strings.Join(elems, ", ")
+}
+
+// ConfigWriter is a simple filesystem abstraction to allow alternative simple
+// read/write for this package.
+type ConfigWriter interface {
+	// WriteFile writes the given data to path `name`, using the specified
+	// permissions if the file is new.
+	WriteFile(name string, data []byte, perm os.FileMode) error
+
+	// Remove removes a file.
+	Remove(name string) error
+
+	// Stat fetches information about a file.
+	Stat(name string) (fs.FileInfo, error)
+}
+
+// StandardConfigWriter is a trivial ConfigWriter that wraps the relevant `os` functions.
+type StandardConfigWriter struct{}
+
+// WriteFile writes data to the named file, creating it if necessary.
+func (s *StandardConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+
+// Remove removes the named file or (empty) directory.
+// If there is an error, it will be of type *PathError.
+func (s *StandardConfigWriter) Remove(name string) error {
+	return os.Remove(name)
+}
+
+// Stat returns a FileInfo describing the named file.
+// If there is an error, it will be of type *PathError.
+func (s *StandardConfigWriter) Stat(name string) (fs.FileInfo, error) {
+	return os.Stat(name)
+}
 
 // WriteConfig holds the necessary information to write an identity file.
 type WriteConfig struct {
@@ -88,13 +146,21 @@ type WriteConfig struct {
 	KubeProxyAddr string
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
-	// overwite first.
+	// overwrite first.
 	OverwriteDestination bool
+	// Writer is the filesystem implementation.
+	Writer ConfigWriter
 }
 
 // Write writes user credentials to disk in a specified format.
 // It returns the names of the files successfully written.
 func Write(cfg WriteConfig) (filesWritten []string, err error) {
+	// If no writer was set, use the standard implementation.
+	writer := cfg.Writer
+	if writer == nil {
+		writer = &StandardConfigWriter{}
+	}
+
 	if cfg.OutputPath == "" {
 		return nil, trace.BadParameter("identity output path is not specified")
 	}
@@ -103,7 +169,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	// dump user identity into a single file:
 	case FormatFile:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -114,7 +180,6 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				TLS: cfg.Key.TLSCert,
 			},
 		}
-
 		// append trusted host certificate authorities
 		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates
@@ -129,7 +194,12 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			idFile.CACerts.TLS = append(idFile.CACerts.TLS, ca.TLSCertificates...)
 		}
 
-		if err := identityfile.Write(idFile, cfg.OutputPath); err != nil {
+		idBytes, err := identityfile.Encode(idFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := writer.WriteFile(cfg.OutputPath, idBytes, identityfile.FilePermissions); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -138,21 +208,21 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		keyPath := cfg.OutputPath
 		certPath := keypaths.IdentitySSHCertPath(keyPath)
 		filesWritten = append(filesWritten, keyPath, certPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, cfg.Key.Cert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
@@ -165,16 +235,16 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -184,7 +254,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		err = writer.WriteFile(casPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -195,10 +265,10 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
 		filesWritten = append(filesWritten, certPath, casPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = ioutil.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -208,21 +278,52 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, identityfile.FilePermissions)
+		err = writer.WriteFile(casPath, caCerts, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case FormatSnowflake:
+		pubPath := cfg.OutputPath + ".pub"
+		filesWritten = append(filesWritten, pubPath)
 
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, pubPath); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var caCerts []byte
+		for _, ca := range cfg.Key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				block, _ := pem.Decode(cert)
+				cert, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				pubKey, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				pubPem := pem.EncodeToMemory(&pem.Block{
+					Type:  "PUBLIC KEY",
+					Bytes: pubKey,
+				})
+				caCerts = append(caCerts, pubPem...)
+			}
+		}
+
+		err = os.WriteFile(pubPath, caCerts, identityfile.FilePermissions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// Clean up the existing file, if it exists.
 		//
 		// kubeconfig.Update would try to parse it and merge in new
 		// credentials, which is not what we want.
-		if err := os.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
+		if err := writer.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
 			return nil, trace.Wrap(err)
 		}
 
@@ -235,16 +336,16 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFormats)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
 }
 
-func checkOverwrite(force bool, paths ...string) error {
+func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {
 	var existingFiles []string
 	// Check if the destination file exists.
 	for _, path := range paths {
-		_, err := os.Stat(path)
+		_, err := writer.Stat(path)
 		if os.IsNotExist(err) {
 			// File doesn't exist, proceed.
 			continue

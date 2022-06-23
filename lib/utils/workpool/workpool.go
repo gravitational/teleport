@@ -23,14 +23,14 @@ import (
 	"go.uber.org/atomic"
 )
 
-// Pool manages a collection of work groups by key and is the primary means
-// by which groups are managed.  Each work group has an adjustable target value
+// Pool manages a collection of work group by key and is the primary means
+// by which group are managed.  Each work group has an adjustable target value
 // which is the number of target leases which should be active for the given
 // group.
 type Pool struct {
 	mu       sync.Mutex
 	leaseIDs *atomic.Uint64
-	groups   map[interface{}]*group
+	group    *group
 	// grantC is an unbuffered channel that funnels available leases from the
 	// workgroups to the outside world
 	grantC chan Lease
@@ -42,7 +42,6 @@ func NewPool(ctx context.Context) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Pool{
 		leaseIDs: atomic.NewUint64(0),
-		groups:   make(map[interface{}]*group),
 		grantC:   make(chan Lease),
 		ctx:      ctx,
 		cancel:   cancel,
@@ -53,7 +52,7 @@ func NewPool(ctx context.Context) *Pool {
 // new leases.  Each lease acquired in this way *must* have its
 // Release method called when the lease is no longer needed.
 // Note this channel will deliver leases from all active work
-// groups. It's up to the receiver to differentiate what group
+// group. It's up to the receiver to differentiate what group
 // the lease refers to and act accordingly.
 func (p *Pool) Acquire() <-chan Lease {
 	return p.grantC
@@ -65,34 +64,37 @@ func (p *Pool) Done() <-chan struct{} {
 }
 
 // Get gets the current counts for the specified key.
-func (p *Pool) Get(key interface{}) Counts {
+func (p *Pool) Get() Counts {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if g, ok := p.groups[key]; ok {
-		return g.loadCounts()
+
+	if p.group == nil {
+		return Counts{}
 	}
-	return Counts{}
+
+	return p.group.loadCounts()
 }
 
 // Set sets the target for the specified key.
-func (p *Pool) Set(key interface{}, target uint64) {
+func (p *Pool) Set(target uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if target < 1 {
-		p.del(key)
+		p.del()
 		return
 	}
-	g, ok := p.groups[key]
-	if !ok {
-		p.start(key, target)
+
+	if p.group == nil {
+		p.start(target)
 		return
 	}
-	g.setTarget(target)
+
+	p.group.setTarget(target)
 }
 
 // Start starts a new work group with the specified initial target.
 // If Start returns false, the group already exists.
-func (p *Pool) start(key interface{}, target uint64) {
+func (p *Pool) start(target uint64) {
 	ctx, cancel := context.WithCancel(p.ctx)
 	notifyC := make(chan struct{}, 1)
 	g := &group{
@@ -101,13 +103,12 @@ func (p *Pool) start(key interface{}, target uint64) {
 			Target: target,
 		},
 		leaseIDs: p.leaseIDs,
-		key:      key,
 		grantC:   p.grantC,
 		notifyC:  notifyC,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	p.groups[key] = g
+	p.group = g
 
 	// Start a routine to monitor the group's lease acquisition
 	// and handle notifications when a lease is returned to the
@@ -115,17 +116,17 @@ func (p *Pool) start(key interface{}, target uint64) {
 	go g.run()
 }
 
-func (p *Pool) del(key interface{}) (ok bool) {
-	group, ok := p.groups[key]
-	if !ok {
+func (p *Pool) del() (ok bool) {
+	if p.group == nil {
 		return false
 	}
-	group.cancel()
-	delete(p.groups, key)
+
+	p.group.cancel()
+	p.group = nil
 	return true
 }
 
-// Stop permanently halts all associated groups.
+// Stop permanently halts all associated group.
 func (p *Pool) Stop() {
 	p.cancel()
 }
@@ -146,7 +147,6 @@ type group struct {
 	cmu      sync.Mutex
 	counts   Counts
 	leaseIDs *atomic.Uint64
-	key      interface{}
 	grantC   chan Lease
 	notifyC  chan struct{}
 	ctx      context.Context
@@ -231,7 +231,7 @@ func (g *group) run() {
 		// is called (usually by a lease being returned), or the context is
 		// canceled.
 		//
-		// Otherwise we post the lease to the outside world and block on
+		// Otherwise, we post the lease to the outside world and block on
 		// someone picking it up (or cancellation)
 		select {
 		case grant <- nextLease:
@@ -265,11 +265,6 @@ func newLease(group *group) Lease {
 // ID returns the unique ID of this lease.
 func (l Lease) ID() uint64 {
 	return l.id
-}
-
-// Key returns the key that this lease is associated with.
-func (l Lease) Key() interface{} {
-	return l.key
 }
 
 // IsZero checks if this is the zero value of Lease.

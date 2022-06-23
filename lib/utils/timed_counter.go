@@ -32,7 +32,7 @@ type TimedCounter struct {
 	events  []time.Time
 }
 
-// TimedCounted creates a new timed counter with the specified timeout
+// NewTimedCounter creates a new timed counter with the specified timeout
 func NewTimedCounter(clock clockwork.Clock, timeout time.Duration) *TimedCounter {
 	return &TimedCounter{
 		clock:   clock,

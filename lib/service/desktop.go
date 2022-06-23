@@ -83,6 +83,9 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		return trace.Wrap(err)
 	}
 
+	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+
+	useTunnel := conn.UseTunnel()
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
 	//    creates a local listener to accept proxy conns.
@@ -95,13 +98,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	switch {
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
-	case conn.UseTunnel() && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
+	case useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
-	case !conn.UseTunnel() && cfg.WindowsDesktop.ListenAddr.IsEmpty():
+	case !useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
-	case !conn.UseTunnel() && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
+	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		log.Info("Using local listener and registering directly with auth server")
 		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
@@ -114,22 +117,23 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		}()
 
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
-	case conn.UseTunnel() && cfg.WindowsDesktop.ListenAddr.IsEmpty():
+	case useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
 		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalWindowsDesktop)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentWindowsDesktop,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   conn.TunnelProxy(),
-				Client:      conn.Client,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      shtl,
-				FIPS:        process.Config.FIPS,
+				Component:            teleport.ComponentWindowsDesktop,
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
+				Resolver:             conn.TunnelProxyResolver(),
+				Client:               conn.Client,
+				AccessPoint:          accessPoint,
+				HostSigner:           conn.ServerIdentity.KeySigner,
+				Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Server:               shtl,
+				FIPS:                 process.Config.FIPS,
+				ConnectedProxyGetter: proxyGetter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -179,7 +183,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(accessPoint, clusterName)
+		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -194,7 +198,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 	var publicAddr string
 	switch {
-	case conn.UseTunnel():
+	case useTunnel:
 		publicAddr = listener.Addr().String()
 	case len(cfg.WindowsDesktop.PublicAddrs) > 0:
 		publicAddr = cfg.WindowsDesktop.PublicAddrs[0].String()
@@ -205,6 +209,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	}
 
 	srv, err := desktop.NewWindowsService(desktop.WindowsServiceConfig{
+		DataDir:      process.Config.DataDir,
 		Log:          log,
 		Clock:        process.Clock,
 		Authorizer:   authorizer,
@@ -221,9 +226,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
-		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
+		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -234,7 +242,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		}
 	}()
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
-		if conn.UseTunnel() {
+		if useTunnel {
 			log.Info("Starting Windows desktop service via proxy reverse tunnel.")
 			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
 				"Windows desktop service %s:%s is starting via proxy reverse tunnel.",

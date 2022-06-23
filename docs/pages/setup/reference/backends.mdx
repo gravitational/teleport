@@ -8,9 +8,35 @@ default everything is stored in a local directory at the Auth server.
 Integration with other storage types is implemented based on the nature of the
 stored data (size, read/write ratio, mutability, etc.).
 
+<ScopedBlock scope={["cloud"]}>
+
+Teleport Cloud manages Auth Service and Proxy Service data for you, so there is
+no need to configure a backend.
+
+You can view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+title="Open Source Teleport"
+href="./backends.mdx/?scope=oss"
+icon="stack"
+>
+</Tile>
+<Tile
+title="Teleport Enterprise"
+href="./backends.mdx/?scope=enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 | Data type | Description | Supported storage backends |
 | - | - | - |
-| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore |
+| core cluster state | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, AWS DynamoDB, GCP Firestore, self-hosted PostgreSQL/CockroachDB (Preview) |
 | audit events | JSON-encoded events from the audit log (e.g. user logins, RBAC changes) | Local directory, AWS DynamoDB, GCP Firestore |
 | session recordings | Raw terminal recordings of interactive user sessions | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy) | Local directory |
@@ -207,7 +233,8 @@ teleport:
 The AWS authentication settings above can be omitted if the machine itself is
 running on an EC2 instance with an IAM role.
 
-These optional `GET` parameters control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
+You can add optional query parameters to the S3 URL. The Teleport Auth
+Service reads these parameters to configure its interactions with S3:
 
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
 
@@ -216,7 +243,7 @@ These optional `GET` parameters control how Teleport interacts with an S3 endpoi
 - `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
-- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use.
+- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
 
 ### S3 Server Side Encryption
 
@@ -330,15 +357,15 @@ This is needed to detect session recordings.
 }
 ```
 
-### ACL Example: Transferring Object Ownership
+### ACL example: transferring object ownership
 
-If you are uploading from account `A` to a bucket owned by account `B` and want `A` to retain ownership of the objects, you can take one of two approaches.
+If you are uploading from AWS account `A` to a bucket owned by AWS account `B` and want `A` to retain ownership of the objects, you can take one of two approaches.
 
-#### Without ACL
+#### Without ACLs
 
-If ACLs are disabled, object ownership will be set to `Bucket owner enforced` and no action is needed.
+If ACLs are disabled, object ownership will be set to `Bucket owner enforced` and no action will be needed.
 
-#### With ACL
+#### With ACLs
 
 - Set object ownership to `Bucket owner preferred` (under Permissions in the management console).
 - Add `acl=bucket-owner-full-control` to `audit_sessions_uri`.
@@ -369,7 +396,7 @@ To enforce the ownership transfer, set `B`'s bucket's policy to only allow uploa
 
 ```
 
-For more information, see the [AWS Docs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
+For more information, see the [AWS Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html).
 
 ## DynamoDB
 
@@ -421,9 +448,9 @@ teleport:
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 
-    # Teleport by default stores stores audit events with an AWS TTL of 1 year.
+    # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-    audit_retention_period: 1y
+    audit_retention_period: 365d
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -615,3 +642,67 @@ teleport:
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file  system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+## PostgreSQL/CockroachDB (Preview)
+
+The PostgreSQL/CockroachDB backend supports storing Teleport cluster state
+in a self-hosted database instance.
+
+<Admonition
+  type="tip"
+  title="NOTE"
+>
+  The PostgreSQL/CockroachDB backend is currently in Preview.
+</Admonition>
+
+Connections require mutual TLS authentication. Be sure to configure your
+database instance to support certificate authentication before configuring
+the Teleport PostgreSQL/CockroachDB backend.
+See [PostgreSQL Certificate Authentication](https://www.postgresql.org/docs/current/auth-cert.html) to configure PostgreSQL
+or [Authenticating to CockroachDB Self-Hosted Clusters](https://www.cockroachlabs.com/docs/stable/authentication.html) to configure CockroachDB.
+
+Once your self-hosted database instance has been configured to support
+certificate authentication, configure all Teleport Auth servers to use the backend
+by setting the storage section in the Teleport configuration file.
+
+```yaml
+teleport:
+  storage:
+    # Type of backend: either "postgres" or "cockroachdb".
+    type: cockroachdb
+    # The host:port of the database instance.
+    addr: "cockroachdb.example.com:26257"
+    # Optional database name. Defaults to "teleport".
+    database: "teleport"
+    # Authentication settings.
+    tls:
+      # Path to the database user's certificate.
+      client_cert_file: "/path/to/certs/client.dbuser.crt"
+      # Path to the database user's private key.
+      client_key_file: "/path/to/certs/client.dbuser.key"
+      # Path to the trusted certificate authority
+      # used to generate the client certificates.
+      ca_file: "/path/to/cockroachdb.cas"
+```
+
+Teleport will attempt to create a new database if the configured database does
+not exist. Creating a database requires `CREATEDB` privileges for the Teleport
+user. See PostgreSQL's [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
+documentation for details.
+
+```shell
+$ psql -d postgres
+postgres=# CREATE ROLE dbuser CREATEDB;
+```
+
+If you do not wish to grant `CREATEDB` privileges to the Teleport user, be
+sure to create a database and grant all privileges on the database
+to the Teleport user before starting Teleport.
+
+```shell
+$ psql -d postgres
+postgres=# CREATE DATABASE teleport;
+postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
+```
+
+</ScopedBlock>

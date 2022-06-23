@@ -29,6 +29,7 @@ _obj
 _test
 tmp
 target/
+test-logs/
 
 # Architecture specific extensions/prefixes
 [568vq].out
@@ -66,5 +67,15 @@ ssh.config
 # Code signing certificate for Windows binaries
 /windows-signing-cert.pfx
 
-# build tooling
-build.assets/tooling/bin/** 
+# Build cache and tooling
+/build.assets/.cache
+/build.assets/tooling/bin/**
+
+# Teleport binaries
+/tctl
+/teleport
+/tsh
+
+# Go workspace files
+go.work
+go.work.sum

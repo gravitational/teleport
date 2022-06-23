@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -30,12 +31,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+func (process *TeleportProcess) shouldInitDatabases() bool {
+	databasesCfg := len(process.Config.Databases.Databases) > 0
+	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
+	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+
+	return process.Config.Databases.Enabled && anyCfg
+}
+
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 &&
-		len(process.Config.Databases.ResourceMatchers) == 0 &&
-		len(process.Config.Databases.AWSMatchers) == 0 {
-		return
-	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -69,20 +74,21 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	var tunnelAddr string
-	if conn.TunnelProxy() != "" {
-		tunnelAddr = conn.TunnelProxy()
-	} else {
-		if tunnelAddr, ok = process.singleProcessMode(resp.GetProxyListenerMode()); !ok {
-			return trace.BadParameter("failed to find reverse tunnel address, " +
-				"if running in a single-process mode, make sure auth_service, " +
-				"proxy_service, and db_service are all enabled")
-		}
+	tunnelAddrResolver := conn.TunnelProxyResolver()
+	if tunnelAddrResolver == nil {
+		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 	}
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client)
+	uploaderCfg := filesessions.UploaderConfig{
+		Streamer: accessPoint,
+		AuditLog: conn.Client,
+	}
+	completerCfg := events.UploadCompleterConfig{
+		SessionTracker: conn.Client,
+	}
+	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -105,6 +111,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					ServerName: db.TLS.ServerName,
 					Mode:       db.TLS.Mode.ToProto(),
 				},
+				MySQL: types.MySQLOptions{
+					ServerVersion: db.MySQL.ServerVersion,
+				},
 				AWS: types.AWS{
 					Region: db.AWS.Region,
 					Redshift: types.Redshift{
@@ -114,12 +123,28 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 						InstanceID: db.AWS.RDS.InstanceID,
 						ClusterID:  db.AWS.RDS.ClusterID,
 					},
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
+					},
+					MemoryDB: types.MemoryDB{
+						ClusterName: db.AWS.MemoryDB.ClusterName,
+					},
+					SecretStore: types.SecretStore{
+						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
+						KMSKeyID:  db.AWS.SecretStore.KMSKeyID,
+					},
 				},
 				GCP: types.GCPCloudSQL{
 					ProjectID:  db.GCP.ProjectID,
 					InstanceID: db.GCP.InstanceID,
 				},
 				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
+				AD: types.AD{
+					KeytabFile: db.AD.KeytabFile,
+					Krb5File:   db.AD.Krb5File,
+					Domain:     db.AD.Domain,
+					SPN:        db.AD.SPN,
+				},
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -173,6 +198,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
+	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -183,17 +210,19 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Emitter:  asyncEmitter,
 			Streamer: streamer,
 		},
-		Authorizer:       authorizer,
-		TLSConfig:        tlsConfig,
-		Limiter:          connLimiter,
-		GetRotation:      process.getRotation,
-		Hostname:         process.Config.Hostname,
-		HostID:           process.Config.HostUUID,
-		Databases:        databases,
-		ResourceMatchers: process.Config.Databases.ResourceMatchers,
-		AWSMatchers:      process.Config.Databases.AWSMatchers,
-		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),
-		LockWatcher:      lockWatcher,
+		Authorizer:           authorizer,
+		TLSConfig:            tlsConfig,
+		Limiter:              connLimiter,
+		GetRotation:          process.getRotation,
+		Hostname:             process.Config.Hostname,
+		HostID:               process.Config.HostUUID,
+		Databases:            databases,
+		CloudLabels:          process.cloudLabels,
+		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
+		AWSMatchers:          process.Config.Databases.AWSMatchers,
+		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
+		LockWatcher:          lockWatcher,
+		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -208,17 +237,19 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Create and start the agent pool.
-	agentPool, err := reversetunnel.NewAgentPool(process.ExitContext(),
+	agentPool, err := reversetunnel.NewAgentPool(
+		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:   teleport.ComponentDatabase,
-			HostUUID:    conn.ServerIdentity.ID.HostUUID,
-			ProxyAddr:   tunnelAddr,
-			Client:      conn.Client,
-			Server:      dbService,
-			AccessPoint: conn.Client,
-			HostSigner:  conn.ServerIdentity.KeySigner,
-			Cluster:     clusterName,
-			FIPS:        process.Config.FIPS,
+			Component:            teleport.ComponentDatabase,
+			HostUUID:             conn.ServerIdentity.ID.HostUUID,
+			Resolver:             tunnelAddrResolver,
+			Client:               conn.Client,
+			Server:               dbService,
+			AccessPoint:          conn.Client,
+			HostSigner:           conn.ServerIdentity.KeySigner,
+			Cluster:              clusterName,
+			FIPS:                 process.Config.FIPS,
+			ConnectedProxyGetter: proxyGetter,
 		})
 	if err != nil {
 		return trace.Wrap(err)

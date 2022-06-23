@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -86,6 +87,80 @@ func TestAppPublicAddrValidation(t *testing.T) {
 			})
 			tc.check(t, err)
 		})
-
 	}
+}
+
+func TestAppServerSorter(t *testing.T) {
+	t.Parallel()
+
+	testValsUnordered := []string{"d", "b", "a", "c"}
+
+	makeServers := func(testVals []string, testField string) []AppServer {
+		servers := make([]AppServer, len(testVals))
+		for i := 0; i < len(testVals); i++ {
+			testVal := testVals[i]
+			var err error
+			servers[i], err = NewAppServerV3(Metadata{
+				Name: "_",
+			}, AppServerSpecV3{
+				HostID: "_",
+				App: &AppV3{
+					Metadata: Metadata{
+						Name:        getTestVal(testField == ResourceMetadataName, testVal),
+						Description: getTestVal(testField == ResourceSpecDescription, testVal),
+					},
+					Spec: AppSpecV3{
+						URI:        "_",
+						PublicAddr: getTestVal(testField == ResourceSpecPublicAddr, testVal),
+					},
+				},
+			})
+			require.NoError(t, err)
+		}
+		return servers
+	}
+
+	cases := []struct {
+		name      string
+		fieldName string
+	}{
+		{
+			name:      "by name",
+			fieldName: ResourceMetadataName,
+		},
+		{
+			name:      "by description",
+			fieldName: ResourceSpecDescription,
+		},
+		{
+			name:      "by publicAddr",
+			fieldName: ResourceSpecPublicAddr,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
+			sortBy := SortBy{Field: c.fieldName, IsDesc: true}
+			servers := AppServers(makeServers(testValsUnordered, c.fieldName))
+			require.NoError(t, servers.SortByCustom(sortBy))
+			targetVals, err := servers.GetFieldVals(c.fieldName)
+			require.NoError(t, err)
+			require.IsDecreasing(t, targetVals)
+		})
+
+		t.Run(fmt.Sprintf("%s asc", c.name), func(t *testing.T) {
+			sortBy := SortBy{Field: c.fieldName}
+			servers := AppServers(makeServers(testValsUnordered, c.fieldName))
+			require.NoError(t, servers.SortByCustom(sortBy))
+			targetVals, err := servers.GetFieldVals(c.fieldName)
+			require.NoError(t, err)
+			require.IsIncreasing(t, targetVals)
+		})
+	}
+
+	// Test error.
+	sortBy := SortBy{Field: "unsupported"}
+	servers := makeServers(testValsUnordered, "does-not-matter")
+	require.True(t, trace.IsNotImplemented(AppServers(servers).SortByCustom(sortBy)))
 }

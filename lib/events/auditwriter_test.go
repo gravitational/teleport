@@ -19,14 +19,17 @@ package events
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -286,6 +289,52 @@ func TestAuditWriter(t *testing.T) {
 		}
 	})
 
+	t.Run("NonRecoverable", func(t *testing.T) {
+		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
+			return NewCallbackStreamer(CallbackStreamerConfig{
+				Inner: streamer,
+				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
+					// Returns an unrecoverable error.
+					return errors.New(uploaderReservePartErrorMessage)
+				},
+			})
+		})
+
+		// First event will not fail since it is processed in the goroutine.
+		events := GenerateTestSession(SessionParams{SessionID: string(test.sid)})
+		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+
+		// Subsequent events will fail.
+		err := test.writer.EmitAuditEvent(test.ctx, events[1])
+		require.Error(t, err)
+
+		require.Eventually(t, func() bool {
+			select {
+			case <-test.writer.Done():
+				return true
+			default:
+				return false
+			}
+		}, 300*time.Millisecond, 100*time.Millisecond)
+	})
+}
+
+func TestBytesToSessionPrintEvents(t *testing.T) {
+	b := make([]byte, MaxProtoMessageSizeBytes+1)
+	_, err := rand.Read(b)
+	require.NoError(t, err)
+
+	events := bytesToSessionPrintEvents(b)
+	require.Len(t, events, 2)
+
+	event0, ok := events[0].(*apievents.SessionPrint)
+	require.True(t, ok)
+
+	event1, ok := events[1].(*apievents.SessionPrint)
+	require.True(t, ok)
+
+	allBytes := append(event0.Data, event1.Data...)
+	require.Equal(t, b, allBytes)
 }
 
 type auditWriterTest struct {
@@ -369,4 +418,71 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 
 func (a *auditWriterTest) Close(ctx context.Context) error {
 	return a.writer.Close(ctx)
+}
+
+func TestIsPermanentEmitError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "badParameter err",
+			err:  trace.BadParameter(""),
+			want: true,
+		},
+		{
+			name: "agg badParameter and nil",
+			err:  trace.NewAggregate(trace.BadParameter(""), nil),
+			want: true,
+		},
+		{
+			name: "agg badParameter and badParameter",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.BadParameter(""),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.AccessDenied(""),
+			),
+			want: false,
+		},
+		{
+			name: "add accessDenied and badParameter",
+			err: trace.NewAggregate(
+				trace.AccessDenied(""),
+				trace.BadParameter(""),
+			),
+			want: false,
+		},
+		{
+			name: "agg badParameter with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.BadParameter(""))),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.AccessDenied(""))),
+			),
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsPermanentEmitError(tt.err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

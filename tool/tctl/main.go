@@ -18,22 +18,31 @@ package main
 
 import (
 	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/teleport/tool/tctl/sso/configure"
+	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
 func main() {
+	// Note: these commands should be kept in sync with e/tool/tctl/main.go.
 	commands := []common.CLICommand{
 		&common.UserCommand{},
 		&common.NodeCommand{},
-		&common.TokenCommand{},
+		&common.TokensCommand{},
 		&common.AuthCommand{},
 		&common.ResourceCommand{},
 		&common.StatusCommand{},
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
+		&configure.SSOConfigureCommand{},
+		&tester.SSOTestCommand{},
 		&common.AppsCommand{},
 		&common.DBCommand{},
+		&common.KubeCommand{},
+		&common.DesktopCommand{},
 		&common.AccessCommand{},
 		&common.LockCommand{},
+		&common.BotsCommand{},
+		&common.InventoryCommand{},
 	}
 	common.Run(commands)
 }

@@ -23,7 +23,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -37,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -49,7 +48,13 @@ type Suite struct{}
 
 var _ = check.Suite(&Suite{})
 
-func TestRootBPF(t *testing.T) { check.TestingT(t) }
+func TestRootBPF(t *testing.T) {
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+	}
+
+	check.TestingT(t)
+}
 
 func (s *Suite) TestWatch(c *check.C) {
 	// This test must be run as root and the host has to be capable of running
@@ -63,7 +68,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := ioutil.TempDir("", "cgroup-test")
+	dir, err := os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -75,7 +80,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &events.MockEmitter{}
+	emitter := &eventstest.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emit to the Audit Log.
@@ -165,7 +170,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := ioutil.TempFile("", "test-script")
+		file, err := os.CreateTemp("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 
@@ -242,7 +247,7 @@ func (s *Suite) TestScript(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := ioutil.TempFile("", "test-script")
+		file, err := os.CreateTemp("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 
@@ -497,4 +502,10 @@ func isRoot() bool {
 		return false
 	}
 	return true
+}
+
+// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
+// setting TELEPORT_BPF_TEST environment variable to any value.
+func bpfTestEnabled() bool {
+	return os.Getenv("TELEPORT_BPF_TEST") != ""
 }

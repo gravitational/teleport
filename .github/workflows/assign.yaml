@@ -1,5 +1,5 @@
 # This workflow is run whenever a pull request is opened, re-opened, or taken
-# out of draft (ready for review). 
+# out of draft (ready for review).
 #
 # NOTE: pull_request_target behaves the same as pull_request except it grants a
 # read/write token to workflows running on a pull request from a fork. While

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -291,6 +292,9 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
+	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
+	// trigger a event.
+	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -401,10 +405,9 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		_, known := p.current[server.GetName()]
+		current, exists := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		// Broadcast only creation of new proxies (not known before).
-		if !known {
+		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
 			p.broadcastUpdate(ctx)
 		}
 	default:
@@ -615,9 +618,11 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // notifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
 func (p *lockCollector) notifyStale() {
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
@@ -729,7 +734,13 @@ func (p *databaseCollector) getResourcesAndUpdateCurrent(ctx context.Context) er
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
-	p.DatabasesC <- databases
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.DatabasesC <- databases:
+	}
+
 	return nil
 }
 
@@ -744,7 +755,10 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 	switch event.Type {
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
-		p.DatabasesC <- databasesToSlice(p.current)
+		select {
+		case <-ctx.Done():
+		case p.DatabasesC <- databasesToSlice(p.current):
+		}
 	case types.OpPut:
 		database, ok := event.Resource.(types.Database)
 		if !ok {
@@ -752,7 +766,11 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 			return
 		}
 		p.current[database.GetName()] = database
-		p.DatabasesC <- databasesToSlice(p.current)
+		select {
+		case <-ctx.Done():
+		case p.DatabasesC <- databasesToSlice(p.current):
+		}
+
 	default:
 		p.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
@@ -845,7 +863,12 @@ func (p *appCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.current = newCurrent
-	p.AppsC <- apps
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.AppsC <- apps:
+	}
 	return nil
 }
 
@@ -861,6 +884,12 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 	case types.OpDelete:
 		delete(p.current, event.Resource.GetName())
 		p.AppsC <- appsToSlice(p.current)
+
+		select {
+		case <-ctx.Done():
+		case p.AppsC <- appsToSlice(p.current):
+		}
+
 	case types.OpPut:
 		app, ok := event.Resource.(types.Application)
 		if !ok {
@@ -868,7 +897,11 @@ func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event t
 			return
 		}
 		p.current[app.GetName()] = app
-		p.AppsC <- appsToSlice(p.current)
+
+		select {
+		case <-ctx.Done():
+		case p.AppsC <- appsToSlice(p.current):
+		}
 	default:
 		p.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
@@ -890,12 +923,8 @@ type CertAuthorityWatcherConfig struct {
 	ResourceWatcherConfig
 	// AuthorityGetter is responsible for fetching cert authority resources.
 	AuthorityGetter
-	// CertAuthorityC receives up-to-date list of all cert authority resources.
-	CertAuthorityC chan []types.CertAuthority
-	// WatchHostCA indicates that the watcher should monitor types.HostCA
-	WatchHostCA bool
-	// WatchUserCA indicates that the watcher should monitor types.UserCA
-	WatchUserCA bool
+	// Types restricts which cert authority types are retrieved via the AuthorityGetter.
+	Types []types.CertAuthType
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -910,10 +939,17 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 		}
 		cfg.AuthorityGetter = getter
 	}
-	if cfg.CertAuthorityC == nil {
-		cfg.CertAuthorityC = make(chan []types.CertAuthority)
-	}
 	return nil
+}
+
+// IsWatched return true if the given certificate auth type is being observer by the watcher.
+func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
+	for _, observedType := range cfg.Types {
+		if observedType == certType {
+			return true
+		}
+	}
+	return false
 }
 
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
@@ -924,6 +960,12 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 
 	collector := &caCollector{
 		CertAuthorityWatcherConfig: cfg,
+		fanout:                     NewFanout(),
+		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+	}
+
+	for _, t := range cfg.Types {
+		collector.cas[t] = make(map[string]types.CertAuthority)
 	}
 
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
@@ -931,6 +973,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 		return nil, trace.Wrap(err)
 	}
 
+	collector.fanout.SetInit()
 	return &CertAuthorityWatcher{watcher, collector}, nil
 }
 
@@ -943,9 +986,66 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	host map[string]types.CertAuthority
-	user map[string]types.CertAuthority
+	fanout *Fanout
+
+	// lock protects concurrent access to cas
 	lock sync.RWMutex
+	// cas maps ca type -> cluster -> ca
+	cas map[types.CertAuthType]map[string]types.CertAuthority
+}
+
+// CertAuthorityTarget lists the attributes of interactions to be disabled.
+type CertAuthorityTarget struct {
+	// ClusterName specifies the name of the cluster to watch.
+	ClusterName string
+	// Type specifies the ca types to watch for.
+	Type types.CertAuthType
+}
+
+// Subscribe is used to subscribe to the lock updates.
+func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTarget) (types.Watcher, error) {
+	watchKinds, err := caTargetToWatchKinds(targets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sub, err := c.fanout.NewWatcher(ctx, types.Watch{Kinds: watchKinds})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	select {
+	case event := <-sub.Events():
+		if event.Type != types.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-sub.Done():
+		return nil, trace.Wrap(sub.Error())
+	}
+	return sub, nil
+}
+
+func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, error) {
+	watchKinds := make([]types.WatchKind, 0, len(targets))
+	for _, target := range targets {
+		kind := types.WatchKind{
+			Kind: types.KindCertAuthority,
+			// Note that watching SubKind doesn't work for types.WatchKind - to do so it would
+			// require a custom filter, which was recently added but - we can't use yet due to
+			// older clients not supporting the filter.
+			SubKind: string(target.Type),
+		}
+
+		if target.ClusterName != "" {
+			kind.Name = target.ClusterName
+		}
+
+		watchKinds = append(watchKinds, kind)
+	}
+
+	if len(watchKinds) == 0 {
+		watchKinds = []types.WatchKind{{Kind: types.KindCertAuthority}}
+	}
+
+	return watchKinds, nil
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -955,39 +1055,28 @@ func (c *caCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	var (
-		newHost map[string]types.CertAuthority
-		newUser map[string]types.CertAuthority
-	)
+	var cas []types.CertAuthority
 
-	if c.WatchHostCA {
-		host, err := c.AuthorityGetter.GetCertAuthorities(types.HostCA, false)
+	for _, t := range c.Types {
+		authorities, err := c.AuthorityGetter.GetCertAuthorities(ctx, t, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		newHost = make(map[string]types.CertAuthority, len(host))
-		for _, ca := range host {
-			newHost[ca.GetName()] = ca
-		}
-	}
 
-	if c.WatchUserCA {
-		user, err := c.AuthorityGetter.GetCertAuthorities(types.UserCA, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		newUser = make(map[string]types.CertAuthority, len(user))
-		for _, ca := range user {
-			newUser[ca.GetName()] = ca
-		}
+		cas = append(cas, authorities...)
 	}
 
 	c.lock.Lock()
-	c.host = newHost
-	c.user = newUser
-	c.lock.Unlock()
+	defer c.lock.Unlock()
 
-	c.CertAuthorityC <- casToSlice(newHost, newUser)
+	for _, ca := range cas {
+		if !c.watchingType(ca.GetType()) {
+			continue
+		}
+
+		c.cas[ca.GetType()][ca.GetName()] = ca
+		c.fanout.Emit(types.Event{Type: types.OpPut, Resource: ca.Clone()})
+	}
 	return nil
 }
 
@@ -1001,14 +1090,13 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 	defer c.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		if c.WatchHostCA && event.Resource.GetSubKind() == string(types.HostCA) {
-			delete(c.host, event.Resource.GetName())
-		}
-		if c.WatchUserCA && event.Resource.GetSubKind() == string(types.UserCA) {
-			delete(c.user, event.Resource.GetName())
+		caType := types.CertAuthType(event.Resource.GetSubKind())
+		if !c.watchingType(caType) {
+			return
 		}
 
-		c.CertAuthorityC <- casToSlice(c.host, c.user)
+		delete(c.cas[caType], event.Resource.GetName())
+		c.fanout.Emit(event)
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
 		if !ok {
@@ -1016,36 +1104,184 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			return
 		}
 
-		if c.WatchHostCA && ca.GetType() == types.HostCA {
-			c.host[ca.GetName()] = ca
-		}
-		if c.WatchUserCA && ca.GetType() == types.UserCA {
-			c.user[ca.GetName()] = ca
+		if !c.watchingType(ca.GetType()) {
+			return
 		}
 
-		c.CertAuthorityC <- casToSlice(c.host, c.user)
+		authority, ok := c.cas[ca.GetType()][ca.GetName()]
+		if ok && CertAuthoritiesEquivalent(authority, ca) {
+			return
+		}
+
+		c.cas[ca.GetType()][ca.GetName()] = ca
+		c.fanout.Emit(event)
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
 	}
 }
 
-// GetCurrent returns the currently stored authorities.
-func (c *caCollector) GetCurrent() []types.CertAuthority {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return casToSlice(c.host, c.user)
+func (c *caCollector) watchingType(t types.CertAuthType) bool {
+	for _, caType := range c.Types {
+		if caType == t {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (c *caCollector) notifyStale() {}
 
-func casToSlice(host map[string]types.CertAuthority, user map[string]types.CertAuthority) []types.CertAuthority {
-	slice := make([]types.CertAuthority, 0, len(host)+len(user))
-	for _, ca := range host {
-		slice = append(slice, ca)
-	}
-	for _, ca := range user {
-		slice = append(slice, ca)
-	}
-	return slice
+// NodeWatcherConfig is a NodeWatcher configuration.
+type NodeWatcherConfig struct {
+	ResourceWatcherConfig
+	// NodesGetter is used to directly fetch the list of active nodes.
+	NodesGetter
 }
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.NodesGetter == nil {
+		getter, ok := cfg.Client.(NodesGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter NodesGetter and Client not usable as NodesGetter")
+		}
+		cfg.NodesGetter = getter
+	}
+	return nil
+}
+
+// NewNodeWatcher returns a new instance of NodeWatcher.
+func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &nodeCollector{
+		NodeWatcherConfig: cfg,
+		current:           map[string]types.Server{},
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &NodeWatcher{watcher, collector}, nil
+}
+
+// NodeWatcher is built on top of resourceWatcher to monitor additions
+// and deletions to the set of nodes.
+type NodeWatcher struct {
+	*resourceWatcher
+	*nodeCollector
+}
+
+// nodeCollector accompanies resourceWatcher when monitoring nodes.
+type nodeCollector struct {
+	NodeWatcherConfig
+	// current holds a map of the currently known nodes (keyed by server name,
+	// RWMutex protected).
+	current map[string]types.Server
+	rw      sync.RWMutex
+}
+
+// Node is a readonly subset of the types.Server interface which
+// users may filter by in GetNodes.
+type Node interface {
+	// ResourceWithLabels provides common resource headers
+	types.ResourceWithLabels
+	// GetTeleportVersion returns the teleport version the server is running on
+	GetTeleportVersion() string
+	// GetAddr return server address
+	GetAddr() string
+	// GetHostname returns server hostname
+	GetHostname() string
+	// GetNamespace returns server namespace
+	GetNamespace() string
+	// GetCmdLabels gets command labels
+	GetCmdLabels() map[string]types.CommandLabel
+	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	GetPublicAddr() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() types.Rotation
+	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
+	GetUseTunnel() bool
+}
+
+// GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
+// returned servers are a copy and can be safely modified. It is intentionally hard to retrieve
+// the full set of nodes to reduce the number of copies needed since the number of nodes can get
+// quite large and doing so can be expensive.
+func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	var matched []types.Server
+	for _, server := range n.current {
+		if fn(server) {
+			matched = append(matched, server.DeepCopy())
+		}
+	}
+
+	return matched
+}
+
+func (n *nodeCollector) NodeCount() int {
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+	return len(n.current)
+}
+
+// resourceKind specifies the resource kind to watch.
+func (n *nodeCollector) resourceKind() string {
+	return types.KindNode
+}
+
+// getResourcesAndUpdateCurrent is called when the resources should be
+// (re-)fetched directly.
+func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(nodes) == 0 {
+		return nil
+	}
+	newCurrent := make(map[string]types.Server, len(nodes))
+	for _, node := range nodes {
+		newCurrent[node.GetName()] = node
+	}
+	n.rw.Lock()
+	defer n.rw.Unlock()
+	n.current = newCurrent
+	return nil
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
+		n.Log.Warningf("Unexpected event: %v.", event)
+		return
+	}
+
+	n.rw.Lock()
+	defer n.rw.Unlock()
+
+	switch event.Type {
+	case types.OpDelete:
+		delete(n.current, event.Resource.GetName())
+	case types.OpPut:
+		server, ok := event.Resource.(types.Server)
+		if !ok {
+			n.Log.Warningf("Unexpected type %T.", event.Resource)
+			return
+		}
+		n.current[server.GetName()] = server
+	default:
+		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+	}
+}
+
+func (n *nodeCollector) notifyStale() {}

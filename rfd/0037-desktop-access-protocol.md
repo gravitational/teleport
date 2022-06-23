@@ -204,3 +204,22 @@ This message contains a mouse wheel update. Sent from client to server.
 ```
 
 This message indicates an error has occurred.
+
+#### 10 - MFA
+
+```
+| message type (10) | mfa_type byte | length uint32 | JSON []byte
+```
+
+This message is used to send the MFA challenge to the user when per-session MFA
+is enabled. It is a container for a JSON-encoded MFA payload.
+
+`mfa_type` is one of:
+
+- `n` for Webauthn
+- `u` for U2F
+
+Per-session MFA for desktop access works the same way as it does for SSH
+sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
+The only difference is that SSH sessions wrap the MFA JSON in a protobuf
+encoding, where desktop sessions wrap the MFA JSON in a TDP message.

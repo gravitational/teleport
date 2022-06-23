@@ -19,15 +19,16 @@ package mysql
 import (
 	"crypto/tls"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/mysql"
-	"github.com/siddontang/go-mysql/server"
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -56,21 +57,46 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 // TestServer is a test MySQL server used in functional database
 // access tests.
 type TestServer struct {
-	cfg       common.TestServerConfig
-	listener  net.Listener
-	port      string
-	tlsConfig *tls.Config
-	log       logrus.FieldLogger
-	handler   *testHandler
+	cfg           common.TestServerConfig
+	listener      net.Listener
+	port          string
+	tlsConfig     *tls.Config
+	log           logrus.FieldLogger
+	handler       *testHandler
+	serverVersion string
+
+	// serverConnsMtx is a mutex that guards serverConns.
+	serverConnsMtx sync.Mutex
+	// serverConns holds all connections created by the server.
+	serverConns []*server.Conn
+}
+
+// TestServerOption allows to set test server options.
+type TestServerOption func(*TestServer)
+
+// WithServerVersion sets the test MySQL server version.
+func WithServerVersion(serverVersion string) TestServerOption {
+	return func(ts *TestServer) {
+		ts.serverVersion = serverVersion
+	}
 }
 
 // NewTestServer returns a new instance of a test MySQL server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
 		address = config.Address
 	}
-	listener, err := net.Listen("tcp", address)
+	tlsConfig, err := common.MakeTestServerTLSConfig(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var listener net.Listener
+	if config.ListenTLS {
+		listener, err = tls.Listen("tcp", address, tlsConfig)
+	} else {
+		listener, err = net.Listen("tcp", address)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,22 +104,24 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := common.MakeTestServerTLSConfig(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
 	})
-	return &TestServer{
-		cfg:       config,
-		listener:  listener,
-		port:      port,
-		tlsConfig: tlsConfig,
-		log:       log,
-		handler:   &testHandler{log: log},
-	}, nil
+	server := &TestServer{
+		cfg:      config,
+		listener: listener,
+		port:     port,
+		log:      log,
+		handler:  &testHandler{log: log},
+	}
+	if !config.ListenTLS {
+		server.tlsConfig = tlsConfig
+	}
+	for _, o := range opts {
+		o(server)
+	}
+	return server, nil
 }
 
 // Serve starts serving client connections.
@@ -134,7 +162,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	serverConn, err := server.NewCustomizedConn(
 		conn,
 		server.NewServer(
-			serverVersion,
+			s.serverVersion,
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,
@@ -144,6 +172,11 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	s.serverConnsMtx.Lock()
+	s.serverConns = append(s.serverConns, serverConn)
+	s.serverConnsMtx.Unlock()
+
 	for {
 		if serverConn.Closed() {
 			return nil
@@ -186,6 +219,20 @@ func (s *TestServer) QueryCount() uint32 {
 // Close closes the server listener.
 func (s *TestServer) Close() error {
 	return s.listener.Close()
+}
+
+// ConnsClosed returns true if all connections has been correctly closed (message COM_QUIT), false otherwise.
+func (s *TestServer) ConnsClosed() bool {
+	s.serverConnsMtx.Lock()
+	defer s.serverConnsMtx.Unlock()
+
+	for _, conn := range s.serverConns {
+		if !conn.Closed() {
+			return false
+		}
+	}
+
+	return true
 }
 
 type testHandler struct {

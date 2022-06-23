@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
@@ -141,6 +142,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.tlsServer.Close()
+	})
+
 	// Create user and role.
 	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
 	require.NoError(t, err)
@@ -151,7 +156,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	require.NoError(t, err)
 
-	rootCA, err := s.tlsServer.Auth().GetCertAuthority(types.CertAuthID{
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: "root.example.com",
 	}, false)
@@ -199,6 +204,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.authClient.Close()
+	})
+
 	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
@@ -206,7 +215,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err := s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -220,7 +229,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Generate certificate for AWS console application.
-	privateKey, publicKey, err = s.tlsServer.Auth().GenerateKeyPair("")
+	privateKey, publicKey, err = native.GenerateKeyPair()
 	require.NoError(t, err)
 	certificate, err = s.tlsServer.Auth().GenerateUserAppTestCert(auth.AppTestCertRequest{
 		PublicKey:   publicKey,
@@ -238,7 +247,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, defaults.Namespace,
-	), 0755)
+	), 0o755)
 	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
@@ -250,6 +259,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		lockWatcher.Close()
+	})
 
 	apps := types.Apps{appFoo, appAWS}
 	if len(config.Apps) > 0 {
@@ -279,6 +292,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	err = s.appServer.ForceHeartbeat()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		s.appServer.Close()
+
+		// wait for the server to close before allowing other cleanup
+		// actions to proceed
+		s.appServer.Wait()
+	})
 
 	return s
 }
@@ -361,7 +381,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
 	})
@@ -389,7 +409,7 @@ func TestAuthorizeWithLocks(t *testing.T) {
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusForbidden)
-		buf, err := ioutil.ReadAll(resp.Body)
+		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), "Forbidden")
 	})
@@ -518,7 +538,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName"),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
 		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 	))
 }

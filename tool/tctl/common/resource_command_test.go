@@ -17,8 +17,9 @@ limitations under the License.
 package common
 
 import (
+	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -164,7 +165,7 @@ func TestDatabaseResource(t *testing.T) {
 
 	// Create the databases.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	require.NoError(t, ioutil.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 
@@ -251,7 +252,7 @@ func TestAppResource(t *testing.T) {
 
 	// Create the apps.
 	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
-	require.NoError(t, ioutil.WriteFile(appYAMLPath, []byte(appYAML), 0644))
+	require.NoError(t, os.WriteFile(appYAMLPath, []byte(appYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", appYAMLPath})
 	require.NoError(t, err)
 
@@ -282,6 +283,47 @@ func TestAppResource(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*types.AppV3{appB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
+}
+
+// TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
+func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Databases: config.Databases{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+
+	// Create the databases yaml file.
+	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+
+	// Reset RootCertPool and run tctl command with --insecure flag.
+	opts := []optionsFunc{
+		withRootCertPool(x509.NewCertPool()),
+		withInsecure(true),
+	}
+	_, err := runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath}, opts...)
+	require.NoError(t, err)
 }
 
 const (

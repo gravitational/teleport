@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -140,7 +141,6 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("Events", func(t *testing.T) {
 		testEvents(t, newBackend)
 	})
-
 	t.Run("WatchersClose", func(t *testing.T) {
 		testWatchersClose(t, newBackend)
 	})
@@ -155,6 +155,14 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 
 	t.Run("Mirror", func(t *testing.T) {
 		testMirror(t, newBackend)
+	})
+
+	t.Run("FetchLimit", func(t *testing.T) {
+		testFetchLimit(t, newBackend)
+	})
+
+	t.Run("Limit", func(t *testing.T) {
+		testLimit(t, newBackend)
 	})
 }
 
@@ -572,6 +580,72 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	requireEvent(t, watcher, types.OpDelete, item.Key, 2*time.Second)
 }
 
+// testFetchLimit tests fetch max items size limit.
+func testFetchLimit(t *testing.T, newBackend Constructor) {
+	uut, _, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Allocate 65KB buffer.
+	buff := make([]byte, 1<<16)
+	itemsCount := 20
+	// Fill the backend with events that total size is greater than 1MB (65KB * 20 > 1MB).
+	for i := 0; i < itemsCount; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/db/database%d", i)), Value: buff}
+		_, err = uut.Put(ctx, *item)
+		require.NoError(t, err)
+	}
+
+	result, err := uut.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), backend.NoLimit)
+	require.NoError(t, err)
+	require.Equal(t, itemsCount, len(result.Items))
+}
+
+// testLimit tests limit.
+func testLimit(t *testing.T, newBackend Constructor) {
+	uut, clock, err := newBackend()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	item := &backend.Item{
+		Key:     prefix("/db/database_tail_item"),
+		Value:   []byte("data"),
+		Expires: clock.Now().Add(time.Minute),
+	}
+	_, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		item := &backend.Item{
+			Key:     prefix(fmt.Sprintf("/db/database%d", i)),
+			Value:   []byte("data"),
+			Expires: clock.Now().Add(time.Second * 10),
+		}
+		_, err = uut.Put(ctx, *item)
+		require.NoError(t, err)
+	}
+	clock.Advance(time.Second * 20)
+
+	item = &backend.Item{
+		Key:     prefix("/db/database_head_item"),
+		Value:   []byte("data"),
+		Expires: clock.Now().Add(time.Minute),
+	}
+	_, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
+
+	result, err := uut.GetRange(ctx, prefix("/db"), backend.RangeEnd(prefix("/db")), 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(result.Items))
+}
+
 // requireEvent asserts that a given event type with the given key is emitted
 // by a watcher within the supplied timeout, returning that event for further
 // inspection if successful.
@@ -862,7 +936,11 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 		}(i)
 	}
 
-	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 3*time.Second)
+	// Give the database some time to update. A single-node in-memory database
+	// will finish faster than a 3-node cluster. Some latency is expected
+	// since this test intentionally creates conflict on the same key. Most tests
+	// should complete in less than a few seconds.
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer timeoutCancel()
 	requireWaitGroupToFinish(timeoutCtx, t, &asyncOps)
 

@@ -17,14 +17,16 @@ limitations under the License.
 package utils
 
 import (
-	"gopkg.in/check.v1"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func (s *UtilsSuite) TestProxyJumpParsing(c *check.C) {
+func TestProxyJumpParsing(t *testing.T) {
 	type tc struct {
 		in  string
 		out []JumpHost
-		err error
 	}
 	testCases := []tc{
 		{
@@ -56,14 +58,11 @@ func (s *UtilsSuite) TestProxyJumpParsing(c *check.C) {
 			out: []JumpHost{{Username: "alice@domain.com", Addr: NetAddr{Addr: "[::1]:7777", AddrNetwork: "tcp"}}, {Username: "bob@localhost", Addr: NetAddr{Addr: "localhost", AddrNetwork: "tcp"}}},
 		},
 	}
-	for i, tc := range testCases {
-		comment := check.Commentf("Test case %v: %q", i, tc.in)
-		re, err := ParseProxyJump(tc.in)
-		if tc.err == nil {
-			c.Assert(err, check.IsNil, comment)
-			c.Assert(re, check.DeepEquals, tc.out)
-		} else {
-			c.Assert(err, check.FitsTypeOf, tc.err)
-		}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%q", tc.in), func(t *testing.T) {
+			re, err := ParseProxyJump(tc.in)
+			require.NoError(t, err)
+			require.Equal(t, tc.out, re)
+		})
 	}
 }
