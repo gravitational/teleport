@@ -39,7 +39,7 @@ import (
 // from lib/service/listeners.go
 // TODO(espadolini): have the constants exported
 const (
-	listenerAuthSSH     = "auth"
+	listenerAuth        = "auth"
 	listenerProxySSH    = "proxy:ssh"
 	listenerProxyWeb    = "proxy:web"
 	listenerProxyTunnel = "proxy:tunnel"
@@ -74,7 +74,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) 
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerAuthSSH, &fds),
+				ListenAddress: newListener(t, listenerAuth, &fds),
 			},
 		},
 	}
