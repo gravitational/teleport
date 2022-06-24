@@ -1,5 +1,15 @@
 # Changelog
 
+## 10.0.0
+
+Teleport 10.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
+
+### Breaking Changes
+
+#### Relaxed session join permissions
+
+In previous versions of Teleport users need full access to the node/Kubernetes pod in order to join a session. With Teleport 10.0 we have relaxed this requirement. Joining sessions remains deny-by-default as of Teleport 9.0 but now only `join_policy` statements as described in the [Moderated Sessions Guide](https://goteleport.com/docs/access-controls/guides/moderated-sessions/) are checked for session join RBAC.
+
 ## 8.0.0
 
 Teleport 8.0 is a major release of Teleport that contains new features, improvements, and bug fixes.
@@ -232,11 +242,11 @@ Kubernetes Access will no longer automatically register a cluster named after th
 
 Teleport 6.2 contains new features, improvements, and bug fixes.
 
-**Note:** the DynamoDB migration described [below](#dynamodb-indexing-change)
-may cause rate-limiting errors from AWS APIs and is slow on large deployments
-(1000+ existing audit events). The next patch release, v6.2.1, will improve the
-migration performance. If you run a large DynamoDB-based cluster, we advise you
-to wait for v6.2.1 before upgrading.
+**Note:** the DynamoDB indexing change described below may cause rate-limiting
+errors from AWS APIs and is slow on large deployments (1000+ existing audit
+events). The next patch release, v6.2.1, will improve the migration performance.
+If you run a large DynamoDB-based cluster, we advise you to wait for v6.2.1
+before upgrading.
 
 ### New Features
 
@@ -407,7 +417,7 @@ To learn more about configuring role-based access control for Database Access, c
 
 See [Reference](https://goteleport.com/teleport/docs/database-access/reference/) for an overview of Database Access related configuration and CLI commands.
 
-Finally, check out [Frequently Asked Questions](./database-access/faq.mdx).
+Finally, check out [Frequently Asked Questions](docs/pages/database-access/faq.mdx).
 
 #### OSS RBAC
 
@@ -752,7 +762,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Reference](https://goteleport.com/teleport/docs/api-reference/) to simply developing applications against Teleport.
+We've added an [API Reference](https://goteleport.com/docs/api-reference/) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 
@@ -1182,9 +1192,9 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Improvements
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./enterprise/workflow). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./setup/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](./setup/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./docs/pages/enterprise/workflow). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/setup/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Remote tctl execution is now possible. [Read the docs](./docs/pages/setup/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 
@@ -1192,8 +1202,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./setup/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./enterprise/fedramp.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./docs/pages/setup/admin/trustedclusters.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./docs/pages/enterprise/fedramp.mdx).
 
 ## 4.1.11
 
@@ -1424,7 +1434,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./setup/operations/scaling.mdx#hardware-recommendations)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./docs/pages/setup/operations/scaling.mdx#hardware-recommendations)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
@@ -1908,7 +1918,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](./access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](./docs/pages/access-controls/guides/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

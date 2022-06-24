@@ -476,7 +476,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", types.RoleSpecV5{
+			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -484,8 +484,10 @@ func TestAuthenticate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			authCtx := auth.Context{
-				User:    user,
-				Checker: roles,
+				User: user,
+				Checker: services.NewAccessChecker(&services.AccessInfo{
+					RoleSet: roles,
+				}, "local"),
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
@@ -788,8 +790,8 @@ func TestClusterSessionDial(t *testing.T) {
 	sess := &clusterSession{
 		authContext: authContext{
 			teleportCluster: teleportClusterClient{
-				dial: func(_ context.Context, _, addr, _ string) (net.Conn, error) {
-					if addr == "" {
+				dial: func(_ context.Context, _ string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+					if endpoint.addr == "" {
 						return nil, trace.BadParameter("no addr")
 					}
 					return &net.TCPConn{}, nil
@@ -844,7 +846,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
 
-	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
 	}
 

@@ -22,10 +22,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,8 +53,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// iso8601DateFormat is the time format used by the date attribute on events.
-const iso8601DateFormat = "2006-01-02"
+const (
+	// iso8601DateFormat is the time format used by the date attribute on events.
+	iso8601DateFormat = "2006-01-02"
+
+	// ErrValidationException for service response error code
+	// "ValidationException".
+	//
+	//  Indicates about invalid item for example max DynamoDB item length was exceeded.
+	ErrValidationException = "ValidationException"
+
+	// maxItemSize is the maximum size of a DynamoDB item.
+	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html
+	maxItemSize = 400 * 1024 // 400KB
+)
 
 // Defines the attribute schema for the DynamoDB event table and index.
 var tableSchema = []*dynamodb.AttributeDefinition{
@@ -96,11 +110,6 @@ type Config struct {
 	// Endpoint is an optional non-AWS endpoint
 	Endpoint string `json:"endpoint,omitempty"`
 
-	// EnableContinuousBackups is used to enable PITR (Point-In-Time Recovery).
-	EnableContinuousBackups bool
-
-	// EnableAutoScaling is used to enable auto scaling policy.
-	EnableAutoScaling bool
 	// ReadMaxCapacity is the maximum provisioned read capacity.
 	ReadMaxCapacity int64
 	// ReadMinCapacity is the minimum provisioned read capacity.
@@ -113,12 +122,39 @@ type Config struct {
 	WriteMinCapacity int64
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue float64
+
+	// UseFIPSEndpoint uses AWS FedRAMP/FIPS 140-2 mode endpoints.
+	// to determine its behavior:
+	// Unset - allows environment variables or AWS config to set the value
+	// Enabled - explicitly enabled
+	// Disabled - explicitly disabled
+	UseFIPSEndpoint types.ClusterAuditConfigSpecV2_FIPSEndpointState
+
+	// EnableContinuousBackups is used to enable PITR (Point-In-Time Recovery).
+	EnableContinuousBackups bool
+
+	// EnableAutoScaling is used to enable auto scaling policy.
+	EnableAutoScaling bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
 func (cfg *Config) SetFromURL(in *url.URL) error {
 	if endpoint := in.Query().Get(teleport.Endpoint); endpoint != "" {
 		cfg.Endpoint = endpoint
+	}
+
+	const boolErrorTemplate = "failed to parse URI %q flag %q - %q, supported values are 'true', 'false', or any other" +
+		"supported boolean in https://pkg.go.dev/strconv#ParseBool"
+	if val := in.Query().Get(events.UseFIPSQueryParam); val != "" {
+		useFips, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), events.UseFIPSQueryParam, val)
+		}
+		if useFips {
+			cfg.UseFIPSEndpoint = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
+		} else {
+			cfg.UseFIPSEndpoint = types.ClusterAuditConfigSpecV2_FIPS_DISABLED
+		}
 	}
 
 	return nil
@@ -252,6 +288,9 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		b.session.Config.Endpoint = aws.String(cfg.Endpoint)
 	}
 
+	// Explicitly enable or disable FIPS endpoints for DynamoDB
+	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
+
 	// create DynamoDB service:
 	b.svc = dynamodb.New(b.session)
 
@@ -327,21 +366,69 @@ const (
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	var sessionID string
-	getter, ok := in.(events.SessionMetadataGetter)
-	if ok && getter.GetSessionID() != "" {
-		sessionID = getter.GetSessionID()
-	} else {
-		// no session id - global event gets a random uuid to get a good partition
-		// key distribution
-		sessionID = uuid.New().String()
+	sessionID := getSessionID(in)
+	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
+		switch {
+		case isAWSValidationError(err):
+			// In case of ValidationException: Item size has exceeded the maximum allowed size
+			// sanitize event length and retry upload operation.
+			return trace.Wrap(l.handleAWSValidationError(ctx, err, sessionID, in))
+		}
+		return trace.Wrap(err)
 	}
+	return nil
+}
 
-	fieldsMap, err := events.ToEventFields(in)
+func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID string, in apievents.AuditEvent) error {
+	se, ok := trimEventSize(in)
+	if !ok {
+		return trace.BadParameter(err.Error())
+	}
+	if err := l.putAuditEvent(ctx, sessionID, se); err != nil {
+		return trace.BadParameter(err.Error())
+	}
+	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
+	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	return nil
+}
+
+// getSessionID if set returns event ID obtained from metadata or generates a new one.
+func getSessionID(in apievents.AuditEvent) string {
+	s, ok := in.(events.SessionMetadataGetter)
+	if ok && s.GetSessionID() != "" {
+		return s.GetSessionID()
+	}
+	// no session id - global event gets a random uuid to get a good partition
+	// key distribution
+	return uuid.New().String()
+}
+
+func isAWSValidationError(err error) bool {
+	return errors.Is(trace.Unwrap(err), errAWSValidation)
+}
+
+func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
+	m, ok := event.(messageSizeTrimmer)
+	if !ok {
+		return nil, false
+	}
+	return m.TrimToMaxSize(maxItemSize), true
+}
+
+func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.AuditEvent) error {
+	input, err := l.createPutItem(sessionID, in)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	_, err = l.svc.PutItemWithContext(ctx, input)
+	return convertError(err)
+}
 
+func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamodb.PutItemInput, error) {
+	fieldsMap, err := events.ToEventFields(in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	e := event{
 		SessionID:      sessionID,
 		EventIndex:     in.GetIndex(),
@@ -354,18 +441,16 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	l.setExpiry(&e)
 	av, err := dynamodbattribute.MarshalMap(e)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	input := dynamodb.PutItemInput{
+	return &dynamodb.PutItemInput{
 		Item:      av,
 		TableName: aws.String(l.Tablename),
-	}
-	_, err = l.svc.PutItemWithContext(ctx, &input)
-	err = convertError(err)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	}, nil
+}
+
+type messageSizeTrimmer interface {
+	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 func (l *Log) setExpiry(e *event) {
@@ -835,12 +920,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (l *Log) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 func (l *Log) turnOnTimeToLive(ctx context.Context) error {
 	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
 		TableName: aws.String(l.Tablename),
@@ -1032,6 +1111,8 @@ func (l *Log) deleteTable(ctx context.Context, tableName string, wait bool) erro
 	return nil
 }
 
+var errAWSValidation = errors.New("aws validation error")
+
 func convertError(err error) error {
 	if err == nil {
 		return nil
@@ -1051,6 +1132,11 @@ func convertError(err error) error {
 		return trace.BadParameter(aerr.Error())
 	case dynamodb.ErrCodeInternalServerError:
 		return trace.BadParameter(aerr.Error())
+	case ErrValidationException:
+		// A ValidationException  type is missing from AWS SDK.
+		// Use errAWSValidation that for most cases will contain:
+		// "Item size has exceeded the maximum allowed size" AWS validation error.
+		return trace.Wrap(errAWSValidation, aerr.Error())
 	default:
 		return err
 	}

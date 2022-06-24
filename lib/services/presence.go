@@ -32,7 +32,7 @@ type ProxyGetter interface {
 // NodesGetter is a service that gets nodes.
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
-	GetNodes(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
 // Presence records and reports the presence of all components
@@ -43,8 +43,6 @@ type Presence interface {
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-	// ListNodes returns a paginated list of registered servers.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
 
 	// NodesGetter gets nodes
 	NodesGetter
@@ -58,9 +56,6 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
-
-	// UpsertNodes bulk inserts nodes.
-	UpsertNodes(namespace string, servers []types.Server) error
 
 	// DELETE IN: 5.1.0
 	//
