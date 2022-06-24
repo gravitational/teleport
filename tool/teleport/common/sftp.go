@@ -242,11 +242,11 @@ func onSFTP() error {
 		return trace.Wrap(err)
 	}
 
-	err = sftpSrv.Serve()
-	if errors.Is(err, io.EOF) {
-		err = nil
+	serveErr := sftpSrv.Serve()
+	if errors.Is(serveErr, io.EOF) {
+		serveErr = nil
 	} else {
-		err = trace.Wrap(err)
+		serveErr = trace.Wrap(serveErr)
 	}
 
 	eventBytes, err := json.Marshal(sftpEvents)
@@ -259,7 +259,7 @@ func onSFTP() error {
 		}
 	}
 
-	return trace.NewAggregate(err, sftpSrv.Close())
+	return trace.NewAggregate(serveErr, sftpSrv.Close())
 }
 
 const (
