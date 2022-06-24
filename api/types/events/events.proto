@@ -947,11 +947,11 @@ message SFTPAttributes {
 
     // AccessTime is when the file was last read
     google.protobuf.Timestamp AccessTime = 5
-        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "accessTime" ];
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "accessTime,omitempty" ];
 
     // ModificationTime was when the file was last changed
     google.protobuf.Timestamp ModificationTime = 6
-        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "modificationTime" ];
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "modificationTime,omitempty" ];
 }
 
 // SFTP is emitted when file operations have occurred between server and client

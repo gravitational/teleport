@@ -27,6 +27,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/pkg/sftp"
@@ -51,6 +52,9 @@ func (c compositeCh) Close() error {
 }
 
 func onSFTP() error {
+	// Ensure the parent process will receive log messages from us
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+
 	chr := os.NewFile(3, "chr")
 	if chr == nil {
 		return trace.NotFound("channel read file not found")

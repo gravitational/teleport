@@ -53,11 +53,6 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
 	s.ch = ch
 
-	err := req.Reply(true, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Create two sets of anonymous pipes to give the child process
 	// access to the SSH channel
 	chReadPipeOut, chReadPipeIn, err := os.Pipe()
