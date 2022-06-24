@@ -51,10 +51,10 @@ const js = `
     <title>Teleport Redirection Service</title>
     <script nonce="%v">
       (function() {
-        var url = new URL(window.location)
-        var params = new URLSearchParams(url.search)
+        var url = new URL(window.location);
+        var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
-        var stateValue = params.get("state")
+        var stateValue = params.get("state");
         var path = params.get("path")
         if (!stateValue) {
           return;
@@ -78,7 +78,7 @@ const js = `
         }).then(response => {
           if (response.ok) {
             // redirect to the target path and remove current URL from history (back button)
-            window.location.replace(path || "/")
+            window.location.replace(path || "/");
           }
         });
       })();
