@@ -20,22 +20,25 @@ package dbcmd
 
 import (
 	"fmt"
+	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
+	libdbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -359,10 +362,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
 	hasMongosh := c.isMongoshBinAvailable()
 
-	args := []string{
-		"--host", c.host,
-		"--port", strconv.Itoa(c.port),
-	}
+	var args []string
 
 	if !c.options.noTLS {
 		// Starting with Mongo 4.2 there is an updated set of flags.
@@ -400,9 +400,9 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 		}
 	}
 
-	if c.db.Database != "" {
-		args = append(args, c.db.Database)
-	}
+	// Add the address at the end. Address contains host, port, database name,
+	// and other options like server selection timeout.
+	args = append(args, c.getMongoAddress())
 
 	// use `mongosh` if available
 	if hasMongosh {
@@ -411,6 +411,33 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// fall back to `mongo` if `mongosh` isn't found
 	return c.exe.Command(mongoBin, args...)
+}
+
+func (c *CLICommandBuilder) getMongoAddress() string {
+	query := make(url.Values)
+
+	// Use the same default server selection timeout that the backend engine is
+	// using. The environment variable serves as a hidden option to force a
+	// different timeout for debugging purpose or extreme situations.
+	serverSelectionTimeoutMS := strconv.Itoa(int(libdbcommon.DefaultMongoDBServerSelectionTimeout.Milliseconds()))
+	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
+		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
+		serverSelectionTimeoutMS = envValue
+	}
+	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
+
+	address := url.URL{
+		Scheme:   connstring.SchemeMongoDB,
+		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
+		RawQuery: query.Encode(),
+		Path:     fmt.Sprintf("/%s", c.db.Database),
+	}
+
+	// Quote the address for printing as the address contains "?".
+	if c.options.printFormat {
+		return fmt.Sprintf(`"%s"`, address.String())
+	}
+	return address.String()
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
@@ -519,6 +546,17 @@ func WithNoTLS() ConnectCommandFunc {
 
 // WithPrintFormat is the connect command option that hints the command will be
 // printed instead of being executed.
+//
+// For example, when enabled, a quote will be used for Postgres and MongoDB
+// connection strings to avoid "&" getting interpreted by the shell.
+//
+// WithPrintFormat is known to be used for the following situations:
+// - tsh db config --format cmd <database>
+// - tsh proxy db --tunnel <database>
+// - Teleport Connect where the command is put into a terminal.
+//
+// WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
+// client application.
 func WithPrintFormat() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.printFormat = true
@@ -548,3 +586,9 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 		opts.tolerateMissingCLIClient = true
 	}
 }
+
+const (
+	// envVarMongoServerSelectionTimeoutMS is the environment variable that
+	// controls the server selection timeout used for MongoDB clients.
+	envVarMongoServerSelectionTimeoutMS = "TELEPORT_MONGO_SERVER_SELECTION_TIMEOUT_MS"
+)
