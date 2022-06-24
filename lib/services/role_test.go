@@ -4952,13 +4952,10 @@ func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.Us
 }
 
 func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
-	role, ok := m.nameToRole[name]
-
-	if ok {
+	if role, ok := m.nameToRole[name]; ok {
 		return role, nil
-	} else {
-		return nil, trace.NotFound("role not found: %v", name)
 	}
+	return nil, trace.NotFound("role not found: %v", name)
 }
 
 type mockCurrentUser struct {
