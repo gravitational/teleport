@@ -837,12 +837,10 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	t.Run("subscribe by CA types", func(t *testing.T) {
 		sub, err := w.Subscribe(ctx,
 			services.CertAuthorityTarget{
-				Type:        types.HostCA,
-				ClusterName: "test",
+				Type: types.HostCA,
 			},
 			services.CertAuthorityTarget{
-				Type:        types.UserCA,
-				ClusterName: "test",
+				Type: types.UserCA,
 			},
 		)
 		require.NoError(t, err)
