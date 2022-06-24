@@ -50,7 +50,7 @@ func TestMissingLicenseError(t *testing.T) {
 			StaticTokens: types.DefaultStaticTokens(),
 			NoAudit:      true,
 			Preference:   authPreference,
-			SSHAddr:      *utils.MustParseAddr("tcp://127.0.0.1:0"),
+			ListenAddr:   *utils.MustParseAddr("tcp://127.0.0.1:0"),
 		},
 		Hostname: "localhost",
 		AuthServers: []utils.NetAddr{
