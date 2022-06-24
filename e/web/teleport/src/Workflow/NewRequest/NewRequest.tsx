@@ -137,7 +137,7 @@ export function NewRequest(props: State) {
 
   /* This is a warning prompt when user switches between role based and search based requests. */
   if (warningConfirm) {
-    const msg = `Search based access request cannot be combined with role based access request. Current items selected will be cleared. Are you sure you want to continue?`;
+    const msg = `Resource Access Request cannot be combined with Role Access Request. Current items selected will be cleared. Are you sure you want to continue?`;
     if (window.confirm(msg)) {
       clearAddedResources();
       handleOnChangeResourceOption(warningConfirm, true);
