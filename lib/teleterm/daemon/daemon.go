@@ -18,6 +18,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -139,7 +140,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage)
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage, dbcmd.SystemExecer{})
 
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
