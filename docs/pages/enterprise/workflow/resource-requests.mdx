@@ -174,7 +174,7 @@ First, log in as `bob`.
 $ tsh login --proxy teleport.example.com --user bob
 ```
 
-Then list review and approve the access request
+Then list, review, and approve the access request.
 
 ```code
 $ tsh request ls
@@ -199,6 +199,12 @@ hint: use 'tsh login --request-id=<request-id>' to login with an approved reques
 $ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Successfully submitted review.  Request state: APPROVED
 ```
+
+<Notice type="tip">
+Check out our
+[Access Request Integrations](#integrating-with-an-external-tool)
+to notify the right people about new access requests.
+</Notice>
 
 ## Step 7/8. Access the requested resource
 
@@ -246,10 +252,12 @@ $ tsh ssh alice@iot
 iot:~ alice$
 ```
 
+<Admonition type="note">
 While logged in with a resource access request, users will be blocked from access to any other resources.
 This is necessary because their certicate now contains an elevated role.
 Their certificate is restricted to only allow access to the resources they were specifically approved for.
 They will need to `tsh logout` and log back in to resume their regular access.
+</Admonition>
 
 ## Step 8/8. Automatically request access for SSH
 
@@ -351,6 +359,7 @@ $ tctl create -f reviewer.yaml
 The `requester` will now only be able to search for or request access to
 resources accessible by the `staging-access` role.
 
+### Integrating with an External Tool
 (!docs/pages/includes/access-request-integrations.mdx!)
 
 </ScopedBlock>
