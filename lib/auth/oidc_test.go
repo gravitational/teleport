@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -211,7 +210,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			err: trace.AccessDenied(oidcNoRolesErrorMessage),
+			err: OIDCNoRolesError,
 		},
 	}
 
@@ -715,42 +714,5 @@ func TestOIDCGoogle(t *testing.T) {
 		groups, err = groupsFromGoogleDirectory(ctx, testCase.email, testCase.domain, testOptions...)
 		require.NoError(t, err)
 		require.ElementsMatch(t, testCase.filtered, groups)
-	}
-}
-
-func TestIsOIDCNoRoles(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name  string
-		err   error
-		match bool
-	}{
-		{
-			name:  "correct error",
-			err:   trace.AccessDenied(oidcNoRolesErrorMessage),
-			match: true,
-		},
-		{
-			name: "nil",
-			err:  nil,
-		},
-		{
-			name: "random error",
-			err:  errors.New("random error"),
-		},
-		{
-			name: "right message, wrong type",
-			err:  errors.New(oidcNoRolesErrorMessage),
-		},
-		{
-			name: "wrong message, right type",
-			err:  trace.AccessDenied("random error"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.match, IsOIDCNoRolesError(tc.err))
-		})
 	}
 }

@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -44,14 +43,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const (
-	oidcNoRolesErrorMessage = "No roles mapped from claims. The mappings may contain typos."
-)
-
-// IsOIDCNoRolesError checks if an error results from a failure to map roles from claims.
-func IsOIDCNoRolesError(err error) bool {
-	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), oidcNoRolesErrorMessage)
-}
+var OIDCNoRolesError = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
@@ -622,7 +614,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied(oidcNoRolesErrorMessage)
+		return nil, trace.Wrap(OIDCNoRolesError)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

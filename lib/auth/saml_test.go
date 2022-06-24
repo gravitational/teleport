@@ -23,7 +23,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
-	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
@@ -623,41 +621,4 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	users, err := a.GetUsers(false)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(users))
-}
-
-func TestIsSAMLNoRoles(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name  string
-		err   error
-		match bool
-	}{
-		{
-			name:  "correct error",
-			err:   trace.AccessDenied(samlNoRolesErrorMessage),
-			match: true,
-		},
-		{
-			name: "nil",
-			err:  nil,
-		},
-		{
-			name: "random error",
-			err:  errors.New("random error"),
-		},
-		{
-			name: "right message, wrong type",
-			err:  errors.New(samlNoRolesErrorMessage),
-		},
-		{
-			name: "wrong message, right type",
-			err:  trace.AccessDenied("random error"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.match, IsSAMLNoRolesError(tc.err))
-		})
-	}
 }

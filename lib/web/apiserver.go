@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -1252,7 +1253,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		if auth.IsOIDCNoRolesError(err) {
+		if errors.Is(err, auth.OIDCNoRolesError) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
