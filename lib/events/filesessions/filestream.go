@@ -418,7 +418,7 @@ func generateReservationFileContents(partNumber int64) ([]byte, error) {
 // isReservationFile verifies if the provided file is a reservation file
 // generate by `ReservePartUpload`.
 func isReservationFile(f *os.File) bool {
-	// Reset the file pointer to the begining.
+	// Reset the file pointer to the beginning.
 	defer f.Seek(0, 0)
 
 	streamPart := &events.StreamPart{}
