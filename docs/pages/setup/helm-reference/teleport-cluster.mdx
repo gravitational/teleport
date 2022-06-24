@@ -239,6 +239,31 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   </TabItem>
 </Tabs>
 
+## `operator`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false`| ✅ |
+
+`operator` controls whether to start Teleport Operator.
+
+Teleport Operator is a Kubernetes Operator that helps you manage your Teleport Cluster using the Kubernetes API/tools.
+
+It currently supports managing Users and Roles.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator=true
+  ```
+  </TabItem>
+</Tabs>
+
 ## `teleportVersionOverride`
 
 | Type | Default value | Can be used in `custom` mode? |

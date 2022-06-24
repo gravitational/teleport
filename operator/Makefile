@@ -106,9 +106,19 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		-I=$(PROTOBUF_MOD_PATH) \
 		-I=$(CUSTOM_IMPORTS_TMP_DIR) \
 		--plugin=./crdgen/protoc-gen-crd \
+<<<<<<< HEAD
+		--crd_out=:./../examples/chart/teleport-cluster/charts/teleport-operator/templates/ \
+		types.proto
+	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
+	# Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
+	# We don't want that, so we escape them.
+	sed -i 's/`{{/{{ `{{/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
+	sed -i 's/}}`/}}` }}/g' ./../examples/chart/teleport-cluster/charts/teleport-operator/templates/*.yaml
+=======
 		--crd_out=:./config/crd/bases \
 		types.proto
 	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
+>>>>>>> marco/operator
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.

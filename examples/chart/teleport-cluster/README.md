@@ -42,6 +42,7 @@ secret `license` in the chart namespace.
 | `acmeURI`                 | ACME server to use for certificates                                         | `https://acme-v02.api.letsencrypt.org/directory`       | no       |
 | `labels.[name]`           | Key-value pairs, for example `--labels.env=local --labels.region=us-west-1` |                                                        | no       |
 | `enterprise`              | Use Teleport Enterprise                                                     | `false`                                                | no       |
+| `operator`                | Enable Teleport Operator                                                    | `false`                                                | no       |
 
 ## Guides
 
