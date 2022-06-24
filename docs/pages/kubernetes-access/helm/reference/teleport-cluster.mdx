@@ -515,7 +515,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 <Admonition type="warning">
   When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB or Firestore) for multiple replicas to be supported.
 
-  [Information on supported Teleport storage backends](../../../architecture/authentication.mdx#storage-back-ends)
+  [Information on supported Teleport storage backends](../../../setup/reference/backends.mdx)
 
   Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT** supported for an HA deployment and will result in errors.
 </Admonition>
