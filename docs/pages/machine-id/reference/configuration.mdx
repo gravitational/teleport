@@ -79,16 +79,16 @@ destinations:
           #     are invalid.
           acls: try
         
-      # One of more roles to grant to the bot. It must have been granted (at
-      # least) these roles with `tctl bots add --roles=...`
-      # By default, all possible roles are included.
-        
-      # Subset of roles allowed during creation via `tctl bots add --roles=...`. Can
-      # be used to write short-lived certificates with different roles to
-      # different directories.
+      # One or more roles to request for this destination directory from among
+      # the roles granted by `tctl bots add --roles=...`
+      # By default, all roles specified during `tctl bots add ...` are
+      # included. A subset of these may be specified here to write short-lived
+      # certificates with different roles to different directories.
       roles: [a, b, c]
 
-      # An optional database request. The database must exist, and 
+      # An optional database request. The database must exist, and no other
+      # special certificate requests may be present for this destination, such
+      # as apps or Kubernetes clusters.
       database:
           # The name of the database server as it exists in Teleport.
           service: example-server
