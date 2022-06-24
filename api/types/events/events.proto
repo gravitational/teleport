@@ -931,6 +931,68 @@ message SCP {
     string Action = 8 [ (gogoproto.jsontag) = "action" ];
 }
 
+// SFTPAtributes are file metadata sent over SFTP
+message SFTPAttributes {
+    // Size is file size
+    uint64 Size = 1 [ (gogoproto.jsontag) = "size" ];
+
+    // UID is the user owner of a file
+    uint32 UID = 2 [ (gogoproto.jsontag) = "uid" ];
+
+    // GID is the group owner of the file
+    uint32 GID = 3 [ (gogoproto.jsontag) = "gid" ];
+
+    // Permissions is the file permissions
+    uint32 Permissions = 4 [ (gogoproto.jsontag) = "permissions" ];
+
+    // AccessTime is when the file was last read
+    google.protobuf.Timestamp AccessTime = 5
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "accessTime" ];
+
+    // ModificationTime was when the file was last changed
+    google.protobuf.Timestamp ModificationTime = 6
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "modificationTime" ];
+}
+
+// SFTP is emitted when file operations have occurred between server and client
+message SFTP {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Path is the filepath that was operated on
+    string Path = 7 [ (gogoproto.jsontag) = "path" ];
+
+    // TargetPath is the new path in file renames, or the path of the symlink
+    // when creating symlinks
+    string TargetPath = 8 [ (gogoproto.jsontag) = "targetPath,omitempty" ];
+
+    // Flags is options that were passed that affect file creation events
+    uint32 Flags = 9 [ (gogoproto.jsontag) = "flags,omitempty" ];
+
+    // Attributes is metadata that the user requested to be changed
+    SFTPAttributes Attributes = 10 [ (gogoproto.jsontag) = "attributes,omitempty" ];
+
+    // Action is what kind of file operation
+    string Action = 11 [ (gogoproto.jsontag) = "action" ];
+}
+
 // Subsystem is emitted when a user requests a new subsystem.
 message Subsystem {
     // Metadata is a common event metadata
@@ -1928,6 +1990,7 @@ message OneOf {
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
         events.SQLServerRPCRequest SQLServerRPCRequest = 89;
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
+        events.SFTP SFTP = 91;
     }
 }
 

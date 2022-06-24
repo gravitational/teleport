@@ -18,9 +18,7 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"os/user"
@@ -40,7 +38,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -652,49 +649,6 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
-}
-
-type compositeCh struct {
-	r io.ReadCloser
-	w io.WriteCloser
-}
-
-func (c compositeCh) Read(p []byte) (int, error) {
-	return c.r.Read(p)
-}
-
-func (c compositeCh) Write(p []byte) (int, error) {
-	return c.w.Write(p)
-}
-
-func (c compositeCh) Close() error {
-	return trace.NewAggregate(c.r.Close(), c.w.Close())
-}
-
-func onSFTP() error {
-	chr := os.NewFile(3, "chr")
-	if chr == nil {
-		return trace.NotFound("channel read file not found")
-	}
-	chw := os.NewFile(4, "chw")
-	if chw == nil {
-		return trace.NotFound("channel write file not found")
-	}
-	ch := compositeCh{chr, chw}
-
-	sftpSrv, err := sftp.NewServer(ch)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = sftpSrv.Serve()
-	if errors.Is(err, io.EOF) {
-		err = nil
-	} else {
-		err = trace.Wrap(err)
-	}
-
-	return trace.NewAggregate(err, sftpSrv.Close())
 }
 
 type StdReadWriter struct {

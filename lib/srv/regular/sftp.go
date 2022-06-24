@@ -17,12 +17,15 @@ limitations under the License.
 package regular
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -47,7 +50,7 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
 	s.ch = ch
 
 	err := req.Reply(true, nil)
@@ -55,8 +58,8 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 		return trace.Wrap(err)
 	}
 
-	// Create two sets of anonymous pipes that we can use to give the
-	// child process access to the SSH channel
+	// Create two sets of anonymous pipes to give the child process
+	// access to the SSH channel
 	chReadPipeOut, chReadPipeIn, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -67,7 +70,15 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 		return trace.Wrap(err)
 	}
 	defer chWritePipeIn.Close()
+	// Create anonymous pipe that the child will send audit information
+	// over
+	auditPipeOut, auditPipeIn, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer auditPipeIn.Close()
 
+	// Create child process to handle SFTP connection
 	executable, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,7 +87,7 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn)
+	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,6 +117,50 @@ func (s *sftpSubsys) Start(ctx context.Context, _ *ssh.ServerConn, ch ssh.Channe
 		s.errCh <- err
 	}()
 
+	go func() {
+		defer auditPipeOut.Close()
+
+		var buf bytes.Buffer
+		_, err := io.Copy(&buf, auditPipeOut)
+		s.errCh <- err
+
+		var sftpEvents []*apievents.SFTP
+		err = json.Unmarshal(buf.Bytes(), &sftpEvents)
+		if err != nil {
+			s.log.WithError(err).Error("Failed to unmarshal SFTP events.")
+			return
+		}
+
+		// Create common fields for events
+		serverMeta := apievents.ServerMetadata{
+			ServerID:        serverCtx.GetServer().HostUUID(),
+			ServerHostname:  serverCtx.GetServer().GetInfo().GetHostname(),
+			ServerNamespace: serverCtx.GetServer().GetNamespace(),
+		}
+		sessionMeta := apievents.SessionMetadata{
+			SessionID: string(serverCtx.SessionID()),
+			// TODO: no idea what this should be set to
+			WithMFA: serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+		}
+		userMeta := serverCtx.Identity.GetUserMetadata()
+		connectionMeta := apievents.ConnectionMetadata{
+			RemoteAddr: serverConn.RemoteAddr().String(),
+			LocalAddr:  serverConn.LocalAddr().String(),
+		}
+
+		for _, event := range sftpEvents {
+			event.Metadata.ClusterName = serverCtx.ClusterName
+			event.ServerMetadata = serverMeta
+			event.SessionMetadata = sessionMeta
+			event.UserMetadata = userMeta
+			event.ConnectionMetadata = connectionMeta
+
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+				log.WithError(err).Warn("Failed to emit SFTP event.")
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -114,7 +169,7 @@ func (s *sftpSubsys) Wait() error {
 	s.log.Debug("SFTP process finished")
 
 	errs := []error{waitErr}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.log.WithError(err).Warn("Connection problem.")
