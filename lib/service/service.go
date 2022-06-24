@@ -2669,18 +2669,17 @@ func (process *TeleportProcess) initProxy() error {
 }
 
 type proxyListeners struct {
-	mux                            *multiplexer.Mux
-	tls                            *multiplexer.WebListener
-	ssh                            net.Listener
-	web                            net.Listener
-	reverseTunnel                  net.Listener
-	kube                           net.Listener
-	db                             dbListeners
-	alpn                           net.Listener
-	proxy                          net.Listener
-	grpc                           net.Listener
-	minimalReverseTunnelWebEnabled bool
-	reverseTunnelMux               *multiplexer.Mux
+	mux              *multiplexer.Mux
+	tls              *multiplexer.WebListener
+	ssh              net.Listener
+	web              net.Listener
+	reverseTunnel    net.Listener
+	kube             net.Listener
+	db               dbListeners
+	alpn             net.Listener
+	proxy            net.Listener
+	grpc             net.Listener
+	reverseTunnelMux *multiplexer.Mux
 }
 
 // dbListeners groups database access listeners.
@@ -2877,22 +2876,10 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					return nil, trace.Wrap(err)
 				}
 			} else {
-				listeners.minimalReverseTunnelWebEnabled = true
-				listener, err := process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
-				if err != nil {
+				if err := process.initMinimalReverseTunnelListener(cfg, &listeners); err != nil {
+					listeners.Close()
 					return nil, trace.Wrap(err)
 				}
-				listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
-					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
-					Listener:            listener,
-					ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
-				})
-				if err != nil {
-					listener.Close()
-					return nil, trace.Wrap(err)
-				}
-				listeners.reverseTunnel = listeners.reverseTunnelMux.SSH()
-				go listeners.reverseTunnelMux.Serve()
 			}
 		}
 		if !cfg.Proxy.DisableWebService && !cfg.Proxy.WebAddr.IsEmpty() {
@@ -2936,6 +2923,28 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 		return &listeners, nil
 	}
+}
+
+// initMinimalReverseTunnelListener starts a listener over a reverse tunnel that multiplexes a minimal subset of the
+// web API.
+func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, listeners *proxyListeners) error {
+	listener, err := process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+	if err != nil {
+		listener.Close()
+		return trace.Wrap(err)
+	}
+	listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
+		EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+		Listener:            listener,
+		ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+	})
+	if err != nil {
+		listener.Close()
+		return trace.Wrap(err)
+	}
+	listeners.reverseTunnel = listeners.reverseTunnelMux.SSH()
+	go listeners.reverseTunnelMux.Serve()
+	return nil
 }
 
 // setPostgresListener start Postgres proxy listener based on configuration settings. By default, Postgres service is
@@ -3234,7 +3243,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil
 		})
 
-		if listeners.minimalReverseTunnelWebEnabled {
+		if listeners.reverseTunnelMux != nil {
 			minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 				Listener: tls.NewListener(listeners.reverseTunnelMux.TLS(), tlsConfigWeb),
 			})

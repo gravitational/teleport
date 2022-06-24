@@ -209,11 +209,9 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil {
-		if app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r) {
-			h.appHandler.ServeHTTP(w, r)
-			return
-		}
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
+		h.appHandler.ServeHTTP(w, r)
+		return
 	}
 	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
 		http.Redirect(w, r, redir, http.StatusFound)
@@ -289,162 +287,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// find is like ping, but is faster because it is optimized for servers
-	// and does not fetch the data that servers don't need, e.g.
-	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", httplib.MakeHandler(h.find))
-	// Issue host credentials.
-	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
-
-	if !cfg.MinimalReverseTunnelRoutesOnly {
-
-		// ping endpoint is used to check if the server is up. the /webapi/ping
-		// endpoint returns the default authentication method and configuration that
-		// the server supports. the /webapi/ping/:connector endpoint can be used to
-		// query the authentication configuration for a specific connector.
-		h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
-		h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
-
-		// Unauthenticated access to JWT public keys.
-		h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
-
-		// Unauthenticated access to the message of the day
-		h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
-
-		// DELETE IN: 5.1.0
-		//
-		// Migrated this endpoint to /webapi/sessions/web below.
-		h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
-
-		// Web sessions
-		h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
-		h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
-		h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
-		h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-
-		h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
-		h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
-		h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
-		h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
-
-		h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
-		h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
-		h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-		h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
-		h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
-
-		// Issues SSH temp certificates based on 2FA access creds
-		h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
-
-		// list available sites
-		h.GET("/webapi/sites", h.WithAuth(h.getClusters))
-
-		// Site specific API
-
-		// get namespaces
-		h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
-
-		// get nodes
-		h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
-
-		// Get applications.
-		h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
-
-		// active sessions handlers
-		h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
-		h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
-		h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
-		h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
-
-		// Audit events handlers.
-		h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
-		h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
-		h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
-		h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
-
-		// scp file transfer
-		h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
-		h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
-
-		// token generation
-		h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
-
-		// add Node token generation
-		// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
-		h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
-		// join scripts
-		h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
-		h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
-		// web context
-		h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
-
-		// Database access handlers.
-		h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
-
-		// Kube access handlers.
-		h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-
-		// OIDC related callback handlers
-		h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
-		h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
-		h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
-
-		// SAML 2.0 handlers
-		h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
-		h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
-		h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
-
-		// Github connector handlers
-		h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
-		h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
-		h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
-
-		// MFA public endpoints.
-		h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
-		h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
-		h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-		h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
-		h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
-		h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
-		h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
-
-		// MFA private endpoints.
-		h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
-		h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
-		h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
-		h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
-
-		// trusted clusters
-		h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
-
-		// User Status (used by client to check if user session is valid)
-		h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
-
-		h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-		h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
-		h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
-		h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
-
-		h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-		h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
-		h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
-		h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
-
-		h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-		h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
-		h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
-		h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
-
-		h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
-		h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
-
-		// Desktop access endpoints.
-		h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
-		h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
-		// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
-		h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
-		// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
-		h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
+	if cfg.MinimalReverseTunnelRoutesOnly {
+		h.bindMinimalEndpoints()
+	} else {
+		h.bindDefaultEndpoints(challengeLimiter)
 	}
 
 	// if Web UI is enabled, check the assets dir:
@@ -559,6 +405,170 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
+}
+
+// bindMinimalEndpoints binds only the endpoints required for a reverse tunnel
+// agent to establish a connection.
+func (h *Handler) bindMinimalEndpoints() {
+	// find is like ping, but is faster because it is optimized for servers
+	// and does not fetch the data that servers don't need, e.g.
+	// OIDC connectors and auth preferences
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
+	// Issue host credentials.
+	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
+}
+
+// bindDefaultEndpoints binds the default endpoints for the web API.
+func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
+	h.bindMinimalEndpoints()
+
+	// ping endpoint is used to check if the server is up. the /webapi/ping
+	// endpoint returns the default authentication method and configuration that
+	// the server supports. the /webapi/ping/:connector endpoint can be used to
+	// query the authentication configuration for a specific connector.
+	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
+	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
+
+	// Unauthenticated access to JWT public keys.
+	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
+
+	// Unauthenticated access to the message of the day
+	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
+
+	// DELETE IN: 5.1.0
+	//
+	// Migrated this endpoint to /webapi/sessions/web below.
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
+	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
+
+	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
+	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
+	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
+
+	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
+	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
+	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
+
+	// Issues SSH temp certificates based on 2FA access creds
+	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
+
+	// list available sites
+	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
+
+	// Site specific API
+
+	// get namespaces
+	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
+
+	// get nodes
+	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
+
+	// Get applications.
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
+
+	// active sessions handlers
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
+	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
+	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
+
+	// Audit events handlers.
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
+
+	// scp file transfer
+	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
+
+	// token generation
+	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+
+	// add Node token generation
+	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
+	// join scripts
+	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
+	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
+	// web context
+	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+
+	// Database access handlers.
+	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
+
+	// Kube access handlers.
+	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
+
+	// OIDC related callback handlers
+	h.GET("/webapi/oidc/login/web", h.WithRedirect(h.oidcLoginWeb))
+	h.GET("/webapi/oidc/callback", h.WithMetaRedirect(h.oidcCallback))
+	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
+
+	// SAML 2.0 handlers
+	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
+	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
+	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
+
+	// Github connector handlers
+	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
+	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
+	h.POST("/webapi/github/login/console", httplib.MakeHandler(h.githubLoginConsole))
+
+	// MFA public endpoints.
+	h.POST("/webapi/mfa/login/begin", h.withLimiter(challengeLimiter, h.mfaLoginBegin))
+	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
+	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
+	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
+
+	// MFA private endpoints.
+	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
+	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
+	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))
+	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
+
+	// trusted clusters
+	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
+
+	// User Status (used by client to check if user session is valid)
+	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
+
+	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
+	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+
+	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
+	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
+
+	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
+	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
+
+	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
+	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
+
+	// Desktop access endpoints.
+	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
+	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
+	// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
+	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
+	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 }
 
 // GetProxyClient returns authenticated auth server client
