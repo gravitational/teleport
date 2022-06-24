@@ -208,7 +208,7 @@ to notify the right people about new access requests.
 
 ## Step 7/8. Access the requested resource
 
-Alice's `tsh request create` command should resolve now that the request has been approved.
+`alice`'s `tsh request create` command should resolve now that the request has been approved.
 
 ```code
 $ tsh request create --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
@@ -240,7 +240,7 @@ Approval received, getting updated certificates...
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-Alice can now view and access the node.
+`alice` can now view and access the node.
 
 ```code
 $ tsh ls
@@ -259,7 +259,9 @@ Their certificate is restricted to only allow access to the resources they were 
 They will need to `tsh logout` and log back in to resume their regular access.
 </Admonition>
 
-## Step 8/8. Automatically request access for SSH
+## Next Steps
+
+### Automatically request access for SSH
 
 Once you have configured resource access requests,
 `tsh ssh` is able to automatically create a resource access request for you when access is denied,
@@ -290,8 +292,6 @@ Getting updated certificates...
  
 iot:~ alice$
 ```
-
-## Next Steps
 
 ### Restrict the resources users can request access to
 
