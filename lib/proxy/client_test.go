@@ -15,10 +15,11 @@
 package proxy
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/stretchr/testify/require"
 )
@@ -27,9 +28,9 @@ import (
 func TestClientConn(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client, _ := setupClient(t, ca, ca, types.RoleProxy)
-	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
-	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, ca, types.RoleProxy)
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
 	// simulate watcher finding two servers
 	err := client.updateConnections([]types.Server{def1, def2})
@@ -71,9 +72,9 @@ func TestClientConn(t *testing.T) {
 func TestClientUpdate(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client, _ := setupClient(t, ca, ca, types.RoleProxy)
-	_, _, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
-	server2, _, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, ca, types.RoleProxy)
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
 	// watcher finds two servers
 	err := client.updateConnections([]types.Server{def1, def2})
@@ -112,7 +113,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
-	_, _, def3 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	_, def3 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	err = client.updateConnections([]types.Server{def3})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
@@ -131,71 +132,26 @@ func TestCAChange(t *testing.T) {
 	clientCA := newSelfSignedCA(t)
 	serverCA := newSelfSignedCA(t)
 
-	client, clientTLSConfig := setupClient(t, clientCA, serverCA, types.RoleProxy)
-	server, serverTLSConfig, serverDef := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
-
-	err := client.updateConnections([]types.Server{serverDef})
-	require.NoError(t, err)
-	require.Len(t, client.conns, 1)
+	client := setupClient(t, clientCA, serverCA, types.RoleProxy)
+	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
 
 	// dial server and send a test data frame
-	ogStream, cached, err := client.dial([]string{"s1"})
-	require.NoError(t, err)
-	require.True(t, cached)
-	require.NotNil(t, ogStream)
-
-	sendDialRequest(t, ogStream)
-	ogStream.CloseSend()
-
-	// server ca rotated
-	newServerCA := newSelfSignedCA(t)
-
-	newServerTLSConfig := certFromIdentity(t, newServerCA, tlsca.Identity{
-		Groups: []string{string(types.RoleProxy)},
-	})
-
-	*serverTLSConfig = *newServerTLSConfig.Clone()
-
-	// existing connection should still be working
-	ogStream, cached, err = client.dial([]string{"s1"})
-	require.NoError(t, err)
-	require.True(t, cached)
-	require.NotNil(t, ogStream)
-	sendDialRequest(t, ogStream)
-
-	// new connection should fail because client tls config still references old
-	// RootCAs.
 	conn, err := client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err := client.startStream(conn)
-	require.Error(t, err)
-	require.Nil(t, stream)
-
-	// new connection should succeed because client references new RootCAs
-	*serverCA = *newServerCA
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, conn)
-	stream, err = client.startStream(conn)
-	require.NoError(t, err)
+	require.NotNil(t, stream)
 	sendDialRequest(t, stream)
 	stream.CloseSend()
 
-	// for good measure, original stream should still be working
-	sendMsg(t, ogStream)
+	// rotate server ca
+	require.NoError(t, server.Close())
+	newServerCA := newSelfSignedCA(t)
+	server, _ = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
 
-	// client ca rotated
-	newClientCA := newSelfSignedCA(t)
-
-	newClientTLSConfig := certFromIdentity(t, newClientCA, tlsca.Identity{
-		Groups: []string{string(types.RoleProxy)},
-	})
-
-	*clientTLSConfig = *newClientTLSConfig.Clone()
-
-	// new connection should fail because server tls config still references old
-	// ClientCAs.
+	// new connection should fail because client tls config still references old
+	// RootCAs.
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -203,17 +159,22 @@ func TestCAChange(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, stream)
 
-	// new connection should succeed because client references new RootCAs
-	*clientCA = *newClientCA
+	// new connection should succeed because client tls config references new
+	// RootCAs.
+	client.config.getConfigForServer = func() (*tls.Config, error) {
+		config := client.config.TLSConfig.Clone()
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(newServerCA.Cert)
+		config.RootCAs = rootCAs
+		return config, nil
+	}
+
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
+	require.NotNil(t, stream)
 	sendDialRequest(t, stream)
 	stream.CloseSend()
-
-	// and one final time, original stream should still be working
-	sendMsg(t, ogStream)
-	ogStream.CloseSend()
 }

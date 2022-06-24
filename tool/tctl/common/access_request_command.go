@@ -263,7 +263,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(client, req, services.ExpandVars(true))
+		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}

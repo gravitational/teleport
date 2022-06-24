@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,11 +81,11 @@ func validateTemplate(t *testing.T, tplI config.Template, dest destination.Desti
 // TestTemplateRendering performs a full renewal and ensures all expected
 // default config templates are present.
 func TestDefaultTemplateRendering(t *testing.T) {
-	utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+	t.Parallel()
 
 	// Make a new auth server.
-	fc := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make and join a new bot instance.

@@ -17,18 +17,23 @@ limitations under the License.
 package srv
 
 import (
+	"fmt"
+	"os"
 	"os/user"
+	"path/filepath"
 
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
-func newHostUsersBackend() (HostUsersBackend, error) {
-	return &HostUsersProvisioningBackend{}, nil
+func newHostUsersBackend(uuid string) (HostUsersBackend, error) {
+	return &HostUsersProvisioningBackend{
+		sudoersPath: "/etc/sudoers.d",
+		hostUUID:    uuid,
+	}, nil
 }
-
-var _ HostUsersBackend = &HostUsersProvisioningBackend{}
 
 // Lookup implements host user information lookup
 func (*HostUsersProvisioningBackend) Lookup(username string) (*user.User, error) {
@@ -70,4 +75,62 @@ func (*HostUsersProvisioningBackend) DeleteUser(name string) error {
 		return trace.Wrap(ErrUserLoggedIn)
 	}
 	return trace.Wrap(err)
+}
+
+// CheckSudoers ensures that a sudoers file to be written is valid
+func (*HostUsersProvisioningBackend) CheckSudoers(contents []byte) error {
+	err := host.CheckSudoers(contents)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func writeSudoersFile(root, name string, data []byte) (string, error) {
+	// as per sudoers(8), the includedir directive will ignore
+	// (temporary) files with a "." in their name
+	f, err := os.CreateTemp(root, fmt.Sprintf("tmp.%s.%s", "teleport", name))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer f.Close()
+
+	if _, err = f.Write(data); err != nil {
+		return f.Name(), trace.Wrap(err)
+	}
+	if err = f.Chmod(0640); err != nil {
+		return f.Name(), trace.Wrap(err)
+	}
+	return f.Name(), nil
+}
+
+// WriteSudoersFile creates the user's sudoers file.
+func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, contents []byte) error {
+	if err := u.CheckSudoers(contents); err != nil {
+		return trace.Wrap(err)
+	}
+	sudoersFilePath := filepath.Join(u.sudoersPath, fmt.Sprintf("teleport-%s-%s", u.hostUUID, username))
+	tmpSudoers, err := writeSudoersFile(u.sudoersPath, username, contents)
+	if err != nil {
+		if tmpSudoers != "" {
+			rmErr := os.Remove(tmpSudoers)
+			return trace.NewAggregate(rmErr, err)
+		}
+		return trace.Wrap(err)
+	}
+
+	err = os.Rename(tmpSudoers, sudoersFilePath)
+	return trace.Wrap(err)
+}
+
+// RemoveSudoersFile deletes a user's sudoers file.
+func (u *HostUsersProvisioningBackend) RemoveSudoersFile(username string) error {
+	sudoersFilePath := filepath.Join(u.sudoersPath, fmt.Sprintf("teleport-%s-%s", u.hostUUID, username))
+	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
+		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
+			username,
+			sudoersFilePath)
+		return nil
+	}
+	return trace.Wrap(os.Remove(sudoersFilePath))
 }
