@@ -55,7 +55,7 @@ const js = `
         var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
         var stateValue = params.get("state");
-        var path = params.get("path")
+        var path = params.get("path");
         if (!stateValue) {
           return;
         }
