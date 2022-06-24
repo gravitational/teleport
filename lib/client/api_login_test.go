@@ -103,7 +103,7 @@ func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 		promptWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 	}{}
 	var loginMocksMU sync.RWMutex
-	*client.PromptOTP = func(ctx context.Context, out io.Writer, in *prompt.ContextReader, question string) (string, error) {
+	*client.PromptOTP = func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
 		loginMocksMU.RLock()
 		defer loginMocksMU.RUnlock()
 		return loginMocks.promptOTP(ctx)
