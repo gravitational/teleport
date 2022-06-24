@@ -75,7 +75,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := client.FetchRoleSet(cf.Context, log, cluster, profile)
+	roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -138,7 +138,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				continue
 			}
 
-			roleSet, err := client.FetchRoleSet(cf.Context, log, cluster, profile)
+			roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}

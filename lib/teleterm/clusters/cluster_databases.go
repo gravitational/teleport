@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -174,7 +175,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 
 	defer authClient.Close()
 
-	roleSet, err := client.FetchRoleSet(ctx, c.Log, authClient, &c.status)
+	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
