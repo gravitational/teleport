@@ -746,7 +746,7 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 // CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchClusterRoles.
 type CurrentUserRoleGetter interface {
 	GetCurrentUser(context.Context) (types.User, error)
-	GetRole(ctx context.Context, name string) (types.Role, error)
+	RoleGetter
 }
 
 // FetchAllClusterRoles fetches all roles available to the user on the specified cluster.
