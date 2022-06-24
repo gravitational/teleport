@@ -337,7 +337,7 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyPublicAddrs[0].String(),
-		Path:   fmt.Sprintf("/web/launch/%v?path=%v", raddr.Host(), r.URL),
+		Path:   fmt.Sprintf("/web/launch/%v?path=%v", raddr.Host(), r.URL.Path),
 	}
 	return u.String(), true
 }
