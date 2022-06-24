@@ -45,6 +45,7 @@ const Container = styled.button`
   background: inherit;
   color: inherit;
   font-family: inherit;
+  min-width: 0;
   width: 100%;
   height: 100%;
   border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;

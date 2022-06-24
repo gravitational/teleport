@@ -36,9 +36,6 @@ export const IdentitySelector = forwardRef<
           <Box mr={2}>
             <UserIcon letter={props.userName[0]} />
           </Box>
-          <Text style={{ whiteSpace: 'nowrap' }} typography="subtitle1">
-            {selectorText}
-          </Text>
         </>
       ) : (
         <PamIcon />
@@ -58,7 +55,6 @@ const Container = styled.button`
   flex-direction: row;
   padding: 0 12px;
   height: 100%;
-  min-width: 0;
   border-radius: 4px;
   border-width: 1px;
   border-style: solid;
