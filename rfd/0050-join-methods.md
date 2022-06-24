@@ -42,15 +42,6 @@ PKI.
 This is the main token register endpoint on the Auth server. Accepts tokens or
 EC2 Identity Documents to authenticate the client.
 
-#### Auth `POST /tokens/register/auth`
-
-**Join Methods:** token  
-**Server trust:** CA pins
-
-Looks like this is a legacy endpoint the just deletes the given token. Only
-works for tokens with the `Auth` role. I can't find anything that calls this, so
-it can probably be scheduled for deletion.
-
 #### Auth `rpc GenerateHostCerts(HostCertsRequest) returns (Certs)`
 
 **Client trust:** mTLS  
