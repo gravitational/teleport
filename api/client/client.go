@@ -700,6 +700,16 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	return certs, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
+// instances to prove that they hold a given system role.
+//
+// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
+// but v11 clients should no longer need this method)
+func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -2674,7 +2684,10 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
 	resp, err := c.grpc.GetSessionTracker(ctx, req, c.callOpts...)
-	return resp, trail.FromGRPC(err)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
