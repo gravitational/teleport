@@ -31,12 +31,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+func (process *TeleportProcess) shouldInitDatabases() bool {
+	databasesCfg := len(process.Config.Databases.Databases) > 0
+	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
+	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+
+	return process.Config.Databases.Enabled && anyCfg
+}
+
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 &&
-		len(process.Config.Databases.ResourceMatchers) == 0 &&
-		len(process.Config.Databases.AWSMatchers) == 0 {
-		return
-	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -121,6 +125,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					},
 					ElastiCache: types.ElastiCache{
 						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
+					},
+					MemoryDB: types.MemoryDB{
+						ClusterName: db.AWS.MemoryDB.ClusterName,
 					},
 					SecretStore: types.SecretStore{
 						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
