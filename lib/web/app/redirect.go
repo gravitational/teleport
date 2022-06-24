@@ -77,8 +77,13 @@ const js = `
           body: JSON.stringify(data),
         }).then(response => {
           if (response.ok) {
+            try {
+                window.location.replace(url.origin + path);
+            } catch (error) {
+                // in case of malformed url, return to origin
+                window.location.replace(url.origin)
+            }
             // redirect to the target path and remove current URL from history (back button)
-            window.location.replace(path || "/");
           }
         });
       })();
