@@ -1594,6 +1594,22 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
+		case sshutils.AgentForwardRequest:
+			// This happens when SSH client has agent forwarding enabled, in this case
+			// client sends a special request, in return SSH server opens new channel
+			// that uses SSH protocol for agent drafted here:
+			// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
+			// the open ssh proto spec that we implement is here:
+			// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, all errors should be logged and we should continue
+			// processing requests.
+			err := s.handleAgentForwardNode(req, serverContext)
+			if err != nil {
+				log.Warn(err)
+			}
+			return nil
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}

@@ -341,7 +341,6 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	t.Parallel()
 	if os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
 	}
@@ -407,7 +406,6 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
-	t.Parallel()
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
@@ -696,7 +694,6 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	t.Parallel()
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
