@@ -169,7 +169,7 @@ func TestKube(t *testing.T) {
 func testKubeExec(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -338,7 +338,7 @@ loop:
 func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -390,7 +390,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -485,7 +485,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// Main cluster doesn't need a kubeconfig to forward requests to auxiliary
 	// cluster.
 	mainConf.Proxy.Kube.KubeconfigPath = ""
-	main := helpers.NewInstance(helpers.InstanceConfig{
+	main := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterMain,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -508,7 +508,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	clusterAux := "cluster-aux"
 	auxConf := suite.teleKubeConfig(Host)
-	aux := helpers.NewInstance(helpers.InstanceConfig{
+	aux := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterAux,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -736,7 +736,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	clusterMain := "cluster-main"
 	mainConf := suite.teleKubeConfig(Host)
-	main := helpers.NewInstance(helpers.InstanceConfig{
+	main := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterMain,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -759,7 +759,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	clusterAux := "cluster-aux"
 	auxConf := suite.teleKubeConfig(Host)
-	aux := helpers.NewInstance(helpers.InstanceConfig{
+	aux := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterAux,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -1011,7 +1011,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -1083,7 +1083,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	}()
 
 	// lets type something followed by "enter" and then hang the session
-	require.NoError(t, enterInput(sessionCtx, term, "echo boring platapus\r\n", ".*boring platapus.*"))
+	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
@@ -1097,7 +1097,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
@@ -1506,7 +1506,7 @@ func kubeJoin(kubeConfig kubeProxyConfig, tc *client.TeleportClient, sessionID s
 func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := helpers.NewInstance(helpers.InstanceConfig{
+	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,

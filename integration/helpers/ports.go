@@ -20,8 +20,11 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"testing"
 
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 // ports contains tcp ports allocated for all integration tests.
@@ -50,144 +53,136 @@ func NewPortSlice(n int) []int {
 	return ports.PopIntSlice(n)
 }
 
-func NewInstancePort() *InstancePort {
-	i := ports.PopInt()
-	p := InstancePort(i)
-	return &p
+type InstanceListeners struct {
+	Web               string
+	SSH               string
+	SSHProxy          string
+	Auth              string
+	ReverseTunnel     string
+	MySQL             string
+	Postgres          string
+	Mongo             string
+	IsSinglePortSetup bool
 }
 
-type InstancePort int
+type InstanceListenerSetupFunc func(*testing.T, *[]service.FileDescriptor) *InstanceListeners
 
-func (p *InstancePort) String() string {
-	if p == nil {
-		return ""
-	}
-	return strconv.Itoa(int(*p))
-}
-
-func SingleProxyPortSetup() *InstancePorts {
-	v := NewInstancePort()
-	return &InstancePorts{
-		Web:               v,
-		SSHProxy:          v,
-		ReverseTunnel:     v,
-		MySQL:             v,
-		SSH:               NewInstancePort(),
-		Auth:              NewInstancePort(),
-		isSinglePortSetup: true,
-	}
-}
-func StandardPortSetup() *InstancePorts {
-	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
+func StandardListenerSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return &InstanceListeners{
+		Web:           NewListener(t, service.ListenerProxyWeb, fds),
+		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
+		Auth:          NewListener(t, service.ListenerAuth, fds),
+		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
+		ReverseTunnel: NewListener(t, service.ListenerProxyTunnel, fds),
+		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
 	}
 }
 
-func WebReverseTunnelMuxPortSetup() *InstancePorts {
-	v := NewInstancePort()
-	return &InstancePorts{
-		Web:           v,
-		ReverseTunnel: v,
-		SSH:           NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Auth:          NewInstancePort(),
+func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	ssh := NewListener(t, service.ListenerProxyWeb, fds)
+	return &InstanceListeners{
+		Web:               ssh,
+		SSH:               NewListener(t, service.ListenerNodeSSH, fds),
+		Auth:              NewListener(t, service.ListenerAuth, fds),
+		SSHProxy:          ssh,
+		ReverseTunnel:     ssh,
+		MySQL:             ssh,
+		IsSinglePortSetup: true,
 	}
 }
 
-func SeparatePostgresPortSetup() *InstancePorts {
-	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Postgres:      NewInstancePort(),
+func WebReverseTunnelMuxPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	web := NewListener(t, service.ListenerProxyTunnelAndWeb, fds)
+	return &InstanceListeners{
+		Web:           web,
+		ReverseTunnel: web,
+		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
+		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
+		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
+		Auth:          NewListener(t, service.ListenerAuth, fds),
 	}
 }
 
-func SeparateMongoPortSetup() *InstancePorts {
-	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Mongo:         NewInstancePort(),
+func SeparatePostgresPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return &InstanceListeners{
+		Web:           NewListener(t, service.ListenerProxyWeb, fds),
+		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
+		Auth:          NewListener(t, service.ListenerAuth, fds),
+		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
+		ReverseTunnel: NewListener(t, service.ListenerProxyTunnel, fds),
+		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
+		Postgres:      NewListener(t, service.ListenerProxyPostgres, fds),
 	}
 }
 
-type InstancePorts struct {
-	Host string
-	Web  *InstancePort
-	// SSH is an instance of SSH server Port.
-	SSH *InstancePort
-	// SSHProxy is Teleport SSH Proxy Port.
-	SSHProxy      *InstancePort
-	Auth          *InstancePort
-	ReverseTunnel *InstancePort
-	MySQL         *InstancePort
-	Postgres      *InstancePort
-	Mongo         *InstancePort
-
-	isSinglePortSetup bool
+func SeparateMongoPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return &InstanceListeners{
+		Web:           NewListener(t, service.ListenerProxyWeb, fds),
+		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
+		Auth:          NewListener(t, service.ListenerAuth, fds),
+		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
+		ReverseTunnel: NewListener(t, service.ListenerProxyTunnel, fds),
+		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
+		Mongo:         NewListener(t, service.ListenerProxyMongo, fds),
+	}
 }
 
-func (i *InstancePorts) GetPortSSHInt() int           { return int(*i.SSH) }
-func (i *InstancePorts) GetPortSSH() string           { return i.SSH.String() }
-func (i *InstancePorts) GetPortAuth() string          { return i.Auth.String() }
-func (i *InstancePorts) GetPortProxy() string         { return i.SSHProxy.String() }
-func (i *InstancePorts) GetPortWeb() string           { return i.Web.String() }
-func (i *InstancePorts) GetPortMySQL() string         { return i.MySQL.String() }
-func (i *InstancePorts) GetPortPostgres() string      { return i.Postgres.String() }
-func (i *InstancePorts) GetPortMongo() string         { return i.Mongo.String() }
-func (i *InstancePorts) GetPortReverseTunnel() string { return i.ReverseTunnel.String() }
+func PortStr(t *testing.T, addr string) string {
+	t.Helper()
 
-func (i *InstancePorts) GetSSHAddr() string {
-	if i.SSH == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortSSH())
+	_, portStr, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	return portStr
 }
 
-func (i *InstancePorts) GetAuthAddr() string {
-	if i.Auth == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortAuth())
+func Port(t *testing.T, addr string) int {
+	t.Helper()
+
+	portStr := PortStr(t, addr)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+
+	return port
 }
 
-func (i *InstancePorts) GetProxyAddr() string {
-	if i.SSHProxy == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortProxy())
-}
+// NewListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). The idea is to subvert
+// Teleport's file-descriptor injection mechanism (used to share ports between
+// parent and child processes) to inject preconfigured listeners to Teleport
+// instances under test. The ports are allocated and bound at runtime, so there
+// should be no issues with port clashes on parallel tests.
+//
+// The resulting file descriptor is added to the `fds` slice, which can then be
+// given to a teleport instance on startup in order to suppl
+func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
+	t.Helper()
 
-func (i *InstancePorts) GetWebAddr() string {
-	if i.Web == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortWeb())
-}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer l.Close()
+	addr := l.Addr().String()
 
-func (i *InstancePorts) GetMySQLAddr() string {
-	if i.MySQL == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortMySQL())
-}
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
 
-func (i *InstancePorts) GetReverseTunnelAddr() string {
-	if i.ReverseTunnel == nil {
-		return ""
-	}
-	return net.JoinHostPort(i.Host, i.GetPortReverseTunnel())
+	t.Logf("Listener %s for %s", addr, ty)
+
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
+	t.Cleanup(func() { lf.Close() })
+
+	*fds = append(*fds, service.FileDescriptor{
+		Type:    string(ty),
+		Address: addr,
+		File:    lf,
+	})
+
+	return addr
 }

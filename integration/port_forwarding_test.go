@@ -31,9 +31,10 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func extractPort(svr *httptest.Server) (int, error) {
@@ -125,7 +126,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 
-			nodeSSHPort := teleport.GetPortSSHInt()
+			nodeSSHPort := helpers.Port(t, teleport.SSH)
 			cl, err := teleport.NewClient(helpers.ClientConfig{
 				Login:   suite.Me.Username,
 				Cluster: helpers.Site,

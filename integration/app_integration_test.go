@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -892,14 +891,14 @@ type pack struct {
 }
 
 type appTestOptions struct {
-	extraRootApps       []service.App
-	extraLeafApps       []service.App
-	userLogins          []string
-	userTraits          map[string][]string
-	rootClusterPorts    *helpers.InstancePorts
-	leafClusterPorts    *helpers.InstancePorts
-	rootAppServersCount int
-	leafAppServersCount int
+	extraRootApps        []service.App
+	extraLeafApps        []service.App
+	userLogins           []string
+	userTraits           map[string][]string
+	rootClusterListeners helpers.InstanceListenerSetupFunc
+	leafClusterListeners helpers.InstanceListenerSetupFunc
+	rootAppServersCount  int
+	leafAppServersCount  int
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -1051,26 +1050,32 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
+	rootCfg := helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Ports:       opts.rootClusterPorts,
-	})
+	}
+	if opts.rootClusterListeners != nil {
+		rootCfg.Listeners = opts.rootClusterListeners(t, &rootCfg.Fds)
+	}
+	p.rootCluster = helpers.NewInstance(t, rootCfg)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
+	leafCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Ports:       opts.leafClusterPorts,
-	})
+	}
+	if opts.leafClusterListeners != nil {
+		leafCfg.Listeners = opts.leafClusterListeners(t, &leafCfg.Fds)
+	}
+	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.Console = nil
@@ -1184,7 +1189,7 @@ func (p *pack) initWebSession(t *testing.T) {
 	// Create POST request to create session.
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   "/v1/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
@@ -1240,7 +1245,7 @@ func (p *pack) initTeleportClient(t *testing.T) {
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
-		Port:    p.rootCluster.GetPortSSHInt(),
+		Port:    helpers.Port(t, p.rootCluster.SSH),
 	}, *creds)
 	require.NoError(t, err)
 
@@ -1274,7 +1279,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, []byte, error) {
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
 	}
 
@@ -1437,7 +1442,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint), header)
+	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", p.rootCluster.Web, endpoint), header)
 	if err != nil {
 		return "", err
 	}
@@ -1456,7 +1461,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 func (p *pack) assembleRootProxyURL(endpoint string) string {
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   endpoint,
 	}
 	return u.String()
@@ -1531,7 +1536,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+				Addr:        p.rootCluster.Web,
 			},
 		}
 		raConf.Auth.Enabled = false
@@ -1602,7 +1607,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.leafCluster.GetPortWeb()),
+				Addr:        p.leafCluster.Web,
 			},
 		}
 		laConf.Auth.Enabled = false
