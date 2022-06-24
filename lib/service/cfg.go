@@ -250,11 +250,6 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// RestartThreshold describes the number of connection failures per
-	// unit time that the node can sustain before restarting itself, as
-	// measured by the rotation state service.
-	RestartThreshold Rate
-
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
@@ -1308,10 +1303,6 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.RestartThreshold = Rate{
-		Amount: defaults.MaxConnectionErrorsBeforeRestart,
-		Time:   defaults.ConnectionErrorMeasurementPeriod,
-	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)

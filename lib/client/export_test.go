@@ -14,4 +14,5 @@
 
 package client
 
+var PromptMFAStandalone = &promptMFAStandalone
 var PromptWebauthn = &promptWebauthn
