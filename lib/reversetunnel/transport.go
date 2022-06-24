@@ -155,7 +155,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
+	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server

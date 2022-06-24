@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	traceagent "github.com/gravitational/teleport/api/observability/tracing/ssh/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -156,12 +157,12 @@ func (l *LocalProxy) SSHProxy(ctx context.Context, localAgent *client.LocalKeyAg
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = agent.RequestAgentForwarding(sess)
+	err = traceagent.RequestAgentForwarding(ctx, sess)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err = sess.RequestSubsystem(proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
+	if err = sess.RequestSubsystem(ctx, proxySubsystemName(l.cfg.SSHUserHost, l.cfg.SSHTrustedCluster)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(l.context, sess); err != nil {
@@ -186,7 +187,7 @@ func makeSSHClient(ctx context.Context, conn *tls.Conn, addr string, cfg *ssh.Cl
 	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
-func proxySession(ctx context.Context, sess *ssh.Session) error {
+func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)

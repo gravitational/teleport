@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -40,6 +41,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -63,7 +65,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext: &sshutils.ConnectionContext{
-			ServerConn: &ssh.ServerConn{Conn: sshConn},
+			ServerConn: &tracessh.ServerConn{
+				ServerConn: &ssh.ServerConn{Conn: sshConn},
+			},
 		},
 		env:                    make(map[string]string),
 		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),

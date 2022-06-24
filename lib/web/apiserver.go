@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -65,11 +64,11 @@ import (
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -2803,6 +2802,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		return nil, trace.Wrap(err)
 	}
 
+	provider := otel.GetTracerProvider()
 	config := &client.Config{
 		Username:          sesCtx.user,
 		Agent:             agent,
@@ -2812,7 +2812,8 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
-		Tracer:            tracing.NoopProvider().Tracer("test"),
+		TracerProvider:    provider,
+		Tracer:            provider.Tracer(teleport.ComponentWeb),
 	}
 
 	return config, nil

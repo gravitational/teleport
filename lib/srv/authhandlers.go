@@ -24,9 +24,8 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -36,12 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -109,7 +108,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 // CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
-func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
+func (h *AuthHandlers) CreateIdentityContext(sconn *tracessh.ServerConn) (IdentityContext, error) {
 	identity := IdentityContext{
 		TeleportUser: sconn.Permissions.Extensions[utils.CertTeleportUser],
 		Login:        sconn.User(),

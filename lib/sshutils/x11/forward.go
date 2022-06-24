@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package X11 contains contains the ssh client/server helper functions
+// Package x11 contains the ssh client/server helper functions
 // for performing X11 forwarding.
 package x11
 
@@ -21,15 +21,17 @@ import (
 	"io"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-// forwardIO forwards io between two XServer connections until
+// Forward forwards io between two XServer connections until
 // one of the connections is closed. If the ctx is closed early,
 // the function will return, but forwarding will continue until
-// the XServer connnections are closed.
+// the XServer connections are closed.
 func Forward(ctx context.Context, client, server XServerConn) error {
 	errs := make(chan error)
 	var wg sync.WaitGroup
@@ -81,14 +83,14 @@ type ForwardRequestPayload struct {
 // authProto and authCookie are required to set up authentication with the Server. screenNumber is used
 // by the server to determine which screen should be connected to for X11 forwarding. singleConnection is
 // an optional argument to request X11 forwarding for a single connection.
-func RequestForwarding(sess *ssh.Session, xauthEntry *XAuthEntry) error {
+func RequestForwarding(ctx context.Context, sess *tracessh.Session, xauthEntry *XAuthEntry) error {
 	payload := ForwardRequestPayload{
 		AuthProtocol: xauthEntry.Proto,
 		AuthCookie:   xauthEntry.Cookie,
 		ScreenNumber: uint32(xauthEntry.Display.ScreenNumber),
 	}
 
-	ok, err := sess.SendRequest(sshutils.X11ForwardRequest, true, ssh.Marshal(payload))
+	ok, err := sess.SendRequest(ctx, sshutils.X11ForwardRequest, true, ssh.Marshal(payload))
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {

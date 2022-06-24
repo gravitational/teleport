@@ -290,7 +290,7 @@ type ServerContext struct {
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time
@@ -630,7 +630,7 @@ func (c *ServerContext) getSession() *session {
 }
 
 // OpenXServerListener opens a new XServer unix listener.
-func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
+func (c *ServerContext) OpenXServerListener(ctx context.Context, x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
 	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
 	if err != nil {
 		return trace.Wrap(err)
@@ -688,7 +688,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 					return
 				}
 
-				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
+				xchan, sin, err := c.ServerConn.OpenChannel(ctx, sshutils.X11ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
 					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
 					return

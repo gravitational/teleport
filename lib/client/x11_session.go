@@ -21,8 +21,10 @@ import (
 	"os"
 	"time"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -30,7 +32,7 @@ import (
 // handleX11Forwarding handles X11 channel requests for the given server session.
 // If X11 forwarding is not requested by the client, or it is rejected by the server,
 // then X11 channel requests will be rejected.
-func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Session) error {
+func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.Session) error {
 	if !ns.nodeClient.TC.EnableX11Forwarding {
 		return ns.rejectX11Channels(ctx)
 	}
@@ -54,7 +56,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *ssh.Sessio
 		return trace.Wrap(err)
 	}
 
-	if err := x11.RequestForwarding(sess, ns.spoofedXAuthEntry); err != nil {
+	if err := x11.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
 		// Notify the user that x11 forwarding request failed regardless of debug level
 		log.Print("X11 forwarding request failed")
 		log.WithError(err).Debug("X11 forwarding request error")
@@ -126,7 +128,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 }
 
 // serveX11Channels serves incoming X11 channels by starting X11 forwarding with the session.
-func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *ssh.Session) error {
+func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Session) error {
 	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(ctx context.Context, nch ssh.NewChannel) {
 		if !ns.x11RefuseTime.IsZero() && time.Now().After(ns.x11RefuseTime) {
 			nch.Reject(ssh.Prohibited, "rejected X11 channel request after ForwardX11Timeout")

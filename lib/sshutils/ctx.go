@@ -22,12 +22,11 @@ import (
 	"net"
 	"sync"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/teleagent"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // ConnectionContext manages connection-level state.
@@ -36,7 +35,7 @@ type ConnectionContext struct {
 	NetConn net.Conn
 
 	// ServerConn is authenticated ssh connection.
-	ServerConn *ssh.ServerConn
+	ServerConn *tracessh.ServerConn
 
 	// mu protects the rest of the state
 	mu sync.RWMutex
@@ -67,7 +66,7 @@ type ConnectionContext struct {
 
 // NewConnectionContext creates a new ConnectionContext and a child context.Context
 // instance which will be canceled when the ConnectionContext is closed.
-func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn) (context.Context, *ConnectionContext) {
+func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *tracessh.ServerConn) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	return ctx, &ConnectionContext{
 		NetConn:    nconn,
@@ -82,7 +81,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 // is no longer needed.
 type agentChannel struct {
 	agent.Agent
-	ch ssh.Channel
+	ch io.Closer
 }
 
 func (a *agentChannel) Close() error {
@@ -98,7 +97,7 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.AccessDenied("agent forwarding required in proxy recording mode")
 	}
 	// open a agent channel to client
-	ch, _, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
+	ch, _, err := c.ServerConn.OpenChannel(context.TODO(), AuthAgentRequest, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

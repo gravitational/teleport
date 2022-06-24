@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -227,7 +228,7 @@ func (t *proxySubsys) String() string {
 
 // Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
-func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+func (t *proxySubsys) Start(ctx context.Context, sconn *tracessh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,

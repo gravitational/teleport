@@ -23,11 +23,14 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -57,8 +60,8 @@ type AgentStateCallback func(AgentState)
 
 // transporter handles the creation of new transports over ssh.
 type transporter interface {
-	// Transport creates a new transport.
-	transport(context.Context, ssh.Channel, <-chan *ssh.Request, ssh.Conn) *transport
+	// transport creates a transport.
+	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -74,7 +77,11 @@ type versionGetter interface {
 
 // SSHClient is a client for an ssh connection.
 type SSHClient interface {
-	ssh.Conn
+	ssh.ConnMetadata
+	io.Closer
+	Wait() error
+	OpenChannel(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
 	Principals() []string
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
@@ -388,12 +395,12 @@ func (a *agent) connect() error {
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
-	channel, requests, err := a.client.OpenChannel(chanHeartbeat, nil)
+	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	a.hbChannel = channel
+	a.hbChannel = channel.Channel
 	a.hbRequests = requests
 
 	// Send the first ping right away.

@@ -292,6 +292,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TracerProvider:  s.srv.TracerProvider,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -2684,7 +2685,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c := client.MakeDefaultConfig()
 	c.Host = cf.UserHost
 	if cf.TracingProvider == nil {
-		cf.TracingProvider = tracing.NoopProvider()
+		cf.TracingProvider = otel.GetTracerProvider()
 	}
 	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 

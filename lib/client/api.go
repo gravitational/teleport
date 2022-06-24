@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -75,6 +74,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -391,7 +391,11 @@ type Config struct {
 	// Do not set this options unless you deeply understand what you are doing.
 	AllowStdinHijack bool
 
-	// Tracer is the tracer to create spans with
+	// TracerProvider is the provider that any child components
+	// should use to create tracers with.
+	TracerProvider oteltrace.TracerProvider
+
+	// Tracer is the tracer to create spans with for this client
 	Tracer oteltrace.Tracer
 }
 
@@ -411,7 +415,7 @@ func MakeDefaultConfig() *Config {
 		Stdin:                 os.Stdin,
 		AddKeysToAgent:        AddKeysToAgentAuto,
 		EnableEscapeSequences: true,
-		Tracer:                tracing.NoopProvider().Tracer("TeleportClient"),
+		TracerProvider:        otel.GetTracerProvider(),
 	}
 }
 
@@ -1382,7 +1386,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -1412,8 +1416,12 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 	c.Namespace = types.ProcessNamespace(c.Namespace)
 
+	if c.TracerProvider == nil {
+		c.TracerProvider = otel.GetTracerProvider()
+	}
+
 	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+		c.Tracer = c.TracerProvider.Tracer("TeleportClient")
 	}
 
 	tc = &TeleportClient{
@@ -2944,7 +2952,8 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		hostLogin:       tc.HostLogin,
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
-		Tracer:          tc.Tracer,
+		tracer:          tc.Tracer,
+		Provider:        tc.TracerProvider,
 	}, nil
 }
 

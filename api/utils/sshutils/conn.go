@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -28,6 +29,14 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
+
+type Conn interface {
+	io.Closer
+	// RemoteAddr returns the remote address for this connection.
+	RemoteAddr() net.Addr
+	// LocalAddr returns the local address for this connection.
+	LocalAddr() net.Addr
+}
 
 // ConnectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.

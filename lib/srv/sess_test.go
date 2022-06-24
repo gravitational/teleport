@@ -459,7 +459,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 }
 
@@ -559,7 +559,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)

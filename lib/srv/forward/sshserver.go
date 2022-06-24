@@ -23,14 +23,11 @@ import (
 	"net"
 	"sync"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	traceagent "github.com/gravitational/teleport/api/observability/tracing/ssh/agent"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -47,8 +44,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -88,7 +91,7 @@ type Server struct {
 	serverConn net.Conn
 
 	// sconn is an authenticated SSH connection from the server perspective.
-	sconn *ssh.ServerConn
+	sconn *tracessh.ServerConn
 
 	// remoteClient exposes an API to SSH functionality like shells, port
 	// forwarding, subsystems.
@@ -157,6 +160,14 @@ type Server struct {
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
+
+	// tracerProvider is used to create tracers capable
+	// of starting spans.
+	tracerProvider oteltrace.TracerProvider
+
+	// tracer is used to create spans for any ssh messages
+	// received by this server
+	tracer oteltrace.Tracer
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -209,6 +220,14 @@ type ServerConfig struct {
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+
+	// TracerProvider is used to create tracers capable
+	// of starting spans.
+	TracerProvider oteltrace.TracerProvider
+
+	// Tracer is used to create spans for any ssh messages
+	// received by this server
+	Tracer oteltrace.Tracer
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -245,6 +264,12 @@ func (s *ServerConfig) CheckDefaults() error {
 	}
 	if s.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
+	}
+	if s.TracerProvider == nil {
+		s.TracerProvider = otel.GetTracerProvider()
+	}
+	if s.Tracer == nil {
+		s.Tracer = s.TracerProvider.Tracer("ssh", oteltrace.WithInstrumentationVersion(teleport.Version))
 	}
 	return nil
 }
@@ -290,6 +315,8 @@ func New(c ServerConfig) (*Server, error) {
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
+		tracer:          c.Tracer,
+		tracerProvider:  c.TracerProvider,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -487,7 +514,7 @@ func (s *Server) Serve() {
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
 	s.log.Debugf("Supported MAC algorithms: %q.", s.macAlgorithms)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
+	sconn, chans, reqs, err := tracessh.NewServerConn(s.serverConn, config, tracing.WithTracerProvider(s.tracerProvider))
 	if err != nil {
 		s.userAgent.Close()
 		s.targetConn.Close()
@@ -624,17 +651,49 @@ func (s *Server) handleConnection(ctx context.Context, chans <-chan ssh.NewChann
 	for {
 		select {
 		// Global out-of-band requests.
-		case newRequest := <-reqs:
-			if newRequest == nil {
+		case req := <-reqs:
+			if req == nil {
 				return
 			}
-			go s.handleGlobalRequest(newRequest)
+
+			reqCtx := tracessh.ContextFromRequest(req)
+			ctx, span := s.tracer.Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
+				fmt.Sprintf("ssh.Forward.SessionRequest/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.ForwardServer"),
+					semconv.RPCMethodKey.String("GlobalRequest"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
+			go func(span oteltrace.Span) {
+				defer span.End()
+				s.handleGlobalRequest(ctx, req)
+			}(span)
 		// Channel requests.
-		case newChannel := <-chans:
-			if newChannel == nil {
+		case nch := <-chans:
+			if nch == nil {
 				return
 			}
-			go s.handleChannel(ctx, newChannel)
+
+			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
+			ctx, span := s.tracer.Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
+				fmt.Sprintf("ssh.Forward.OpenChannel/%s", nch.ChannelType()),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.ForwardServer"),
+					semconv.RPCMethodKey.String("OpenChannel"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
+			go func(span oteltrace.Span) {
+				defer span.End()
+				s.handleChannel(ctx, nch)
+			}(span)
 		// If the server is closing (either the heartbeat failed or Close() was
 		// called, exit out of the connection handler loop.
 		case <-ctx.Done():
@@ -653,7 +712,7 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, errMessage string) {
 	}
 }
 
-func (s *Server) handleGlobalRequest(req *ssh.Request) {
+func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 	// Version requests are internal Teleport requests, they should not be
 	// forwarded to the remote server.
 	if req.Type == teleport.VersionRequest {
@@ -664,7 +723,7 @@ func (s *Server) handleGlobalRequest(req *ssh.Request) {
 		return
 	}
 
-	ok, payload, err := s.remoteClient.SendRequest(req.Type, req.WantReply, req.Payload)
+	ok, payload, err := s.remoteClient.SendRequest(ctx, req.Type, req.WantReply, req.Payload)
 	if err != nil {
 		s.log.Warnf("Failed to forward global request %v: %v", req.Type, err)
 		return
@@ -682,6 +741,23 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
+	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
+	// are supported. Accepting the channel indicates to clients that they may wrap their
+	// ssh payload with tracing context.
+	case tracessh.TracingChannel:
+		ch, _, err := nch.Accept()
+		if err != nil {
+			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
+				s.log.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
+			}
+			return
+		}
+
+		if err := ch.Close(); err != nil {
+			s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
+		}
+		return
+
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -742,7 +818,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", scx.SrcAddr, scx.DstAddr, scx.ID())
 
 	// Create "direct-tcpip" channel from the remote host to the target host.
-	conn, err := s.remoteClient.Dial("tcp", scx.DstAddr)
+	conn, err := s.remoteClient.DialContext(ctx, "tcp", scx.DstAddr)
 	if err != nil {
 		scx.Infof("Failed to connect to: %v: %v", scx.DstAddr, err)
 		return
@@ -880,8 +956,22 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 				scx.Debugf("Client %v disconnected", s.sconn.RemoteAddr())
 				return
 			}
+
+			reqCtx := tracessh.ContextFromRequest(req)
+			ctx, span := s.tracer.Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
+				fmt.Sprintf("ssh.Forward.SessionRequest/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.ForwardServer"),
+					semconv.RPCMethodKey.String("SessionRequest"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
+				span.End()
 				return
 			}
 			if req.WantReply {
@@ -889,6 +979,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 					scx.Errorf("failed sending OK response on %q request: %v", req.Type, err)
 				}
 			}
+			span.End()
 		case result := <-scx.ExecResultCh:
 			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
 
@@ -913,14 +1004,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if scx.JoinOnly {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return s.handleTracingRequest(req, scx)
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, scx)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ch, req, scx)
+			return s.termHandlers.HandleShell(ctx, ch, req, scx)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, scx)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, scx)
 		case sshutils.EnvRequest:
@@ -932,7 +1021,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForward(ch, req, scx)
+			err := s.handleAgentForward(ctx, ch, req, scx)
 			if err != nil {
 				s.log.Debug(err)
 			}
@@ -943,20 +1032,18 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 
 	switch req.Type {
-	case tracessh.TracingRequest:
-		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, scx)
+		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, scx)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, scx)
+		return s.termHandlers.HandleShell(ctx, ch, req, scx)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, scx)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, scx)
+		return s.handleEnv(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -965,7 +1052,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForward(ch, req, scx)
+		err := s.handleAgentForward(ctx, ch, req, scx)
 		if err != nil {
 			s.log.Debug(err)
 		}
@@ -976,21 +1063,21 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(ctx)
+	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
+	err = agent.ForwardToAgent(scx.RemoteClient.Client, s.userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession)
+	err = traceagent.RequestAgentForwarding(ctx, scx.RemoteSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1011,7 +1098,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer sch.Close()
 
 	// setup outbound X11 channel to client
-	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, nch.ExtraData())
+	cch, cin, err := s.sconn.OpenChannel(ctx, sshutils.X11ChannelRequest, nch.ExtraData())
 	if err != nil {
 		s.log.Errorf("X11 channel fwd failed: %v", err)
 		return
@@ -1023,7 +1110,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer cancel()
 
 	go func() {
-		err := sshutils.ForwardRequests(ctx, cin, sch)
+		err := sshutils.ForwardRequests(ctx, cin, tracessh.NewChannel(sch))
 		if err != nil {
 			s.log.WithError(err).Debug("Failed to forward ssh request from client during X11 forwarding")
 		}
@@ -1081,7 +1168,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 
 	// send X11 forwarding request to remote
-	ok, err := sshutils.ForwardRequest(scx.RemoteSession, req)
+	ok, err := sshutils.ForwardRequest(ctx, scx.RemoteSession, req)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
@@ -1124,22 +1211,14 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	return nil
 }
 
-func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
-	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
-		s.log.WithError(err).Debugf("Unable to set forward tracing context")
-	}
-
-	return nil
-}
-
-func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Error(err)
+		scx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
-	err := ctx.RemoteSession.Setenv(e.Name, e.Value)
+	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
 	}

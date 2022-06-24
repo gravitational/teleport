@@ -2285,6 +2285,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetTracerProvider(process.TracingProvider),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3331,6 +3332,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				CertAuthorityWatcher:          caWatcher,
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServers),
+				TracerProvider:                process.TracingProvider,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3497,6 +3499,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetNodeWatcher(nodeWatcher),
+		regular.SetTracerProvider(process.TracingProvider),
 	)
 	if err != nil {
 		return trace.Wrap(err)

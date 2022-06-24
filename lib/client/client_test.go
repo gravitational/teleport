@@ -62,7 +62,8 @@ func (s *ClientTestSuite) SetUpSuite(c *check.C) {
 func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	nc := &NodeClient{
 		Namespace: "blue",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		Provider:  tracing.NoopProvider(),
+		tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 
 	ctx := context.Background()
@@ -195,7 +196,8 @@ func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 				Conn: &fakeSSHConn{},
 			},
 		},
-		Tracer: tracing.NoopProvider().Tracer("test"),
+		Provider: tracing.NoopProvider(),
+		tracer:   tracing.NoopProvider().Tracer("test"),
 	}
 
 	// Create two anchors. An "accept" anchor that unblocks once the listener has
