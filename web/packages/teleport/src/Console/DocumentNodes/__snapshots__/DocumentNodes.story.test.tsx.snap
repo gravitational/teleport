@@ -367,12 +367,16 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
+.c19[disabled] {
+  cursor: default;
+}
+
 .c22 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
   background: #03203C;
-  cursor: pointer;
+  cursor: inherit;
   flex-shrink: 0;
 }
 
@@ -390,7 +394,7 @@ exports[`render DocumentNodes 1`] = `
 .c20 {
   opacity: 0;
   position: absolute;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 .c20:checked + .c21 {
@@ -399,6 +403,14 @@ exports[`render DocumentNodes 1`] = `
 
 .c20:checked + .c21:before {
   transform: translate(16px,-50%);
+}
+
+.c20:disabled + .c21 {
+  background: #03203C;
+}
+
+.c20:disabled + .c21:before {
+  background: #455a64;
 }
 
 .c18 {

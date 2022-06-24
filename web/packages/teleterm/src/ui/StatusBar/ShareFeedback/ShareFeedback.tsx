@@ -1,83 +1,66 @@
-import React, { useState } from 'react';
-import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import { Close } from 'design/Icon';
+import { ButtonIcon, Popover } from 'design';
+import { ChatBubble } from 'design/Icon';
+import React, { useRef } from 'react';
+import styled from 'styled-components';
 import { ShareFeedbackForm } from './ShareFeedbackForm';
-import { ShareFeedbackFormValues } from './types';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useShareFeedback } from './useShareFeedback';
 
-interface ShareFeedbackProps {
-  onClose(): void;
-}
-
-export function ShareFeedback(props: ShareFeedbackProps) {
-  const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
-
-  function getEmailFromUserName(): string {
-    const cluster = ctx.clustersService.findCluster(
-      ctx.workspacesService.getRootClusterUri()
-    );
-    const userName = cluster?.loggedInUser?.name;
-    if (/^\S+@\S+$/.test(userName)) {
-      return userName;
-    }
-  }
-
-  const [formValues, setFormValues] = useState<ShareFeedbackFormValues>({
-    feedback: '',
-    email: getEmailFromUserName() || '',
-    newsletterEnabled: false,
-    salesContactEnabled: false,
-  });
+export function ShareFeedback() {
+  const buttonRef = useRef<HTMLButtonElement>();
+  const {
+    submitFeedbackAttempt,
+    formValues,
+    hasBeenShareFeedbackOpened,
+    isShareFeedbackOpened,
+    submitFeedback,
+    setFormValues,
+    openShareFeedback,
+    closeShareFeedback,
+  } = useShareFeedback();
 
   return (
-    <Flex bg="primary.main" p={3} borderRadius={3} maxWidth="370px">
-      <Validation>
-        {({ validator }) => (
-          <Flex
-            flexDirection="column"
-            as="form"
-            onSubmit={e => {
-              e.preventDefault();
-              if (validator.validate()) {
-                console.log('submit', formValues); //TODO (gzdunek): connect to a real service
-              }
-            }}
-          >
-            <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.primary">
-                Provide your feedback
-              </Text>
-              <ButtonIcon
-                type="button"
-                onClick={props.onClose}
-                title="Close"
-                color="text.secondary"
-              >
-                <Close fontSize={5} />
-              </ButtonIcon>
-            </Flex>
-            <Link
-              href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md"
-              target="_blank"
-            >
-              Submit a Bug
-            </Link>
-            <Link href="https://goteleport.com/signup/" target="_blank">
-              Try Teleport Cloud
-            </Link>
-            <ShareFeedbackForm
-              formValues={formValues}
-              setFormValues={setFormValues}
-            />
-            <ButtonPrimary block type="submit" mt={4}>
-              Submit
-            </ButtonPrimary>
-          </Flex>
-        )}
-      </Validation>
-    </Flex>
+    <>
+      <ButtonIcon
+        css={`
+          position: relative;
+        `}
+        setRef={buttonRef}
+        title="Share feedback"
+        size={0}
+        onClick={openShareFeedback}
+      >
+        {!hasBeenShareFeedbackOpened && <NotOpenedYetIndicator />}
+        <ChatBubble fontSize="14px" />
+      </ButtonIcon>
+      <Popover
+        open={isShareFeedbackOpened}
+        anchorEl={buttonRef.current}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        growDirections="top-left"
+        marginThreshold={8}
+        onClose={closeShareFeedback}
+        data-testid="share-feedback-container"
+      >
+        <ShareFeedbackForm
+          formValues={formValues}
+          submitFeedbackAttempt={submitFeedbackAttempt}
+          onClose={closeShareFeedback}
+          submitFeedback={submitFeedback}
+          setFormValues={setFormValues}
+        />
+      </Popover>
+    </>
   );
 }
+
+const NotOpenedYetIndicator = styled.div`
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: 8px;
+  width: 8px;
+  background-color: ${props => props.theme.colors.info};
+  border-radius: 50%;
+  display: inline-block;
+`;

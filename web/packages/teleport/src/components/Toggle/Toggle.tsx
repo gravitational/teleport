@@ -17,10 +17,19 @@ limitations under the License.
 import React, { ReactNode } from 'react';
 import styled from 'styled-components';
 
-export default function Toggle({ isToggled, onToggle, children }: Props) {
+export default function Toggle({
+  isToggled,
+  onToggle,
+  children,
+  disabled,
+}: Props) {
   return (
-    <StyledWrapper>
-      <StyledInput checked={isToggled} onChange={() => onToggle()} />
+    <StyledWrapper disabled={disabled}>
+      <StyledInput
+        checked={isToggled}
+        onChange={() => onToggle()}
+        disabled={disabled}
+      />
       <StyledSlider />
       {children}
     </StyledWrapper>
@@ -31,6 +40,7 @@ type Props = {
   isToggled: boolean;
   onToggle: () => void;
   children?: ReactNode;
+  disabled?: boolean;
 };
 
 const StyledWrapper = styled.label`
@@ -38,6 +48,10 @@ const StyledWrapper = styled.label`
   display: flex;
   align-items: center;
   cursor: pointer;
+
+  &[disabled] {
+    cursor: default;
+  }
 `;
 
 const StyledSlider = styled.div`
@@ -45,7 +59,7 @@ const StyledSlider = styled.div`
   height: 12px;
   border-radius: 12px;
   background: ${props => props.theme.colors.primary.light};
-  cursor: pointer;
+  cursor: inherit;
   flex-shrink: 0;
 
   &:before {
@@ -63,13 +77,21 @@ const StyledSlider = styled.div`
 const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   opacity: 0;
   position: absolute;
-  cursor: pointer;
+  cursor: inherit;
 
   &:checked + ${StyledSlider} {
     background: ${props => props.theme.colors.secondary.main};
 
     &:before {
       transform: translate(16px, -50%);
+    }
+  }
+
+  &:disabled + ${StyledSlider} {
+    background: ${props => props.theme.colors.primary.light};
+
+    &:before {
+      background: ${props => props.theme.colors.grey[700]};
     }
   }
 `;

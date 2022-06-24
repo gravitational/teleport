@@ -38,12 +38,7 @@ export const Tooltip = () => (
 class SimplePopover extends React.Component {
   state = {
     anchorEl: null,
-  };
-
-  handleClick = () => {
-    this.setState({
-      anchorEl: this.btnRef,
-    });
+    contentMultiplier: 1,
   };
 
   topCenter = () => {
@@ -116,14 +111,46 @@ class SimplePopover extends React.Component {
     });
   };
 
+  bottomRightGrowDirection = () => {
+    this.setState({
+      anchorEl: this.btnRef,
+      growDirections: 'bottom-right',
+    });
+    this.startGrowContent();
+  };
+
+  topLeftGrowDirection = () => {
+    this.setState({
+      anchorEl: this.btnRef,
+      growDirections: 'top-left',
+    });
+    this.startGrowContent();
+  };
+
+  startGrowContent = () => {
+    this.growContentTimer = setInterval(() => {
+      if (this.state.contentMultiplier > 20) {
+        clearInterval(this.growContentTimer);
+        return;
+      }
+      this.setState(prevState => ({
+        anchorEl: this.btnRef,
+        contentMultiplier: prevState.contentMultiplier + 1,
+      }));
+    }, 500);
+  };
+
   handleClose = () => {
     this.setState({
       anchorEl: null,
+      contentMultiplier: 1,
     });
+    clearInterval(this.growContentTimer);
   };
 
   render() {
-    const { anchorEl, anchorOrigin, transformOrigin } = this.state;
+    const { anchorEl, anchorOrigin, transformOrigin, growDirections } =
+      this.state;
     const open = Boolean(anchorEl);
 
     return (
@@ -137,11 +164,14 @@ class SimplePopover extends React.Component {
             open={open}
             anchorOrigin={anchorOrigin}
             transformOrigin={transformOrigin}
+            growDirections={growDirections}
             anchorEl={anchorEl}
             onClose={this.handleClose}
           >
             <Box bg="white" color="black" p={5} data-testid="content">
-              The content of the Popover.
+              {'The content of the Popover. '.repeat(
+                this.state.contentMultiplier
+              )}
             </Box>
           </Popover>
         </Box>
@@ -160,6 +190,14 @@ class SimplePopover extends React.Component {
           </ButtonPrimary>
           <ButtonPrimary size="small" onClick={this.bottomCenter}>
             Bottom Center
+          </ButtonPrimary>
+        </Flex>
+        <Flex m={11} justifyContent="space-around">
+          <ButtonPrimary size="small" onClick={this.bottomRightGrowDirection}>
+            Bottom - Right grow direction
+          </ButtonPrimary>
+          <ButtonPrimary size="small" onClick={this.topLeftGrowDirection}>
+            Top - Left grow direction
           </ButtonPrimary>
         </Flex>
       </div>
