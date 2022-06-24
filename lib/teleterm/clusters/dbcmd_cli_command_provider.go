@@ -28,12 +28,18 @@ import (
 // DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
 // fresh profile state from the disk.
 type DbcmdCLICommandProvider struct {
-	storage *Storage
+	storage StorageByResourceURI
+	execer  dbcmd.Execer
 }
 
-func NewDbcmdCLICommandProvider(storage *Storage) DbcmdCLICommandProvider {
+type StorageByResourceURI interface {
+	GetByResourceURI(string) (*Cluster, error)
+}
+
+func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
 	return DbcmdCLICommandProvider{
 		storage: storage,
+		execer:  execer,
 	}
 }
 
@@ -62,6 +68,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		dbcmd.WithLocalProxy(gateway.LocalAddress, gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
 		dbcmd.WithTolerateMissingCLIClient(),
+		dbcmd.WithExecer(d.execer),
 	).GetConnectCommandNoAbsPath()
 	if err != nil {
 		return "", trace.Wrap(err)
