@@ -750,13 +750,13 @@ type CurrentUserRoleGetter interface {
 }
 
 // FetchAllClusterRoles fetches all roles available to the user on the specified cluster.
-func FetchAllClusterRoles(ctx context.Context, currentUserRoleGetter CurrentUserRoleGetter, defaultRoles []string, defaultTraits wrappers.Traits) (RoleSet, error) {
+func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoles []string, defaultTraits wrappers.Traits) (RoleSet, error) {
 	roles := defaultRoles
 	traits := defaultTraits
 
 	// Typically, auth.ClientI is passed as currentUserRoleGetter. Older versions of the auth client
 	// may not implement GetCurrentUser() so we fail gracefully and use default roles and traits instead.
-	user, err := currentUserRoleGetter.GetCurrentUser(ctx)
+	user, err := access.GetCurrentUser(ctx)
 	if err == nil {
 		roles = user.GetRoles()
 		traits = user.GetTraits()
@@ -771,7 +771,7 @@ func FetchAllClusterRoles(ctx context.Context, currentUserRoleGetter CurrentUser
 	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
 	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
 	// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := FetchRoles(roles, currentUserRoleGetter, traits)
+	roleSet, err := FetchRoles(roles, access, traits)
 	return roleSet, trace.Wrap(err)
 }
 
