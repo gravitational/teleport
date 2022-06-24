@@ -43,7 +43,7 @@ func TestReserveUploadPart(t *testing.T) {
 	err = handler.ReserveUploadPart(ctx, *upload, partNumber)
 	require.NoError(t, err)
 
-	fi, err := os.Stat(handler.partPath(*upload, partNumber))
+	fi, err := os.Stat(handler.reservationPath(*upload, partNumber))
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, fi.Size(), int64(minUploadBytes))
 }
@@ -72,6 +72,10 @@ func TestUploadPart(t *testing.T) {
 	require.NoError(t, err)
 	defer partFile.Close()
 
+	fd, err := partFile.Stat()
+	require.NoError(t, err)
+	require.Equal(t, int64(len(expectedContent)), fd.Size())
+
 	partFileContent, err := io.ReadAll(partFile)
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(expectedContent, partFileContent))
@@ -97,28 +101,33 @@ func TestCompleteUpload(t *testing.T) {
 	for _, test := range []struct {
 		desc            string
 		expectedContent []byte
-		partsFunc       func(t *testing.T, handler *Handler, upload *events.StreamUpload) []events.StreamPart
+		partsFunc       func(t *testing.T, handler *Handler, upload *events.StreamUpload)
 	}{
 		{
 			desc:            "PartsWithContent",
 			expectedContent: []byte("helloworld"),
-			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) []events.StreamPart {
-				return []events.StreamPart{
-					createPart(t, handler, upload, int64(1), []byte("hello")),
-					createPart(t, handler, upload, int64(2), []byte("world")),
-				}
+			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) {
+				createPart(t, handler, upload, int64(1), []byte("hello"))
+				createPart(t, handler, upload, int64(2), []byte("world"))
 			},
 		},
 		{
 			desc:            "ReservationParts",
-			expectedContent: []byte("helloworld"),
-			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) []events.StreamPart {
-				return []events.StreamPart{
-					createPart(t, handler, upload, int64(1), []byte{}),
-					createPart(t, handler, upload, int64(2), []byte("hello")),
-					createPart(t, handler, upload, int64(3), []byte("world")),
-					createPart(t, handler, upload, int64(4), []byte{}),
-				}
+			expectedContent: []byte("helloworldwithreservation"),
+			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) {
+				createPart(t, handler, upload, int64(1), []byte{})
+				createPart(t, handler, upload, int64(2), []byte("hello"))
+				createPart(t, handler, upload, int64(3), []byte("world"))
+				createPart(t, handler, upload, int64(4), []byte{})
+				createPart(t, handler, upload, int64(5), []byte("withreservation"))
+			},
+		},
+		{
+			desc:            "OnlyReservation",
+			expectedContent: []byte{},
+			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) {
+				createPart(t, handler, upload, int64(1), []byte{})
+				createPart(t, handler, upload, int64(2), []byte{})
 			},
 		},
 	} {
@@ -131,7 +140,13 @@ func TestCompleteUpload(t *testing.T) {
 			upload, err := handler.CreateUpload(ctx, session.NewID())
 			require.NoError(t, err)
 
-			err = handler.CompleteUpload(ctx, *upload, test.partsFunc(t, handler, upload))
+			// Create upload parts.
+			test.partsFunc(t, handler, upload)
+
+			parts, err := handler.ListParts(ctx, *upload)
+			require.NoError(t, err)
+
+			err = handler.CompleteUpload(ctx, *upload, parts)
 			require.NoError(t, err)
 
 			// Check upload contents

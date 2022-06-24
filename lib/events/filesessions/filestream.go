@@ -17,9 +17,7 @@ limitations under the License.
 package filesessions
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"io"
 	"os"
@@ -110,17 +108,23 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		return nil, trace.Wrap(err)
 	}
 
-	file, partPath, err := h.openUploadPart(upload, partNumber)
+	file, reservationPath, err := h.openReservationPart(upload, partNumber)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	_, err = io.Copy(file, partBody)
-	if err = trace.NewAggregate(err, file.Close()); err != nil {
-		if rmErr := os.Remove(partPath); rmErr != nil {
-			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
+	size, err := io.Copy(file, partBody)
+	if err = trace.NewAggregate(err, file.Truncate(size), file.Close()); err != nil {
+		if rmErr := os.Remove(reservationPath); rmErr != nil {
+			h.WithError(rmErr).Warningf("Failed to remove file %q.", reservationPath)
 		}
 		return nil, trace.Wrap(err)
+	}
+
+	// Rename reservation to part file.
+	err = os.Rename(reservationPath, h.partPath(upload, partNumber))
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	return &events.StreamPart{Number: partNumber}, nil
@@ -166,13 +170,6 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 				h.WithError(err).Errorf("failed to close file %q", path)
 			}
 		}()
-
-		// If the part file is just a reservation file, skip it to avoid
-		// generating broken upload files.
-		if isReservationFile(file) {
-			h.Debugf("Skipping reservation file %q", path)
-			return nil
-		}
 
 		_, err = io.Copy(f, file)
 		return err
@@ -306,17 +303,15 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
-	file, partPath, err := h.openUploadPart(upload, partNumber)
+	file, partPath, err := h.openReservationPart(upload, partNumber)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
-	contents, err := generateReservationFileContents(partNumber)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// Create a buffer with the max size that a part file can have.
+	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
 
-	_, err = file.Write(contents)
+	_, err = file.Write(buf)
 	if err = trace.NewAggregate(err, file.Close()); err != nil {
 		if rmErr := os.Remove(partPath); rmErr != nil {
 			h.WithError(rmErr).Warningf("Failed to remove file %q.", partPath)
@@ -328,10 +323,10 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 	return nil
 }
 
-// openUploadPart opens a upload file part.
-func (h *Handler) openUploadPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
-	partPath := h.partPath(upload, partNumber)
-	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+// openReservationPart opens a reservation upload part file.
+func (h *Handler) openReservationPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
+	partPath := h.reservationPath(upload, partNumber)
+	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, partPath, trace.ConvertSystemError(err)
 	}
@@ -355,8 +350,16 @@ func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string 
 	return filepath.Join(h.uploadPath(upload), partFileName(partNumber))
 }
 
+func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int64) string {
+	return filepath.Join(h.uploadPath(upload), reservationFileName(partNumber))
+}
+
 func partFileName(partNumber int64) string {
 	return fmt.Sprintf("%v%v", partNumber, partExt)
+}
+
+func reservationFileName(partNumber int64) string {
+	return fmt.Sprintf("%v%v", partNumber, reservationExt)
 }
 
 func partFromFileName(fileName string) (int64, error) {
@@ -395,46 +398,6 @@ func checkUploadID(uploadID string) error {
 	return nil
 }
 
-// generateReservationFileContent generates the content placed on the
-// reservation files.
-func generateReservationFileContents(partNumber int64) ([]byte, error) {
-	// Create a buffer with the max size that a part file can have.
-	buf := make([]byte, minUploadBytes+events.MaxProtoMessageSizeBytes)
-
-	// Encode reservation content.
-	encoded := &bytes.Buffer{}
-	encoder := gob.NewEncoder(encoded)
-	err := encoder.Encode(events.StreamPart{Number: partNumber})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Copy into the final contents.
-	copy(buf[0:], encoded.Bytes())
-
-	return buf, nil
-}
-
-// isReservationFile verifies if the provided file is a reservation file
-// generate by `ReservePartUpload`.
-func isReservationFile(f *os.File) bool {
-	// Reset the file pointer to the beginning.
-	defer f.Seek(0, 0)
-
-	streamPart := &events.StreamPart{}
-	decoder := gob.NewDecoder(f)
-	err := decoder.Decode(streamPart)
-	if err != nil {
-		return false
-	}
-
-	if streamPart.Number > 0 {
-		return true
-	}
-
-	return false
-}
-
 const (
 	// uploadsDir is a directory with multipart uploads
 	uploadsDir = "multi"
@@ -446,4 +409,6 @@ const (
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors
 	errorExt = ".error"
+	// reservationExt is part reservation extension.
+	reservationExt = ".reservation"
 )
