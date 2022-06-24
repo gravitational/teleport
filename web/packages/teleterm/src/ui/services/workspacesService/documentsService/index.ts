@@ -16,3 +16,4 @@ limitations under the License.
 
 export * from './documentsService';
 export * from './types';
+export * from './documentsUtils';

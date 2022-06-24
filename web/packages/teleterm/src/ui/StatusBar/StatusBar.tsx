@@ -1,25 +1,32 @@
 import React from 'react';
 import { Flex, Text } from 'design';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 import { ShareFeedback } from './ShareFeedback';
 
 export function StatusBar() {
-  const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();
 
   return (
     <Flex
       width="100%"
       height="28px"
-      bg="primary.dark"
+      css={`
+        border-top: 1px solid ${props => props.theme.colors.primary.light};
+      `}
       alignItems="center"
       justifyContent="space-between"
       px={2}
       overflow="hidden"
     >
-      {/*TODO (gzdunek) display proper info here */}
-      <Text color="text.secondary" fontSize="14px">
-        {ctx.workspacesService.getRootClusterUri()}
+      <Text
+        color="text.secondary"
+        fontSize="14px"
+        css={`
+          white-space: nowrap;
+        `}
+        title={clusterBreadcrumbs}
+      >
+        {clusterBreadcrumbs}
       </Text>
       <ShareFeedback />
     </Flex>
