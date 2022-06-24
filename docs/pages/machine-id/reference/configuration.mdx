@@ -37,8 +37,8 @@ onboarding:
 
     # CA Pins used to validate the identity of the Teleport Auth Server on first connect.
     ca_pins:
-        - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-        - "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        - "(=presets.ca_pin=)"
+        - "(=presets.ca_pin=)"
 
 # Storage defines where Machine ID internal data is stored.
 storage:
@@ -128,7 +128,7 @@ entirely on provided CLI flags. Given the following sample CLI from
 $ tbot start \
    --destination-dir=./tbot-user \
    --token=00000000000000000000000000000000 \
-   --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+   --ca-pin=(=presets.ca_pin=) \
    --auth-server=auth.example.com:3025
 ```
 
@@ -139,9 +139,9 @@ auth_server: auth.example.com:3025
 
 onboarding:
     join_method: "token"
-    token: "00000000000000000000000000000000"
+    token: "(=presets.tokens.first=)"
     ca_pins:
-        - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        - "(=presets.ca_pin=)"
 
 storage:
     directory: /var/lib/teleport/bot
