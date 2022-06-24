@@ -682,12 +682,16 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
+.c12[disabled] {
+  cursor: default;
+}
+
 .c15 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
   background: #222C59;
-  cursor: pointer;
+  cursor: inherit;
   flex-shrink: 0;
 }
 
@@ -705,7 +709,7 @@ exports[`failed 1`] = `
 .c13 {
   opacity: 0;
   position: absolute;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 .c13:checked + .c14 {
@@ -714,6 +718,14 @@ exports[`failed 1`] = `
 
 .c13:checked + .c14:before {
   transform: translate(16px,-50%);
+}
+
+.c13:disabled + .c14 {
+  background: #222C59;
+}
+
+.c13:disabled + .c14:before {
+  background: #455a64;
 }
 
 .c11 {
@@ -1649,12 +1661,16 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
+.c15[disabled] {
+  cursor: default;
+}
+
 .c18 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
   background: #222C59;
-  cursor: pointer;
+  cursor: inherit;
   flex-shrink: 0;
 }
 
@@ -1672,7 +1688,7 @@ exports[`loaded 1`] = `
 .c16 {
   opacity: 0;
   position: absolute;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 .c16:checked + .c17 {
@@ -1681,6 +1697,14 @@ exports[`loaded 1`] = `
 
 .c16:checked + .c17:before {
   transform: translate(16px,-50%);
+}
+
+.c16:disabled + .c17 {
+  background: #222C59;
+}
+
+.c16:disabled + .c17:before {
+  background: #455a64;
 }
 
 .c14 {

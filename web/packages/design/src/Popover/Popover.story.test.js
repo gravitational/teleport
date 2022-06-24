@@ -21,7 +21,7 @@ import { render, fireEvent } from 'design/utils/testing';
 test('onClick popovers renders', () => {
   const { getByTestId, getByText, queryByTestId } = render(<Sample />);
 
-  fireEvent.click(getByText(/left/i));
+  fireEvent.click(getByText('Left'));
   expect(getByTestId('content')).toBeInTheDocument();
   fireEvent.click(getByTestId('backdrop'));
   expect(queryByTestId('content')).not.toBeInTheDocument();

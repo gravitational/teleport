@@ -18,9 +18,14 @@ import { FileStorage } from 'teleterm/types';
 import { ConnectionTrackerState } from 'teleterm/ui/services/connectionTracker';
 import { WorkspacesState } from 'teleterm/ui/services/workspacesService';
 
+interface ShareFeedbackState {
+  hasBeenOpened: boolean;
+}
+
 interface StatePersistenceState {
   connectionTracker: ConnectionTrackerState;
   workspacesState: WorkspacesState;
+  shareFeedback: ShareFeedbackState;
 }
 
 export class StatePersistenceService {
@@ -50,6 +55,18 @@ export class StatePersistenceService {
     return this.getState().workspacesState;
   }
 
+  saveShareFeedbackState(shareFeedback: ShareFeedbackState): void {
+    const newState: StatePersistenceState = {
+      ...this.getState(),
+      shareFeedback,
+    };
+    this.putState(newState);
+  }
+
+  getShareFeedbackState(): ShareFeedbackState {
+    return this.getState().shareFeedback;
+  }
+
   private getState(): StatePersistenceState {
     const defaultState: StatePersistenceState = {
       connectionTracker: {
@@ -58,8 +75,11 @@ export class StatePersistenceService {
       workspacesState: {
         workspaces: {},
       },
+      shareFeedback: {
+        hasBeenOpened: false,
+      },
     };
-    return this._fileStorage.get('state') || defaultState;
+    return { ...defaultState, ...this._fileStorage.get('state') };
   }
 
   private putState(state: StatePersistenceState): void {

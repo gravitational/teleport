@@ -1,9 +1,21 @@
 import React from 'react';
 import { fireEvent, render } from 'design/utils/testing';
-import { ShareFeedback } from './ShareFeedback';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { Cluster } from 'teleterm/services/tshd/v1/cluster_pb';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { ShareFeedback } from './ShareFeedback';
+import { IAppContext } from 'teleterm/ui/types';
+
+function renderOpenedShareFeedback(appContext: IAppContext) {
+  const rendered = render(
+    <MockAppContextProvider appContext={appContext}>
+      <ShareFeedback />
+    </MockAppContextProvider>
+  );
+
+  fireEvent.click(rendered.getByTitle('Share feedback'));
+  return rendered;
+}
 
 test('email field is not prefilled with the username if is not an email', () => {
   const appContext = new MockAppContext();
@@ -20,11 +32,7 @@ test('email field is not prefilled with the username if is not an email', () => 
     .spyOn(appContext.workspacesService, 'getRootClusterUri')
     .mockReturnValue(clusterUri);
 
-  const { getByLabelText } = render(
-    <MockAppContextProvider appContext={appContext}>
-      <ShareFeedback onClose={undefined} />
-    </MockAppContextProvider>
-  );
+  const { getByLabelText } = renderOpenedShareFeedback(appContext);
 
   expect(appContext.clustersService.findCluster).toHaveBeenCalledWith(
     clusterUri
@@ -49,11 +57,7 @@ test('email field is prefilled with the username if it looks like an email', () 
     .spyOn(appContext.workspacesService, 'getRootClusterUri')
     .mockReturnValue(clusterUri);
 
-  const { getByLabelText } = render(
-    <MockAppContextProvider appContext={appContext}>
-      <ShareFeedback onClose={undefined} />
-    </MockAppContextProvider>
-  );
+  const { getByLabelText } = renderOpenedShareFeedback(appContext);
 
   expect(appContext.clustersService.findCluster).toHaveBeenCalledWith(
     clusterUri
@@ -61,17 +65,12 @@ test('email field is prefilled with the username if it looks like an email', () 
   expect(getByLabelText('Email Address')).toHaveValue('bob@prod.com');
 });
 
-test('onClose is called when close button is clicked', () => {
+test('element is hidden after clicking close button', () => {
   const appContext = new MockAppContext();
-  const handleClose = jest.fn();
 
-  const { getByTitle } = render(
-    <MockAppContextProvider appContext={appContext}>
-      <ShareFeedback onClose={handleClose} />
-    </MockAppContextProvider>
-  );
+  const { getByTitle, queryByTestId } = renderOpenedShareFeedback(appContext);
 
   fireEvent.click(getByTitle('Close'));
 
-  expect(handleClose).toHaveBeenCalledTimes(1);
+  expect(queryByTestId('share-feedback-container')).not.toBeInTheDocument();
 });
