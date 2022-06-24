@@ -522,7 +522,8 @@ type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) (ok bool, err error
 type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 
 // runPrompt defines the prompt operations necessary for runOnFIDO2Devices.
-type runPrompt LoginPrompt
+// (RegisterPrompt happens to match the minimal interface required.)
+type runPrompt RegisterPrompt
 
 func runOnFIDO2Devices(
 	ctx context.Context,
