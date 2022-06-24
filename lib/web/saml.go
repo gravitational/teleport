@@ -100,7 +100,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		if isRoleMatchError(err) {
+		if auth.IsSAMLNoRolesError(err) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 

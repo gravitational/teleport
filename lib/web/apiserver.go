@@ -1147,7 +1147,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		if isRoleMatchError(err) {
+		if auth.IsGithubNoTeamsError(err) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
@@ -1252,7 +1252,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
-		if isRoleMatchError(err) {
+		if auth.IsOIDCNoRolesError(err) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
@@ -2893,10 +2893,4 @@ func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 	response.clientRedirectURL = parsedURL.RequestURI()
 
 	return nil
-}
-
-// isRoleMatchError checks if an error is the result of a failed role match during
-// SSO authorization.
-func isRoleMatchError(err error) bool {
-	return auth.IsSAMLNoRolesError(err) || auth.IsOIDCNoRolesError(err) || auth.IsGithubNoTeamsError(err)
 }

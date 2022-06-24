@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -49,7 +50,7 @@ const (
 
 // IsOIDCNoRolesError checks if an error results from a failure to map roles from claims.
 func IsOIDCNoRolesError(err error) bool {
-	return trace.IsAccessDenied(err) && err.Error() == oidcNoRolesErrorMessage
+	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), oidcNoRolesErrorMessage)
 }
 
 // getOIDCConnectorAndClient returns the associated oidc connector

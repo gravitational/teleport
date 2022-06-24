@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,7 +47,7 @@ const (
 
 // IsSAMLNoRolesError checks if an error results from a failure to map roles from claims.
 func IsSAMLNoRolesError(err error) bool {
-	return trace.IsAccessDenied(err) && err.Error() == samlNoRolesErrorMessage
+	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), samlNoRolesErrorMessage)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
