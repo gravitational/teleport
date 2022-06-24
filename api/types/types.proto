@@ -298,6 +298,9 @@ message AWS {
     // SecretStore contains secret store configurations.
     SecretStore SecretStore = 6
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "secret_store,omitempty" ];
+    // MemoryDB contains AWS MemoryDB specific metadata.
+    MemoryDB MemoryDB = 7
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "memorydb,omitempty" ];
 }
 
 // SecretStore contains secret store configurations.
@@ -335,6 +338,18 @@ message ElastiCache {
     // TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled.
     bool TransitEncryptionEnabled = 3
         [ (gogoproto.jsontag) = "transit_encryption_enabled,omitempty" ];
+    // EndpointType is the type of the endpoint.
+    string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
+}
+
+// MemoryDB contains AWS MemoryDB specific metadata.
+message MemoryDB {
+    // ClusterName is the name of the MemoryDB cluster.
+    string ClusterName = 1 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    // ACLName is the name of the ACL associated with the cluster.
+    string ACLName = 2 [ (gogoproto.jsontag) = "acl_name,omitempty" ];
+    // TLSEnabled indicates whether in-transit encryption (TLS) is enabled.
+    bool TLSEnabled = 3 [ (gogoproto.jsontag) = "tls_enabled,omitempty" ];
     // EndpointType is the type of the endpoint.
     string EndpointType = 4 [ (gogoproto.jsontag) = "endpoint_type,omitempty" ];
 }
@@ -916,6 +931,19 @@ message ClusterAuditConfigSpecV2 {
         (gogoproto.casttype) = "Duration",
         (gogoproto.nullable) = true
     ];
+
+    // FIPSEndpointState represents an AWS FIPS endpoint state.
+    enum FIPSEndpointState {
+        // FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
+        // environment variables
+        FIPS_UNSET = 0;
+        // FIPS_ENABLED explicitly enables FIPS support for AWS S3/Dynamo
+        FIPS_ENABLED = 1;
+        // FIPS_DISABLED explicitly disables FIPS support for AWS S3/Dynamo
+        FIPS_DISABLED = 2;
+    }
+    // UseFIPSEndpoint configures AWS endpoints to use FIPS.
+    FIPSEndpointState UseFIPSEndpoint = 15 [ (gogoproto.jsontag) = "use_fips_endpoint,omitempty" ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
@@ -1445,6 +1473,10 @@ message AccessRequestSpecV3 {
     // LoginHint is used as a hint for search-based access requests to select
     // roles based on the login the user is attempting.
     string LoginHint = 15 [ (gogoproto.jsontag) = "login_hint,omitempty" ];
+
+    // DryRun indicates that the request should not actually be created, the
+    // auth server should only validate the access request.
+    bool DryRun = 16 [ (gogoproto.jsontag) = "dry_run,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2697,7 +2729,7 @@ message OIDCAuthRequest {
     bytes PublicKey = 7 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get
-    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CreateWebSession indicates if user wants to generate a web
     // session after successful authentication
@@ -2809,7 +2841,7 @@ message SAMLAuthRequest {
     bytes PublicKey = 6 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get.
-    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CSRFToken is associated with user web session token.
     string CSRFToken = 8 [ (gogoproto.jsontag) = "csrf_token" ];
@@ -2911,7 +2943,7 @@ message GithubAuthRequest {
     // PublicKey is an optional public key to sign in case of successful auth.
     bytes PublicKey = 5 [ (gogoproto.jsontag) = "public_key" ];
     // CertTTL is TTL of the cert that's generated in case of successful auth.
-    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
     // CreateWebSession indicates that a user wants to generate a web session
     // after successful authentication.
     bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
@@ -3067,8 +3099,12 @@ message SSODiagnosticInfo {
     repeated TeamMapping GithubTeamsToLogins = 31
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_logins,omitempty" ];
 
+    // GithubTeamsToRoles is TeamRolesMapping mapping from Github connector used in the SSO flow.
+    repeated TeamRolesMapping GithubTeamsToRoles = 32
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "github_teams_to_roles,omitempty" ];
+
     // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
-    GithubTokenInfo GithubTokenInfo = 32 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
+    GithubTokenInfo GithubTokenInfo = 33 [ (gogoproto.jsontag) = "github_token_info,omitempty" ];
 }
 
 // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.

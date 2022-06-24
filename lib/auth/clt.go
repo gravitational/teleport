@@ -464,26 +464,6 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateToken creates a special provisioning token for a new SSH server
-// that is valid for ttl period seconds.
-//
-// This token is used by SSH server to authenticate with Auth server
-// and get signed certificate and private key from the auth server.
-//
-// If token is not supplied, it will be auto generated and returned.
-// If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -501,14 +481,6 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	return &certs, nil
-}
-
-// RegisterNewAuthServer is used to register new auth server with token
-func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
-		Token: token,
-	})
-	return trace.Wrap(err)
 }
 
 // DELETE IN: 5.1.0
@@ -1573,7 +1545,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
@@ -1680,9 +1652,6 @@ type ProvisioningService interface {
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
-
-	// RegisterNewAuthServer is used to register new auth server with token
-	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service
@@ -1784,4 +1753,10 @@ type ClientI interface {
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
+
+	// GetInventoryStatus gets basic status info about instance inventory.
+	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+
+	// PingInventory attempts to trigger a downstream ping against a connected instance.
+	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
 }

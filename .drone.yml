@@ -37,7 +37,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -140,7 +140,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -243,7 +243,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -350,7 +350,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -633,7 +633,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -736,7 +736,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -1097,7 +1097,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1254,7 +1254,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1410,7 +1410,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1564,7 +1564,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -2408,7 +2408,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -3526,7 +3526,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -3680,7 +3680,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -4530,7 +4530,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -4585,7 +4585,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx
-  - make -C build.assets release-amd64
+  - make -C build.assets release-windows
   - rm -f windows-signing-cert.pfx
   environment:
     ARCH: amd64
@@ -4682,7 +4682,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  BUILDBOX_VERSION: "teleport10"
+  BUILDBOX_VERSION: "teleport11"
   RUNTIME: go1.17.9
 
 trigger:
@@ -5007,7 +5007,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   UID: "1000"
 trigger:
@@ -5102,7 +5102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:145
+# Generated at dronegen/misc.go:149
 ################################################
 
 kind: pipeline
@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:169
+# Generated at dronegen/misc.go:173
 ################################################
 
 kind: pipeline
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 5acd82e991fc974378ec84b0265df412875f0c349000a6c92720b39287639ac8
+hmac: 36cb56689a9f2dc75b3adeb626cb64db2d728dd2c1060bc86d34401ad28e6e8f
 
 ...

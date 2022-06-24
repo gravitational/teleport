@@ -198,6 +198,23 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		Sudoers: []string{"invalid"},
 	})
 	require.Error(t, err)
+
+	t.Run("no teleport-service group", func(t *testing.T) {
+		backend := newTestUserMgmt()
+		users := HostUserManagement{
+			backend: backend,
+			storage: pres,
+		}
+		// test user already exists but teleport-service group has not yet
+		// been created
+		backend.CreateUser("testuser", nil)
+		_, _, err := users.CreateUser("testuser", &services.HostUsersInfo{})
+		require.True(t, trace.IsAlreadyExists(err))
+		backend.CreateGroup(types.TeleportServiceGroup)
+		// IsAlreadyExists error when teleport-service group now exists
+		_, _, err = users.CreateUser("testuser", &services.HostUsersInfo{})
+		require.True(t, trace.IsAlreadyExists(err))
+	})
 }
 
 func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
@@ -241,4 +258,11 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, remainingUsers, resultingUsers)
+
+	users = HostUserManagement{
+		backend: newTestUserMgmt(),
+		storage: pres,
+	}
+	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
+	require.NoError(t, users.DeleteAllUsers())
 }

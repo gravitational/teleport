@@ -91,6 +91,8 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
 	}
+
+	modules.SetModules(&cliModules{})
 }
 
 func TestMain(m *testing.M) {
@@ -118,6 +120,7 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
+		ResourceAccessRequests:  true,
 	}
 }
 
@@ -157,8 +160,6 @@ func TestFailedLogin(t *testing.T) {
 
 func TestOIDCLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
-
-	modules.SetModules(&cliModules{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -563,13 +564,13 @@ func TestSSHAccessRequest(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 	traits := map[string][]string{
-		teleport.TraitLogins: []string{user.Username},
+		teleport.TraitLogins: {user.Username},
 	}
 	alice.SetTraits(traits)
 
 	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, nodeAccessRole, connector, alice))
 
-	authAddr, err := rootAuth.AuthSSHAddr()
+	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
@@ -615,11 +616,22 @@ func TestSSHAccessRequest(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// won't request access unless possible
+	// won't request if can't list node
 	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// won't request if can't login with username
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", "not-a-username", sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
@@ -1670,7 +1682,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, err)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
@@ -1698,7 +1710,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		t.Fatal("auth server didn't start after 30s")
 	}
 
-	authAddr, err := auth.AuthSSHAddr()
+	authAddr, err := auth.AuthAddr()
 	require.NoError(t, err)
 
 	// Set up a test proxy service.
@@ -1916,7 +1928,8 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         },
         "elasticache": {},
-        "secret_store": {}
+        "secret_store": {},
+        "memorydb": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1938,7 +1951,8 @@ func TestSerializeDatabases(t *testing.T) {
           "iam_auth": false
         },
         "elasticache": {},
-        "secret_store": {}
+        "secret_store": {},
+        "memorydb": {}
       }
     }
   }]
