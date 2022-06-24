@@ -127,6 +127,9 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	if kind.Kind != e.Resource.GetKind() {
 		return false, nil
 	}
+	if kind.SubKind != "" && kind.SubKind != e.Resource.GetSubKind() {
+		return false, nil
+	}
 	if kind.Name != "" && kind.Name != e.Resource.GetName() {
 		return false, nil
 	}
