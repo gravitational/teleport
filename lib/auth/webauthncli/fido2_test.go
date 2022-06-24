@@ -106,7 +106,16 @@ var (
 	}
 )
 
-type noopPrompt struct{}
+// simplePicker is a credential picker that always picks the first credential.
+type simplePicker struct{}
+
+func (p simplePicker) PromptCredential(creds []*wancli.Credential) (*wancli.Credential, error) {
+	return creds[0], nil
+}
+
+type noopPrompt struct {
+	simplePicker
+}
 
 func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
@@ -116,6 +125,8 @@ func (p noopPrompt) PromptTouch() {}
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
+	simplePicker
+
 	pin    string
 	cancel context.CancelFunc
 }
@@ -1434,6 +1445,8 @@ func (f *fakeFIDO2) NewDevice(path string) (wancli.FIDODevice, error) {
 }
 
 type fakeFIDO2Device struct {
+	simplePicker
+
 	path        string
 	info        *libfido2.DeviceInfo
 	pin         string
