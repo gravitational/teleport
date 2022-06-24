@@ -249,8 +249,8 @@ Kubernetes Secret storage will be a transparent backend storage that can be plug
 // it helps to manage rotation for certificate authorities
 // and keeps local process credentials - x509 and SSH certs and keys.
 type ProcessStorage struct {
-	identityStorage IdentityBackend
-  Backend backend.Backend
+    identityStorage IdentityBackend
+    Backend backend.Backend
 }
 
 // IdentityBackend implements abstraction over local or remote storage backend methods
@@ -483,11 +483,11 @@ Change storage comments
 + To avoid any system disruption, the chart kept both versions running and requires a
 + manual deletion of the Deployment object.
 +
-+ Wait a few seconds until the Statefulset Pods are ready:
++ Wait a few seconds until the Statefulset Pods are ready. You can use the following command:
 +
 +$ kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m
 +
-+Finally, delete the deployment with:
++Finally, delete the deployment with the following command:
 +$ kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }
 +
 ++{{- end}}
@@ -525,13 +525,13 @@ but the upgrade process reconfigured the Agent as a Statefulset.
 To avoid any system disruption, the chart kept both versions running and requires a
 manual deletion of the Deployment object.
 
-Wait a few seconds until the Statefulset Pods are ready:
+Wait a few seconds until the Statefulset Pods are ready. You can use the following command:
 
 $ kubectl wait --for=condition=available \
   statefulset/teleport-agent \
   -n teleport-agent --timeout=10m
 
-Finally, delete the deployment with:
+Finally, delete the deployment with the following command:
 $ kubectl delete deployment/teleport-agent -n teleport-agent
 
 
@@ -541,7 +541,7 @@ https://goteleport.com/docs
 
 ## Security
 
-The change with the highest security impact is that the Teleport agent Service account will have access to any secrets in the namespace. If the SA token is stolen or a hijack happens in the Teleport agent, the attacker can use the SA token to read any secrets in that namespace. We recommend that Teleport is installed in a separate namespace to minimize this risk.
+The change with the greatest impact is that the agent's service account has read and write permissions for any existing secret in the namespace where it was installed. If the SA token is stolen or a hijack happens in the Teleport agent, the attacker can use it to read any secrets in that namespace. We recommend that Teleport is installed in a separate namespace to minimize this risk.
 
 This issue happens because, currently, Kubernetes does not allow the specification of `resourceNames` in RBAC roles with [wildcards][wildcards]. If supported in the future, we can limit the read/list/update actions when handling secrets for the Teleport Service account. Otherwise, another possible solution might be to keep the identity stored in a single Secret instead of a secret per pod, allowing read and write operations only for that secret.
 
