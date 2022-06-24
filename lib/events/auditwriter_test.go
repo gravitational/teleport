@@ -34,11 +34,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/goleak"
 )
 
 // TestAuditWriter tests audit writer - a component used for
 // session recording
 func TestAuditWriter(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	// Session tests emission of multiple session events
 	t.Run("Session", func(t *testing.T) {
 		test := newAuditWriterTest(t, nil)
@@ -316,6 +319,9 @@ func TestAuditWriter(t *testing.T) {
 				return false
 			}
 		}, 300*time.Millisecond, 100*time.Millisecond)
+
+		// close the writer to terminate any background goroutines
+		require.NoError(t, test.writer.Close(context.Background()))
 	})
 }
 

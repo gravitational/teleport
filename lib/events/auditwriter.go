@@ -404,6 +404,10 @@ func (a *AuditWriter) Close(ctx context.Context) error {
 	if stats.SlowWrites != 0 {
 		a.log.Debugf("Session has encountered %v slow writes out of %v. Check disk and network on this server.", stats.SlowWrites, stats.AcceptedEvents)
 	}
+	if err := a.stream.Complete(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
