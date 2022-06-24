@@ -4947,9 +4947,8 @@ type mockCurrentUserRoleGetter struct {
 func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
 	if m.currentUser != nil {
 		return m.currentUser, nil
-	} else {
-		return nil, trace.NotFound("currentUser not set")
 	}
+	return nil, trace.NotFound("currentUser not set")
 }
 
 func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
