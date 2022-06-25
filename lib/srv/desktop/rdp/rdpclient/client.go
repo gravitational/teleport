@@ -404,11 +404,11 @@ func (c *Client) start() {
 					defer C.free(unsafe.Pointer(path))
 					if errCode := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      C.uint32_t(m.ErrCode),
+						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
-							file_type:     C.uint32_t(m.Fso.FileType),
+							file_type:     m.Fso.FileType,
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {
@@ -420,7 +420,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      C.uint32_t(m.ErrCode),
+						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
 						return
@@ -430,7 +430,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
-						err_code:      C.uint32_t(m.ErrCode),
+						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
 						return
@@ -509,7 +509,6 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 	})
 }
 
-// sharedDirectoryAcknowledge acknowledges that a `Shared Directory Announce` TDP message was processed.
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(ack); err != nil {

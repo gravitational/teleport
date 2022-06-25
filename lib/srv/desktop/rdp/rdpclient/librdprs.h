@@ -52,6 +52,30 @@ typedef enum CGOPointerWheel {
   PointerWheelHorizontal,
 } CGOPointerWheel;
 
+typedef enum FileType {
+  File = 0,
+  Directory = 1,
+} FileType;
+
+typedef enum TdpErrCode {
+  /**
+   * nil (no error, operation succeeded)
+   */
+  Nil = 0,
+  /**
+   * operation failed
+   */
+  Failed = 1,
+  /**
+   * resource does not exist
+   */
+  DoesNotExist = 2,
+  /**
+   * resource already exists
+   */
+  AlreadyExists = 3,
+} TdpErrCode;
+
 /**
  * Client has an unusual lifecycle:
  * - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
@@ -82,13 +106,13 @@ typedef struct CGOSharedDirectoryAnnounce {
 typedef struct CGOFileSystemObject {
   uint64_t last_modified;
   uint64_t size;
-  uint32_t file_type;
+  enum FileType file_type;
   const char *path;
 } CGOFileSystemObject;
 
 typedef struct CGOSharedDirectoryInfoResponse {
   uint32_t completion_id;
-  uint32_t err_code;
+  enum TdpErrCode err_code;
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
@@ -98,7 +122,7 @@ typedef struct CGOSharedDirectoryInfoResponse {
  */
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
-  uint32_t err_code;
+  enum TdpErrCode err_code;
 } SharedDirectoryCreateResponse;
 
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryCreateResponse;
@@ -149,7 +173,7 @@ typedef struct CGOBitmap {
  * to acknowledge that a SharedDirectoryAnnounce was received.
  */
 typedef struct SharedDirectoryAcknowledge {
-  uint32_t err_code;
+  enum TdpErrCode err_code;
   uint32_t directory_id;
 } SharedDirectoryAcknowledge;
 
@@ -164,7 +188,7 @@ typedef struct CGOSharedDirectoryInfoRequest {
 typedef struct CGOSharedDirectoryCreateRequest {
   uint32_t completion_id;
   uint32_t directory_id;
-  uint32_t file_type;
+  enum FileType file_type;
   const char *path;
 } CGOSharedDirectoryCreateRequest;
 
