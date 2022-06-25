@@ -991,7 +991,7 @@ pub struct CGOSharedDirectoryAnnounce {
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryAcknowledge {
-    pub err_code: u32,
+    pub err_code: TdpErrCode,
     pub directory_id: u32,
 }
 
@@ -1029,14 +1029,14 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 #[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
-    err_code: u32,
+    err_code: TdpErrCode,
     fso: FileSystemObject,
 }
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
-    pub err_code: u32,
+    pub err_code: TdpErrCode,
     pub fso: CGOFileSystemObject,
 }
 
@@ -1057,7 +1057,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
 pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
-    file_type: u32, // TODO(isaiah): make an enum
+    file_type: FileType,
     path: String,
 }
 
@@ -1065,7 +1065,7 @@ pub struct FileSystemObject {
 pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
-    pub file_type: u32, // TODO(isaiah): make an enum
+    pub file_type: FileType,
     pub path: *const c_char,
 }
 
@@ -1082,13 +1082,33 @@ impl From<CGOFileSystemObject> for FileSystemObject {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum FileType {
+    File = 0,
+    Directory = 1,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum TdpErrCode {
+    /// nil (no error, operation succeeded)
+    Nil = 0,
+    /// operation failed
+    Failed = 1,
+    /// resource does not exist
+    DoesNotExist = 2,
+    /// resource already exists
+    AlreadyExists = 3,
+}
+
 /// SharedDirectoryCreateRequest is sent by the TDP server to
 /// the client to request the creation of a new file or directory.
 #[derive(Debug)]
 pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
     directory_id: u32,
-    file_type: u32,
+    file_type: FileType,
     path: String,
 }
 
@@ -1096,7 +1116,7 @@ pub struct SharedDirectoryCreateRequest {
 pub struct CGOSharedDirectoryCreateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
-    pub file_type: u32,
+    pub file_type: FileType,
     pub path: *const c_char,
 }
 
@@ -1106,7 +1126,7 @@ pub struct CGOSharedDirectoryCreateRequest {
 #[repr(C)]
 pub struct SharedDirectoryCreateResponse {
     pub completion_id: u32,
-    pub err_code: u32,
+    pub err_code: TdpErrCode,
 }
 
 type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
