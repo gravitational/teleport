@@ -580,7 +580,7 @@ func (p *pack) appServersHA(t *testing.T) {
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 			info := test.packInfo(p)
 			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
 			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
