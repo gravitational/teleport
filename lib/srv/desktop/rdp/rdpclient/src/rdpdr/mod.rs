@@ -492,11 +492,13 @@ impl Client {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
         let rdp_req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
-        if let Some(file) = self.get_file_by_id(rdp_req.device_io_request.file_id) {
-            self.prep_query_info_response(&rdp_req, Some(file), NTSTATUS::STATUS_SUCCESS)
+        let f = self.get_file_by_id(rdp_req.device_io_request.file_id);
+        let code = if f.is_some() {
+            NTSTATUS::STATUS_SUCCESS
         } else {
-            self.prep_query_info_response(&rdp_req, None, NTSTATUS::STATUS_UNSUCCESSFUL)
-        }
+            NTSTATUS::STATUS_UNSUCCESSFUL
+        };
+        self.prep_query_info_response(&rdp_req, f, code)
     }
 
     fn process_irp_close(&mut self, device_io_request: DeviceIoRequest) -> RdpResult<Vec<Vec<u8>>> {
