@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,7 +44,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var OIDCNoRolesError = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+var oidcNoRolesError = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+
+// IsOIDCNoRolesError checks if an error results from not mapping any roles from claims.
+func IsOIDCNoRolesError(err error) bool {
+	return errors.Is(err, oidcNoRolesError)
+}
 
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
@@ -614,7 +620,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.Wrap(OIDCNoRolesError)
+		return nil, trace.Wrap(oidcNoRolesError)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

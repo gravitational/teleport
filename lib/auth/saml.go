@@ -21,6 +21,7 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 
@@ -40,7 +41,12 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
-var SAMLNoRolesError = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+var samlNoRolesError = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+
+// IsSAMLNoRolesError checks if an error results from not mapping any roles from claims.
+func IsSAMLNoRolesError(err error) bool {
+	return errors.Is(err, samlNoRolesError)
+}
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
@@ -214,7 +220,7 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.Wrap(SAMLNoRolesError)
+		return nil, trace.Wrap(samlNoRolesError)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

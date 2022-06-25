@@ -210,7 +210,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			err: OIDCNoRolesError,
+			err: oidcNoRolesError,
 		},
 	}
 
