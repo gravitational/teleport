@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"go/build"
 	"net"
 	"net/url"
 	"os"
@@ -2661,3 +2662,61 @@ func TestExportingTraces(t *testing.T) {
 		})
 	}
 }
+
+func TestTSHImports(t *testing.T) {
+	finder := newImportFinder()
+
+	t.Run("Must not import bpf", func(t *testing.T) {
+		importPaths, err := finder.findImport("../../lib/bpf", ".")
+		require.NoError(t, err)
+		require.Emptyf(t, importPaths, "import paths found: %v", strings.Join(importPaths, " -> "))
+	})
+}
+
+type importFinder struct {
+	cache map[string]*build.Package
+}
+
+func newImportFinder() *importFinder {
+	return &importFinder{
+		cache: make(map[string]*build.Package),
+	}
+}
+
+func (f *importFinder) findImport(wantedPkgPath, checkPkgPath string) (importPaths []string, err error) {
+	// Base case.
+	if wantedPkgPath == checkPkgPath {
+		return []string{wantedPkgPath}, nil
+	}
+
+	// Get import info from go build.
+	checkPkg, found := f.cache[checkPkgPath]
+	if !found {
+		checkPkg, err = build.ImportDir(checkPkgPath, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		f.cache[checkPkgPath] = checkPkg
+	}
+
+	// Recursively check teleport lib packages.
+	for _, childImport := range checkPkg.Imports {
+		if strings.HasPrefix(childImport, teleportLibPath) {
+			childImportPath := strings.ReplaceAll(childImport, teleportLibPath, "../../lib/")
+			importPaths, err := f.findImport(wantedPkgPath, childImportPath)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Import paths found from child. Add parent to the front.
+			if len(importPaths) > 0 {
+				return append([]string{checkPkgPath}, importPaths...), nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+const (
+	teleportLibPath = "github.com/gravitational/teleport/lib/"
+)
