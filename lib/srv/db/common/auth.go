@@ -65,6 +65,7 @@ type Auth interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
+	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 }
 
 // AuthConfig is the database access authenticator configuration.
@@ -507,6 +508,10 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
+}
+
+func (a *dbAuth) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+	return a.cfg.AuthClient.GenerateWindowsDesktopCert(ctx, req)
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification

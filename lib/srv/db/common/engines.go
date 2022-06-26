@@ -81,6 +81,9 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+
+	ClusterName string
+	Domain      string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

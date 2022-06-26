@@ -40,7 +40,8 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
-			Auth: ec.Auth,
+			Auth:        ec.Auth,
+			ClusterName: ec.ClusterName,
 		},
 	}
 }

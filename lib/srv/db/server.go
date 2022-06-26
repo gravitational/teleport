@@ -240,7 +240,8 @@ type Server struct {
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
 	// log is used for logging.
-	log *logrus.Entry
+	log         *logrus.Entry
+	ClusterName string
 }
 
 // monitoredDatabases is a collection of databases from different sources
@@ -837,6 +838,8 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
+		ClusterName:  sessionCtx.ClusterName,
+		Domain:       sessionCtx.Database.GetAD().Domain,
 	})
 }
 

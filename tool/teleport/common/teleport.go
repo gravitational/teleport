@@ -17,7 +17,10 @@ limitations under the License.
 package common
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -25,6 +28,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
+	"time"
+
+	"github.com/jcmturner/gokrb5/v8/client"
+	krbconfig "github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/keytab"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
@@ -272,6 +282,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
 
+	dbConfigureKeytab := dbConfigure.Command("keytab", "Bootstrap for Keytab based on database configuration.")
+	dbConfigureKeytab.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&configureDatabaseBootstrapFlags.config.ConfigPath)
+
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
 	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpFlags.Sink)
@@ -384,6 +397,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onConfigureDatabasesAWSPrint(configureDatabaseAWSPrintFlags)
 	case dbConfigureAWSCreateIAM.FullCommand():
 		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
+	case dbConfigureKeytab.FullCommand():
+		err = onConfigureDatabasesKeytab(configureDatabaseBootstrapFlags)
 	case dbConfigureBootstrap.FullCommand():
 		err = onConfigureDatabaseBootstrap(configureDatabaseBootstrapFlags)
 	}
@@ -391,6 +406,96 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		utils.FatalError(err)
 	}
 	return app, command, conf
+}
+
+type keytabTemplate struct {
+	Realm       string
+	KDC         string
+	AdminServer string
+}
+
+var krbConfigTemplate = template.Must(template.New("krbConfigTemplate").Parse(`
+[libdefaults]
+ default_realm = {{.Realm}}
+ rdns = false
+
+[realms]
+ {{.Realm}} = {
+  kdc = {{.KDC}}
+  admin_server = {{.AdminServer}}
+ }
+`))
+
+func onConfigureDatabasesKeytab(flags configureDatabaseBootstrapFlags) error {
+	fileConfig, err := config.ReadFromFile(flags.config.ConfigPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, db := range fileConfig.Databases.Databases {
+		ktEntries := keytab.New()
+		if db.Protocol != defaults.ProtocolSQLServer {
+			continue
+		}
+
+		ad := db.AD
+
+		values := keytabTemplate{
+			Realm:       strings.ToUpper(ad.Domain),
+			KDC:         strings.ToLower(ad.Domain),
+			AdminServer: strings.ToLower(ad.Domain),
+		}
+
+		var bb bytes.Buffer
+		if err := krbConfigTemplate.Execute(&bb, values); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := os.Stat(ad.Krb5File); errors.Is(err, os.ErrNotExist) {
+			if err := os.WriteFile(ad.Krb5File, bb.Bytes(), 0600); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		config, err := krbconfig.NewFromReader(&bb)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter Username: ")
+		username, _ := reader.ReadString('\n')
+		username = strings.TrimSuffix(username, "\n")
+
+		fmt.Println("Enter user AD password: ")
+		bytePassword, err := terminal.ReadPassword(0)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		password := string(bytePassword)
+
+		err = ktEntries.AddEntry(username, strings.ToUpper(ad.Domain), password, time.Now(), 3, 18)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		client := client.NewWithKeytab(
+			username,
+			strings.ToUpper(ad.Domain),
+			ktEntries,
+			config,
+			client.DisablePAFXFAST(true),
+		)
+		if err := client.Login(); err != nil {
+			return trace.Wrap(err)
+		}
+		var ktBuff bytes.Buffer
+		if _, err := ktEntries.Write(&ktBuff); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := os.WriteFile(ad.KeytabFile, ktBuff.Bytes(), 0600); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // OnStart is the handler for "start" CLI command
