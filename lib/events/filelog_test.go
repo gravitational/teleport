@@ -17,7 +17,9 @@ limitations under the License.
 package events
 
 import (
+	"bufio"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,4 +165,116 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Equal(t, result[0].GetID(), "a")
 	require.Equal(t, result[1].GetType(), WindowsDesktopSessionEndEvent)
 	require.Equal(t, result[1].GetID(), "c")
+}
+
+// TestLargeEvent test fileLog behavior in case of large events.
+// If an event is serializable the FileLog handler should trie to trim the event size.
+func TestLargeEvent(t *testing.T) {
+	type check func(t *testing.T, event []events.AuditEvent)
+
+	hasEventsLength := func(n int) check {
+		return func(t *testing.T, ee []events.AuditEvent) {
+			require.Equal(t, n, len(ee), "events length mismatch")
+		}
+	}
+	hasEventsIDs := func(ids ...string) check {
+		return func(t *testing.T, ee []events.AuditEvent) {
+			want := make([]string, 0, len(ee))
+			for _, v := range ee {
+				want = append(want, v.GetID())
+			}
+			require.Equal(t, want, ids)
+		}
+	}
+
+	tests := []struct {
+		name   string
+		in     []events.AuditEvent
+		checks []check
+	}{
+		{
+			name: "event should be trimmed",
+			in: []events.AuditEvent{
+				makeQueryEvent("1", "select 1"),
+				makeQueryEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
+				makeQueryEvent("3", "select 3"),
+			},
+			checks: []check{
+				hasEventsLength(3),
+				hasEventsIDs("1", "2", "3"),
+			},
+		},
+		{
+			name: "large event should not be emitted",
+			in: []events.AuditEvent{
+				makeQueryEvent("1", "select 1"),
+				makeAccessRequestEvent("2", strings.Repeat("A", bufio.MaxScanTokenSize)),
+				makeQueryEvent("3", "select 3"),
+				makeQueryEvent("4", "select 4"),
+			},
+			checks: []check{
+				hasEventsLength(3),
+				hasEventsIDs("1", "3", "4"),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			clock := clockwork.NewFakeClockAt(time.Now())
+
+			log, err := NewFileLog(FileLogConfig{
+				Dir:              t.TempDir(),
+				RotationPeriod:   time.Hour * 24,
+				Clock:            clock,
+				MaxScanTokenSize: bufio.MaxScanTokenSize,
+			})
+			require.NoError(t, err)
+			start := time.Now()
+			clock.Advance(1 * time.Minute)
+
+			for _, v := range tc.in {
+				v.SetTime(clock.Now().UTC())
+				log.EmitAuditEvent(ctx, v)
+			}
+			events := mustSearchEvent(t, log, start)
+			for _, ch := range tc.checks {
+				ch(t, events)
+			}
+		})
+	}
+}
+
+func makeQueryEvent(id string, query string) *events.DatabaseSessionQuery {
+	return &events.DatabaseSessionQuery{
+		Metadata: events.Metadata{
+			ID:   id,
+			Type: DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: query,
+	}
+}
+func makeAccessRequestEvent(id string, in string) *events.AccessRequestDelete {
+	return &events.AccessRequestDelete{
+		Metadata: events.Metadata{
+			ID:   id,
+			Type: DatabaseSessionQueryEvent,
+		},
+		RequestID: in,
+	}
+}
+
+func mustSearchEvent(t *testing.T, log *FileLog, start time.Time) []events.AuditEvent {
+	result, _, err := log.SearchEvents(
+		start,
+		start.Add(time.Hour),
+		"",
+		[]string{},
+		100,
+		types.EventOrderAscending,
+		"",
+	)
+	require.NoError(t, err)
+	return result
 }

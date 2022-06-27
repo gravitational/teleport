@@ -170,16 +170,13 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// tlsConfig can be nil and still no error is returned.
+	// This happens when no `certificate-authority-data` is provided in kubeconfig because one is expected to use
+	// the the system default CA pool.
 	tlsConfig, err := rest.TLSConfigFor(clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
-	}
-	if tlsConfig == nil {
-		cc := rest.AnonymousClientConfig(clientCfg)
-		if len(cc.CAData) != 0 {
-			cc.CAData = []byte("REDACTED")
-		}
-		return nil, trace.BadParameter("failed to generate TLS config from kubeConfig. clientConfig: %s", cc.String())
 	}
 	transportConfig, err := clientCfg.TransportConfig()
 	if err != nil {
