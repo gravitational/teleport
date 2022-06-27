@@ -32,11 +32,16 @@ type AssertionReplayService struct {
 	bk backend.Backend
 }
 
+// NewAssertionReplayService creates a new instance of AssertionReplayService.
+func NewAssertionReplayService(bk backend.Backend) *AssertionReplayService {
+	return &AssertionReplayService{bk: bk}
+}
+
 // Recognize a new assertion until it becomes invalid.
 // This will error with `trace.AlreadyExists` if the assertion has been previously recognized.
 func (s *AssertionReplayService) Recognize(ctx context.Context, assertionId string, user string, safeAfter time.Time) error {
 	key := backend.Key(assertionReplayPrefix, assertionId)
-	item := backend.Item{Key: key, Value: []byte(user), Expires: safeAfter.Add(time.Hour)}
+	item := backend.Item{Key: key, Value: []byte(user), Expires: safeAfter}
 	_, err := s.bk.Create(ctx, item)
 	switch {
 	case trace.IsAlreadyExists(err):
