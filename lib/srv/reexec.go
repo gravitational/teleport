@@ -521,7 +521,8 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand,
+			teleport.ParkSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}

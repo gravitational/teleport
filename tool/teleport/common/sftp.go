@@ -88,7 +88,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPOpenFailureCode
 			}
-			event.Action = events.SFTPOpen
+			event.Action = events.SFTPActionOpen
 			event.Path = p.Path
 			event.Flags = p.Pflags
 		case *sftp.ClosePacket:
@@ -97,7 +97,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPCloseFailureCode
 			}
-			event.Action = events.SFTPClose
+			event.Action = events.SFTPActionClose
 			event.Path = path
 		case *sftp.ReadPacket:
 			if opErr == nil {
@@ -105,7 +105,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPReadFailureCode
 			}
-			event.Action = events.SFTPRead
+			event.Action = events.SFTPActionRead
 			event.Path = path
 		case *sftp.WritePacket:
 			if opErr == nil {
@@ -113,7 +113,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPWriteFailureCode
 			}
-			event.Action = events.SFTPWrite
+			event.Action = events.SFTPActionWrite
 			event.Path = path
 		case *sftp.LstatPacket:
 			if opErr == nil {
@@ -121,7 +121,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPLstatFailureCode
 			}
-			event.Action = events.SFTPLstat
+			event.Action = events.SFTPActionLstat
 			event.Path = p.Path
 		case *sftp.FstatPacket:
 			if opErr == nil {
@@ -129,7 +129,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPFstatCode
 			}
-			event.Action = events.SFTPFstat
+			event.Action = events.SFTPActionFstat
 			event.Path = path
 		case *sftp.SetstatPacket:
 			if opErr == nil {
@@ -137,7 +137,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPSetstatFailureCode
 			}
-			event.Action = events.SFTPSetstat
+			event.Action = events.SFTPActionSetstat
 			event.Path = p.Path
 			event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
 		case *sftp.FsetstatPacket:
@@ -146,7 +146,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPFsetstatFailureCode
 			}
-			event.Action = events.SFTPFsetstat
+			event.Action = events.SFTPActionFsetstat
 			event.Path = path
 			event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
 		case *sftp.OpendirPacket:
@@ -155,7 +155,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPOpendirFailureCode
 			}
-			event.Action = events.SFTPOpendir
+			event.Action = events.SFTPActionOpendir
 			event.Path = p.Path
 		case *sftp.ReaddirPacket:
 			if opErr == nil {
@@ -163,7 +163,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPReaddirFailureCode
 			}
-			event.Action = events.SFTPReaddir
+			event.Action = events.SFTPActionReaddir
 			event.Path = path
 		case *sftp.RemovePacket:
 			if opErr == nil {
@@ -171,7 +171,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPRemoveFailureCode
 			}
-			event.Action = events.SFTPRemove
+			event.Action = events.SFTPActionRemove
 			event.Path = p.Filename
 		case *sftp.MkdirPacket:
 			if opErr == nil {
@@ -179,7 +179,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPMkdirFailureCode
 			}
-			event.Action = events.SFTPMkdir
+			event.Action = events.SFTPActionMkdir
 			event.Path = p.Path
 			event.Flags = p.Flags
 		case *sftp.RmdirPacket:
@@ -188,7 +188,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPRmdirFailureCode
 			}
-			event.Action = events.SFTPRmdir
+			event.Action = events.SFTPActionRmdir
 			event.Path = p.Path
 		case *sftp.RealpathPacket:
 			if opErr == nil {
@@ -196,7 +196,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPRealpathFailureCode
 			}
-			event.Action = events.SFTPRealpath
+			event.Action = events.SFTPActionRealpath
 			event.Path = p.Path
 		case *sftp.StatPacket:
 			if opErr == nil {
@@ -204,7 +204,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPStatCode
 			}
-			event.Action = events.SFTPStat
+			event.Action = events.SFTPActionStat
 			event.Path = p.Path
 		case *sftp.RenamePacket:
 			if opErr == nil {
@@ -212,7 +212,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPRenameFailureCode
 			}
-			event.Action = events.SFTPRename
+			event.Action = events.SFTPActionRename
 			event.Path = p.Oldpath
 			event.TargetPath = p.Newpath
 		case *sftp.ReadlinkPacket:
@@ -221,7 +221,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPReadlinkFailureCode
 			}
-			event.Action = events.SFTPReadlink
+			event.Action = events.SFTPActionReadlink
 			event.Path = p.Path
 		case *sftp.SymlinkPacket:
 			if opErr == nil {
@@ -229,7 +229,7 @@ func onSFTP() error {
 			} else {
 				event.Code = events.SFTPSymlinkFailureCode
 			}
-			event.Action = events.SFTPSymlink
+			event.Action = events.SFTPActionSymlink
 			event.Path = p.Targetpath
 			event.TargetPath = p.Linkpath
 		default:
@@ -249,13 +249,15 @@ func onSFTP() error {
 		serveErr = trace.Wrap(serveErr)
 	}
 
-	eventBytes, err := json.Marshal(sftpEvents)
-	if err != nil {
-		log.WithError(err).Warn("Failed to marshal SFTP events.")
-	} else {
-		_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
+	if len(sftpEvents) > 0 {
+		eventBytes, err := json.Marshal(sftpEvents)
 		if err != nil {
-			log.WithError(err).Warn("Failed to send SFTP events to parent.")
+			log.WithError(err).Warn("Failed to marshal SFTP events.")
+		} else {
+			_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
+			if err != nil {
+				log.WithError(err).Warn("Failed to send SFTP events to parent.")
+			}
 		}
 	}
 

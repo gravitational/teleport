@@ -722,6 +722,10 @@ const (
 	// specific UID to prevent the matching user from being deleted before
 	// spawning the intended child process.
 	ParkSubCommand = "park"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
 )
 
 const (
