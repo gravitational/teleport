@@ -67,6 +67,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		dbcmd.WithLogger(gateway.Log),
 		dbcmd.WithLocalProxy(gateway.LocalAddress, gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
+		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(d.execer),
 	).GetConnectCommandNoAbsPath()
