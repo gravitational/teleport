@@ -3279,6 +3279,7 @@ type profileInfo struct {
 	Databases          []string           `json:"databases,omitempty"`
 	ValidUntil         time.Time          `json:"valid_until"`
 	Extensions         []string           `json:"extensions,omitempty"`
+	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
 	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
 }
 
@@ -3310,6 +3311,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Databases:          p.DatabaseServices(),
 		ValidUntil:         p.ValidUntil,
 		Extensions:         p.Extensions,
+		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
 
@@ -3368,7 +3370,6 @@ func (p *profileInfo) getKubeClusterLine(isActive bool, env map[string]string, c
 	}
 	return p.KubernetesCluster
 }
-
 
 func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[string]string, format string) (string, error) {
 	profileData := struct {
