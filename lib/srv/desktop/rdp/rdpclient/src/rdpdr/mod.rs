@@ -328,8 +328,14 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Vec<Vec<u8>>> {
                     let rdp_req = rdp_req;
-                    // These are the only two error codes that we expect to be returned
-                    // in a SharedDirectoryInfoResponse.
+
+                    if res.err_code == TdpErrCode::Failed ||  res.err_code == TdpErrCode::AlreadyExists{
+                        return Err(try_error(&format!(
+                            "received unexpected TDP error code in SharedDirectoryInfoResponse: {:?}",
+                            res.err_code,
+                        )));
+                    }
+
                     if res.err_code == TdpErrCode::Nil {
                         // The file exists
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L214
@@ -392,12 +398,8 @@ impl Client {
                                 );
                             }
                         }
-                    } else {
-                        return Err(try_error(&format!(
-                            "received unexpected TDP error code in SharedDirectoryInfoResponse: {:?}",
-                            res.err_code,
-                        )));
                     }
+
 
                     // The actual creation of files and error mapping in FreeRDP happens here, for reference:
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L781
