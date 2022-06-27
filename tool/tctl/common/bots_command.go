@@ -179,10 +179,15 @@ Please note:
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	roles := splitRoles(c.botRoles)
+	if len(roles) == 0 {
+		return trace.BadParameter("at least one role must be specified with --roles")
+	}
+
 	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:    c.botName,
 		TTL:     proto.Duration(c.tokenTTL),
-		Roles:   splitRoles(c.botRoles),
+		Roles:   roles,
 		TokenID: c.tokenID,
 	})
 	if err != nil {
