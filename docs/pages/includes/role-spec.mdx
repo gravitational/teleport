@@ -45,7 +45,12 @@ spec:
     # cluster. This setting slows down Teleport performance because it has to track
     # connections cluster-wide.
     max_connections: 2
-    # Session recording options.
+    # Define how Teleport deals with session recording failures, such as a full
+    # disk error. The value can be set to either `best_effort` or `strict`. If
+    # set to `strict`, the session will terminate immediately. If set to
+    # `best_effort`, the session won’t be terminated, and the recording will be
+    # disabled. The configuration is done per service (currently, only `ssh` is
+    # supported).
     record_sessions:
       # Specify whether or not to record the user's desktop sessions.
       # Desktop session recording is enabled if one or more of the user's
@@ -57,7 +62,8 @@ spec:
       # Optional: Session recording mode default value used when sessions kind
       # doesn't have one set.
       default: best_effort|strict
-      # Optional: Session recording mode for SSH sessions (server access).
+      # Optional: Session recording mode for SSH sessions (Teleport Server
+      # Access). If not set, the value set on default will be used.
       ssh: best_effort|strict
     # Specify whether clipboard sharing should be allowed with the
     # remote desktop (requires a supported browser). Defaults to true
