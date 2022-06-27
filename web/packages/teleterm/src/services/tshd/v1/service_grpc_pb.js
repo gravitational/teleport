@@ -335,6 +335,17 @@ function deserialize_teleport_terminal_v1_RestartGatewayRequest(buffer_arg) {
   return v1_service_pb.RestartGatewayRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_terminal_v1_SetGatewayTargetSubresourceNameRequest(arg) {
+  if (!(arg instanceof v1_service_pb.SetGatewayTargetSubresourceNameRequest)) {
+    throw new Error('Expected argument of type teleport.terminal.v1.SetGatewayTargetSubresourceNameRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_terminal_v1_SetGatewayTargetSubresourceNameRequest(buffer_arg) {
+  return v1_service_pb.SetGatewayTargetSubresourceNameRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 // TerminalService describes Teleterm service
 var TerminalServiceService = exports.TerminalServiceService = {
@@ -386,18 +397,6 @@ listDatabaseUsers: {
     responseSerialize: serialize_teleport_terminal_v1_ListDatabaseUsersResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListDatabaseUsersResponse,
   },
-  // ListGateways lists gateways
-listGateways: {
-    path: '/teleport.terminal.v1.TerminalService/ListGateways',
-    requestStream: false,
-    responseStream: false,
-    requestType: v1_service_pb.ListGatewaysRequest,
-    responseType: v1_service_pb.ListGatewaysResponse,
-    requestSerialize: serialize_teleport_terminal_v1_ListGatewaysRequest,
-    requestDeserialize: deserialize_teleport_terminal_v1_ListGatewaysRequest,
-    responseSerialize: serialize_teleport_terminal_v1_ListGatewaysResponse,
-    responseDeserialize: deserialize_teleport_terminal_v1_ListGatewaysResponse,
-  },
   // ListServers lists servers
 listServers: {
     path: '/teleport.terminal.v1.TerminalService/ListServers',
@@ -434,18 +433,6 @@ listApps: {
     responseSerialize: serialize_teleport_terminal_v1_ListAppsResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_ListAppsResponse,
   },
-  // CreateGateway creates a gateway
-createGateway: {
-    path: '/teleport.terminal.v1.TerminalService/CreateGateway',
-    requestStream: false,
-    responseStream: false,
-    requestType: v1_service_pb.CreateGatewayRequest,
-    responseType: v1_gateway_pb.Gateway,
-    requestSerialize: serialize_teleport_terminal_v1_CreateGatewayRequest,
-    requestDeserialize: deserialize_teleport_terminal_v1_CreateGatewayRequest,
-    responseSerialize: serialize_teleport_terminal_v1_Gateway,
-    responseDeserialize: deserialize_teleport_terminal_v1_Gateway,
-  },
   // AddCluster adds a cluster to profile
 addCluster: {
     path: '/teleport.terminal.v1.TerminalService/AddCluster',
@@ -469,6 +456,30 @@ removeCluster: {
     requestDeserialize: deserialize_teleport_terminal_v1_RemoveClusterRequest,
     responseSerialize: serialize_teleport_terminal_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_EmptyResponse,
+  },
+  // ListGateways lists gateways
+listGateways: {
+    path: '/teleport.terminal.v1.TerminalService/ListGateways',
+    requestStream: false,
+    responseStream: false,
+    requestType: v1_service_pb.ListGatewaysRequest,
+    responseType: v1_service_pb.ListGatewaysResponse,
+    requestSerialize: serialize_teleport_terminal_v1_ListGatewaysRequest,
+    requestDeserialize: deserialize_teleport_terminal_v1_ListGatewaysRequest,
+    responseSerialize: serialize_teleport_terminal_v1_ListGatewaysResponse,
+    responseDeserialize: deserialize_teleport_terminal_v1_ListGatewaysResponse,
+  },
+  // CreateGateway creates a gateway
+createGateway: {
+    path: '/teleport.terminal.v1.TerminalService/CreateGateway',
+    requestStream: false,
+    responseStream: false,
+    requestType: v1_service_pb.CreateGatewayRequest,
+    responseType: v1_gateway_pb.Gateway,
+    requestSerialize: serialize_teleport_terminal_v1_CreateGatewayRequest,
+    requestDeserialize: deserialize_teleport_terminal_v1_CreateGatewayRequest,
+    responseSerialize: serialize_teleport_terminal_v1_Gateway,
+    responseDeserialize: deserialize_teleport_terminal_v1_Gateway,
   },
   // RemoveGateway removes a gateway
 removeGateway: {
@@ -495,6 +506,21 @@ restartGateway: {
     requestDeserialize: deserialize_teleport_terminal_v1_RestartGatewayRequest,
     responseSerialize: serialize_teleport_terminal_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_terminal_v1_EmptyResponse,
+  },
+  // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
+// and returns the updated version of gateway.Gateway.
+//
+// In Connect this is used to update the db name of a db connection along with the CLI command.
+setGatewayTargetSubresourceName: {
+    path: '/teleport.terminal.v1.TerminalService/SetGatewayTargetSubresourceName',
+    requestStream: false,
+    responseStream: false,
+    requestType: v1_service_pb.SetGatewayTargetSubresourceNameRequest,
+    responseType: v1_gateway_pb.Gateway,
+    requestSerialize: serialize_teleport_terminal_v1_SetGatewayTargetSubresourceNameRequest,
+    requestDeserialize: deserialize_teleport_terminal_v1_SetGatewayTargetSubresourceNameRequest,
+    responseSerialize: serialize_teleport_terminal_v1_Gateway,
+    responseDeserialize: deserialize_teleport_terminal_v1_Gateway,
   },
   // GetAuthSettings returns cluster auth settigns
 getAuthSettings: {

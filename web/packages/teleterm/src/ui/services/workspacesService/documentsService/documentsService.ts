@@ -102,15 +102,7 @@ export class DocumentsService {
       gatewayUri,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
-    let title = opts.title;
-
-    if (!title) {
-      title = `${targetUser}@${targetName}`;
-
-      if (targetSubresourceName) {
-        title += `/${targetSubresourceName}`;
-      }
-    }
+    const title = `${targetUser}@${targetName}`;
 
     return {
       uri,

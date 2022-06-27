@@ -16,7 +16,7 @@ limitations under the License.
 
 /* eslint-disable @typescript-eslint/ban-types */
 
-import React from 'react';
+import { useCallback, useState } from 'react';
 
 /**
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
@@ -60,45 +60,49 @@ import React from 'react';
  * }
  */
 export function useAsync<R, T extends Function>(cb?: AsyncCb<R, T>) {
-  const [state, setState] = React.useState<Attempt<R>>(() =>
-    makeEmptyAttempt()
+  const [state, setState] = useState<Attempt<R>>(makeEmptyAttempt);
+
+  const run = useCallback(
+    (...p: Parameters<AsyncCb<R, T>>) =>
+      Promise.resolve()
+        .then(() => {
+          setState(prevState => ({
+            ...prevState,
+            status: 'processing',
+          }));
+
+          return cb.call(null, ...p) as R;
+        })
+        .then(
+          data => {
+            setState(prevState => ({
+              ...prevState,
+              status: 'success',
+              data,
+            }));
+
+            return [data, null] as [R, Error];
+          },
+          err => {
+            setState(prevState => ({
+              ...prevState,
+              status: 'error',
+              statusText: err?.message,
+              data: null,
+            }));
+
+            return [null, err] as [R, Error];
+          }
+        ),
+    [setState, cb]
   );
 
-  const run = (...p: Parameters<AsyncCb<R, T>>) =>
-    Promise.resolve()
-      .then(() => {
-        setState({
-          ...state,
-          status: 'processing',
-        });
-
-        return cb.call(null, ...p) as R;
-      })
-      .then(
-        data => {
-          setState({
-            ...state,
-            status: 'success',
-            data,
-          });
-
-          return [data, null] as [R, Error];
-        },
-        err => {
-          setState({
-            ...state,
-            status: 'error',
-            statusText: err?.message,
-            data: null,
-          });
-
-          return [null, err] as [R, Error];
-        }
-      );
-
-  function setAttempt(attempt: Attempt<R>) {
-    setState(attempt);
-  }
+  const setAttempt = useCallback(
+    (attempt: Attempt<R>) => {
+      setState(attempt);
+    },
+    [setState]
+  );
 
   return [state, run, setAttempt] as const;
 }

@@ -1,26 +1,44 @@
-import * as types from 'teleterm/services/tshd/types';
+import {
+  Application,
+  AuthSettings,
+  Cluster,
+  CreateGatewayParams,
+  Database,
+  Gateway,
+  Kube,
+  LoginParams,
+  Server,
+  TshAbortController,
+  TshAbortSignal,
+  TshClient,
+} from '../types';
 
-export class MockTshClient implements types.TshClient {
-  listGateways: () => Promise<types.Gateway[]>;
-  listRootClusters: () => Promise<types.Cluster[]>;
-  listLeafClusters: (clusterUri: string) => Promise<types.Cluster[]>;
-  listDatabases: (clusterUri: string) => Promise<types.Database[]>;
+export class MockTshClient implements TshClient {
+  listRootClusters: () => Promise<Cluster[]>;
+  listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
+  listApps: (clusterUri: string) => Promise<Application[]>;
+  listKubes: (clusterUri: string) => Promise<Kube[]>;
+  listDatabases: (clusterUri: string) => Promise<Database[]>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
-  listKubes: (clusterUri: string) => Promise<types.Kube[]>;
-  listApps: (clusterUri: string) => Promise<types.Application[]>;
-  listServers: (clusterUri: string) => Promise<types.Server[]>;
-  addRootCluster: (clusterUri: string) => Promise<types.Cluster>;
-  createGateway: (params: types.CreateGatewayParams) => Promise<types.Gateway>;
-  createAbortController: () => types.TshAbortController;
-  getCluster: (clusterUri: string) => Promise<types.Cluster>;
-  getAuthSettings: (clusterUri: string) => Promise<types.AuthSettings>;
-  ssoLogin: (clusterUri: string, pType: string, pName: string) => Promise<void>;
-  removeGateway: (gatewayUri: string) => Promise<void>;
-  restartGateway: (gatewayUri: string) => Promise<void>;
+  listServers: (clusterUri: string) => Promise<Server[]>;
+  createAbortController: () => TshAbortController;
+  addRootCluster: (addr: string) => Promise<Cluster>;
+
+  listGateways: () => Promise<Gateway[]>;
+  createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
+  removeGateway: (gatewayUri: string) => Promise<undefined>;
+  restartGateway: (gatewayUri: string) => Promise<undefined>;
+  setGatewayTargetSubresourceName: (
+    gatewayUri: string,
+    targetSubresourceName: string
+  ) => Promise<Gateway>;
+
+  getCluster: (clusterUri: string) => Promise<Cluster>;
+  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
+  removeCluster: (clusterUri: string) => Promise<undefined>;
   login: (
-    params: types.LoginParams,
-    abortSignal?: types.TshAbortSignal
-  ) => Promise<void>;
-  logout: (clusterUri: string) => Promise<void>;
-  removeCluster: (clusterUri: string) => Promise<void>;
+    params: LoginParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<undefined>;
+  logout: (clusterUri: string) => Promise<undefined>;
 }

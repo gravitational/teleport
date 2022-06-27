@@ -25,6 +25,7 @@ export default function FieldInput({
   onChange,
   onKeyPress,
   placeholder,
+  defaultValue,
   rule = defaultRule,
   type = 'text',
   autoFocus = false,
@@ -99,6 +100,7 @@ export default function FieldInput({
       onKeyPress={onKeyPress}
       readOnly={readonly}
       inputMode={inputMode}
+      defaultValue={defaultValue}
     />
   );
 
@@ -143,6 +145,7 @@ type Props = {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly?: boolean;
+  defaultValue?: string;
   // TS: temporary handles ...styles
   [key: string]: any;
 };
