@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -134,7 +135,7 @@ func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, er
 	}
 
 	// Generate a SSH host certificate.
-	clusterName, err := c.authClient.GetDomainName()
+	clusterName, err := c.authClient.GetDomainName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

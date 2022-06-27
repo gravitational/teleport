@@ -210,6 +210,11 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 	}
 }
 
+func (c *remoteConn) adviseReconnect() error {
+	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
+	return trace.Wrap(err)
+}
+
 // sendDiscoveryRequest sends a discovery request with up to date
 // list of connected proxies
 func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {

@@ -17,19 +17,22 @@
 
 package touchid
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc
+// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.13
 // #cgo LDFLAGS: -framework CoreFoundation -framework Foundation -framework LocalAuthentication -framework Security
 // #include <stdlib.h>
 // #include "authenticate.h"
 // #include "credential_info.h"
 // #include "credentials.h"
+// #include "diag.h"
 // #include "register.h"
 import "C"
 
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -38,14 +41,63 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// rpIDUserMarker is the marker for labels containing RPID and username.
+	// The marker is useful to tell apart labels written by tsh from other entries
+	// (for example, a mysterious "iMessage Signing Key" shows up in some macs).
+	rpIDUserMarker = "t01/"
+
+	// rpID are domain names, so it's safe to assume they won't have spaces in them.
+	// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+	labelSeparator = " "
+)
+
+type parsedLabel struct {
+	rpID, user string
+}
+
+func makeLabel(rpID, user string) string {
+	return rpIDUserMarker + rpID + labelSeparator + user
+}
+
+func parseLabel(label string) (*parsedLabel, error) {
+	if !strings.HasPrefix(label, rpIDUserMarker) {
+		return nil, trace.BadParameter("label has unexpected prefix: %q", label)
+	}
+	l := label[len(rpIDUserMarker):]
+
+	idx := strings.Index(l, labelSeparator)
+	if idx == -1 {
+		return nil, trace.BadParameter("label separator not found: %q", label)
+	}
+
+	return &parsedLabel{
+		rpID: l[0:idx],
+		user: l[idx+1:],
+	}, nil
+}
+
 var native nativeTID = &touchIDImpl{}
 
 type touchIDImpl struct{}
 
-func (touchIDImpl) IsAvailable() bool {
-	// TODO(codingllama): Write a deeper check that looks at binary
-	//  signature/entitlements/etc.
-	return true
+func (touchIDImpl) Diag() (*DiagResult, error) {
+	var resC C.DiagResult
+	C.RunDiag(&resC)
+
+	signed := (bool)(resC.has_signature)
+	entitled := (bool)(resC.has_entitlements)
+	passedLA := (bool)(resC.passed_la_policy_test)
+	passedEnclave := (bool)(resC.passed_secure_enclave_test)
+
+	return &DiagResult{
+		HasCompileSupport:       true,
+		HasSignature:            signed,
+		HasEntitlements:         entitled,
+		PassedLAPolicyTest:      passedLA,
+		PassedSecureEnclaveTest: passedEnclave,
+		IsAvailable:             signed && entitled && passedLA && passedEnclave,
+	}, nil
 }
 
 func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
@@ -83,24 +135,6 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 		CredentialID: credentialID,
 		publicKeyRaw: pubKeyRaw,
 	}, nil
-}
-
-// rpID are domain names, so it's safe to assume they won't have spaces in them.
-// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-const labelSeparator = " "
-
-func makeLabel(rpID, user string) string {
-	return rpID + labelSeparator + user
-}
-
-func splitLabel(label string) (string, string) {
-	idx := strings.Index(label, labelSeparator)
-	if idx == -1 {
-		return "", ""
-	}
-	rpID := label[0:idx]
-	user := label[idx+1:]
-	return rpID, user
 }
 
 func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
@@ -154,6 +188,11 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	defer C.free(unsafe.Pointer(errMsgC))
 
 	infos, res := readCredentialInfos(func(infosOut **C.CredentialInfo) C.int {
+		// ListCredentials lists all Keychain entries we have access to, without
+		// prefix-filtering labels, for example.
+		// Unexpected entries are removed via readCredentialInfos. This behavior is
+		// intentional, as it lets us glimpse into otherwise inaccessible Keychain
+		// contents.
 		return C.ListCredentials(reasonC, infosOut, &errMsgC)
 	})
 	if res < 0 {
@@ -177,7 +216,7 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 	size := unsafe.Sizeof(C.CredentialInfo{})
 	infos := make([]CredentialInfo, 0, res)
 	for i := 0; i < int(res); i++ {
-		var label, appLabel, appTag, pubKeyB64 string
+		var label, appLabel, appTag, pubKeyB64, creationDate string
 		{
 			infoC := (*C.CredentialInfo)(unsafe.Add(start, uintptr(i)*size))
 
@@ -186,21 +225,23 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 			appLabel = C.GoString(infoC.app_label)
 			appTag = C.GoString(infoC.app_tag)
 			pubKeyB64 = C.GoString(infoC.pub_key_b64)
+			creationDate = C.GoString(infoC.creation_date)
 
 			// ... then free it before proceeding.
 			C.free(unsafe.Pointer(infoC.label))
 			C.free(unsafe.Pointer(infoC.app_label))
 			C.free(unsafe.Pointer(infoC.app_tag))
 			C.free(unsafe.Pointer(infoC.pub_key_b64))
+			C.free(unsafe.Pointer(infoC.creation_date))
 		}
 
 		// credential ID / UUID
 		credentialID := appLabel
 
 		// user@rpid
-		rpID, user := splitLabel(label)
-		if rpID == "" || user == "" {
-			log.Debugf("Skipping credential %q: unexpected label: %q", credentialID, label)
+		parsedLabel, err := parseLabel(label)
+		if err != nil {
+			log.Debugf("Skipping credential %q: %v", credentialID, err)
 			continue
 		}
 
@@ -219,11 +260,19 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 			// deallocate the structs within.
 		}
 
+		// iso8601Format is pretty close to, but not exactly the same as, RFC3339.
+		const iso8601Format = "2006-01-02T15:04:05Z0700"
+		createTime, err := time.Parse(iso8601Format, creationDate)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to parse creation time %q for credential %q", creationDate, credentialID)
+		}
+
 		infos = append(infos, CredentialInfo{
 			UserHandle:   userHandle,
 			CredentialID: credentialID,
-			RPID:         rpID,
-			User:         user,
+			RPID:         parsedLabel.rpID,
+			User:         parsedLabel.user,
+			CreateTime:   createTime,
 			publicKeyRaw: pubKeyRaw,
 		})
 	}
@@ -252,5 +301,19 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	default:
 		errMsg := C.GoString(errC)
 		return errors.New(errMsg)
+	}
+}
+
+func (touchIDImpl) DeleteNonInteractive(credentialID string) error {
+	idC := C.CString(credentialID)
+	defer C.free(unsafe.Pointer(idC))
+
+	switch status := C.DeleteNonInteractive(idC); status {
+	case 0: // aka success
+		return nil
+	case errSecItemNotFound:
+		return ErrCredentialNotFound
+	default:
+		return fmt.Errorf("non-interactive delete failed: status %d", status)
 	}
 }

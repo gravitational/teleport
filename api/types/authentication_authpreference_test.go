@@ -84,12 +84,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 
 	minimalU2F := &types.U2F{
 		AppID: "https://localhost:3080",
-		Facets: []string{
-			"https://localhost:3080",
-			"https://localhost",
-			"localhost:3080",
-			"localhost",
-		},
 	}
 	minimalWeb := &types.Webauthn{
 		RPID: "localhost",
@@ -155,7 +149,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			spec: types.AuthPreferenceSpecV2{
 				U2F: &types.U2F{
 					AppID:                "https://example.com:1234",
-					Facets:               []string{"https://example.com:1234"},
 					DeviceAttestationCAs: []string{yubicoU2FCA},
 				},
 			},
@@ -179,8 +172,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			secondFactors: secondFactorWebActive,
 			spec: types.AuthPreferenceSpecV2{
 				U2F: &types.U2F{
-					AppID:  "teleport", // "teleport" gets parsed as a Path, not a Host.
-					Facets: []string{"teleport"},
+					AppID: "teleport", // "teleport" gets parsed as a Path, not a Host.
 				},
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {

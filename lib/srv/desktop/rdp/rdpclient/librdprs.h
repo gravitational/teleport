@@ -69,11 +69,11 @@ typedef enum TdpErrCode {
   /**
    * resource does not exist
    */
-  DNE = 2,
+  DoesNotExist = 2,
   /**
    * resource already exists
    */
-  AE = 3,
+  AlreadyExists = 3,
 } TdpErrCode;
 
 /**
@@ -94,6 +94,10 @@ typedef struct ClientOrError {
   enum CGOErrCode err;
 } ClientOrError;
 
+/**
+ * CGOSharedDirectoryAnnounce is sent by the TDP client to the server
+ * to announce a new directory to be shared over TDP.
+ */
 typedef struct CGOSharedDirectoryAnnounce {
   uint32_t directory_id;
   const char *name;
@@ -112,6 +116,10 @@ typedef struct CGOSharedDirectoryInfoResponse {
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
+/**
+ * SharedDirectoryCreateResponse is sent by the TDP client to the server
+ * to acknowledge a SharedDirectoryCreateRequest was received and executed.
+ */
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
   enum TdpErrCode err_code;
@@ -160,6 +168,10 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+/**
+ * SharedDirectoryAcknowledge is sent by the TDP server to the client
+ * to acknowledge that a SharedDirectoryAnnounce was received.
+ */
 typedef struct SharedDirectoryAcknowledge {
   enum TdpErrCode err_code;
   uint32_t directory_id;
@@ -226,7 +238,7 @@ enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint3
  *
  * # Safety
  *
- * The caller must ensure that drive_name points to a valid buffer.
+ * The caller must ensure that sd_announce.name points to a valid buffer.
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);

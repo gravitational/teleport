@@ -47,7 +47,7 @@ func TLSDial(ctx context.Context, dial DialWithContextFunc, network, addr string
 	conn := tls.Client(plainConn, tlsConfig)
 	errC := make(chan error, 1)
 	go func() {
-		err := conn.Handshake()
+		err := conn.HandshakeContext(ctx)
 		errC <- err
 	}()
 

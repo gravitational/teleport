@@ -37,9 +37,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -834,7 +836,7 @@ type pack struct {
 	webCookie string
 	webToken  string
 
-	rootCluster    *TeleInstance
+	rootCluster    *helpers.TeleInstance
 	rootAppServers []*service.TeleportProcess
 	rootCertPool   *x509.CertPool
 
@@ -859,7 +861,7 @@ type pack struct {
 	jwtAppClusterName string
 	jwtAppURI         string
 
-	leafCluster    *TeleInstance
+	leafCluster    *helpers.TeleInstance
 	leafAppServers []*service.TeleportProcess
 
 	leafAppName        string
@@ -894,14 +896,13 @@ type appTestOptions struct {
 	extraLeafApps       []service.App
 	userLogins          []string
 	userTraits          map[string][]string
-	rootClusterPorts    *InstancePorts
-	leafClusterPorts    *InstancePorts
+	rootClusterPorts    *helpers.InstancePorts
+	leafClusterPorts    *helpers.InstancePorts
 	rootAppServersCount int
 	leafAppServersCount int
 
-	rootConfig          func(config *service.Config)
-	leafConfig          func(config *service.Config)
-	skipSettingTimeouts bool
+	rootConfig func(config *service.Config)
+	leafConfig func(config *service.Config)
 }
 
 // setup configures all clusters and servers needed for a test.
@@ -919,10 +920,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
-
-	if !opts.skipSettingTimeouts {
-		SetTestTimeouts(time.Millisecond * time.Duration(500))
-	}
 
 	p := &pack{
 		rootAppName:        "app-01",
@@ -1054,24 +1051,24 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = NewInstance(InstanceConfig{
+	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = NewInstance(InstanceConfig{
+	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.leafClusterPorts,
 	})
 
@@ -1086,6 +1083,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1101,6 +1099,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1231,13 +1230,13 @@ func (p *pack) initWebSession(t *testing.T) {
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T) {
-	creds, err := GenerateUserCreds(UserCredsRequest{
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  p.rootCluster.Process,
 		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
-	tc, err := p.rootCluster.NewClientWithCreds(ClientConfig{
+	tc, err := p.rootCluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
@@ -1289,6 +1288,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)
@@ -1538,6 +1538,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1608,6 +1609,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
