@@ -412,18 +412,18 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
-func (a *Server) checkIDPInitiatedSAML() error {
+func (a *Server) checkIDPInitiatedSAML(assertion *saml2.AssertionInfo) error {
 	// TODO(joel): check config and deny here
+	// TODO(joel): check validity and mitigate replay here
 	return nil
 }
 
 func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
+	isIdpInitiated := false
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	switch {
 	case trace.IsNotFound(err):
-		if err := a.checkIDPInitiatedSAML(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		isIdpInitiated = true
 	case err != nil:
 		trace.Wrap(err)
 	}
@@ -447,6 +447,12 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	if assertionInfo != nil {
 		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
+	}
+
+	if isIdpInitiated {
+		if err := a.checkIDPInitiatedSAML(assertionInfo); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
