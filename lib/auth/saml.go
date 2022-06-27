@@ -455,7 +455,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
 	}
 
-	// We won't get this far because there is no request to find.
+	// TODO(joel): We won't get this far because there is no request to find.
 	if err := a.checkIDPInitiatedSAML(ctx, assertionInfo, idpInitiated); err != nil {
 		return nil, trace.Wrap(err)
 	}
