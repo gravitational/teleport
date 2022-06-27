@@ -23,7 +23,6 @@ import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
-import { getClusterName } from 'teleterm/ui/utils';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 
 export default function useDocumentTerminal(doc: Doc) {
@@ -40,6 +39,15 @@ export default function useDocumentTerminal(doc: Doc) {
     };
   }, []);
 
+  useEffect(() => {
+    if (state.status === 'error') {
+      ctx.notificationsService.notifyError({
+        title: 'Could not open a terminal',
+        description: state.statusText,
+      });
+    }
+  }, [state.status]);
+
   return state;
 }
 
@@ -48,10 +56,30 @@ async function initState(
   docsService: DocumentsService,
   doc: Doc
 ) {
+  const getClusterActualName = () => {
+    const cluster = ctx.clustersService.findCluster(clusterUri);
+    if (cluster) {
+      return cluster.actualName;
+    }
+
+    /*
+     When restoring the documents, we do not always have the leaf clusters already fetched.
+     In that case we can fall back to `clusterId` from a leaf cluster URI
+     (for a leaf cluster `clusterId` === `actualName`)
+    */
+    const parsed = routing.parseClusterUri(clusterUri);
+
+    if (!parsed?.params?.leafClusterId) {
+      throw new Error(
+        'The leaf cluster URI was expected, but the URI does not contain the leaf cluster ID'
+      );
+    }
+    return parsed.params.leafClusterId;
+  };
+
   const clusterUri = routing.getClusterUri(doc);
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
-  const cluster = ctx.clustersService.findCluster(clusterUri);
-  const cmd = createCmd(doc, rootCluster.proxyHost, cluster.actualName);
+  const cmd = createCmd(doc, rootCluster.proxyHost, getClusterActualName());
   const ptyProcess = await createPtyProcess(ctx, cmd);
   if (!ptyProcess) {
     return;
@@ -67,7 +95,7 @@ async function initState(
     const cwd = await ptyProcess.getCwd();
     docsService.update(doc.uri, {
       cwd,
-      title: `${cwd} · ${getClusterName(cluster)}`,
+      title: `${cwd} · ${getClusterActualName()}`,
     });
   };
 
