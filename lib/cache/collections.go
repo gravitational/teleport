@@ -807,7 +807,8 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 
 	// DELETE IN 11.0.
 	// missingDatabaseCA is needed only when leaf cluster v9 is connected
-	// to root cluster v10.
+	// to root cluster v10. Database CA has been added in v10, so older
+	// clusters don't have it and fetchCertAuthorities() returns an error.
 	missingDatabaseCA := false
 	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
 	if trace.IsBadParameter(err) {
