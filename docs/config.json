@@ -123,6 +123,38 @@
           ]
         },
         {
+          "title": "Helm Deployments",
+          "slug": "/setup/helm-deployments/",
+          "hideInScopes": "cloud",
+          "entries": [
+            {
+              "title": "AWS EKS Cluster",
+              "slug": "/setup/helm-deployments/aws/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Google Cloud GKE Cluster",
+              "slug": "/setup/helm-deployments/gcp/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "DigitalOcean Kubernetes Cluster",
+              "slug": "/setup/helm-deployments/digitalocean/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Customize Deployment Config",
+              "slug": "/setup/helm-deployments/custom/",
+              "hideInScopes": "cloud"
+            },
+            {
+              "title": "Migrating From Older Charts",
+              "slug": "/setup/helm-deployments/migration/",
+              "hideInScopes": "cloud"
+            }
+          ]
+        },
+        {
           "title": "Operations",
           "slug": "/setup/operations/",
           "entries": [
@@ -242,6 +274,20 @@
             {
               "title": "Signals",
               "slug": "/setup/reference/signals/"
+            }
+          ]
+        },
+        {
+          "title": "Helm Chart Reference",
+          "slug": "/setup/helm-reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/setup/helm-reference/teleport-cluster/"
+            },
+            {
+              "title": "teleport-kube-agent",
+              "slug": "/setup/helm-reference/teleport-kube-agent/"
             }
           ]
         }
@@ -404,6 +450,20 @@
           ]
         },
         {
+          "title": "Helm Chart Reference",
+          "slug": "/kubernetes-access/helm/reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
+            },
+            {
+              "title": "teleport-kube-agent",
+              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
+        },
+        {
           "title": "Helm Guides",
           "slug": "/kubernetes-access/helm/guides/",
           "hideInScopes": "cloud",
@@ -432,20 +492,6 @@
               "title": "Migrating From Older Charts",
               "slug": "/kubernetes-access/helm/guides/migration/",
               "hideInScopes": "cloud"
-            }
-          ]
-        },
-        {
-          "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
             }
           ]
         },
@@ -902,20 +948,16 @@
       "title": "Architecture",
       "entries": [
         {
-          "title": "Architecture Overview",
+          "title": "Overview",
           "slug": "/architecture/overview/"
         },
         {
-          "title": "Teleport Users",
-          "slug": "/architecture/users/"
-        },
-        {
-          "title": "Teleport Nodes",
-          "slug": "/architecture/nodes/"
-        },
-        {
-          "title": "Teleport Auth",
+          "title": "Authentication",
           "slug": "/architecture/authentication/"
+        },
+        {
+          "title": "Authorization",
+          "slug": "/architecture/authorization/"
         },
         {
           "title": "Teleport Proxy",
@@ -923,7 +965,11 @@
         },
         {
           "title": "Trusted Clusters",
-          "slug": "/trustedclusters/"
+          "slug": "/architecture/trustedclusters/"
+        },
+        {
+          "title": "Teleport Nodes",
+          "slug": "/architecture/nodes/"
         },
         {
           "title": "TLS Routing",
@@ -1020,6 +1066,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/architecture/users/",
+      "destination": "/architecture/authorization/",
+      "permanent": true
+    },
     {
       "source": "/user-manual/",
       "destination": "/server-access/guides/tsh/",
@@ -1288,6 +1339,51 @@
     {
       "source": "/docs/kubernetes-access/getting-started/local/",
       "destination": "/docs/getting-started/local-kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/setup/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/setup/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/custom/",
+      "destination": "/setup/helm-deployments/custom/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/digitalocean/",
+      "destination": "/setup/helm-deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/gcp/",
+      "destination": "/setup/helm-deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/migration/",
+      "destination": "/setup/helm-deployments/migration/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/",
+      "destination": "/setup/helm-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-cluster/",
+      "destination": "/setup/helm-reference/teleport-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
+      "destination": "/setup/helm-reference/teleport-kube-agent/",
       "permanent": true
     }
   ]
