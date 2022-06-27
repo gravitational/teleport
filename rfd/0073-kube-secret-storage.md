@@ -324,7 +324,8 @@ High availability can only be achieved using Statefulsets and not by Deployments
 
 Given this, it is required to expose the `$TELEPORT_REPLICA_NAME` environment variable to each pod in order to the backend storage be able to write the identity separately. The values for `$TELEPORT_REPLICA_NAME` are populated by Kubernetes with the pod name by setting it to use the `fieldPath: metadata.name` value.
 
-If the action is an upgrade and previously the agent was running as Deployment, Helm chart will keep the Deployment (it upgrades it to the version the operator chooses) in order to maintain the cluster accessible and install, as well, the Statefulset. This means that after a successful installation we might end up with multiple replicas from both Deployment and Statefulset writing into different secrets. Since Pods created from Deployments have random names each time a pod is recreated a new secret is generated creating a lot of garbage. In order to prevent that, when running in Deployment mode, the agent will clean the secret it created using a `preStop` hook.
+If the action is an upgrade and previously the agent was running as Deployment, Helm chart will keep the Deployment (it upgrades it to the version the operator chooses) in order to maintain the cluster accessible and install, as well, the Statefulset. After the upgrade process finishes the Helm Chart will install a hook that will wait for the StatefulSet pods to be ready and force the deletion of the Deployment.
+Since Pods created from Deployments have random names each time a pod is recreated a new secret is generated creating a lot of garbage. In order to prevent that, when running in Deployment mode, the agent will clean the secret it created using a `preStop` hook.
 
 If the agent was previously running, secrets were already created, and the operator wants to upgrade it to use a different Auth service or proxy it is required that he must wipe every secret `({$RELEASE_NAME-0|$RELEASE_NAME-1|...|$RELEASE_NAME-replicas}-state)`. This will prevent the agent to reuse the credentials signed by a different CA, otherwise the cluster authentication will fail.
 
@@ -345,8 +346,8 @@ A description of each case's caveats is available below.
 
 2. Storage was not available: `Deployment -> Statefulset`
 
-    If storage was not available, Helm chart installed the assets as a Deployment. Due to [limitations](#limitations), the current RFD forces the usage of Statefulset. This means that for this case, if no action is taken Helm chart will switch from Deployment to a Statefulset. Helm manages this change by destroying the Deployment object and creating the new Statefulset. During this transition, even if the operator has the `PodDisruptionBudget` object enabled, the Kubernetes cluster might become inaccessible from Teleport for some time because there is no guarantee that the system has at least one agent replica running. So in order to prevent the downtime, Helm chart will keep the Deployment if it already exists in the cluster, but it will also install in parallel the Statefulset. In order to inform the user of following actions, it will render a custom message to the operator saying that once the Statefulset pods are running he can safely delete the Deployment.
-    The message will also contain the two commands necessary to automatically delete the Deployment once the Statefulset pods are running.
+    If storage was not available, Helm chart installed the assets as a Deployment. Due to [limitations](#limitations), the current RFD forces the usage of Statefulset. This means that for this case, if no action is taken Helm chart will switch from Deployment to a Statefulset. Helm manages this change by destroying the Deployment object and creating the new Statefulset. During this transition, even if the operator has the `PodDisruptionBudget` object enabled, the Kubernetes cluster might become inaccessible from Teleport for some time because there is no guarantee that the system has at least one agent replica running. So in order to prevent the downtime, Helm chart will keep the Deployment if it already exists in the cluster, but it will also install in parallel the Statefulset. Once the upgrade finishes, Helm chart will run a `post-upgrade` hook that waits until the StatefulSet pods are ready and deletes the Deployment after that.
+    The hook will run the following commands:
     ```bash
         $ kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m
         $ kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }
@@ -468,33 +469,40 @@ data:
 
 Change storage comments
 
-#### File *templates/NOTES.txt*
-
+### File *post-upgrade-job.yaml*
 ```diff
 +{{- $deployment := lookup "v1" "Deployment" .Release.Namespace .Release.Name -}}
 +{{- if ( $deployment ) }}
-+#################################################################################
-+######                     WARNING: Manual action required                  #####
-+#################################################################################
-+
-+ Previous version of the Teleport Agent Chart was running in this cluster as Deployment, 
-+ but the upgrade process reconfigured the Agent as a Statefulset.
-+
-+ To avoid any system disruption, the chart kept both versions running and requires a
-+ manual deletion of the Deployment object.
-+
-+ Wait a few seconds until the Statefulset Pods are ready. You can use the following command:
-+
-+$ kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m
-+
-+Finally, delete the deployment with the following command:
-+$ kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }
-+
-++{{- end}}
-+
-+For more information on running Teleport, visit:
-+https://goteleport.com/docs
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}"
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: post-upgrade-job
+        image: "alpine:3.3"
+        command: ["/bin/bash","-c", "kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m && kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }"]
++{{- end}}
 ```
+
 
 ## UX
 
@@ -510,33 +518,6 @@ $ helm install/upgrade teleport-agent  teleport/teleport-kube-agent \
   --set proxyAddr=${PROXY_ENDPOINT?} \
   --set authToken=${JOIN_TOKEN?} \
   --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
-```
-
-If the Deployment is kept, Helm will show the following data in operator's console after the installation finishes. The message warns him that a manual action is required to delete the Deployment.
-
-```text
-#################################################################################
-######                     WARNING: Manual action required                  #####
-#################################################################################
-
-Previous version of the Teleport Agent Chart was running in this cluster as Deployment, 
-but the upgrade process reconfigured the Agent as a Statefulset.
-
-To avoid any system disruption, the chart kept both versions running and requires a
-manual deletion of the Deployment object.
-
-Wait a few seconds until the Statefulset Pods are ready. You can use the following command:
-
-$ kubectl wait --for=condition=available \
-  statefulset/teleport-agent \
-  -n teleport-agent --timeout=10m
-
-Finally, delete the deployment with the following command:
-$ kubectl delete deployment/teleport-agent -n teleport-agent
-
-
-For more information on running Teleport, visit:
-https://goteleport.com/docs
 ```
 
 ## Security
