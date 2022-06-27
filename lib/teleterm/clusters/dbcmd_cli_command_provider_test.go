@@ -108,3 +108,24 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *testing.T) {
+	gateway := gateway.Gateway{
+		Config: gateway.Config{
+			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
+			TargetName:            "foo",
+			TargetSubresourceName: "",
+			Protocol:              defaults.ProtocolPostgres,
+			LocalAddress:          "localhost",
+			LocalPort:             "12345",
+		},
+	}
+	fakeStorage := fakeStorage{
+		clusters: []*Cluster{},
+	}
+	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+
+	_, err := dbcmdCLICommandProvider.GetCommand(&gateway)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
+}
