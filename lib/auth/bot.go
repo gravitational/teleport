@@ -135,6 +135,11 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.AlreadyExists("cannot add bot: user %q already exists", resourceName)
 	}
 
+	// Ensure at least one role was requested.
+	if len(req.Roles) == 0 {
+		return nil, trace.BadParameter("cannot add bot: at least one role is required")
+	}
+
 	// Ensure all requested roles exist.
 	for _, roleName := range req.Roles {
 		_, err := s.GetRole(ctx, roleName)
