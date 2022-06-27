@@ -3208,7 +3208,7 @@ func printProfiles(debug bool, profile *profileInfo, profiles []*profileInfo, en
 			fmt.Println("Active Environment:")
 		}
 		for k, v := range env {
-			fmt.Printf("%s=%s\n", k, v)
+			fmt.Printf("\t%s=%s\n", k, v)
 		}
 	}
 }
