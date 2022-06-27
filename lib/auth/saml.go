@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -413,27 +412,24 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
-func (a *Server) checkIDPInitiatedSAML(ctx context.Context, assertion *saml2.AssertionInfo) error {
+func (a *Server) checkIDPInitiatedSAML(ctx context.Context, assertion *saml2.AssertionInfo, idpInitiated bool) error {
 	// TODO(joel): check config and deny here
 
-	// TODO(joel): check validity and mitigate replay here
-	err := a.RecognizeSSOAssertion(ctx, "", "", time.Now())
-	switch {
-	case trace.IsAlreadyExists(err):
-		return trace.BadParameter("Could not validate SAML assertion")
-	case err != nil:
-		return trace.Wrap(err)
-	default:
+	// Not all IdP's provide these variables, replay mitigation is best effort.
+	if assertion.SessionIndex != "" || assertion.SessionNotOnOrAfter == nil {
 		return nil
 	}
+
+	err := a.RecognizeSSOAssertion(ctx, assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
+	return trace.Wrap(err)
 }
 
 func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
-	isIdpInitiated := false
+	idpInitiated := false
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	switch {
 	case trace.IsNotFound(err):
-		isIdpInitiated = true
+		idpInitiated = true
 	case err != nil:
 		trace.Wrap(err)
 	}
@@ -459,10 +455,8 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
 	}
 
-	if isIdpInitiated {
-		if err := a.checkIDPInitiatedSAML(ctx, assertionInfo); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := a.checkIDPInitiatedSAML(ctx, assertionInfo, idpInitiated); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
