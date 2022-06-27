@@ -663,7 +663,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 	peakStderr := utils.NewCaptureNBytesWriter(100)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = io.MultiWriter(os.Stdout, peakStderr)
+	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
 	cmd.Stdin = os.Stdin
 
 	err = cmd.Run()
