@@ -99,18 +99,20 @@ Set the `TELEPORT_PROJECT` to the full path to your teleport's project checked o
 
 Install the helm chart:
 ```bash
-$ helm upgrade --install --create-namespace -n teleport-cluster \
+helm upgrade --install --create-namespace -n teleport-cluster \
 	--set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
-	--set teleportVersionOverride="9.3.5" \
+	--set teleportVersionOverride="11.0.0-dev" \
 	--set operator=true \
 	teleport-cluster ${TELEPORT_PROJECT}/examples/chart/teleport-cluster
 
-$ kubectl config set-context --current --namespace teleport-cluster
+kubectl config set-context --current --namespace teleport-cluster
 
 ```
 
 Now let's wait for the deployment to finish:
-`kubectl wait --for=condition=available deployment/teleport-cluster --timeout=2m`
+```bash
+kubectl wait --for=condition=available deployment/teleport-cluster --timeout=2m
+```
 
 If it doesn't, check the errors.
 
@@ -146,6 +148,12 @@ spec:
       type: [ "compute", "x" ]
 ```
 
-`$ kubcetl apply -f roles.yaml`
+```bash
+kubcetl apply -f roles.yaml
+```
 
 And now check if the role was created in Teleport and K8S (`teleport-cluster` namespace).
+```bash
+PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $PROXY_POD teleport -- tctl get roles/myrole
+```
