@@ -432,6 +432,9 @@ const (
 	proxyDefaultResolutionTimeout = 2 * time.Second
 )
 
+// env vars that tsh status will check to provide hints about active env vars to a user.
+var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeClusterEnvVar, teleport.EnvKubeConfig}
+
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
 
@@ -2966,27 +2969,11 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
 	}
 
-	// if the proxy env var is set, display that as the active profile
-	proxyURL := p.ProxyURL
-	cluster := p.Cluster
-	kubeCluster := selectedKubeCluster(cluster)
+	proxyURL := p.getProxyURLLine(isActive, env)
+	cluster := p.getClusterLine(isActive, env)
+	kubeCluster := p.getKubeClusterLine(isActive, env, cluster)
 	if isActive {
 		prefix = "> "
-		// indicate if active p settings are shadowed by env vars.
-		// since profile
-		if _, ok := env[proxyEnvVar]; ok {
-			proxyURL += fmt.Sprintf(" (%v)", proxyEnvVar)
-		}
-		if _, ok := env[clusterEnvVar]; ok {
-			cluster += fmt.Sprintf(" (%v)", clusterEnvVar)
-		} else if _, ok := env[siteEnvVar]; ok {
-			cluster += fmt.Sprintf(" (%v)", siteEnvVar)
-		}
-
-		// check if kube cluster env var is set and no cluster was selected by kube config
-		if _, ok := env[kubeClusterEnvVar]; ok && kubeCluster == "" {
-			kubeCluster = fmt.Sprintf("%v (%v)", p.KubernetesCluster, kubeClusterEnvVar)
-		}
 	} else {
 		prefix = "  "
 	}
@@ -2997,7 +2984,6 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
 	}
 
-	// if the cluster env var is set, display that as the active profile
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
@@ -3156,6 +3142,40 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	return out
 }
 
+func (p *profileInfo) getProxyURLLine(isActive bool, env map[string]string) string {
+	// indicate if active profile proxy url is shadowed by env vars.
+	if isActive {
+		if _, ok := env[proxyEnvVar]; ok {
+			return fmt.Sprintf("%v (%v)", p.ProxyURL, proxyEnvVar)
+		}
+	}
+	return p.ProxyURL
+}
+
+func (p *profileInfo) getClusterLine(isActive bool, env map[string]string) string {
+	// indicate if active profile cluster is shadowed by env vars.
+	if isActive {
+		if _, ok := env[clusterEnvVar]; ok {
+			return fmt.Sprintf("%v (%v)", p.Cluster, clusterEnvVar)
+		} else if _, ok := env[siteEnvVar]; ok {
+			return fmt.Sprintf("%v (%v)", p.Cluster, siteEnvVar)
+		}
+	}
+	return p.Cluster
+}
+
+func (p *profileInfo) getKubeClusterLine(isActive bool, env map[string]string, cluster string) string {
+	// indicate if active profile kube cluster is shadowed by env vars.
+	if isActive {
+		// check if kube cluster env var is set and no cluster was selected by kube config
+		if _, ok := env[kubeClusterEnvVar]; ok {
+			return fmt.Sprintf("%v (%v)", p.KubernetesCluster, kubeClusterEnvVar)
+		}
+	}
+	return p.KubernetesCluster
+}
+
+
 func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[string]string, format string) (string, error) {
 	profileData := struct {
 		Active   *profileInfo      `json:"active,omitempty"`
@@ -3178,8 +3198,7 @@ func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[st
 
 func getTshEnv() map[string]string {
 	env := map[string]string{}
-	envVars := []string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeClusterEnvVar, teleport.EnvKubeConfig}
-	for _, envVar := range envVars {
+	for _, envVar := range tshStatusEnvVars {
 		if envVal, isSet := os.LookupEnv(envVar); isSet {
 			env[envVar] = envVal
 		}
