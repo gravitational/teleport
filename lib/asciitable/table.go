@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"text/tabwriter"
 
 	"golang.org/x/term"
@@ -41,6 +42,7 @@ type Table struct {
 	columns   []Column
 	rows      [][]string
 	footnotes map[string]string
+	mu        sync.Mutex
 }
 
 // MakeHeadlessTable creates a new instance of the table without any column names.
@@ -134,7 +136,7 @@ func (t *Table) AddRow(row []string) {
 	t.rows = append(t.rows, row[:limit])
 }
 
-// AddFootnote adds a footnote for referencing from truncated cells.
+// AddFootnote adds a on-demand footnote for referencing from truncated cells.
 func (t *Table) AddFootnote(label string, note string) {
 	t.footnotes[label] = note
 }
@@ -156,6 +158,9 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 
 // AsBuffer returns a *bytes.Buffer with the printed output of the table.
 func (t *Table) AsBuffer() *bytes.Buffer {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	var buffer bytes.Buffer
 
 	writer := tabwriter.NewWriter(&buffer, 5, 0, 1, ' ', 0)
@@ -206,6 +211,39 @@ func (t *Table) IsHeadless() bool {
 		}
 	}
 	return true
+}
+
+// Discard columns where all rows are empty
+func (t *Table) DiscardEmpty() (discarded []int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	isEmpty := func(i int) bool {
+		for _, r := range t.rows {
+			if len(r) > i && r[i] != "" {
+				return false
+			}
+		}
+		return true
+	}
+	for i := range t.columns {
+		if isEmpty(i) {
+			discarded = append(discarded, i)
+		}
+	}
+
+	for offset, toPop := range discarded {
+		popLoc := toPop - offset
+
+		t.columns = append(t.columns[:popLoc], t.columns[popLoc+1:]...)
+		for i, row := range t.rows {
+			if len(row) > popLoc {
+				t.rows[i] = append(row[:popLoc], row[popLoc+1:]...)
+			}
+		}
+	}
+
+	return discarded
 }
 
 func min(a, b int) int {

@@ -33,6 +33,13 @@ const headlessTable = `one  two
 1    2    
 `
 
+const discardedTable = `one          two          three        
+---          ---          -----        
+%!v(MISSING) %!v(MISSING) %!v(MISSING) 
+             two          three        
+one                                    
+`
+
 const truncatedTable = `Name          Motto                            Age   
 ------------- -------------------------------- ----- 
 Joe Forrester Trains are much better th... [*] 40    
@@ -57,6 +64,16 @@ func TestHeadlessTable(t *testing.T) {
 
 	// The table shall have no header and also the 3rd column must be chopped off.
 	require.Equal(t, headlessTable, table.AsBuffer().String())
+}
+
+func TestDiscardTable(t *testing.T) {
+	table := MakeTable([]string{"Prefix", "one", "two", "Middle", "three", "four"})
+	table.AddRow([]string{})                           // testing for OOB panics
+	table.AddRow([]string{"", "", "two", "", "three"}) // last missing
+	table.AddRow([]string{"", "one", "", "", "", "four"})
+
+	table.DiscardEmpty()
+	require.Equal(t, discardedTable, table.AsBuffer().String())
 }
 
 func TestTruncatedTable(t *testing.T) {
