@@ -40,7 +40,7 @@ func (l *Backend) runPeriodicOperations() {
 			}
 			return
 		case <-t.C:
-			err := l.RemoveExpiredKeys()
+			err := l.removeExpiredKeys()
 			if err != nil {
 				// connection problem means that database is closed
 				// or is closing, downgrade the log to debug
@@ -65,7 +65,7 @@ func (l *Backend) runPeriodicOperations() {
 	}
 }
 
-func (l *Backend) RemoveExpiredKeys() error {
+func (l *Backend) removeExpiredKeys() error {
 	// In mirror mode, don't expire any elements. This allows the cache to setup
 	// a watch and expire elements as the events roll in.
 	if l.Mirror {
