@@ -282,3 +282,27 @@ func TestIsGithubNoTeams(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculateGithubUserNoTeams(t *testing.T) {
+	a := &Server{}
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "org1",
+				Team:         "teamx",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = a.calculateGithubUser(connector, &types.GithubClaims{
+		Username: "octocat",
+		OrganizationToTeams: map[string][]string{
+			"org1": {"team1", "team2"},
+			"org2": {"team1"},
+		},
+		Teams: []string{"team1", "team2", "team1"},
+	}, &types.GithubAuthRequest{})
+	require.True(t, IsGithubNoTeamsError(err), "Unexpected error: %v", err)
+}
