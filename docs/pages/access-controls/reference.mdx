@@ -103,6 +103,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_connections` | Limit on how many active SSH sessions can be started via Teleport | |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
+| `record_sessions` |Defines the [Session recording mode](../setup/reference/audit.mdx#modes).|The strictest value takes precedence.|
 
 ## Preset roles
 
