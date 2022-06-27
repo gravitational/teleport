@@ -45,7 +45,6 @@ func TestAssertionReplayService(t *testing.T) {
 
 	require.NoError(t, service.Recognize(ctx, id[1], "bar", delay(time.Millisecond)))
 	time.Sleep(time.Second)
-	require.NoError(t, bk.RemoveExpiredKeys())
 	require.NoError(t, service.Recognize(ctx, id[1], "bar", delay(time.Hour)))
 	require.Error(t, service.Recognize(ctx, id[1], "bar", delay(time.Hour)))
 }
