@@ -1201,13 +1201,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1223,7 +1223,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1357,13 +1357,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1379,7 +1379,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1511,13 +1511,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1533,7 +1533,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1665,13 +1665,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1687,7 +1687,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1841,13 +1841,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1863,7 +1863,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2019,13 +2019,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2041,7 +2041,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2191,13 +2191,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2213,7 +2213,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2355,13 +2355,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2377,7 +2377,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2509,13 +2509,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2531,7 +2531,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2685,13 +2685,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2707,7 +2707,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2857,13 +2857,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2879,7 +2879,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3084,13 +3084,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3106,7 +3106,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3289,13 +3289,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3311,7 +3311,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3475,13 +3475,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3497,7 +3497,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3627,13 +3627,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3649,7 +3649,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3781,13 +3781,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3803,7 +3803,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3948,13 +3948,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3970,7 +3970,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4115,13 +4115,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4137,7 +4137,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4291,13 +4291,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4313,7 +4313,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4472,13 +4472,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4494,7 +4494,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4634,13 +4634,13 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4656,7 +4656,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0b31aa60031631eb74ab6f6cc76917472d5b239ad2151d37b1b19b263fb5d1c4
+hmac: 183b3d79c86950bf1193a160199c12c3ccb70de2d30458765dccf8fb8ffaa3c3
 
 ...
