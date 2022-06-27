@@ -526,7 +526,7 @@ func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("erro closing the RDP connection")
+			c.cfg.Log.Warningf("error closing the RDP connection")
 		}
 
 		// Let the Rust side free its data
