@@ -135,13 +135,13 @@ func describeTLSIdentity(ident *identity.Identity) (string, error) {
 // identityConfigurator is a function that alters a cert request
 type identityConfigurator = func(req *proto.UserCertsRequest)
 
-// generateIdentity uses an identity to retrieve another possibly impersonated
-// identity. The `configurator` function, if not nil, can be used to add
-// additional requests to the certificate request, for example to add
-// `RouteToDatabase` and similar fields, however in that case it must be
-// called with an impersonated identity that already has the relevant
-// permissions, much like `tsh (app|db|kube) login` is already used to generate
-// an additional set of certs.
+// generateIdentity uses an identity to retrieve an impersonated identity.
+// The `configurator` function, if not nil, can be used to add additional
+// requests to the certificate request, for example to add `RouteToDatabase`
+// and similar fields, however in that case it must be called with an
+// impersonated identity that already has the relevant permissions, much like
+// `tsh (app|db|kube) login` is already used to generate an additional set of
+// certs.
 func (b *Bot) generateIdentity(
 	ctx context.Context,
 	currentIdentity *identity.Identity,
@@ -174,6 +174,11 @@ func (b *Bot) generateIdentity(
 		Expires:        expires,
 		RoleRequests:   roleRequests,
 		RouteToCluster: currentIdentity.ClusterName,
+
+		// Make sure to specify this is an impersonated cert request. If unset,
+		// auth cannot differentiate renewable vs impersonated requests when
+		// len(roleRequests) == 0.
+		UseRoleRequests: true,
 	}
 
 	if configurator != nil {
