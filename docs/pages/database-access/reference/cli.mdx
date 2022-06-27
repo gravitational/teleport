@@ -135,7 +135,9 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
-configuring Database Access with self-hosted database instances.
+configuring Database Access with self-hosted database instances. Note that for database
+formats, tctl must be run on the auth server or the remote
+user must be be able to impersonate the database service.
 
 ```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
