@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -222,6 +223,11 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return k.GenerateUserCertWithoutValidation(c)
 }
 
+// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
+// from which this certificate is accepted for authentication.
+// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+const sourceAddress = "source-address"
+
 // GenerateUserCertWithoutValidation generates a user certificate with the
 // passed in parameters without validating them. For use in tests only.
 func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
@@ -276,6 +282,19 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	}
 	if c.AllowedResourceIDs != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
+	}
+
+	if c.SourceIP != "" {
+		if cert.CriticalOptions == nil {
+			cert.CriticalOptions = make(map[string]string)
+		}
+		//IPv4, all bits matter
+		ip := c.SourceIP + "/32"
+		if strings.Contains(c.SourceIP, ":") {
+			//IPv6
+			ip = c.SourceIP + "/128"
+		}
+		cert.CriticalOptions[sourceAddress] = ip
 	}
 
 	for _, extension := range c.CertificateExtensions {

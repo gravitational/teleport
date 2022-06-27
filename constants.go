@@ -246,6 +246,9 @@ const (
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
+	// ComponentInstance is an abstract component common to all services.
+	ComponentInstance = "instance"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -739,6 +742,11 @@ const (
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
+
+	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
+	// specific UID to prevent the matching user from being deleted before
+	// spawning the intended child process.
+	ParkSubCommand = "park"
 )
 
 const (

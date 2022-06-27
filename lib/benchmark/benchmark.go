@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
@@ -270,7 +271,10 @@ func execute(m benchMeasure) error {
 
 // makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
-	c := client.Config{Host: host}
+	c := client.Config{
+		Host:   host,
+		Tracer: tracing.NoopProvider().Tracer("test"),
+	}
 	path := profile.FullProfilePath("")
 	if login != "" {
 		c.HostLogin = login

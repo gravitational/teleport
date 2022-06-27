@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,15 +82,20 @@ func validateTemplate(t *testing.T, tplI config.Template, dest destination.Desti
 // TestTemplateRendering performs a full renewal and ensures all expected
 // default config templates are present.
 func TestDefaultTemplateRendering(t *testing.T) {
-	utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+	t.Parallel()
 
 	// Make a new auth server.
-	fc := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test")
+	const roleName = "dummy-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	storage, err := botConfig.Storage.GetDestination()
 	require.NoError(t, err)
