@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -412,10 +413,19 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
-func (a *Server) checkIDPInitiatedSAML(assertion *saml2.AssertionInfo) error {
+func (a *Server) checkIDPInitiatedSAML(ctx context.Context, assertion *saml2.AssertionInfo) error {
 	// TODO(joel): check config and deny here
+
 	// TODO(joel): check validity and mitigate replay here
-	return nil
+	err := a.RecognizeSSOAssertion(ctx, "", "", time.Now())
+	switch {
+	case trace.IsAlreadyExists(err):
+		return trace.BadParameter("Could not validate SAML assertion")
+	case err != nil:
+		return trace.Wrap(err)
+	default:
+		return nil
+	}
 }
 
 func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
@@ -450,7 +460,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 
 	if isIdpInitiated {
-		if err := a.checkIDPInitiatedSAML(assertionInfo); err != nil {
+		if err := a.checkIDPInitiatedSAML(ctx, assertionInfo); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

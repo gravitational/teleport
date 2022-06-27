@@ -37,12 +37,12 @@ func NewAssertionReplayService(bk backend.Backend) *AssertionReplayService {
 	return &AssertionReplayService{bk: bk}
 }
 
-// Recognize a new assertion until it becomes invalid.
+// RecognizeSSOAssertion will remember a new assertion until it becomes invalid.
 // This will error with `trace.AlreadyExists` if the assertion has been previously recognized.
 //
 // `safeAfter` *must* be either at or after the point in time that a given SSO assertion becomes invalid in order to mitigate replay attacks.
 // This function shouldn't be used if the assertion never verifiably expires.
-func (s *AssertionReplayService) Recognize(ctx context.Context, assertionId string, user string, safeAfter time.Time) error {
+func (s *AssertionReplayService) RecognizeSSOAssertion(ctx context.Context, assertionId string, user string, safeAfter time.Time) error {
 	key := backend.Key(assertionReplayPrefix, assertionId)
 	item := backend.Item{Key: key, Value: []byte(user), Expires: safeAfter}
 	_, err := s.bk.Create(ctx, item)

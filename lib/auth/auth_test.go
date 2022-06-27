@@ -1854,15 +1854,16 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                local.NewCAService(bk),
-		Presence:             local.NewPresenceService(bk),
-		Provisioner:          local.NewProvisioningService(bk),
-		Identity:             local.NewIdentityService(bk),
-		Access:               local.NewAccessService(bk),
-		DynamicAccessExt:     local.NewDynamicAccessService(bk),
-		ClusterConfiguration: configService,
-		Events:               local.NewEventsService(bk),
-		IAuditLog:            events.NewDiscardAuditLog(),
+		Trust:                  local.NewCAService(bk),
+		Presence:               local.NewPresenceService(bk),
+		Provisioner:            local.NewProvisioningService(bk),
+		Identity:               local.NewIdentityService(bk),
+		Access:                 local.NewAccessService(bk),
+		DynamicAccessExt:       local.NewDynamicAccessService(bk),
+		ClusterConfiguration:   configService,
+		Events:                 local.NewEventsService(bk),
+		IAuditLog:              events.NewDiscardAuditLog(),
+		AssertionReplayService: local.NewAssertionReplayService(bk),
 	}
 }
 

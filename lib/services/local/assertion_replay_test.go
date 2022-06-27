@@ -40,11 +40,11 @@ func TestAssertionReplayService(t *testing.T) {
 		id[i] = uuid.New().String()
 	}
 
-	require.NoError(t, service.Recognize(ctx, id[0], "foo", delay(time.Hour)))
-	require.Error(t, service.Recognize(ctx, id[0], "foo", delay(time.Hour)))
+	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[0], "foo", delay(time.Hour)))
+	require.Error(t, service.RecognizeSSOAssertion(ctx, id[0], "foo", delay(time.Hour)))
 
-	require.NoError(t, service.Recognize(ctx, id[1], "bar", delay(time.Millisecond)))
+	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Millisecond)))
 	time.Sleep(time.Second)
-	require.NoError(t, service.Recognize(ctx, id[1], "bar", delay(time.Hour)))
-	require.Error(t, service.Recognize(ctx, id[1], "bar", delay(time.Hour)))
+	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Hour)))
+	require.Error(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Hour)))
 }
