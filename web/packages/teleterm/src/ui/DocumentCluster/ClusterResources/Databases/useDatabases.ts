@@ -38,8 +38,16 @@ export function useDatabases() {
       targetName: db.name,
       targetUser: dbUser,
     });
-    documentsService.add(doc);
-    documentsService.open(doc.uri);
+
+    const connectionToReuse =
+      appContext.connectionTracker.findConnectionByDocument(doc);
+
+    if (connectionToReuse) {
+      appContext.connectionTracker.activateItem(connectionToReuse.id);
+    } else {
+      documentsService.add(doc);
+      documentsService.open(doc.uri);
+    }
   }
 
   return {

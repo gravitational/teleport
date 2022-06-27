@@ -17,7 +17,10 @@ limitations under the License.
 import { useStore } from 'shared/libs/stores';
 import { ImmutableStore } from '../immutableStore';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import {
+  Document,
+  WorkspacesService,
+} from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
@@ -82,6 +85,19 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
     activate();
+  }
+
+  findConnectionByDocument(document: Document): TrackedConnection {
+    switch (document.kind) {
+      case 'doc.terminal_tsh_node':
+        return this.state.connections.find(
+          getServerConnectionByDocument(document)
+        );
+      case 'doc.gateway':
+        return this.state.connections.find(
+          getGatewayConnectionByDocument(document)
+        );
+    }
   }
 
   setState(
