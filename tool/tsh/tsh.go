@@ -3205,7 +3205,7 @@ func printProfiles(debug bool, profile *profileInfo, profiles []*profileInfo, en
 	// Print relevant active env vars, if they are set.
 	if verbose {
 		if len(env) > 0 {
-			fmt.Println("Active Environment")
+			fmt.Println("Active Environment:")
 		}
 		for k, v := range env {
 			fmt.Printf("%s=%s\n", k, v)
