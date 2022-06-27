@@ -551,7 +551,7 @@ If you decide to let Teleport set up the autoscaling, proceed as follows:
   ```yaml
   aws:
     # [...] already present values under `aws`
-    autoScaling: true
+    dynamoAutoScaling: true
     readMinCapacity: 5     # integer
     readMaxCapacity: 100   # integer
     readTargetValue: 50.0  # float
@@ -568,7 +568,7 @@ If you decide to let Teleport set up the autoscaling, proceed as follows:
   ```code
   $ helm upgrade teleport teleport/teleport-cluster \
     --namespace teleport \
-    --set aws.autoScaling=true
+    --set aws.dynamoAutoScaling=true \
     --set aws.readMinCapacity=5          `# integer` \
     --set aws.readMaxCapacity=100        `# integer` \
     --set aws.readTargetValue=50.0       `# float` \
