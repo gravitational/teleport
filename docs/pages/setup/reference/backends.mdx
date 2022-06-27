@@ -483,7 +483,11 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backup and autoscaling. We make setup simpler by allowing AWS DynamoDB settings to be set automatically during Teleport startup.
+When setting up DynamoDB it's important to set up backup. Autoscaling is optional with Teleport,
+it is advised to collect some production usage data before enabling autoscaling.
+
+Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
+settings to be set automatically during Teleport startup.
 
 **DynamoDB Continuous Backups**
 
@@ -517,7 +521,7 @@ teleport:
     write_target_value: float
 ```
 
-To enable these options you will need to update the IAM Role for Teleport.
+To enable these options you will need to update the IAM Policy for Teleport.
 
 ```json
 {
