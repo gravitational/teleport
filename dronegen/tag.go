@@ -359,7 +359,7 @@ for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
   [ -f "$file.sha256" ] || continue
 
   name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-  if [ "$name" = "tsh" ]; then
+  if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
     products="teleport teleport-ent";
   else
     products="$name"
