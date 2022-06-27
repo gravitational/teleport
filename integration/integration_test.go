@@ -6473,11 +6473,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Test downloading a file.
 	testFileDownload := testFilePath + "-download"
 	downloadFile, err := os.Create(testFileDownload)
-	defer downloadFile.Close()
 	require.NoError(t, err)
 
 	remoteDownloadFile, err := sftpClient.Open(testFilePath)
-	defer remoteDownloadFile.Close()
 	require.NoError(t, err)
 
 	_, err = io.Copy(downloadFile, remoteDownloadFile)
@@ -6486,12 +6484,15 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Test uploading a file.
 	testFileUpload := testFilePath + "-upload"
 	remoteUploadFile, err := sftpClient.Create(testFileUpload)
-	defer remoteUploadFile.Close()
 	require.NoError(t, err)
 
 	_, err = io.Copy(remoteUploadFile, testFile)
 	require.NoError(t, err)
 
+	require.NoError(t, remoteUploadFile.Close())
+	require.NoError(t, remoteDownloadFile.Close())
+	require.NoError(t, downloadFile.Close())
+	require.NoError(t, testFile.Close())
 	require.NoError(t, sftpClient.Close())
 
 	// Ensure SFTP audit events are present.
