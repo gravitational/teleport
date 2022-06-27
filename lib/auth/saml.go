@@ -329,9 +329,7 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
-		message := "teleport does not support initiating login from a SAML identity provider, login must be initiated from either the Teleport Web UI or CLI"
-		log.Infof(message)
-		return "", trace.NotImplemented(message)
+		return "", trace.NotFound("missing InResponseTo attribute")
 	}
 	if responseTo.Value == "" {
 		return "", trace.BadParameter("InResponseTo can not be empty")
@@ -414,13 +412,23 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
+func (a *Server) checkIDPInitiatedSAML() error {
+	// TODO(joel): check config and deny here
+	return nil
+}
+
 func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch {
+	case trace.IsNotFound(err):
+		if err := a.checkIDPInitiatedSAML(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case err != nil:
+		trace.Wrap(err)
 	}
-	diagCtx.requestID = requestID
 
+	diagCtx.requestID = requestID
 	request, err := a.Identity.GetSAMLAuthRequest(ctx, requestID)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
