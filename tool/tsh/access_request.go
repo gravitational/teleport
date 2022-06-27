@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 )
 
@@ -366,7 +366,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context, false /* quiet */)
+	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

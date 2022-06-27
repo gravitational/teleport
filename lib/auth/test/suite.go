@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 
@@ -120,7 +120,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
-	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
+	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
@@ -134,7 +134,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
 	c.Assert(err, check.IsNil)
-	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(defaults.MinCertDuration))
+	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{

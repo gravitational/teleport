@@ -155,7 +155,7 @@ password created by APPLE_USERNAME"
   mv "$target" .
   local bn=''
   bn="$(basename "$target")"
-  sha256sum "$bn" > "$bn.sha256"
+  shasum -a 256 "$bn" > "$bn.sha256"
 }
 
 main "$@"

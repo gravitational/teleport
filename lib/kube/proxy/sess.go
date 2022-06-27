@@ -319,7 +319,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 
@@ -654,7 +654,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		defer s.mu.Unlock()
 
 		for _, party := range s.parties {
-			if err := party.Client.sendStatus(err); err != nil {
+			if err := party.Client.sendStatus(errExec); err != nil {
 				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
 			}
 		}

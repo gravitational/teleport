@@ -94,6 +94,7 @@ RUN apt-get update -y --fix-missing && \
         pkg-config \
         shellcheck \
         softhsm2 \
+        sudo \
         tree \
         unzip \
         zip \
@@ -170,6 +171,7 @@ RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd
      curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
+     chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
 RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \

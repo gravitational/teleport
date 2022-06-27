@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -611,7 +612,7 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 // TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
 func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separatePostgresPortSetup),
+		withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
 	)
 
 	// Connect to the database service in root cluster.
@@ -760,7 +761,7 @@ func TestDatabaseAccessHALeafCluster(t *testing.T) {
 // TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
 func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separateMongoPortSetup),
+		withPortSetupDatabaseTest(helpers.SeparateMongoPortSetup),
 	)
 
 	// Connect to the database service in root cluster.
@@ -872,7 +873,7 @@ type databasePack struct {
 }
 
 type databaseClusterPack struct {
-	cluster         *TeleInstance
+	cluster         *helpers.TeleInstance
 	user            types.User
 	role            types.Role
 	dbProcess       *service.TeleportProcess
@@ -890,7 +891,7 @@ type databaseClusterPack struct {
 
 type testOptions struct {
 	clock             clockwork.Clock
-	instancePortsFunc func() *InstancePorts
+	instancePortsFunc func() *helpers.InstancePorts
 	rootConfig        func(config *service.Config)
 	leafConfig        func(config *service.Config)
 	nodeName          string
@@ -903,7 +904,7 @@ func (o *testOptions) setDefaultIfNotSet() {
 		o.clock = clockwork.NewRealClock()
 	}
 	if o.instancePortsFunc == nil {
-		o.instancePortsFunc = standardPortSetup
+		o.instancePortsFunc = helpers.StandardPortSetup
 	}
 	if o.nodeName == "" {
 		o.nodeName = Host
@@ -922,7 +923,7 @@ func withNodeName(nodeName string) testOptionFunc {
 	}
 }
 
-func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
+func withPortSetupDatabaseTest(portFn func() *helpers.InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
 	}
@@ -951,7 +952,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
@@ -961,37 +961,37 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 	}
 
 	// Create root cluster.
-	p.root.cluster = NewInstance(InstanceConfig{
+	p.root.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.instancePortsFunc(),
 	})
 
 	// Create leaf cluster.
-	p.leaf.cluster = NewInstance(InstanceConfig{
+	p.leaf.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.
@@ -1243,15 +1243,15 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.root.cluster.log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				p.root.cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.leaf.mysqlService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.leaf.postgresService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
 			return
@@ -1273,7 +1273,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.Token = "static-token-value"
-	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
+	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", helpers.NewPortStr())}
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",

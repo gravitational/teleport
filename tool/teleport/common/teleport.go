@@ -84,6 +84,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
+	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -166,7 +167,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Database CA certificate path.").Hidden().
 		StringVar(&ccf.DatabaseCACertFile)
 	start.Flag("db-aws-region",
-		"AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").Hidden().
+		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
@@ -189,6 +190,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("public-addr", "Public address of the application to proxy.").StringVar(&ccf.AppPublicAddr)
 	appStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	appStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands
@@ -207,8 +209,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("description", "Description of the proxied database.").StringVar(&ccf.DatabaseDescription)
 	dbStartCmd.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&ccf.DatabaseProtocol)
 	dbStartCmd.Flag("uri", "Address the proxied database is reachable at.").StringVar(&ccf.DatabaseURI)
-	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
-	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora, Redshift or ElastiCache) AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
+	dbStartCmd.Flag("ca-cert-file", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
+	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora, Redshift, ElastiCache or MemoryDB) AWS region AWS hosted database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
 	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
@@ -220,6 +222,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&ccf.DatabaseADSPN)
 	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	dbStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
+	dbStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
 
 	dbConfigure := dbCmd.Command("configure", "Bootstraps database service configuration and cloud permissions.")
@@ -231,11 +234,20 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("rds-discovery", "List of AWS regions the agent will discover for RDS/Aurora instances.").StringsVar(&dbConfigCreateFlags.RDSDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-discovery", "List of AWS regions the agent will discover for Redshift instances.").StringsVar(&dbConfigCreateFlags.RedshiftDiscoveryRegions)
 	dbConfigureCreate.Flag("elasticache-discovery", "List of AWS regions the agent will discover for ElastiCache Redis clusters.").StringsVar(&dbConfigCreateFlags.ElastiCacheDiscoveryRegions)
+	dbConfigureCreate.Flag("memorydb-discovery", "List of AWS regions the agent will discover for MemoryDB clusters.").StringsVar(&dbConfigCreateFlags.MemoryDBDiscoveryRegions)
 	dbConfigureCreate.Flag("ca-pin", "CA pin to validate the auth server (can be repeated for multiple pins).").StringsVar(&dbConfigCreateFlags.CAPins)
 	dbConfigureCreate.Flag("name", "Name of the proxied database.").StringVar(&dbConfigCreateFlags.StaticDatabaseName)
 	dbConfigureCreate.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&dbConfigCreateFlags.StaticDatabaseProtocol)
 	dbConfigureCreate.Flag("uri", "Address the proxied database is reachable at.").StringVar(&dbConfigCreateFlags.StaticDatabaseURI)
 	dbConfigureCreate.Flag("labels", "Comma-separated list of labels for the database, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.StaticDatabaseRawLabels)
+	dbConfigureCreate.Flag("aws-region", "(Only for RDS, Aurora, Redshift or ElastiCache) AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").StringVar(&dbConfigCreateFlags.DatabaseAWSRegion)
+	dbConfigureCreate.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRedshiftClusterID)
+	dbConfigureCreate.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&dbConfigCreateFlags.DatabaseADDomain)
+	dbConfigureCreate.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&dbConfigCreateFlags.DatabaseADSPN)
+	dbConfigureCreate.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&dbConfigCreateFlags.DatabaseADKeytabFile)
+	dbConfigureCreate.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPProjectID)
+	dbConfigureCreate.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPInstanceID)
+	dbConfigureCreate.Flag("ca-cert", "Database CA certificate path.").StringVar(&dbConfigCreateFlags.DatabaseCACertFile)
 	dbConfigureCreate.Flag("output",
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
@@ -318,6 +330,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("token", "Invitation token to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dumpNodeConfigure.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
+	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
 
 	// parse CLI commands+flags:
@@ -366,11 +379,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
-		err = onExec()
+		srv.RunAndExit(teleport.ExecSubCommand)
 	case forward.FullCommand():
-		err = onForward()
+		srv.RunAndExit(teleport.ForwardSubCommand)
 	case checkHomeDir.FullCommand():
-		err = onCheckHome()
+		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
+	case park.FullCommand():
+		srv.RunAndExit(teleport.ParkSubCommand)
 	case ver.FullCommand():
 		utils.PrintVersion()
 	case dbConfigureCreate.FullCommand():
@@ -631,28 +646,6 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	}
 
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
-}
-
-// onExec is a subcommand used to re-execute Teleport for execution. Used for
-// "exec" or "shell" requests over a "session" channel on Teleport nodes.
-func onExec() error {
-	srv.RunAndExit(teleport.ExecSubCommand)
-	return nil
-}
-
-// onForward is a subcommand used to re-execute Teleport for port forwarding.
-// Used with "direct-tcpip" channel on Teleport nodes.
-func onForward() error {
-	srv.RunAndExit(teleport.ForwardSubCommand)
-	return nil
-}
-
-// onCheckHome is a subcommand used to re-execute Teleport to check for the
-// existence of the user's home dir. This is needed in cases where the user's
-// home dir isn't visible to the parent process's user.
-func onCheckHome() error {
-	srv.RunAndExit(teleport.CheckHomeDirSubCommand)
-	return nil
 }
 
 type StdReadWriter struct {
