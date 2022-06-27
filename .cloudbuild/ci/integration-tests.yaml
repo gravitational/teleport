@@ -9,6 +9,10 @@ options:
   # so that the build will still run if _GITHUB_DEPLOY_KEY_SRC is not defined.
   substitution_option: ALLOW_LOOSE
 
+  pool:
+    name: projects/ci-account/locations/us-west1/workerPools/test-high-cpu-pool
+
+
 steps:
   # Run the integration tests. Actual content of this job depends on the changes
   # detected in the PR
