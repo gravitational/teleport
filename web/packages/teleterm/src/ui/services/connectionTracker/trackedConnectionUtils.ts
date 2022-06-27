@@ -9,7 +9,7 @@ export function getGatewayConnectionByDocument(document: DocumentGateway) {
   return (i: TrackedGatewayConnection) =>
     i.kind === 'connection.gateway' &&
     i.targetUri === document.targetUri &&
-    i.port === document.port;
+    i.targetUser === document.targetUser;
 }
 
 export function getServerConnectionByDocument(document: DocumentTshNode) {
@@ -25,7 +25,7 @@ export function getGatewayDocumentByConnection(
   return (i: DocumentGateway) =>
     i.kind === 'doc.gateway' &&
     i.targetUri === connection.targetUri &&
-    i.port === connection.port;
+    i.targetUser === connection.targetUser;
 }
 
 export function getServerDocumentByConnection(
