@@ -70,6 +70,22 @@ func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	return cluster, nil
 }
 
+// GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
+// resources and will return a root or leaf cluster accordingly.
+func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
+	clusterURI, err := uri.ParseClusterURI(resourceURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.GetByURI(clusterURI.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cluster, nil
+}
+
 // Remove removes a cluster
 func (s *Storage) Remove(ctx context.Context, clusterName string) error {
 	if err := profile.RemoveProfile(s.Dir, clusterName); err != nil {
