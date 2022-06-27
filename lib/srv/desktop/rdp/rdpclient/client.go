@@ -108,6 +108,12 @@ func init() {
 }
 
 // Client is the RDP client.
+// Its lifecycle is:
+//
+// ```
+// rdpc := New()         // creates client
+// rdpc.Run()   // starts rdp and waits for the duration of the connection
+// ```
 type Client struct {
 	cfg Config
 
@@ -115,7 +121,7 @@ type Client struct {
 	clientWidth, clientHeight uint16
 	username                  string
 
-	// handle allows the rust code to call back into the client
+	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
 
 	// RDP client on the Rust side.
@@ -155,11 +161,21 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return c, nil
+}
+
+// Run starts the rdp client and blocks until the client disconnects,
+// then runs the cleanup.
+func (c *Client) Run(ctx context.Context) error {
+	defer c.close()
+
 	if err := c.connect(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	c.start()
-	return c, nil
+	c.wg.Wait()
+
+	return nil
 }
 
 func (c *Client) readClientUsername() error {
@@ -240,7 +256,6 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.Close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
@@ -260,7 +275,6 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		defer c.Close()
 		defer c.cfg.Log.Info("TDP input streaming finished")
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
@@ -401,10 +415,6 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryCreateResponse:
 				if c.cfg.AllowDirectorySharing {
-					if err != nil {
-						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", err)
-						return
-					}
 					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
@@ -625,24 +635,21 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 	return C.ErrCodeSuccess
 }
 
-// Wait blocks until the client disconnects and runs the cleanup.
-func (c *Client) Wait() error {
-	c.wg.Wait()
-	// Let the Rust side free its data.
-	C.free_rdp(c.rustClient)
-	return nil
-}
-
-// Close shuts down the client and closes any existing connections.
-// It is safe to call multiple times, from multiple goroutines.
-// Calls other than the first one are no-ops.
-func (c *Client) Close() {
+// close frees the memory of the cgo.Handle,
+// closes the RDP client connection,
+// and frees the Rust client.
+func (c *Client) close() {
 	c.closeOnce.Do(func() {
-		c.handle.Delete()
-
+		// Close the RDP client
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("failed to close the RDP client")
 		}
+
+		// Let the Rust side free its data
+		C.free_rdp(c.rustClient)
+
+		// Release the memory of the cgo.Handle
+		c.handle.Delete()
 	})
 }
 

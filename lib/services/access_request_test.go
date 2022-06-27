@@ -29,14 +29,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockUserAndRoleGetter mocks the UserAndRoleGetter interface.
-type mockUserAndRoleGetter struct {
-	users map[string]types.User
-	roles map[string]types.Role
+// mockGetter mocks the UserAndRoleGetter interface.
+type mockGetter struct {
+	users        map[string]types.User
+	roles        map[string]types.Role
+	nodes        map[string]types.Server
+	kubeServices []types.Server
+	dbs          map[string]types.Database
+	apps         map[string]types.Application
+	desktops     map[string]types.WindowsDesktop
 }
 
 // user inserts a new user with the specified roles and returns the username.
-func (m *mockUserAndRoleGetter) user(t *testing.T, roles ...string) string {
+func (m *mockGetter) user(t *testing.T, roles ...string) string {
 	name := uuid.New().String()
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
@@ -46,7 +51,7 @@ func (m *mockUserAndRoleGetter) user(t *testing.T, roles ...string) string {
 	return name
 }
 
-func (m *mockUserAndRoleGetter) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockGetter) GetUser(name string, withSecrets bool) (types.User, error) {
 	if withSecrets {
 		return nil, trace.NotImplemented("mock getter does not store secrets")
 	}
@@ -57,7 +62,7 @@ func (m *mockUserAndRoleGetter) GetUser(name string, withSecrets bool) (types.Us
 	return user, nil
 }
 
-func (m *mockUserAndRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
 	role, ok := m.roles[name]
 	if !ok {
 		return nil, trace.NotFound("no such role: %q", name)
@@ -65,12 +70,48 @@ func (m *mockUserAndRoleGetter) GetRole(ctx context.Context, name string) (types
 	return role, nil
 }
 
-func (m *mockUserAndRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	roles := make([]types.Role, 0, len(m.roles))
 	for _, r := range m.roles {
 		roles = append(roles, r)
 	}
 	return roles, nil
+}
+
+func (m *mockGetter) GetNode(ctx context.Context, namespace string, name string) (types.Server, error) {
+	node, ok := m.nodes[name]
+	if !ok {
+		return nil, trace.NotFound("no such node: %q", name)
+	}
+	return node, nil
+}
+
+func (m *mockGetter) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	return append([]types.Server{}, m.kubeServices...), nil
+}
+
+func (m *mockGetter) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	db, ok := m.dbs[name]
+	if !ok {
+		return nil, trace.NotFound("no such db: %q", name)
+	}
+	return db, nil
+}
+
+func (m *mockGetter) GetApp(ctx context.Context, name string) (types.Application, error) {
+	app, ok := m.apps[name]
+	if !ok {
+		return nil, trace.NotFound("no such app: %q", name)
+	}
+	return app, nil
+}
+
+func (m *mockGetter) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	desktop, ok := m.desktops[filter.Name]
+	if !ok {
+		return nil, trace.NotFound("no such desktop: %q", filter.Name)
+	}
+	return []types.WindowsDesktop{desktop}, nil
 }
 
 // TestReviewThresholds tests various review threshold scenarios
@@ -203,7 +244,7 @@ func TestReviewThresholds(t *testing.T) {
 		users[name] = user
 	}
 
-	g := &mockUserAndRoleGetter{
+	g := &mockGetter{
 		roles: roles,
 		users: users,
 	}
@@ -482,10 +523,10 @@ func TestReviewThresholds(t *testing.T) {
 
 		// perform request validation (necessary in order to initialize internal
 		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(g, tt.requestor, ExpandVars(true))
+		validator, err := NewRequestValidator(context.Background(), g, tt.requestor, ExpandVars(true))
 		require.NoError(t, err, "scenario=%q", tt.desc)
 
-		require.NoError(t, validator.Validate(req), "scenario=%q", tt.desc)
+		require.NoError(t, validator.Validate(context.Background(), req), "scenario=%q", tt.desc)
 
 	Inner:
 		for ri, rt := range tt.reviews {
@@ -517,6 +558,20 @@ func TestReviewThresholds(t *testing.T) {
 			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 		}
 	}
+}
+
+// TestMaxLength tests that we reject too large access requests.
+func TestMaxLength(t *testing.T) {
+	req, err := types.NewAccessRequest("some-id", "dave", "dictator", "never")
+	require.NoError(t, err)
+
+	var s []byte
+	for i := 0; i <= maxAccessRequestReasonSize; i++ {
+		s = append(s, 'a')
+	}
+
+	req.SetRequestReason(string(s))
+	require.Error(t, ValidateAccessRequest(req))
 }
 
 // TestThresholdReviewFilter verifies basic filter syntax.
@@ -826,9 +881,9 @@ func TestRequestFilterConversion(t *testing.T) {
 	}
 }
 
-// TestRolesForSearchBasedRequest tests that the correct roles are automatically
-// determined for search-based access requests
-func TestRolesForSearchBasedRequest(t *testing.T) {
+// TestRolesForResourceRequest tests that the correct roles are automatically
+// determined for resource access requests
+func TestRolesForResourceRequest(t *testing.T) {
 	// set up test roles
 	roleDesc := map[string]types.RoleSpecV5{
 		"db-admins": types.RoleSpecV5{
@@ -962,25 +1017,350 @@ func TestRolesForSearchBasedRequest(t *testing.T) {
 				user.GetName(): user,
 			}
 
-			g := &mockUserAndRoleGetter{
+			g := &mockGetter{
 				roles: roles,
 				users: users,
 			}
-
-			validator, err := NewRequestValidator(g, user.GetName(), ExpandVars(true))
-			require.NoError(t, err)
 
 			req, err := types.NewAccessRequestWithResources(
 				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
-			err = validator.Validate(req)
+			validator, err := NewRequestValidator(context.Background(), g, user.GetName(), ExpandVars(true))
+			require.NoError(t, err)
+
+			err = validator.Validate(context.Background(), req)
 			require.ErrorIs(t, err, tc.expectError)
 			if err != nil {
 				return
 			}
 
 			require.Equal(t, tc.expectRequestedRoles, req.GetRoles())
+		})
+	}
+}
+
+func TestPruneRequestRoles(t *testing.T) {
+	ctx := context.Background()
+
+	g := &mockGetter{
+		roles:    make(map[string]types.Role),
+		users:    make(map[string]types.User),
+		nodes:    make(map[string]types.Server),
+		dbs:      make(map[string]types.Database),
+		apps:     make(map[string]types.Application),
+		desktops: make(map[string]types.WindowsDesktop),
+	}
+
+	// set up test roles
+	roleDesc := map[string]types.RoleSpecV5{
+		"response-team": types.RoleSpecV5{
+			// By default has access to nothing, but can request many types of
+			// resources.
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"node-admins",
+						"node-access",
+						"kube-admins",
+						"db-admins",
+						"app-admins",
+						"windows-admins",
+						"empty",
+					},
+				},
+			},
+		},
+		"node-access": types.RoleSpecV5{
+			// Grants access with user's own login
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"*": {"*"},
+				},
+				Logins: []string{"{{internal.logins}}"},
+			},
+		},
+		"node-admins": types.RoleSpecV5{
+			// Grants root access to specific nodes.
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"owner": {"node-admins"},
+				},
+				Logins: []string{"{{internal.logins}}", "root"},
+			},
+		},
+		"kube-admins": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{
+					"*": {"*"},
+				},
+			},
+		},
+		"db-admins": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{
+					"*": {"*"},
+				},
+			},
+		},
+		"app-admins": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"*": {"*"},
+				},
+			},
+		},
+		"windows-admins": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				WindowsDesktopLabels: types.Labels{
+					"*": {"*"},
+				},
+			},
+		},
+		"empty": types.RoleSpecV5{
+			// Grants access to nothing, should never be requested.
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	user := g.user(t, "response-team")
+	g.users[user].SetTraits(map[string][]string{
+		"logins": []string{"responder"},
+	})
+
+	nodeDesc := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name: "admins-node",
+			labels: map[string]string{
+				"owner": "node-admins",
+			},
+		},
+		{
+			name: "denied-node",
+		},
+	}
+	for _, desc := range nodeDesc {
+		node, err := types.NewServerWithLabels(desc.name, types.KindNode, types.ServerSpecV2{}, desc.labels)
+		require.NoError(t, err)
+		g.nodes[desc.name] = node
+	}
+
+	kube, err := types.NewServerWithLabels("kube", types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			&types.KubernetesCluster{
+				Name:         "kube",
+				StaticLabels: nil,
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+	g.kubeServices = append(g.kubeServices, kube)
+
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "example.com:3000",
+	})
+	require.NoError(t, err)
+	g.dbs[db.GetName()] = db
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "app",
+	}, types.AppSpecV3{
+		URI: "example.com:3000",
+	})
+	require.NoError(t, err)
+	g.apps[app.GetName()] = app
+
+	desktop, err := types.NewWindowsDesktopV3("windows", nil, types.WindowsDesktopSpecV3{
+		Addr: "example.com:3001",
+	})
+	require.NoError(t, err)
+	g.desktops[desktop.GetName()] = desktop
+
+	clusterName := "my-cluster"
+
+	testCases := []struct {
+		desc               string
+		requestResourceIDs []types.ResourceID
+		loginHint          string
+		userTraits         map[string][]string
+		expectRoles        []string
+		expectError        bool
+	}{
+		{
+			desc: "without login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			// Without the login hint, all roles granting access will be
+			// requested.
+			expectRoles: []string{"node-admins", "node-access"},
+		},
+		{
+			desc: "user login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint: "responder",
+			// With "responder" login hint, only request node-access.
+			expectRoles: []string{"node-access"},
+		},
+		{
+			desc: "root login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint: "root",
+			// With "root" login hint, request node-admins.
+			expectRoles: []string{"node-admins"},
+		},
+		{
+			desc: "root login unavailable",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "denied-node",
+				},
+			},
+			loginHint: "root",
+			// No roles grant access with the desired login, return an error.
+			expectError: true,
+		},
+		{
+			desc: "kube request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+			},
+			// Request for kube cluster should only request kube-admins
+			expectRoles: []string{"kube-admins"},
+		},
+		{
+			desc: "db request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+			},
+			// Request for db should only request db-admins
+			expectRoles: []string{"db-admins"},
+		},
+		{
+			desc: "app request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+			},
+			// Request for app should only request app-admins
+			expectRoles: []string{"app-admins"},
+		},
+		{
+			desc: "windows request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			// Request for windows should only request windows-admins
+			expectRoles: []string{"windows-admins"},
+		},
+		{
+			desc: "mixed request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			// Request for different kinds should request all necessary roles
+			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins"},
+		},
+		{
+			desc: "foreign resource",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: "leaf",
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			// Request for foreign resource should request all available roles,
+			// we don't know which one is necessary
+			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			req, err := NewAccessRequestWithResources(user, nil, tc.requestResourceIDs)
+			require.NoError(t, err)
+
+			req.SetLoginHint(tc.loginHint)
+
+			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
+			require.NoError(t, err)
+
+			err = PruneResourceRequestRoles(ctx, req, g, clusterName, g.users[user].GetTraits())
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
+				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
 		})
 	}
 }

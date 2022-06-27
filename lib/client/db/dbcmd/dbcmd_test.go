@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -95,6 +96,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -455,6 +457,32 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-p", "12345"},
 			wantErr: false,
 		},
+		{
+			name:       "snowsql no TLS",
+			dbProtocol: defaults.ProtocolSnowflake,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer:     &fakeExec{},
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345"},
+			wantErr: false,
+		},
+		{
+			name:         "snowsql db-name no TLS",
+			dbProtocol:   defaults.ProtocolSnowflake,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345",
+				"-w", "warehouse1"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -496,6 +524,7 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -534,6 +563,7 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)

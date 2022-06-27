@@ -107,10 +107,17 @@ int findCredentials(BOOL applyFilter, LabelFilter filter,
       CFRelease(pubKey);
     }
 
+    CFDateRef creationDate =
+        (CFDateRef)CFDictionaryGetValue(attrs, kSecAttrCreationDate);
+    NSDate *nsDate = (__bridge NSDate *)creationDate;
+    NSISO8601DateFormatter *formatter = [[NSISO8601DateFormatter alloc] init];
+    NSString *isoCreationDate = [formatter stringFromDate:nsDate];
+
     (*infosOut + infosLen)->label = CopyNSString(nsLabel);
     (*infosOut + infosLen)->app_label = CopyNSString(nsAppLabel);
     (*infosOut + infosLen)->app_tag = CopyNSString(nsAppTag);
     (*infosOut + infosLen)->pub_key_b64 = pubKeyB64;
+    (*infosOut + infosLen)->creation_date = CopyNSString(isoCreationDate);
     infosLen++;
   }
 
@@ -202,4 +209,8 @@ int DeleteCredential(const char *reason, const char *appLabel, char **errOut) {
   }
 
   return res;
+}
+
+int DeleteNonInteractive(const char *appLabel) {
+  return deleteCredential(appLabel);
 }

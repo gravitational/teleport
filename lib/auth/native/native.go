@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -177,8 +177,6 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
-
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
 	principals := BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, types.SystemRoles{c.Role})
@@ -207,7 +205,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -224,6 +222,11 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	}
 	return k.GenerateUserCertWithoutValidation(c)
 }
+
+// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
+// from which this certificate is accepted for authentication.
+// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+const sourceAddress = "source-address"
 
 // GenerateUserCertWithoutValidation generates a user certificate with the
 // passed in parameters without validating them. For use in tests only.
@@ -277,6 +280,22 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.Generation > 0 {
 		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
 	}
+	if c.AllowedResourceIDs != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
+	}
+
+	if c.SourceIP != "" {
+		if cert.CriticalOptions == nil {
+			cert.CriticalOptions = make(map[string]string)
+		}
+		//IPv4, all bits matter
+		ip := c.SourceIP + "/32"
+		if strings.Contains(c.SourceIP, ":") {
+			//IPv6
+			ip = c.SourceIP + "/128"
+		}
+		cert.CriticalOptions[sourceAddress] = ip
+	}
 
 	for _, extension := range c.CertificateExtensions {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
@@ -318,8 +337,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		}
 	}
 
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil

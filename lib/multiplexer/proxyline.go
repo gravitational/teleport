@@ -28,6 +28,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/gravitational/trace"
 )
@@ -58,6 +59,39 @@ type ProxyLine struct {
 // String returns on-the wire string representation of the proxy line
 func (p *ProxyLine) String() string {
 	return fmt.Sprintf("PROXY %s %s %s %d %d\r\n", p.Protocol, p.Source.IP.String(), p.Destination.IP.String(), p.Source.Port, p.Destination.Port)
+}
+
+// Bytes returns on-the wire bytes representation of proxy line conforming to the proxy v2 protocol
+func (p *ProxyLine) Bytes() []byte {
+	b := &bytes.Buffer{}
+	header := proxyV2Header{VersionCommand: (Version2 << 4) | ProxyCommand}
+	copy(header.Signature[:], proxyV2Prefix)
+	var addr interface{}
+	switch p.Protocol {
+	case TCP4:
+		header.Protocol = ProtocolTCP4
+		addr4 := proxyV2Address4{
+			SourcePort:      uint16(p.Source.Port),
+			DestinationPort: uint16(p.Destination.Port),
+		}
+		copy(addr4.Source[:], p.Source.IP.To4())
+		copy(addr4.Destination[:], p.Destination.IP.To4())
+		addr = addr4
+	case TCP6:
+		header.Protocol = ProtocolTCP6
+		addr6 := proxyV2Address6{
+			SourcePort:      uint16(p.Source.Port),
+			DestinationPort: uint16(p.Destination.Port),
+		}
+		copy(addr6.Source[:], p.Source.IP.To16())
+		copy(addr6.Destination[:], p.Destination.IP.To16())
+		addr = addr6
+	}
+	header.Length = uint16(binary.Size(addr))
+	binary.Write(b, binary.BigEndian, header)
+	binary.Write(b, binary.BigEndian, addr)
+
+	return b.Bytes()
 }
 
 // ReadProxyLine reads proxy line protocol from the reader
@@ -180,9 +214,11 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	if cmd != ProxyCommand {
 		return nil, trace.BadParameter("unsupported command %d", cmd)
 	}
+	var size uint16
 	switch header.Protocol {
 	case ProtocolTCP4:
 		var addr proxyV2Address4
+		size = uint16(unsafe.Sizeof(addr))
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -191,6 +227,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	case ProtocolTCP6:
 		var addr proxyV2Address6
+		size = uint16(unsafe.Sizeof(addr))
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -199,6 +236,12 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	default:
 		return nil, trace.BadParameter("unsupported protocol %x", header.Protocol)
+	}
+
+	if header.Length > size {
+		if _, err := io.CopyN(io.Discard, reader, int64(header.Length-size)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &ret, nil

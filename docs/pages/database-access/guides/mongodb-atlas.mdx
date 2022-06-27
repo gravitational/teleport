@@ -109,7 +109,7 @@ On the node where you will run the Database Service, start Teleport, pointing th
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=mongodb-atlas \
   --protocol=mongodb \
   --uri=mongodb+srv://cluster0.abcde.mongodb.net \
