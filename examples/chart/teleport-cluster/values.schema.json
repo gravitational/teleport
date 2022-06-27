@@ -296,15 +296,15 @@
                     "type": "boolean",
                     "default": false
                 },
-                "autoScaling": {
-                    "$id": "#/properties/aws/properties/autoScaling",
+                "dynamoAutoScaling": {
+                    "$id": "#/properties/aws/properties/dynamoAutoScaling",
                     "type": "boolean",
                     "default": false
                 }
             },
             "if": {
                 "properties": {
-                    "autoScaling": {
+                    "dynamoAutoScaling": {
                         "const": true
                     }
                 }

@@ -199,12 +199,12 @@ matches snapshot for aws-dynamodb-autoscaling.yaml:
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
             auto_scaling: true
-            read_min_capacity: 0
-            read_max_capacity: 1
-            read_target_value: 0.5
-            write_min_capacity: 0
-            write_max_capacity: 1
-            write_target_value: 0.5
+            read_min_capacity: 5
+            read_max_capacity: 100
+            read_target_value: 50
+            write_min_capacity: 5
+            write_max_capacity: 100
+            write_target_value: 50
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster

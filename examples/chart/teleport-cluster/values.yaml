@@ -150,9 +150,9 @@ aws:
   # Whether Teleport should configure DynamoDB's autoscaling.
   # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
   # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
-  autoScaling: false
+  dynamoAutoScaling: false
 
-  # DynamoDB autoscaling settings. Required if `autoScaling` is `true`.
+  # DynamoDB autoscaling settings. Required if `dynamoAutoScaling` is `true`.
   # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
   readMinCapacity: null      # Integer
   readMaxCapacity: null      # Integer
