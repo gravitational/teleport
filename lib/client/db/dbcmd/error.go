@@ -22,30 +22,26 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // ConvertCommandError translates some common errors to more user friendly
 // messages.
 //
 // This helps in situations where the user does not have the full context to
-// decipher errors when the database command is executed internally (e.g. tsh
-// db connect).
+// decipher errors when the database command is executed internally (e.g.
+// command executed through "tsh db connect").
 func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 	switch filepath.Base(cmd.Path) {
 	case redisBin:
+		// This redis-cli "Unrecognized option ..." error can be confusing to
+		// users that they may think it is the `tsh` binary that is not
+		// recognizing the flag.
 		if strings.HasPrefix(peakStderr, "Unrecognized option or bad number of args for") {
 			// TLS support starting 6.0. "--insecure" flag starting 6.2.
-			minVersion := "6.0"
-			if utils.SliceContainsStr(cmd.Args, "--insecure") {
-				minVersion = "6.2"
-			}
 			return trace.BadParameter(
-				"'%s' has exited with the above error. Please make sure '%s' with version %s or newer is installed.",
+				"'%s' has exited with the above error. Please make sure '%s' with version 6.2 or newer is installed.",
 				cmd.Path,
 				redisBin,
-				minVersion,
 			)
 		}
 	}
