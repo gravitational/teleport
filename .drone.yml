@@ -1207,7 +1207,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1363,7 +1363,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1517,7 +1517,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1671,7 +1671,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -1847,7 +1847,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2025,7 +2025,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2197,7 +2197,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2361,7 +2361,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2515,7 +2515,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2691,7 +2691,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -2863,7 +2863,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3090,7 +3090,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3295,7 +3295,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3481,7 +3481,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3633,7 +3633,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3787,7 +3787,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -3954,7 +3954,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4121,7 +4121,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4297,7 +4297,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4478,7 +4478,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -4640,7 +4640,7 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" ]; then
+      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
         products="teleport teleport-ent";
       else
         products="$name"
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 36cb56689a9f2dc75b3adeb626cb64db2d728dd2c1060bc86d34401ad28e6e8f
+hmac: bf3fd54c350cc4b047f4f44c07f1de49fa16e70a97340cc0c9d463339f1a8f37
 
 ...
