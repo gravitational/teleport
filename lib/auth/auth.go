@@ -20,7 +20,6 @@ limitations under the License.
 // * Authority server itself that implements signing and acl logic
 // * HTTP server wrapper for authority server
 // * HTTP client wrapper
-//
 package auth
 
 import (
@@ -166,6 +165,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Enforcer == nil {
 		cfg.Enforcer = local.NewNoopEnforcer()
 	}
+	if cfg.AssertionReplayService == nil {
+		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
@@ -190,23 +192,24 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	services := &Services{
-		Trust:                 cfg.Trust,
-		Presence:              cfg.Presence,
-		Provisioner:           cfg.Provisioner,
-		Identity:              cfg.Identity,
-		Access:                cfg.Access,
-		DynamicAccessExt:      cfg.DynamicAccessExt,
-		ClusterConfiguration:  cfg.ClusterConfiguration,
-		Restrictions:          cfg.Restrictions,
-		Apps:                  cfg.Apps,
-		Databases:             cfg.Databases,
-		IAuditLog:             cfg.AuditLog,
-		Events:                cfg.Events,
-		WindowsDesktops:       cfg.WindowsDesktops,
-		SessionTrackerService: cfg.SessionTrackerService,
-		Enforcer:              cfg.Enforcer,
-		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		Status:                cfg.Status,
+		Trust:                  cfg.Trust,
+		Presence:               cfg.Presence,
+		Provisioner:            cfg.Provisioner,
+		Identity:               cfg.Identity,
+		Access:                 cfg.Access,
+		DynamicAccessExt:       cfg.DynamicAccessExt,
+		ClusterConfiguration:   cfg.ClusterConfiguration,
+		Restrictions:           cfg.Restrictions,
+		Apps:                   cfg.Apps,
+		Databases:              cfg.Databases,
+		IAuditLog:              cfg.AuditLog,
+		Events:                 cfg.Events,
+		WindowsDesktops:        cfg.WindowsDesktops,
+		SessionTrackerService:  cfg.SessionTrackerService,
+		Enforcer:               cfg.Enforcer,
+		ConnectionsDiagnostic:  cfg.ConnectionsDiagnostic,
+		Status:                 cfg.Status,
+		AssertionReplayService: cfg.AssertionReplayService,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -261,6 +264,7 @@ type Services struct {
 	services.Status
 	types.Events
 	events.IAuditLog
+	*local.AssertionReplayService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -338,8 +342,8 @@ var (
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
-//	 - invites other SSH nodes to a cluster, by issuing invite tokens
-//	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
+//   - invites other SSH nodes to a cluster, by issuing invite tokens
+//   - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
