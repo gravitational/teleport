@@ -407,6 +407,26 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     await this.client.restartGateway(gatewayUri);
   }
 
+  async setGatewayTargetSubresourceName(
+    gatewayUri: string,
+    targetSubresourceName: string
+  ) {
+    if (!this.findGateway(gatewayUri)) {
+      throw new Error(`Could not find gateway ${gatewayUri}`);
+    }
+
+    const gateway = await this.client.setGatewayTargetSubresourceName(
+      gatewayUri,
+      targetSubresourceName
+    );
+
+    this.setState(draft => {
+      draft.gateways.set(gatewayUri, gateway);
+    });
+
+    return gateway;
+  }
+
   findCluster(clusterUri: string) {
     return this.state.clusters.get(clusterUri);
   }

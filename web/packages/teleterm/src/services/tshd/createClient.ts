@@ -266,6 +266,24 @@ export default function createClient(addr: string) {
         });
       });
     },
+
+    async setGatewayTargetSubresourceName(
+      gatewayUri = '',
+      targetSubresourceName = ''
+    ) {
+      const req = new api.SetGatewayTargetSubresourceNameRequest()
+        .setGatewayUri(gatewayUri)
+        .setTargetSubresourceName(targetSubresourceName);
+      return new Promise<types.Gateway>((resolve, reject) => {
+        tshd.setGatewayTargetSubresourceName(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject());
+          }
+        });
+      });
+    },
   };
 
   return client;

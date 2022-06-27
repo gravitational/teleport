@@ -28,7 +28,6 @@ export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
 
 export type TshClient = {
-  listGateways: () => Promise<Gateway[]>;
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
   listApps: (clusterUri: string) => Promise<Application[]>;
@@ -38,11 +37,18 @@ export type TshClient = {
   listServers: (clusterUri: string) => Promise<Server[]>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
+
+  listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
-  getCluster: (clusterUri: string) => Promise<Cluster>;
-  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
   removeGateway: (gatewayUri: string) => Promise<void>;
   restartGateway: (gatewayUri: string) => Promise<void>;
+  setGatewayTargetSubresourceName: (
+    gatewayUri: string,
+    targetSubresourceName: string
+  ) => Promise<Gateway>;
+
+  getCluster: (clusterUri: string) => Promise<Cluster>;
+  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
   removeCluster: (clusterUri: string) => Promise<void>;
   login: (params: LoginParams, abortSignal?: TshAbortSignal) => Promise<void>;
   logout: (clusterUri: string) => Promise<void>;

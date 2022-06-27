@@ -58,6 +58,18 @@ export default function useGateway(doc: types.DocumentGateway) {
     await ctx.clustersService.removeGateway(doc.gatewayUri);
   });
 
+  const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
+    const updatedGateway =
+      await ctx.clustersService.setGatewayTargetSubresourceName(
+        doc.gatewayUri,
+        name
+      );
+
+    workspaceDocumentsService.update(doc.uri, {
+      targetSubresourceName: updatedGateway.targetSubresourceName,
+    });
+  });
+
   const reconnect = () => {
     if (rootCluster.connected) {
       createGateway();
@@ -107,6 +119,8 @@ export default function useGateway(doc: types.DocumentGateway) {
     reconnect,
     connectAttempt,
     runCliCommand,
+    changeDbName,
+    changeDbNameAttempt,
   };
 }
 
