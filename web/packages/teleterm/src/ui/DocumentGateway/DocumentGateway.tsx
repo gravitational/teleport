@@ -100,7 +100,7 @@ export function DocumentGateway(props: State) {
   }
 
   return (
-    <Box maxWidth="580px" mx="auto" mt="4" px="5">
+    <Box maxWidth="590px" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4">
         <Text typography="h3" color="text.secondary">
           Database Connection
@@ -109,7 +109,9 @@ export function DocumentGateway(props: State) {
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Text typography="h4">Connect with CLI</Text>
+      <Text typography="h4" mb={1}>
+        Connect with CLI
+      </Text>
       <Flex>
         <Validation>
           <ConfigInput
@@ -131,18 +133,24 @@ export function DocumentGateway(props: State) {
           Could not change the database name: {changeDbNameAttempt.statusText}
         </Alerts.Danger>
       )}
-      <Text typography="h4" mt={3}>
+      <Text typography="h4" mt={3} mb={1}>
         Connect with GUI
       </Text>
       <Text>
-        To connect with a GUI database client, see our{' '}
+        Configure the GUI database client to connect to host{' '}
+        <code>{gateway.localAddress}</code> on port{' '}
+        <code>{gateway.localPort}</code>.
+      </Text>
+      <Text>
+        The connection is made through an authenticated proxy so no extra
+        credentials are necessary. See{' '}
         <Link
           href="https://goteleport.com/docs/database-access/guides/gui-clients/"
           target="_blank"
         >
-          documentation
+          the documentation
         </Link>{' '}
-        for instructions.
+        for more details.
       </Text>
     </Box>
   );
@@ -179,7 +187,6 @@ function CliCommand({
       justifyContent="space-between"
       borderRadius={2}
       bg={'primary.dark'}
-      mb={2}
     >
       <Flex
         mr="2"
