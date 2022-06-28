@@ -1,6 +1,6 @@
 ---
 authors: Krzysztof Skrzętnicki <krzysztof.skrzetnicki@goteleport.com>
-state: draft
+state: implemented
 ---
 
 # RFD 71 - `tctl sso test` command

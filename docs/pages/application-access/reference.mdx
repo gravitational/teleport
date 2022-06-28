@@ -94,6 +94,31 @@ spec:
     period: 1m0s
 ```
 
+You can create a new `app` resource by running the following commands, which
+assume that you have created a YAML file called `app.yaml` with your configuration:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+# Log in to your Teleport cluster.
+# You can also run tctl on your Auth Service host.
+$ tsh login --proxy=teleport.example.com --user=myuser
+# Create the resource
+$ tctl create -f app.yaml
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+# Create the resource.
+$ tctl create -f app.yaml
+```
+
+</ScopedBlock>
+
 ## CLI
 
 This section shows CLI commands relevant for Application Access.

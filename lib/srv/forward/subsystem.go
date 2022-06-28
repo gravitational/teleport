@@ -58,8 +58,8 @@ func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContex
 	}
 }
 
-// Start will begin execution of the remote subsytem on the passed in channel.
-func (r *remoteSubsystem) Start(channel ssh.Channel) error {
+// Start will begin execution of the remote subsystem on the passed in channel.
+func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
 	session := r.serverContext.RemoteSession
 
 	stdout, err := session.StdoutPipe()

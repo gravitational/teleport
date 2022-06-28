@@ -36,7 +36,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualific
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(),
+			Commands: darwinTagCheckoutCommands(b),
 		},
 		{
 			Name: "Download built tarball artifacts from S3",

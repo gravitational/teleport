@@ -17,6 +17,8 @@ limitations under the License.
 package srv
 
 import (
+	"context"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -29,12 +31,12 @@ type SubsystemResult struct {
 	Err error
 }
 
-// Subsystem represents SSH subsytem - special command executed
+// Subsystem represents SSH subsystem - special command executed
 // in the context of the session.
 type Subsystem interface {
 	// Start starts subsystem
-	Start(*ssh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
+	Start(context.Context, *ssh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
 
-	// Wait is returned by subystem when it's completed
+	// Wait is returned by subsystem when it's completed
 	Wait() error
 }

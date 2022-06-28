@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -116,14 +118,6 @@ type server struct {
 	offlineThreshold time.Duration
 }
 
-// DirectCluster is used to access cluster directly
-type DirectCluster struct {
-	// Name is a cluster name
-	Name string
-	// Client is a client to the cluster
-	Client auth.ClientI
-}
-
 // Config is a reverse tunnel server configuration
 type Config struct {
 	// ID is the ID of this server proxy
@@ -149,8 +143,6 @@ type Config struct {
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
-	// DirectClusters is a list of clusters accessed directly
-	DirectClusters []DirectCluster
 	// Context is a signalling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -200,6 +192,9 @@ type Config struct {
 	// and above.
 	NewCachingAccessPointOldProxy auth.NewRemoteProxyCachingAccessPoint
 
+	// PeerClient is a client to peer proxy servers.
+	PeerClient *proxy.Client
+
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
@@ -208,6 +203,13 @@ type Config struct {
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
+
+	// CircuitBreakerConfig configures the auth client circuit breaker
+	CircuitBreakerConfig breaker.Config
+
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -303,8 +305,6 @@ func NewServer(cfg Config) (Server, error) {
 
 	srv := &server{
 		Config:           cfg,
-		localSites:       []*localSite{},
-		remoteSites:      []*remoteSite{},
 		localAuthClient:  cfg.LocalAuthClient,
 		localAccessPoint: cfg.LocalAccessPoint,
 		newAccessPoint:   cfg.NewCachingAccessPoint,
@@ -317,14 +317,12 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	for _, clusterInfo := range cfg.DirectClusters {
-		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		srv.localSites = append(srv.localSites, cluster)
+	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses, cfg.LocalAuthClient, srv.PeerClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	srv.localSites = append(srv.localSites, localSite)
 
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
@@ -577,10 +575,34 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+// DrainConnections closes the listener and sends reconnects to connected agents without
+// closing open connections.
+func (s *server) DrainConnections(ctx context.Context) error {
+	// Ensure listener is closed before sending reconnects.
+	err := s.srv.Close()
+	s.srv.Wait(ctx)
+
+	s.RLock()
+	for _, site := range s.localSites {
+		s.log.Debugf("Advising reconnect to local site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+
+	for _, site := range s.remoteSites {
+		s.log.Debugf("Advising reconnect to remote site: %s", site.GetName())
+		go site.adviseReconnect(ctx)
+	}
+	s.RUnlock()
+
+	return trace.Wrap(err)
+}
+
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
+
 	s.proxyWatcher.Close()
 	s.cancel()
+
 	return trace.Wrap(err)
 }
 
@@ -629,6 +651,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthAddresses,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
@@ -965,6 +988,11 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 		}
 	}
 	return nil, trace.NotFound("cluster %q is not found", name)
+}
+
+// GetProxyPeerClient returns the proxy peer client
+func (s *server) GetProxyPeerClient() *proxy.Client {
+	return s.PeerClient
 }
 
 // alwaysClose forces onSiteTunnelClose to remove and close
