@@ -127,7 +127,7 @@ func onSFTP() error {
 			if opErr == nil {
 				event.Code = events.SFTPFstatCode
 			} else {
-				event.Code = events.SFTPFstatCode
+				event.Code = events.SFTPFstatFailureCode
 			}
 			event.Action = events.SFTPActionFstat
 			event.Path = path
@@ -202,7 +202,7 @@ func onSFTP() error {
 			if opErr == nil {
 				event.Code = events.SFTPStatCode
 			} else {
-				event.Code = events.SFTPStatCode
+				event.Code = events.SFTPStatFailureCode
 			}
 			event.Action = events.SFTPActionStat
 			event.Path = p.Path

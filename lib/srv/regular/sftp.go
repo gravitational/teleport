@@ -119,10 +119,14 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		_, err := io.Copy(&buf, auditPipeOut)
 		s.errCh <- err
 
+		if buf.Len() == 0 {
+			return
+		}
+
 		var sftpEvents []*apievents.SFTP
 		err = json.Unmarshal(buf.Bytes(), &sftpEvents)
 		if err != nil {
-			s.log.WithError(err).Error("Failed to unmarshal SFTP events.")
+			s.log.WithError(err).Warn("Failed to unmarshal SFTP events.")
 			return
 		}
 
@@ -134,8 +138,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		}
 		sessionMeta := apievents.SessionMetadata{
 			SessionID: string(serverCtx.SessionID()),
-			// TODO: no idea what this should be set to
-			WithMFA: serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+			WithMFA:   serverCtx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		}
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
