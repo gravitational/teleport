@@ -38,6 +38,13 @@ EXAMPLES:
 
   Select cluster "two" using existing credentials and proxy:
   $ tsh login two`
+
+	// missingPrincipalsFooter is printed at the bottom of `tsh ls` when no results are returned.
+	missingPrincipalsFooter = `
+  Not seeing nodes? Your user is missing Linux principals. If trying teleport for the first time, follow this guide:
+
+https://goteleport.com/docs/getting-started#principals
+  `
 )
 
 // formatFlagDescription creates the description for the --format flag.
