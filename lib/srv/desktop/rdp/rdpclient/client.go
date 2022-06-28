@@ -444,6 +444,41 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryListResponse:
+				if c.cfg.AllowDirectorySharing {
+					fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
+
+					for _, fso := range m.FsoList {
+						path := C.CString(fso.Path)
+						defer C.free(unsafe.Pointer(path))
+
+						fsoList = append(fsoList, C.CGOFileSystemObject{
+							last_modified: C.uint64_t(fso.LastModified),
+							size:          C.uint64_t(fso.Size),
+							file_type:     fso.FileType,
+							path:          path,
+						})
+					}
+
+					fsoListLen := len(fsoList)
+					var cgoFsoList *C.CGOFileSystemObject
+
+					if fsoListLen > 0 {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
+					} else {
+						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
+					}
+
+					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
+						completion_id:   C.uint32_t(m.CompletionID),
+						err_code:        m.ErrCode,
+						fso_list_length: C.uint32_t(fsoListLen),
+						fso_list:        cgoFsoList,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryListResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -576,6 +611,25 @@ func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRe
 }
 
 func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			return C.ErrCodeFailure
+		}
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_list_request
+func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		Path:         C.GoString(req.path),
+	})
+}
+
+func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)

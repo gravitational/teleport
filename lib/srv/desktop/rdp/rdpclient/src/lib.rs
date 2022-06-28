@@ -24,6 +24,7 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
+use errors::try_error;
 use libc::{fd_set, select, FD_SET};
 use rand::Rng;
 use rand::SeedableRng;
@@ -135,8 +136,8 @@ pub unsafe extern "C" fn connect_rdp(
     // Convert from C to Rust types.
     let addr = from_go_string(go_addr);
     let username = from_go_string(go_username);
-    let cert_der = from_go_array(cert_der_len, cert_der);
-    let key_der = from_go_array(key_der_len, key_der);
+    let cert_der = from_go_array(cert_der, cert_der_len);
+    let key_der = from_go_array(key_der, key_der_len);
 
     connect_rdp_inner(
         go_ref,
@@ -255,7 +256,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_acknowledge = Box::new(
         move |mut ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
-            debug!("sending: {:?}", ack);
+            debug!("sending TDP SharedDirectoryAcknowledge: {:?}", ack);
             unsafe {
                 if tdp_sd_acknowledge(go_ref, &mut ack) != CGOErrCode::ErrCodeSuccess {
                     return Err(RdpError::TryError(String::from(
@@ -268,7 +269,7 @@ fn connect_rdp_inner(
     );
 
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
+        debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
         // Create C compatible string from req.path
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
@@ -301,7 +302,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_create_request =
         Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
-            debug!("sending: {:?}", req);
+            debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
             // Create C compatible string from req.path
             match CString::new(req.path.clone()) {
                 Ok(c_string) => {
@@ -335,7 +336,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_delete_request =
         Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
-            debug!("sending: {:?}", req);
+            debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
             // Create C compatible string from req.path
             match CString::new(req.path.clone()) {
                 Ok(c_string) => {
@@ -366,6 +367,38 @@ fn connect_rdp_inner(
             }
         });
 
+    let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
+        debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
+        // Create C compatible string from req.path
+        match CString::new(req.path.clone()) {
+            Ok(c_string) => {
+                unsafe {
+                    let err = tdp_sd_list_request(
+                        go_ref,
+                        &mut CGOSharedDirectoryListRequest {
+                            completion_id: req.completion_id,
+                            directory_id: req.directory_id,
+                            path: c_string.as_ptr(),
+                        },
+                    );
+                    if err != CGOErrCode::ErrCodeSuccess {
+                        return Err(RdpError::TryError(String::from(
+                            "call to tdp_sd_list_request failed",
+                        )));
+                    };
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                return Err(RdpError::TryError(format!(
+                    "path contained characters that couldn't be converted to a C string: {}",
+                    req.path
+                )));
+            }
+        }
+    });
+
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(rdpdr::Config {
         cert_der: params.cert_der,
@@ -376,6 +409,7 @@ fn connect_rdp_inner(
         tdp_sd_info_request,
         tdp_sd_create_request,
         tdp_sd_delete_request,
+        tdp_sd_list_request,
     });
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -484,6 +518,13 @@ impl<S: Read + Write> RdpClient<S> {
         self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
     }
 
+    pub fn handle_tdp_sd_list_response(
+        &mut self,
+        res: SharedDirectoryListResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+    }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -568,7 +609,11 @@ fn wait_for_fd(fd: usize) -> bool {
 ///
 /// # Safety
 ///
-/// `client_ptr` must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// data MUST be a valid pointer.
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
 pub unsafe extern "C" fn update_clipboard(
     client_ptr: *mut Client,
@@ -581,7 +626,7 @@ pub unsafe extern "C" fn update_clipboard(
             return cgo_error;
         }
     };
-    let data = from_go_array(len, data);
+    let data = from_go_array(data, len);
     let mut lock = client.rdp_client.lock().unwrap();
 
     match lock.cliprdr {
@@ -609,14 +654,26 @@ pub unsafe extern "C" fn update_clipboard(
 /// handle_tdp_sd_announce announces a new drive that's ready to be
 /// redirected over RDP.
 ///
+///
 /// # Safety
 ///
-/// The caller must ensure that sd_announce.name points to a valid buffer.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+
+    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
+    let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -624,9 +681,8 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
         }
     };
 
-    let drive_name = from_go_string(sd_announce.name);
     let new_drive =
-        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, drive_name);
+        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
     match rdp_client.write_client_device_list_announce(new_drive) {
@@ -643,12 +699,23 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
 ///
 /// # Safety
 ///
-/// The caller must ensure that res.fso.path points to a valid buffer.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_info_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+
+    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
+    let res = SharedDirectoryInfoResponse::from(res);
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -657,7 +724,7 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
     };
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_info_response(SharedDirectoryInfoResponse::from(res)) {
+    match rdp_client.handle_tdp_sd_info_response(res) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Info Response: {:?}", e);
@@ -671,12 +738,22 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_create_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+
+    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
+    #[allow(clippy::redundant_clone)]
+    let res: SharedDirectoryCreateResponse = res.clone();
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -699,12 +776,22 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+
+    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
+    #[allow(clippy::redundant_clone)]
+    let res: SharedDirectoryDeleteResponse = res.clone();
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -717,6 +804,47 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Create Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// res.fso_list MUST be a valid pointer
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+///
+/// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_list_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryListResponse,
+) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+
+    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
+    let res = SharedDirectoryListResponse::from(res);
+
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_list_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory List Response: {:?}", e);
             CGOErrCode::ErrCodeFailure
         }
     }
@@ -832,6 +960,10 @@ pub enum CGOPointerWheel {
 
 impl From<CGOMousePointerEvent> for PointerEvent {
     fn from(p: CGOMousePointerEvent) -> PointerEvent {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
         PointerEvent {
             x: p.x,
             y: p.y,
@@ -854,7 +986,8 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
@@ -894,6 +1027,10 @@ pub struct CGOKeyboardEvent {
 
 impl From<CGOKeyboardEvent> for KeyboardEvent {
     fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
         KeyboardEvent {
             code: k.code,
             down: k.down,
@@ -903,7 +1040,8 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_keyboard(
     client_ptr: *mut Client,
@@ -949,7 +1087,8 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer to a Client.
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
     drop(Client::from_raw(client_ptr))
@@ -961,14 +1100,22 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
 unsafe fn from_go_string(s: *const c_char) -> String {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
 /// # Safety
 ///
-/// ptr must be a valid buffer of len bytes.
-unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
-    slice::from_raw_parts(ptr, len as usize).to_vec()
+/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
+unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    slice::from_raw_parts(data, len as usize).to_vec()
 }
 
 #[repr(C)]
@@ -978,12 +1125,32 @@ pub enum CGOErrCode {
     ErrCodeFailure = 1,
 }
 
-/// CGOSharedDirectoryAnnounce is sent by the TDP client to the server
-/// to announce a new directory to be shared over TDP.
 #[repr(C)]
 pub struct CGOSharedDirectoryAnnounce {
     pub directory_id: u32,
     pub name: *const c_char,
+}
+
+/// SharedDirectoryAnnounce is sent by the TDP client to the server
+/// to announce a new directory to be shared over TDP.
+pub struct SharedDirectoryAnnounce {
+    directory_id: u32,
+    name: String,
+}
+
+impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
+    fn from(cgo: CGOSharedDirectoryAnnounce) -> SharedDirectoryAnnounce {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        unsafe {
+            SharedDirectoryAnnounce {
+                directory_id: cgo.directory_id,
+                name: from_go_string(cgo.name),
+            }
+        }
+    }
 }
 
 /// SharedDirectoryAcknowledge is sent by the TDP server to the client
@@ -1042,6 +1209,10 @@ pub struct CGOSharedDirectoryInfoResponse {
 
 impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     fn from(cgo_res: CGOSharedDirectoryInfoResponse) -> SharedDirectoryInfoResponse {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
@@ -1050,9 +1221,9 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
     }
 }
 
+#[derive(Debug, Clone)]
 /// FileSystemObject is a TDP structure containing the metadata
 /// of a file or directory.
-#[derive(Debug)]
 #[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u64,
@@ -1061,7 +1232,21 @@ pub struct FileSystemObject {
     path: String,
 }
 
+impl FileSystemObject {
+    fn name(&self) -> RdpResult<String> {
+        if let Some(name) = self.path.split('/').last() {
+            Ok(name.to_string())
+        } else {
+            Err(try_error(&format!(
+                "failed to extract name from path: {:?}",
+                self.path
+            )))
+        }
+    }
+}
+
 #[repr(C)]
+#[derive(Clone)]
 pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
@@ -1071,6 +1256,10 @@ pub struct CGOFileSystemObject {
 
 impl From<CGOFileSystemObject> for FileSystemObject {
     fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
         unsafe {
             FileSystemObject {
                 last_modified: cgo_fso.last_modified,
@@ -1122,35 +1311,66 @@ pub struct CGOSharedDirectoryCreateRequest {
 
 /// SharedDirectoryCreateResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryCreateRequest was received and executed.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct SharedDirectoryCreateResponse {
     pub completion_id: u32,
     pub err_code: TdpErrCode,
 }
 
-type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
-
-/// SharedDirectoryDeleteRequest is sent by the TDP server to the client
-/// to request the deletion of a file or directory at path.
+/// SharedDirectoryListResponse is sent by the TDP client to the server
+/// in response to a SharedDirectoryInfoRequest.
+#[allow(dead_code)]
 #[derive(Debug)]
-pub struct SharedDirectoryDeleteRequest {
+pub struct SharedDirectoryListResponse {
     completion_id: u32,
-    directory_id: u32,
-    path: String,
+    err_code: TdpErrCode,
+    fso_list: Vec<FileSystemObject>,
+}
+
+impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
+    fn from(cgo: CGOSharedDirectoryListResponse) -> SharedDirectoryListResponse {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        unsafe {
+            let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
+            let mut fso_list = vec![];
+            for cgo_fso in cgo_fso_list.into_iter() {
+                fso_list.push(FileSystemObject::from(cgo_fso));
+            }
+
+            SharedDirectoryListResponse {
+                completion_id: cgo.completion_id,
+                err_code: cgo.err_code,
+                fso_list,
+            }
+        }
+    }
 }
 
 #[repr(C)]
-pub struct CGOSharedDirectoryDeleteRequest {
-    pub completion_id: u32,
-    pub directory_id: u32,
-    pub path: *const c_char,
+pub struct CGOSharedDirectoryListResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+    fso_list_length: u32,
+    fso_list: *mut CGOFileSystemObject,
 }
 
+pub type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
+/// SharedDirectoryDeleteRequest is sent by the TDP server to the client
+/// to request the deletion of a file or directory at path.
+pub type SharedDirectoryDeleteRequest = SharedDirectoryInfoRequest;
+pub type CGOSharedDirectoryDeleteRequest = CGOSharedDirectoryInfoRequest;
 /// SharedDirectoryDeleteResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryDeleteRequest was received and executed.
 pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
+/// SharedDirectoryListRequest is sent by the TDP server to the client
+/// to request the contents of a directory.
+pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
+pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
@@ -1171,6 +1391,10 @@ extern "C" {
     fn tdp_sd_delete_request(
         client_ref: usize,
         req: *mut CGOSharedDirectoryDeleteRequest,
+    ) -> CGOErrCode;
+    fn tdp_sd_list_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryListRequest,
     ) -> CGOErrCode;
 }
 
