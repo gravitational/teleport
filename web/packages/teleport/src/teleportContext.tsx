@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { StoreNav, StoreUserContext } from './stores';
+import { StoreNav, StoreUserContext, defaultNavState } from './stores';
 import cfg from 'teleport/config';
 import * as types from './types';
 import AuditService from './services/audit';
@@ -57,7 +57,9 @@ class TeleportContext implements types.Context {
 
   init() {
     return userService.fetchUserContext().then(user => {
+      this.storeNav.setState(defaultNavState);
       this.storeUser.setState(user);
+      this.features = [];
     });
   }
 
