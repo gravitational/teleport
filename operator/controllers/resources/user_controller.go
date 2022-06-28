@@ -81,7 +81,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	}
 	if trace.IsNotFound(err) {
 		if !hasOriginLabel(obj) {
-			return addOriginLabel(ctx, r.Client, obj)
+			return addOriginLabelToK8SObject(ctx, r.Client, obj)
 		}
 
 		return trace.Wrap(r.TeleportClient.CreateUser(ctx, teleportResource))
