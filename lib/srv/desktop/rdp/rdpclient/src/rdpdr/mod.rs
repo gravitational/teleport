@@ -25,7 +25,8 @@ use crate::vchan;
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
-    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, TdpErrCode,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
+    SharedDirectoryListResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -59,7 +60,7 @@ pub struct Client {
     /// FileId-indexed cache of FileCacheObjects.
     /// See the documentation of FileCacheObject
     /// for more detail on how this is used.
-    file_cache: HashMap<u32, FileCacheObject>,
+    file_cache: FileCache,
     next_file_id: u32, // used to generate file id's
 
     // Functions for sending tdp messages to the browser client.
@@ -67,11 +68,13 @@ pub struct Client {
     tdp_sd_info_request: SharedDirectoryInfoRequestSender,
     tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
+    tdp_sd_list_request: SharedDirectoryListRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
     pending_sd_create_resp_handlers: HashMap<u32, SharedDirectoryCreateResponseHandler>,
     pending_sd_delete_resp_handlers: HashMap<u32, SharedDirectoryDeleteResponseHandler>,
+    pending_sd_list_resp_handlers: HashMap<u32, SharedDirectoryListResponseHandler>,
 }
 
 pub struct Config {
@@ -84,6 +87,7 @@ pub struct Config {
     pub tdp_sd_info_request: SharedDirectoryInfoRequestSender,
     pub tdp_sd_create_request: SharedDirectoryCreateRequestSender,
     pub tdp_sd_delete_request: SharedDirectoryDeleteRequestSender,
+    pub tdp_sd_list_request: SharedDirectoryListRequestSender,
 }
 
 impl Client {
@@ -99,17 +103,19 @@ impl Client {
 
             allow_directory_sharing: cfg.allow_directory_sharing,
             active_device_ids: vec![],
-            file_cache: HashMap::new(),
+            file_cache: FileCache::new(),
             next_file_id: 0,
 
             tdp_sd_acknowledge: cfg.tdp_sd_acknowledge,
             tdp_sd_info_request: cfg.tdp_sd_info_request,
             tdp_sd_create_request: cfg.tdp_sd_create_request,
             tdp_sd_delete_request: cfg.tdp_sd_delete_request,
+            tdp_sd_list_request: cfg.tdp_sd_list_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
             pending_sd_delete_resp_handlers: HashMap::new(),
+            pending_sd_list_resp_handlers: HashMap::new(),
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -264,6 +270,9 @@ impl Client {
                 self.process_irp_query_information(device_io_request, payload)
             }
             MajorFunction::IRP_MJ_CLOSE => self.process_irp_close(device_io_request),
+            MajorFunction::IRP_MJ_DIRECTORY_CONTROL => {
+                self.process_irp_directory_control(device_io_request, payload)
+            }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -317,7 +326,6 @@ impl Client {
         // Send a TDP Shared Directory Info Request
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
         let tdp_req = SharedDirectoryInfoRequest::from(rdp_req.clone());
-        debug!("sending TDP: {:?}", tdp_req);
         (self.tdp_sd_info_request)(tdp_req)?;
 
         // Add a TDP Shared Directory Info Response handler to the handler cache.
@@ -507,7 +515,7 @@ impl Client {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
         let rdp_req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
-        let f = self.get_file_by_id(rdp_req.device_io_request.file_id);
+        let f = self.file_cache.get(rdp_req.device_io_request.file_id);
         let code = if f.is_some() {
             NTSTATUS::STATUS_SUCCESS
         } else {
@@ -521,7 +529,7 @@ impl Client {
         let rdp_req = DeviceCloseRequest::decode(device_io_request);
         debug!("received RDP: {:?}", rdp_req);
         // Remove the file from our cache
-        if let Some(file) = self.remove_file_by_id(rdp_req.device_io_request.file_id) {
+        if let Some(file) = self.file_cache.remove(rdp_req.device_io_request.file_id) {
             if file.delete_pending {
                 self.tdp_sd_delete(rdp_req, file)
             } else {
@@ -532,8 +540,114 @@ impl Client {
         }
     }
 
-    /// This is called from Go (in effect) to announce a new directory
-    /// for sharing.
+    /// The IRP_MJ_DIRECTORY_CONTROL function we support is when it's sent with minor function IRP_MN_QUERY_DIRECTORY,
+    /// which is used to retrieve the contents of a directory. RDP does this by repeatedly sending
+    /// IRP_MN_QUERY_DIRECTORY, expecting to retrieve the next item in the directory in each reply.
+    /// (Which directory is being queried is specified by the FileId in each request).
+    ///
+    /// An idiosyncrasy of the protocol is that on the first IRP_MN_QUERY_DIRECTORY in a sequence, RDP expects back an
+    /// entry for the "." directory, on the second call it expects an entry for the ".." directory, and on subsequent
+    /// calls it expects entries for the actual contents of the directory.
+    ///
+    /// Once all of the directory's contents has been sent back, we alert RDP to stop sending IRP_MN_QUERY_DIRECTORY
+    /// by sending it back an NTSTATUS::STATUS_NO_MORE_FILES.
+    fn process_irp_directory_control(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let minor_function = device_io_request.minor_function.clone();
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650
+        match minor_function {
+            MinorFunction::IRP_MN_QUERY_DIRECTORY => {
+                let rdp_req = ServerDriveQueryDirectoryRequest::decode(device_io_request, payload)?;
+                debug!("received RDP: {:?}", rdp_req);
+                let file_id = rdp_req.device_io_request.file_id;
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L610
+                if let Some(dir) = self.file_cache.get(file_id) {
+                    if dir.fso.file_type != FileType::Directory {
+                        return Err(invalid_data_error("received an IRP_MN_QUERY_DIRECTORY request for a file rather than a directory"));
+                    }
+
+                    // On the initial query, we need to get the list of files in this directory from
+                    // the client by sending a TDP SharedDirectoryListRequest.
+                    if rdp_req.initial_query != 0 {
+                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
+                        let path = dir.path.clone();
+
+                        // Ask the client for the list of files in this directory.
+                        (self.tdp_sd_list_request)(SharedDirectoryListRequest {
+                            completion_id: rdp_req.device_io_request.completion_id,
+                            directory_id: rdp_req.device_io_request.device_id,
+                            path,
+                        })?;
+
+                        // When we get the response for that list of files...
+                        self.pending_sd_list_resp_handlers.insert(
+                            rdp_req.device_io_request.completion_id,
+                            Box::new(
+                                move |cli: &mut Self,
+                                      res: SharedDirectoryListResponse|
+                                      -> RdpResult<Vec<Vec<u8>>> {
+                                    if res.err_code == TdpErrCode::Nil {
+                                        // If SharedDirectoryListRequest succeeded, move the
+                                        // list of FileSystemObjects that correspond to this directory's
+                                        // contents to its entry in the file cache.
+                                        if let Some(dir) = cli.file_cache.get_mut(file_id) {
+                                            dir.contents = res.fso_list;
+                                        } else {
+                                            return cli
+                                                .prep_file_cache_fail_drive_query_dir_response(
+                                                    &rdp_req,
+                                                );
+                                        }
+
+                                        // And send back the "." directory over RDP
+                                        cli.prep_next_drive_query_dir_response(&rdp_req)
+                                    } else {
+                                        cli.prep_drive_query_dir_response(
+                                            &rdp_req.device_io_request,
+                                            NTSTATUS::STATUS_UNSUCCESSFUL,
+                                            None,
+                                        )
+                                    }
+                                },
+                            ),
+                        );
+
+                        // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
+                        // closure gets called.
+                        Ok(vec![])
+                    } else {
+                        // This isn't the initial query, ergo we already have this dir's contents filled in.
+                        // Just send the next item.
+                        self.prep_next_drive_query_dir_response(&rdp_req)
+                    }
+                } else {
+                    self.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
+                }
+            }
+            MinorFunction::IRP_MN_NOTIFY_CHANGE_DIRECTORY => {
+                debug!("received RDP: {:?}", device_io_request);
+                debug!(
+                    "ignoring IRP_MN_NOTIFY_CHANGE_DIRECTORY: {:?}",
+                    device_io_request
+                );
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L661
+                Ok(vec![])
+            }
+            _ => {
+                debug!("received RDP: {:?}", device_io_request);
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L663
+                self.prep_drive_query_dir_response(
+                    &device_io_request,
+                    NTSTATUS::STATUS_NOT_SUPPORTED,
+                    None,
+                )
+            }
+        }
+    }
+
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -557,7 +671,7 @@ impl Client {
         res: SharedDirectoryInfoResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryInfoResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_info_resp_handlers
             .remove(&res.completion_id)
@@ -581,7 +695,7 @@ impl Client {
         res: SharedDirectoryCreateResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryCreateResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_create_resp_handlers
             .remove(&res.completion_id)
@@ -605,9 +719,33 @@ impl Client {
         res: SharedDirectoryDeleteResponse,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        debug!("received TDP: {:?}", res);
+        debug!("received TDP SharedDirectoryDeleteResponse: {:?}", res);
         if let Some(tdp_resp_handler) = self
             .pending_sd_delete_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            Ok(())
+        } else {
+            return Err(try_error(&format!(
+                "received invalid completion id: {}",
+                res.completion_id
+            )));
+        }
+    }
+
+    pub fn handle_tdp_sd_list_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryListResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP SharedDirectoryListResponse: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_list_resp_handlers
             .remove(&res.completion_id)
         {
             let rdp_responses = tdp_resp_handler(self, res)?;
@@ -662,6 +800,94 @@ impl Client {
         Ok(resp)
     }
 
+    fn prep_drive_query_dir_response(
+        &self,
+        device_io_request: &DeviceIoRequest,
+        io_status: NTSTATUS,
+        buffer: Option<FsInformationClass>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp = ClientDriveQueryDirectoryResponse::new(device_io_request, io_status, buffer)?;
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
+    }
+
+    /// prep_next_drive_query_dir_response is a helper function that takes advantage of the
+    /// Iterator implementation for FileCacheObject in order to respond appropriately to
+    /// Server Drive Query Directory Requests as they come in.
+    ///
+    /// req gives us a FileId, which we use to get the FileCacheObject for the directory that
+    /// this request is targeted at. We use that FileCacheObject as an iterator, grabbing the
+    /// next() FileSystemObject (starting with ".", then "..", then iterating through the contents
+    /// of the target directory), which we then convert to an RDP FsInformationClass for sending back
+    /// to the RDP server.
+    fn prep_next_drive_query_dir_response(
+        &mut self,
+        req: &ServerDriveQueryDirectoryRequest,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        if let Some(dir) = self.file_cache.get_mut(req.device_io_request.file_id) {
+            // Get the next FileSystemObject from the FileCacheObject for translation
+            // into an RDP data structure. Because of how next() is implemented for FileCacheObject,
+            // the first time this is called we will get an object for the "." directory, the second
+            // time will give us "..", and then we will iterate through any files/directories stored
+            // within dir.
+            if let Some(fso) = dir.next() {
+                match req.fs_information_class_lvl {
+                // TODO(isaiah): we should support all the fs_information_class_lvl's that FreeRDP does:
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+                FsInformationClassLevel::FileBothDirectoryInformation => {
+                    let buffer = FileBothDirectoryInformation::from(fso)?;
+                    self.prep_drive_query_dir_response(
+                        &req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        Some(FsInformationClass::FileBothDirectoryInformation(buffer))
+                    )
+                },
+                FsInformationClassLevel::FileDirectoryInformation |
+                FsInformationClassLevel::FileFullDirectoryInformation |
+                FsInformationClassLevel::FileNamesInformation => {
+                    Err(not_implemented_error(&format!(
+                        "support for ServerDriveQueryDirectoryRequest with fs_information_class_lvl = {:?} is not implemented",
+                        req.fs_information_class_lvl
+                    )))
+                },
+                _ => {
+                    Err(invalid_data_error("received invalid FsInformationClassLevel in ServerDriveQueryDirectoryRequest"))
+                }
+            }
+            } else {
+                // Once our iterator is exhausted, send back a NTSTATUS::STATUS_NO_MORE_FILES to alert RDP that we've listed all the
+                // contents of this directory.
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/generic.c#L1193
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L114
+                self.prep_drive_query_dir_response(
+                    &req.device_io_request,
+                    NTSTATUS::STATUS_NO_MORE_FILES,
+                    None,
+                )
+            }
+        } else {
+            self.prep_file_cache_fail_drive_query_dir_response(req)
+        }
+    }
+
+    fn prep_file_cache_fail_drive_query_dir_response(
+        &self,
+        req: &ServerDriveQueryDirectoryRequest,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        debug!(
+            "failed to retrieve an item from the file cache with FileId = {}",
+            req.device_io_request.file_id
+        );
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L633
+        self.prep_drive_query_dir_response(
+            &req.device_io_request,
+            NTSTATUS::STATUS_UNSUCCESSFUL,
+            None,
+        )
+    }
+
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
     /// RDP DeviceCreateRequest and handling the TDP SharedDirectoryCreateResponse.
     fn tdp_sd_create(
@@ -676,7 +902,6 @@ impl Client {
             file_type,
             path: rdp_req.path.clone(),
         };
-        debug!("sending TDP: {:?}", tdp_req);
         (self.tdp_sd_create_request)(tdp_req)?;
 
         self.pending_sd_create_resp_handlers.insert(
@@ -712,7 +937,6 @@ impl Client {
             directory_id: rdp_req.device_io_request.device_id,
             path: rdp_req.path.clone(),
         };
-        debug!("sending TDP: {:?}", tdp_req);
         (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
@@ -739,7 +963,6 @@ impl Client {
             directory_id: rdp_req.device_io_request.device_id,
             path: file.path,
         };
-        debug!("sending TDP: {:?}", tdp_req);
         (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
@@ -768,18 +991,6 @@ impl Client {
         let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
         inner.extend_from_slice(&payload);
         self.vchan.add_header_and_chunkify(None, inner)
-    }
-
-    /// Retrieves a FileCacheObject from the file cache
-    /// (without removing it from the cache).
-    fn get_file_by_id(&self, file_id: u32) -> Option<&FileCacheObject> {
-        self.file_cache.get(&file_id)
-    }
-
-    /// Retrieves a FileCacheObject from the file cache,
-    /// removing it from the cache.
-    fn remove_file_by_id(&mut self, file_id: u32) -> Option<FileCacheObject> {
-        self.file_cache.remove(&file_id)
     }
 
     fn push_active_device_id(&mut self, device_id: u32) -> RdpResult<()> {
@@ -829,11 +1040,17 @@ impl Client {
 struct FileCacheObject {
     path: String,
     delete_pending: bool,
-    /// The FileSystemObject pertaining to the file at path
+    /// The FileSystemObject pertaining to the file or directory at path.
     fso: FileSystemObject,
-    /// An optional list of FileSystemObjects held by the directory at path
-    fsos: Vec<FileSystemObject>,
-    fsos_index: u32,
+    /// A vector of the contents of the directory at path.
+    contents: Vec<FileSystemObject>,
+
+    /// Book-keeping variable, see Iterator implementation
+    contents_i: usize,
+    /// Book-keeping variable, see Iterator implementation
+    dot_sent: bool,
+    /// Book-keeping variable, see Iterator implementation
+    dotdot_sent: bool,
 }
 
 impl FileCacheObject {
@@ -842,9 +1059,104 @@ impl FileCacheObject {
             path,
             delete_pending: false,
             fso,
-            fsos: Vec::new(),
-            fsos_index: 0,
+            contents: Vec::new(),
+
+            contents_i: 0,
+            dot_sent: false,
+            dotdot_sent: false,
         }
+    }
+}
+
+/// FileCacheObject is used as an iterator for the implementation of
+/// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
+/// all the files of a directory one by one. In this case, the directory
+/// is the FileCacheObject itself, with it's own fso field representing
+/// the directory, and its contents being represented by FileSystemObject's
+/// in its contents field.
+///
+/// We account for an idiosyncrasy of the RDP protocol here: when fielding an
+/// IRP_MJ_DIRECTORY_CONTROL, RDP first expects to receive an entry for the "."
+/// directory, and next an entry for the ".." directory. Only after those two
+/// directories have been sent do we begin sending the actual contents of this
+/// directory (the contents field). (This is why we maintain dot_sent and dotdot_sent
+/// fields on each FileCacheObject)
+///
+/// Note that this implementation only makes sense in the case that this FileCacheObject
+/// is itself a directory (fso.file_type == FileType::Directory). We leave it up to the
+/// caller to ensure iteration makes sense in the given context that it's used.
+impl Iterator for FileCacheObject {
+    type Item = FileSystemObject;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // On the first call to next, return the "." directory
+        if !self.dot_sent {
+            self.dot_sent = true;
+            Some(FileSystemObject {
+                last_modified: self.fso.last_modified,
+                size: self.fso.size,
+                file_type: self.fso.file_type,
+                path: ".".to_string(),
+            })
+        } else if !self.dotdot_sent {
+            // On the second call to next, return the ".." directory
+            self.dotdot_sent = true;
+            Some(FileSystemObject {
+                last_modified: self.fso.last_modified,
+                size: 0,
+                file_type: FileType::Directory,
+                path: "..".to_string(),
+            })
+        } else {
+            // "." and ".." have been sent, now start iterating through
+            // the actual contents of the directory
+            if self.contents_i < self.contents.len() {
+                let i = self.contents_i;
+                self.contents_i += 1;
+                return Some(self.contents[i].clone());
+            }
+            None
+        }
+    }
+}
+
+struct FileCache {
+    cache: HashMap<u32, FileCacheObject>,
+}
+
+impl FileCache {
+    fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Insert a FileCacheObject into the file cache.
+    ///
+    /// If the file cache did not have this key present, [`None`] is returned.
+    ///
+    /// If the file cache did have this key present, the value is updated, and the old
+    /// value is returned. The key is not updated, though; this matters for
+    /// types that can be `==` without being identical.
+    fn insert(&mut self, file_id: u32, file: FileCacheObject) -> Option<FileCacheObject> {
+        self.cache.insert(file_id, file)
+    }
+
+    /// Retrieves a FileCacheObject from the file cache,
+    /// without removing it from the cache.
+    fn get(&self, file_id: u32) -> Option<&FileCacheObject> {
+        self.cache.get(&file_id)
+    }
+    /// Retrieves a mutable FileCacheObject from the file cache,
+    /// without removing it from the cache.
+    fn get_mut(&mut self, file_id: u32) -> Option<&mut FileCacheObject> {
+        self.cache.get_mut(&file_id)
+    }
+
+    /// Retrieves a FileCacheObject from the file cache,
+    /// removing it from the cache.
+    fn remove(&mut self, file_id: u32) -> Option<FileCacheObject> {
+        self.cache.remove(&file_id)
     }
 }
 
@@ -1775,6 +2087,26 @@ impl FileBothDirectoryInformation {
         w.extend_from_slice(&util::to_unicode(&self.file_name, false));
         Ok(w)
     }
+
+    fn from(fso: FileSystemObject) -> RdpResult<Self> {
+        let file_attributes = if fso.file_type == FileType::Directory {
+            flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+
+        let last_modified = to_windows_time(fso.last_modified);
+
+        Ok(FileBothDirectoryInformation::new(
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
+            i64::try_from(fso.size)?,
+            file_attributes,
+            fso.name()?,
+        ))
+    }
 }
 
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
@@ -2067,7 +2399,6 @@ struct ServerDriveQueryDirectoryRequest {
     path: String,
 }
 
-#[allow(dead_code)]
 impl ServerDriveQueryDirectoryRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let fs_information_class_lvl =
@@ -2131,14 +2462,12 @@ struct ClientDriveQueryDirectoryResponse {
     // Padding (1 byte): This field is unused and MUST be ignored.
 }
 
-#[allow(dead_code)]
 impl ClientDriveQueryDirectoryResponse {
     fn new(
-        req: &ServerDriveQueryDirectoryRequest,
+        device_io_request: &DeviceIoRequest,
         io_status: NTSTATUS,
         buffer: Option<FsInformationClass>,
     ) -> RdpResult<Self> {
-        let device_io_request = &req.device_io_request;
         let length = match buffer {
             Some(ref fs_information_class) => match fs_information_class {
                 FsInformationClass::FileBothDirectoryInformation(
@@ -2164,6 +2493,7 @@ impl ClientDriveQueryDirectoryResponse {
         })
     }
 
+    // TODO(isaiah): make this logic more sane
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
@@ -2184,6 +2514,14 @@ impl ClientDriveQueryDirectoryResponse {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L935-L937
             w.write_u32::<LittleEndian>(0)?;
             w.write_u8(0)?;
+        } else if self.device_io_reply.io_status
+            == NTSTATUS::to_u32(&NTSTATUS::STATUS_NOT_SUPPORTED).unwrap()
+            || self.device_io_reply.io_status
+                == NTSTATUS::to_u32(&NTSTATUS::STATUS_UNSUCCESSFUL).unwrap()
+        {
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L665
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L634
+            w.write_u32::<LittleEndian>(self.length)?;
         } else {
             return Err(invalid_data_error(&format!(
                 "Found ClientDriveQueryDirectoryResponse with invalid or unhandled NTSTATUS: {:?}",
@@ -2212,6 +2550,7 @@ type SharedDirectoryCreateRequestSender =
     Box<dyn Fn(SharedDirectoryCreateRequest) -> RdpResult<()>>;
 type SharedDirectoryDeleteRequestSender =
     Box<dyn Fn(SharedDirectoryDeleteRequest) -> RdpResult<()>>;
+type SharedDirectoryListRequestSender = Box<dyn Fn(SharedDirectoryListRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
@@ -2219,6 +2558,8 @@ type SharedDirectoryCreateResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryDeleteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryListResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryListResponse) -> RdpResult<Vec<Vec<u8>>>>;
 
 #[cfg(test)]
 mod tests {

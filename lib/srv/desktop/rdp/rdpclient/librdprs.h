@@ -94,10 +94,6 @@ typedef struct ClientOrError {
   enum CGOErrCode err;
 } ClientOrError;
 
-/**
- * CGOSharedDirectoryAnnounce is sent by the TDP client to the server
- * to announce a new directory to be shared over TDP.
- */
 typedef struct CGOSharedDirectoryAnnounce {
   uint32_t directory_id;
   const char *name;
@@ -128,6 +124,13 @@ typedef struct SharedDirectoryCreateResponse {
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryCreateResponse;
 
 typedef struct SharedDirectoryCreateResponse CGOSharedDirectoryDeleteResponse;
+
+typedef struct CGOSharedDirectoryListResponse {
+  uint32_t completion_id;
+  enum TdpErrCode err_code;
+  uint32_t fso_list_length;
+  struct CGOFileSystemObject *fso_list;
+} CGOSharedDirectoryListResponse;
 
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -192,11 +195,9 @@ typedef struct CGOSharedDirectoryCreateRequest {
   const char *path;
 } CGOSharedDirectoryCreateRequest;
 
-typedef struct CGOSharedDirectoryDeleteRequest {
-  uint32_t completion_id;
-  uint32_t directory_id;
-  const char *path;
-} CGOSharedDirectoryDeleteRequest;
+typedef struct CGOSharedDirectoryInfoRequest CGOSharedDirectoryDeleteRequest;
+
+typedef struct CGOSharedDirectoryInfoRequest CGOSharedDirectoryListRequest;
 
 void init(void);
 
@@ -228,17 +229,27 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  *
  * # Safety
  *
- * `client_ptr` must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * data MUST be a valid pointer.
+ * (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
  */
-enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+enum CGOErrCode update_clipboard(struct Client *client_ptr,
+                                 uint8_t *data,
+                                 uint32_t len);
 
 /**
  * handle_tdp_sd_announce announces a new drive that's ready to be
  * redirected over RDP.
  *
+ *
  * # Safety
  *
- * The caller must ensure that sd_announce.name points to a valid buffer.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);
@@ -249,7 +260,10 @@ enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
  *
  * # Safety
  *
- * The caller must ensure that res.fso.path points to a valid buffer.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * res.fso.path MUST be a non-null pointer to a C-style null terminated string.
  */
 enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryInfoResponse res);
@@ -260,7 +274,8 @@ enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
  *
  * # Safety
  *
- * client_ptr must be a valid pointer
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
 enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
                                               CGOSharedDirectoryCreateResponse res);
@@ -271,10 +286,27 @@ enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
  *
  * # Safety
  *
- * client_ptr must be a valid pointer
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
 enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
                                               CGOSharedDirectoryDeleteResponse res);
+
+/**
+ * handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
+ *
+ * # Safety
+ *
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+ *
+ * res.fso_list MUST be a valid pointer
+ * (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+ *
+ * each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
+ */
+enum CGOErrCode handle_tdp_sd_list_response(struct Client *client_ptr,
+                                            struct CGOSharedDirectoryListResponse res);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -290,16 +322,20 @@ enum CGOErrCode read_rdp_output(struct Client *client_ptr);
 /**
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
-enum CGOErrCode write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
+enum CGOErrCode write_rdp_pointer(struct Client *client_ptr,
+                                  struct CGOMousePointerEvent pointer);
 
 /**
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
-enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
+enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr,
+                                   struct CGOKeyboardEvent key);
 
 /**
  * # Safety
@@ -313,7 +349,8 @@ enum CGOErrCode close_rdp(struct Client *client_ptr);
  *
  * # Safety
  *
- * client_ptr must be a valid pointer to a Client.
+ * client_ptr MUST be a valid pointer.
+ * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  */
 void free_rdp(struct Client *client_ptr);
 
@@ -330,4 +367,7 @@ extern enum CGOErrCode tdp_sd_create_request(uintptr_t client_ref,
                                              struct CGOSharedDirectoryCreateRequest *req);
 
 extern enum CGOErrCode tdp_sd_delete_request(uintptr_t client_ref,
-                                             struct CGOSharedDirectoryDeleteRequest *req);
+                                             CGOSharedDirectoryDeleteRequest *req);
+
+extern enum CGOErrCode tdp_sd_list_request(uintptr_t client_ref,
+                                           CGOSharedDirectoryListRequest *req);
