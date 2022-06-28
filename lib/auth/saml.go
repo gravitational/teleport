@@ -422,7 +422,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 }
 
 func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
-	if !connector.GetAllowIdPInitiated() {
+	if !connector.GetAllowIDPInitiated() {
 		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
 	}
 
