@@ -173,6 +173,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.UsbDrive} text="UsbDrive" />
     <IconBox IconCmpt={Icon.Unarchive} text="Unarchive" />
     <IconBox IconCmpt={Icon.Unlock} text="Unlock" />
+    <IconBox IconCmpt={Icon.Unlink} text="Unlink" />
     <IconBox IconCmpt={Icon.Upload} text="Upload" />
     <IconBox IconCmpt={Icon.User} text="User" />
     <IconBox IconCmpt={Icon.UserCreated} text="UserCreated" />

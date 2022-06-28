@@ -14,8 +14,14 @@ export function Connections() {
   const connections = useConnections();
 
   const togglePopover = useCallback(() => {
-    setIsPopoverOpened(wasOpened => !wasOpened);
-  }, [setIsPopoverOpened]);
+    setIsPopoverOpened(wasOpened => {
+      const isOpened = !wasOpened;
+      if (isOpened) {
+        connections.updateSorting();
+      }
+      return isOpened;
+    });
+  }, [setIsPopoverOpened, connections.updateSorting]);
 
   useKeyboardShortcuts(
     useMemo(
