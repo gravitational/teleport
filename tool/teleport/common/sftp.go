@@ -72,7 +72,7 @@ func onSFTP() error {
 	}
 	defer auditFile.Close()
 
-	var sftpEvents []*apievents.SFTP
+	sftpEvents := make(chan *apievents.SFTP, 8)
 	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket, path string, opErr error) {
 		event := apievents.SFTP{
 			Metadata: apievents.Metadata{
@@ -236,11 +236,33 @@ func onSFTP() error {
 			return
 		}
 
-		sftpEvents = append(sftpEvents, &event)
+		sftpEvents <- &event
 	}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Start a goroutine to marshal and send audit events to the parent
+	// process to avoid blocking the SFTP connection on event handling
+	done := make(chan struct{})
+	go func() {
+		for event := range sftpEvents {
+			eventBytes, err := json.Marshal(event)
+			if err != nil {
+				log.WithError(err).Warn("Failed to marshal SFTP event.")
+			} else {
+				// Append a NULL byte so the parent process will know where
+				// this event ends
+				eventBytes = append(eventBytes, 0x0)
+				_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
+				if err != nil {
+					log.WithError(err).Warn("Failed to send SFTP event to parent.")
+				}
+			}
+		}
+
+		close(done)
+	}()
 
 	serveErr := sftpSrv.Serve()
 	if errors.Is(serveErr, io.EOF) {
@@ -249,17 +271,9 @@ func onSFTP() error {
 		serveErr = trace.Wrap(serveErr)
 	}
 
-	if len(sftpEvents) > 0 {
-		eventBytes, err := json.Marshal(sftpEvents)
-		if err != nil {
-			log.WithError(err).Warn("Failed to marshal SFTP events.")
-		} else {
-			_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
-			if err != nil {
-				log.WithError(err).Warn("Failed to send SFTP events to parent.")
-			}
-		}
-	}
+	// Wait until event marshalling goroutine is finished
+	close(sftpEvents)
+	<-done
 
 	return trace.NewAggregate(serveErr, sftpSrv.Close())
 }

@@ -17,9 +17,10 @@ limitations under the License.
 package regular
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -112,23 +113,9 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		s.errCh <- err
 	}()
 
+	// Read and emit audit events from the child process
 	go func() {
 		defer auditPipeOut.Close()
-
-		var buf bytes.Buffer
-		_, err := io.Copy(&buf, auditPipeOut)
-		s.errCh <- err
-
-		if buf.Len() == 0 {
-			return
-		}
-
-		var sftpEvents []*apievents.SFTP
-		err = json.Unmarshal(buf.Bytes(), &sftpEvents)
-		if err != nil {
-			s.log.WithError(err).Warn("Failed to unmarshal SFTP events.")
-			return
-		}
 
 		// Create common fields for events
 		serverMeta := apievents.ServerMetadata{
@@ -146,14 +133,32 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 			LocalAddr:  serverConn.LocalAddr().String(),
 		}
 
-		for _, event := range sftpEvents {
-			event.Metadata.ClusterName = serverCtx.ClusterName
-			event.ServerMetadata = serverMeta
-			event.SessionMetadata = sessionMeta
-			event.UserMetadata = userMeta
-			event.ConnectionMetadata = connectionMeta
+		r := bufio.NewReader(auditPipeOut)
+		for {
+			// Read up to a NULL byte, the child process uses this to
+			// delimit audit events
+			eventBytes, err := r.ReadBytes(0x0)
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					s.log.WithError(err).Warn("Failed to read SFTP event.")
+				}
+				return
+			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+			var sftpEvent *apievents.SFTP
+			err = json.Unmarshal(eventBytes[:len(eventBytes)-1], &sftpEvent)
+			if err != nil {
+				s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
+				continue
+			}
+
+			sftpEvent.Metadata.ClusterName = serverCtx.ClusterName
+			sftpEvent.ServerMetadata = serverMeta
+			sftpEvent.SessionMetadata = sessionMeta
+			sftpEvent.UserMetadata = userMeta
+			sftpEvent.ConnectionMetadata = connectionMeta
+
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, sftpEvent); err != nil {
 				log.WithError(err).Warn("Failed to emit SFTP event.")
 			}
 		}
@@ -167,7 +172,7 @@ func (s *sftpSubsys) Wait() error {
 	s.log.Debug("SFTP process finished")
 
 	errs := []error{waitErr}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.log.WithError(err).Warn("Connection problem.")
