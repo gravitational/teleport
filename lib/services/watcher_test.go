@@ -842,11 +842,15 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			services.CertAuthorityTarget{
 				Type: types.UserCA,
 			},
+			services.CertAuthorityTarget{
+				Type:        types.DatabaseCA,
+				ClusterName: "test",
+			},
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
-		// Receives HostCA event.
+		// Receives one HostCA event, matched by type.
 		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
 		select {
 		case event := <-sub.Events():
@@ -858,8 +862,20 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			t.Fatal("timed out waiting for event")
 		}
 
-		// Should NOT receive DatabaseCA event.
+		// Receives one DatabaseCA event, matched by type and cluster name.
 		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
+		select {
+		case event := <-sub.Events():
+			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
+			require.Equal(t, string(types.DatabaseCA), event.Resource.GetSubKind())
+			require.Equal(t, "test", event.Resource.GetName())
+			require.Empty(t, sub.Events()) // No more events.
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for event")
+		}
+
+		// Should NOT receive any events.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.DatabaseCA)))
 		select {
 		case event := <-sub.Events():
 			t.Fatalf("Unexpected event: %v.", event)

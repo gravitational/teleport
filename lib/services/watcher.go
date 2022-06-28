@@ -1018,14 +1018,21 @@ func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, err
 	for _, target := range targets {
 		kind := types.WatchKind{
 			Kind: types.KindCertAuthority,
-			// Note that watching SubKind doesn't work for types.WatchKind - to do so it would
-			// require a custom filter, which was recently added but - we can't use yet due to
-			// older clients not supporting the filter.
-			SubKind: string(target.Type),
 		}
 
 		if target.ClusterName != "" {
 			kind.Name = target.ClusterName
+		}
+
+		// Use filter by CA type.
+		if target.Type != "" {
+			kind.SubKind = string(target.Type)
+
+			if target.ClusterName == "" {
+				kind.Filter = map[string]string{string(target.Type): types.Wildcard}
+			} else {
+				kind.Filter = map[string]string{string(target.Type): target.ClusterName}
+			}
 		}
 
 		watchKinds = append(watchKinds, kind)
