@@ -6438,7 +6438,9 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create Teleport instance.
 	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
 
 	client, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
@@ -6451,15 +6453,24 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	proxyClient, err := client.ConnectToProxy(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
 
 	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
 
 	// Create file that will be uploaded and downloaded.
 	tempDir := t.TempDir()
 	testFilePath := filepath.Join(tempDir, "testfile")
 	testFile, err := os.Create(testFilePath)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
 
 	_, err = testFile.WriteString("This is test data.")
 	require.NoError(t, err)
@@ -6474,9 +6485,15 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	testFileDownload := testFilePath + "-download"
 	downloadFile, err := os.Create(testFileDownload)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, downloadFile.Close())
+	})
 
 	remoteDownloadFile, err := sftpClient.Open(testFilePath)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, remoteDownloadFile.Close())
+	})
 
 	_, err = io.Copy(downloadFile, remoteDownloadFile)
 	require.NoError(t, err)
@@ -6485,18 +6502,15 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	testFileUpload := testFilePath + "-upload"
 	remoteUploadFile, err := sftpClient.Create(testFileUpload)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, remoteUploadFile.Close())
+	})
 
 	_, err = io.Copy(remoteUploadFile, testFile)
 	require.NoError(t, err)
 
-	require.NoError(t, remoteUploadFile.Close())
-	require.NoError(t, remoteDownloadFile.Close())
-	require.NoError(t, downloadFile.Close())
-	require.NoError(t, testFile.Close())
-	require.NoError(t, sftpClient.Close())
-
 	// Ensure SFTP audit events are present.
-	eventFields, err := findEventInLog(teleport, events.SFTPEvent)
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
 	require.NoError(t, err)
-	require.Equal(t, eventFields.GetString(events.SFTPPath), testFilePath)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }
