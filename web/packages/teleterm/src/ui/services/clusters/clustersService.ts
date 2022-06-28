@@ -14,6 +14,7 @@ import { makeLabelTag } from 'teleport/components/formatters';
 import { Label } from 'teleport/types';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { getClusterName } from 'teleterm/ui/utils/getClusterName';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 export function createClusterServiceState(): ClustersServiceState {
   return {
@@ -43,7 +44,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   async addRootCluster(addr: string) {
     const cluster = await this.client.addRootCluster(addr);
     this.setState(draft => {
-      draft.clusters.set(cluster.uri, cluster);
+      draft.clusters.set(
+        cluster.uri,
+        this.removeInternalLoginsFromCluster(cluster)
+      );
     });
 
     return cluster;
@@ -306,7 +310,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
     this.setState(draft => {
       for (const leaf of leaves) {
-        draft.clusters.set(leaf.uri, leaf);
+        draft.clusters.set(
+          leaf.uri,
+          this.removeInternalLoginsFromCluster(leaf)
+        );
       }
     });
 
@@ -546,7 +553,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   private async syncClusterInfo(clusterUri: string) {
     const cluster = await this.client.getCluster(clusterUri);
     this.setState(draft => {
-      draft.clusters.set(clusterUri, cluster);
+      draft.clusters.set(
+        clusterUri,
+        this.removeInternalLoginsFromCluster(cluster)
+      );
     });
   }
 
@@ -655,6 +665,21 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return targetValue.some(item =>
       makeLabelTag(item).toLocaleUpperCase().includes(searchValue)
     );
+  }
+
+  // temporary fix for https://github.com/gravitational/webapps.e/issues/294
+  // remove when it will get fixed in `tsh`
+  // alternatively, show only valid logins basing on RBAC check
+  private removeInternalLoginsFromCluster(cluster: Cluster): Cluster {
+    return {
+      ...cluster,
+      loggedInUser: cluster.loggedInUser && {
+        ...cluster.loggedInUser,
+        sshLoginsList: cluster.loggedInUser.sshLoginsList.filter(
+          login => !login.startsWith('-')
+        ),
+      },
+    };
   }
 }
 
