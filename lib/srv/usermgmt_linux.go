@@ -27,6 +27,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// HostUsersProvisioningBackend is used to implement HostUsersBackend
+type HostUsersProvisioningBackend struct {
+	sudoersPath string
+	hostUUID    string
+}
+
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend(uuid string) (HostUsersBackend, error) {
 	return &HostUsersProvisioningBackend{
