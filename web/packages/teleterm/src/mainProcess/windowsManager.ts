@@ -1,4 +1,4 @@
-import { BrowserWindow, Rectangle, screen } from 'electron';
+import { BrowserWindow, Menu, Rectangle, screen } from 'electron';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import path from 'path';
 import { FileStorage } from 'teleterm/services/fileStorage';
@@ -9,11 +9,24 @@ type WindowState = Rectangle;
 
 export class WindowsManager {
   private storageKey = 'windowState';
+  private selectionContextMenu: Menu;
+  private inputContextMenu: Menu;
 
   constructor(
     private fileStorage: FileStorage,
     private settings: RuntimeSettings
-  ) {}
+  ) {
+    this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
+
+    this.inputContextMenu = Menu.buildFromTemplate([
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+    ]);
+  }
 
   createWindow(): void {
     const windowState = this.getWindowState();
@@ -43,6 +56,10 @@ export class WindowsManager {
     } else {
       window.loadFile(path.join(__dirname, '../renderer/index.html'));
     }
+
+    window.webContents.on('context-menu', (_, props) => {
+      this.popupUniversalContextMenu(window, props);
+    });
   }
 
   private saveWindowState(window: BrowserWindow): void {
@@ -51,6 +68,21 @@ export class WindowsManager {
     };
 
     this.fileStorage.put(this.storageKey, windowState);
+  }
+
+  private popupUniversalContextMenu(
+    window: BrowserWindow,
+    props: Electron.ContextMenuParams
+  ): void {
+    // Taken from https://github.com/electron/electron/issues/4068#issuecomment-274159726
+    // selectall was removed from menus because it doesn't make sense in our context.
+    const { selectionText, isEditable } = props;
+
+    if (isEditable) {
+      this.inputContextMenu.popup({ window });
+    } else if (selectionText && selectionText.trim() !== '') {
+      this.selectionContextMenu.popup({ window });
+    }
   }
 
   private getWindowState(): WindowState {
