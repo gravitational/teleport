@@ -1068,7 +1068,7 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 
 type validateSAMLResponseReq struct {
 	Response    string `json:"response"`
-	ConnectorID string `json:"connector_id"`
+	ConnectorID string `json:"connector_id,omitempty"`
 }
 
 // samlAuthRawResponse is returned when auth server validated callback parameters
