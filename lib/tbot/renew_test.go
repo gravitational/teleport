@@ -42,7 +42,12 @@ func TestOnboardViaToken(t *testing.T) {
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test")
+	const roleName = "dummy-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	b := New(botConfig, libutils.NewLoggerForTests(), nil)
 	ident, err := b.getIdentityFromToken()
