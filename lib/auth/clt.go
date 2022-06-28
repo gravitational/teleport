@@ -941,8 +941,13 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+	params := url.Values{}
+	if connectorID != "" {
+		params.Add("connector_id", connectorID)
+	}
+
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate")+"?"+params.Encode(), validateSAMLResponseReq{
 		Response: re,
 	})
 	if err != nil {
@@ -1426,7 +1431,7 @@ type IdentityService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
