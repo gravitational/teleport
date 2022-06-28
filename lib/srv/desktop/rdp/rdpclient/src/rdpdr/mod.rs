@@ -2087,7 +2087,7 @@ impl FileBothDirectoryInformation {
 
 /// Base size of the FileFullDirectoryInformation, not accounting for variably sized file_name.
 /// Note that file_name's size should be calculated as if it were a Unicode string.
-/// 4 u32's (including FileAttributesFlags) + 6 i64's
+/// 5 u32's (including FileAttributesFlags) + 6 i64's
 const FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE: u32 = (5 * 4) + (6 * 8); // 68
 
 /// 2.4.14 FileFullDirectoryInformation
@@ -2161,11 +2161,12 @@ impl FileFullDirectoryInformation {
         } else {
             flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
         };
+        let last_modified = i64::try_from(fso.last_modified)?;
         Ok(Self::new(
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
-            i64::try_from(fso.last_modified)?,
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
             i64::try_from(fso.size)?,
             file_attributes,
             fso.name()?,
