@@ -39,7 +39,7 @@ When an SFTP request is first received on an SSH connection, the Teleport daemon
 will be re-executed as the logon user of the SSH connection. This will require
 adding a hidden `sftp` sub command to the `teleport` binary. The parent process will
 create 2 anonymous pipes and pass them to the child (`teleport sftp`) so the child
-can access the SFTP connection. The `enable_file_copying` option will be added to
+can access the SFTP connection. The `disable_file_copy` option will be added to
 the `ssh_server` yaml config to control whether scp and sftp will be enabled or not
 for per node.
 
@@ -108,6 +108,13 @@ As mentioned above, Teleport Node services will re-execute themselves as the
 SSH login user to handle SFTP connections. This will ensure users can only
 access and modify files they are allowed to.
 
+### Auditing
+
+Two new auditing events will be added: a SFTP event that will be emitted whenever
+a SFTP file operation is attempted (ie Open, Read, Write, Close), and an event
+that will be emitted whenever a user attempts to preform file operations when
+the `disable_file_copy` role option is true.
+
 ### UX
 
 The UX of `tsh scp` with SFTP enabled will be very similar to that of `tsh scp`
@@ -117,7 +124,7 @@ will have to be used for remote paths. Likewise passing quoted commands to be
 remotely executed (ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will
 not work as `teleport sftp` is run without any other arguments.
 
-The web UI for trasferring files will need to have a method of allowing the
+The web UI for transferring files will need to have a method of allowing the
 user to choose between scp and SFTP. A knob could be added for this purpose,
 and it would be grayed out if the user is not allowed to use either scp or
 SFTP due to role constraints.
