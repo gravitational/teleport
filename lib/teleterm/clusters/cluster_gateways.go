@@ -95,6 +95,7 @@ func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
 		dbcmd.WithLogger(gw.Log),
 		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
+		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 	).GetConnectCommandNoAbsPath()
 

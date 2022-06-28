@@ -369,6 +369,18 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		cancel:                 cancel,
 	}
 
+	fields := log.Fields{
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
+	}
+	child.Entry = log.WithFields(log.Fields{
+		trace.Component:       child.srv.Component(),
+		trace.ComponentFields: fields,
+	})
+
 	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
 	if err != nil {
 		childErr := child.Close()
@@ -379,13 +391,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
-	fields := log.Fields{
-		"local":        child.ServerConn.LocalAddr(),
-		"remote":       child.ServerConn.RemoteAddr(),
-		"login":        child.Identity.Login,
-		"teleportUser": child.Identity.TeleportUser,
-		"id":           child.id,
-	}
+	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
 		fields["cert"] = child.disconnectExpiredCert
 	}

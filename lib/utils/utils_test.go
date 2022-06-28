@@ -503,13 +503,13 @@ func TestMarshalYAML(t *testing.T) {
 }
 
 // TestReadToken tests reading token from file and as is
-func TestReadToken(t *testing.T) {
+func TestTryReadValueAsFile(t *testing.T) {
 	t.Parallel()
-	tok, err := ReadToken("token")
+	tok, err := TryReadValueAsFile("token")
 	require.Equal(t, "token", tok)
 	require.NoError(t, err)
 
-	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
+	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
 	fixtures.AssertNotFound(t, err)
 
 	dir := t.TempDir()
@@ -517,7 +517,7 @@ func TestReadToken(t *testing.T) {
 	err = os.WriteFile(tokenPath, []byte("shmoken"), 0644)
 	require.NoError(t, err)
 
-	tok, err = ReadToken(tokenPath)
+	tok, err = TryReadValueAsFile(tokenPath)
 	require.NoError(t, err)
 	require.Equal(t, "shmoken", tok)
 }
