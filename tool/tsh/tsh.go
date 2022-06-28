@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -363,7 +364,10 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(cmdLine); err != nil {
+
+	err := Run(cmdLine)
+	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
+	if err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -1428,9 +1432,6 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -3036,9 +3037,6 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
 		return trace.Wrap(err)
 	}
 
