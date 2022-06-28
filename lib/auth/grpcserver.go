@@ -507,7 +507,12 @@ func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryCo
 		return trail.ToGRPC(err)
 	}
 
-	ics := client.NewUpstreamInventoryControlStream(stream)
+	p, ok := peer.FromContext(stream.Context())
+	if !ok {
+		return trace.BadParameter("unable to find peer")
+	}
+
+	ics := client.NewUpstreamInventoryControlStream(stream, p.Addr.String())
 
 	if err := auth.RegisterInventoryControlStream(ics); err != nil {
 		return trail.ToGRPC(err)
