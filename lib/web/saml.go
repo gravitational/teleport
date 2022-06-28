@@ -120,11 +120,16 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if response.Req.CreateWebSession {
 		logger.Debug("Redirecting to web browser.")
 
+		redirect := response.Req.ClientRedirectURL
+		if redirect == "" {
+			redirect = client.LoginSuccessRedirectURL
+		}
+
 		res := &ssoCallbackResponse{
 			csrfToken:         response.Req.CSRFToken,
 			username:          response.Username,
 			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+			clientRedirectURL: redirect,
 		}
 
 		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {

@@ -540,7 +540,9 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	if request != nil {
 		auth.Req = *request
 	} else {
-		// TODO(joel): fake web request here
+		auth.Req = types.SAMLAuthRequest{
+			CreateWebSession: true,
+		}
 	}
 
 	// In test flow skip signing and creating web sessions.
