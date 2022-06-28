@@ -279,26 +279,8 @@ const (
 	SCPActionDownload = "download"
 
 	// SFTPEvent means a user attempted a file operation
-	SFTPEvent          = "sftp"
-	SFTPPath           = "path"
-	SFTPActionOpen     = "open"
-	SFTPActionClose    = "close"
-	SFTPActionRead     = "read"
-	SFTPActionWrite    = "write"
-	SFTPActionLstat    = "lstat"
-	SFTPActionFstat    = "fstat"
-	SFTPActionSetstat  = "setstat"
-	SFTPActionFsetstat = "fsetstat"
-	SFTPActionOpendir  = "opendir"
-	SFTPActionReaddir  = "readdir"
-	SFTPActionRemove   = "remove"
-	SFTPActionMkdir    = "mkdir"
-	SFTPActionRmdir    = "rmdir"
-	SFTPActionRealpath = "realpath"
-	SFTPActionStat     = "stat"
-	SFTPActionRename   = "rename"
-	SFTPActionReadlink = "readlink"
-	SFTPActionSymlink  = "symlink"
+	SFTPEvent = "sftp"
+	SFTPPath  = "path"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"

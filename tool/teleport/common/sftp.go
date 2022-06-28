@@ -74,169 +74,13 @@ func onSFTP() error {
 
 	sftpEvents := make(chan *apievents.SFTP, 8)
 	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket, path string, opErr error) {
-		event := apievents.SFTP{
-			Metadata: apievents.Metadata{
-				Type: events.SFTPEvent,
-				Time: time.Now(),
-			},
-		}
-
-		switch p := reqPacket.(type) {
-		case *sftp.OpenPacket:
-			if opErr == nil {
-				event.Code = events.SFTPOpenCode
-			} else {
-				event.Code = events.SFTPOpenFailureCode
-			}
-			event.Action = events.SFTPActionOpen
-			event.Path = p.Path
-			event.Flags = p.Pflags
-		case *sftp.ClosePacket:
-			if opErr == nil {
-				event.Code = events.SFTPCloseCode
-			} else {
-				event.Code = events.SFTPCloseFailureCode
-			}
-			event.Action = events.SFTPActionClose
-			event.Path = path
-		case *sftp.ReadPacket:
-			if opErr == nil {
-				event.Code = events.SFTPReadCode
-			} else {
-				event.Code = events.SFTPReadFailureCode
-			}
-			event.Action = events.SFTPActionRead
-			event.Path = path
-		case *sftp.WritePacket:
-			if opErr == nil {
-				event.Code = events.SFTPWriteCode
-			} else {
-				event.Code = events.SFTPWriteFailureCode
-			}
-			event.Action = events.SFTPActionWrite
-			event.Path = path
-		case *sftp.LstatPacket:
-			if opErr == nil {
-				event.Code = events.SFTPLstatCode
-			} else {
-				event.Code = events.SFTPLstatFailureCode
-			}
-			event.Action = events.SFTPActionLstat
-			event.Path = p.Path
-		case *sftp.FstatPacket:
-			if opErr == nil {
-				event.Code = events.SFTPFstatCode
-			} else {
-				event.Code = events.SFTPFstatFailureCode
-			}
-			event.Action = events.SFTPActionFstat
-			event.Path = path
-		case *sftp.SetstatPacket:
-			if opErr == nil {
-				event.Code = events.SFTPSetstatCode
-			} else {
-				event.Code = events.SFTPSetstatFailureCode
-			}
-			event.Action = events.SFTPActionSetstat
-			event.Path = p.Path
-			event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
-		case *sftp.FsetstatPacket:
-			if opErr == nil {
-				event.Code = events.SFTPFsetstatCode
-			} else {
-				event.Code = events.SFTPFsetstatFailureCode
-			}
-			event.Action = events.SFTPActionFsetstat
-			event.Path = path
-			event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
-		case *sftp.OpendirPacket:
-			if opErr == nil {
-				event.Code = events.SFTPOpendirCode
-			} else {
-				event.Code = events.SFTPOpendirFailureCode
-			}
-			event.Action = events.SFTPActionOpendir
-			event.Path = p.Path
-		case *sftp.ReaddirPacket:
-			if opErr == nil {
-				event.Code = events.SFTPReaddirCode
-			} else {
-				event.Code = events.SFTPReaddirFailureCode
-			}
-			event.Action = events.SFTPActionReaddir
-			event.Path = path
-		case *sftp.RemovePacket:
-			if opErr == nil {
-				event.Code = events.SFTPRemoveCode
-			} else {
-				event.Code = events.SFTPRemoveFailureCode
-			}
-			event.Action = events.SFTPActionRemove
-			event.Path = p.Filename
-		case *sftp.MkdirPacket:
-			if opErr == nil {
-				event.Code = events.SFTPMkdirCode
-			} else {
-				event.Code = events.SFTPMkdirFailureCode
-			}
-			event.Action = events.SFTPActionMkdir
-			event.Path = p.Path
-			event.Flags = p.Flags
-		case *sftp.RmdirPacket:
-			if opErr == nil {
-				event.Code = events.SFTPRmdirCode
-			} else {
-				event.Code = events.SFTPRmdirFailureCode
-			}
-			event.Action = events.SFTPActionRmdir
-			event.Path = p.Path
-		case *sftp.RealpathPacket:
-			if opErr == nil {
-				event.Code = events.SFTPRealpathCode
-			} else {
-				event.Code = events.SFTPRealpathFailureCode
-			}
-			event.Action = events.SFTPActionRealpath
-			event.Path = p.Path
-		case *sftp.StatPacket:
-			if opErr == nil {
-				event.Code = events.SFTPStatCode
-			} else {
-				event.Code = events.SFTPStatFailureCode
-			}
-			event.Action = events.SFTPActionStat
-			event.Path = p.Path
-		case *sftp.RenamePacket:
-			if opErr == nil {
-				event.Code = events.SFTPRenameCode
-			} else {
-				event.Code = events.SFTPRenameFailureCode
-			}
-			event.Action = events.SFTPActionRename
-			event.Path = p.Oldpath
-			event.TargetPath = p.Newpath
-		case *sftp.ReadlinkPacket:
-			if opErr == nil {
-				event.Code = events.SFTPReadlinkCode
-			} else {
-				event.Code = events.SFTPReadlinkFailureCode
-			}
-			event.Action = events.SFTPActionReadlink
-			event.Path = p.Path
-		case *sftp.SymlinkPacket:
-			if opErr == nil {
-				event.Code = events.SFTPSymlinkCode
-			} else {
-				event.Code = events.SFTPSymlinkFailureCode
-			}
-			event.Action = events.SFTPActionSymlink
-			event.Path = p.Targetpath
-			event.TargetPath = p.Linkpath
-		default:
+		event, ok := handleSFTPEvent(reqPacket, path, opErr)
+		if !ok {
+			// We don't care about this type of SFTP request, move on
 			return
 		}
 
-		sftpEvents <- &event
+		sftpEvents <- event
 	}))
 	if err != nil {
 		return trace.Wrap(err)
@@ -276,6 +120,172 @@ func onSFTP() error {
 	<-done
 
 	return trace.NewAggregate(serveErr, sftpSrv.Close())
+}
+
+func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*apievents.SFTP, bool) {
+	event := &apievents.SFTP{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPEvent,
+			Time: time.Now(),
+		},
+	}
+
+	switch p := reqPacket.(type) {
+	case *sftp.OpenPacket:
+		if opErr == nil {
+			event.Code = events.SFTPOpenCode
+		} else {
+			event.Code = events.SFTPOpenFailureCode
+		}
+		event.Action = apievents.SFTPAction_OPEN
+		event.Path = p.Path
+		event.Flags = p.Pflags
+	case *sftp.ClosePacket:
+		if opErr == nil {
+			event.Code = events.SFTPCloseCode
+		} else {
+			event.Code = events.SFTPCloseFailureCode
+		}
+		event.Action = apievents.SFTPAction_CLOSE
+		event.Path = path
+	case *sftp.ReadPacket:
+		if opErr == nil {
+			event.Code = events.SFTPReadCode
+		} else {
+			event.Code = events.SFTPReadFailureCode
+		}
+		event.Action = apievents.SFTPAction_READ
+		event.Path = path
+	case *sftp.WritePacket:
+		if opErr == nil {
+			event.Code = events.SFTPWriteCode
+		} else {
+			event.Code = events.SFTPWriteFailureCode
+		}
+		event.Action = apievents.SFTPAction_WRITE
+		event.Path = path
+	case *sftp.LstatPacket:
+		if opErr == nil {
+			event.Code = events.SFTPLstatCode
+		} else {
+			event.Code = events.SFTPLstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_LSTAT
+		event.Path = p.Path
+	case *sftp.FstatPacket:
+		if opErr == nil {
+			event.Code = events.SFTPFstatCode
+		} else {
+			event.Code = events.SFTPFstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_FSTAT
+		event.Path = path
+	case *sftp.SetstatPacket:
+		if opErr == nil {
+			event.Code = events.SFTPSetstatCode
+		} else {
+			event.Code = events.SFTPSetstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_SETSTAT
+		event.Path = p.Path
+		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
+	case *sftp.FsetstatPacket:
+		if opErr == nil {
+			event.Code = events.SFTPFsetstatCode
+		} else {
+			event.Code = events.SFTPFsetstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_FSETSTAT
+		event.Path = path
+		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
+	case *sftp.OpendirPacket:
+		if opErr == nil {
+			event.Code = events.SFTPOpendirCode
+		} else {
+			event.Code = events.SFTPOpendirFailureCode
+		}
+		event.Action = apievents.SFTPAction_OPENDIR
+		event.Path = p.Path
+	case *sftp.ReaddirPacket:
+		if opErr == nil {
+			event.Code = events.SFTPReaddirCode
+		} else {
+			event.Code = events.SFTPReaddirFailureCode
+		}
+		event.Action = apievents.SFTPAction_READDIR
+		event.Path = path
+	case *sftp.RemovePacket:
+		if opErr == nil {
+			event.Code = events.SFTPRemoveCode
+		} else {
+			event.Code = events.SFTPRemoveFailureCode
+		}
+		event.Action = apievents.SFTPAction_REMOVE
+		event.Path = p.Filename
+	case *sftp.MkdirPacket:
+		if opErr == nil {
+			event.Code = events.SFTPMkdirCode
+		} else {
+			event.Code = events.SFTPMkdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_MKDIR
+		event.Path = p.Path
+		event.Flags = p.Flags
+	case *sftp.RmdirPacket:
+		if opErr == nil {
+			event.Code = events.SFTPRmdirCode
+		} else {
+			event.Code = events.SFTPRmdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_RMDIR
+		event.Path = p.Path
+	case *sftp.RealpathPacket:
+		if opErr == nil {
+			event.Code = events.SFTPRealpathCode
+		} else {
+			event.Code = events.SFTPRealpathFailureCode
+		}
+		event.Action = apievents.SFTPAction_REALPATH
+		event.Path = p.Path
+	case *sftp.StatPacket:
+		if opErr == nil {
+			event.Code = events.SFTPStatCode
+		} else {
+			event.Code = events.SFTPStatFailureCode
+		}
+		event.Action = apievents.SFTPAction_STAT
+		event.Path = p.Path
+	case *sftp.RenamePacket:
+		if opErr == nil {
+			event.Code = events.SFTPRenameCode
+		} else {
+			event.Code = events.SFTPRenameFailureCode
+		}
+		event.Action = apievents.SFTPAction_RENAME
+		event.Path = p.Oldpath
+		event.TargetPath = p.Newpath
+	case *sftp.ReadlinkPacket:
+		if opErr == nil {
+			event.Code = events.SFTPReadlinkCode
+		} else {
+			event.Code = events.SFTPReadlinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_READLINK
+		event.Path = p.Path
+	case *sftp.SymlinkPacket:
+		if opErr == nil {
+			event.Code = events.SFTPSymlinkCode
+		} else {
+			event.Code = events.SFTPSymlinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_SYMLINK
+		event.Path = p.Targetpath
+		event.TargetPath = p.Linkpath
+	default:
+		return nil, false
+	}
+
+	return event, true
 }
 
 const (
