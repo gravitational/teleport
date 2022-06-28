@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -97,7 +98,7 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 }
 
 // ReissueDBCerts issues new certificates for specific DB access
-func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db types.Database) error {
+func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Database) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -122,7 +123,6 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 				ServiceName: db.GetName(),
 				Protocol:    db.GetProtocol(),
 				Username:    user,
-				Database:    dbName,
 			},
 			AccessRequests: c.status.ActiveRequests.AccessRequests,
 		})
@@ -141,7 +141,6 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
-		Database:    dbName,
 	}, c.status)
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,13 +151,29 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	var roleSet services.RoleSet
-	var err error
+	var authClient auth.ClientI
 
-	err = addMetadataToRetryableError(ctx, func() error {
-		roleSet, err = services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
-		return err
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer authClient.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

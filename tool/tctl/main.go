@@ -39,7 +39,6 @@ func main() {
 		&common.DBCommand{},
 		&common.KubeCommand{},
 		&common.DesktopCommand{},
-		&common.AccessCommand{},
 		&common.LockCommand{},
 		&common.BotsCommand{},
 		&common.InventoryCommand{},

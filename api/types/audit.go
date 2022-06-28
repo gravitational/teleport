@@ -52,6 +52,11 @@ type ClusterAuditConfig interface {
 	// SetAuditEventsURIs sets the audit events URIs.
 	SetAuditEventsURIs([]string)
 
+	// SetUseFIPSEndpoint sets the FIPS endpoint state for S3/Dynamo backends.
+	SetUseFIPSEndpoint(state ClusterAuditConfigSpecV2_FIPSEndpointState)
+	// GetUseFIPSEndpoint gets the current FIPS endpoint setting
+	GetUseFIPSEndpoint() ClusterAuditConfigSpecV2_FIPSEndpointState
+
 	// EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
 	EnableContinuousBackups() bool
 	// EnableAutoScaling is used to enable (or disable) auto scaling policy.
@@ -188,6 +193,16 @@ func (c *ClusterAuditConfigV2) AuditEventsURIs() []string {
 // SetAuditEventsURIs sets the audit events URIs.
 func (c *ClusterAuditConfigV2) SetAuditEventsURIs(uris []string) {
 	c.Spec.AuditEventsURI = uris
+}
+
+// SetUseFIPSEndpoint sets the FIPS endpoint state for S3/Dynamo backends.
+func (c *ClusterAuditConfigV2) SetUseFIPSEndpoint(state ClusterAuditConfigSpecV2_FIPSEndpointState) {
+	c.Spec.UseFIPSEndpoint = state
+}
+
+// GetUseFIPSEndpoint gets the current FIPS endpoint setting
+func (c *ClusterAuditConfigV2) GetUseFIPSEndpoint() ClusterAuditConfigSpecV2_FIPSEndpointState {
+	return c.Spec.UseFIPSEndpoint
 }
 
 // EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).

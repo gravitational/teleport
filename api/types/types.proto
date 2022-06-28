@@ -931,6 +931,19 @@ message ClusterAuditConfigSpecV2 {
         (gogoproto.casttype) = "Duration",
         (gogoproto.nullable) = true
     ];
+
+    // FIPSEndpointState represents an AWS FIPS endpoint state.
+    enum FIPSEndpointState {
+        // FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
+        // environment variables
+        FIPS_UNSET = 0;
+        // FIPS_ENABLED explicitly enables FIPS support for AWS S3/Dynamo
+        FIPS_ENABLED = 1;
+        // FIPS_DISABLED explicitly disables FIPS support for AWS S3/Dynamo
+        FIPS_DISABLED = 2;
+    }
+    // UseFIPSEndpoint configures AWS endpoints to use FIPS.
+    FIPSEndpointState UseFIPSEndpoint = 15 [ (gogoproto.jsontag) = "use_fips_endpoint,omitempty" ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
@@ -2716,7 +2729,7 @@ message OIDCAuthRequest {
     bytes PublicKey = 7 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get
-    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CreateWebSession indicates if user wants to generate a web
     // session after successful authentication
@@ -2828,7 +2841,7 @@ message SAMLAuthRequest {
     bytes PublicKey = 6 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get.
-    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CSRFToken is associated with user web session token.
     string CSRFToken = 8 [ (gogoproto.jsontag) = "csrf_token" ];
@@ -2930,7 +2943,7 @@ message GithubAuthRequest {
     // PublicKey is an optional public key to sign in case of successful auth.
     bytes PublicKey = 5 [ (gogoproto.jsontag) = "public_key" ];
     // CertTTL is TTL of the cert that's generated in case of successful auth.
-    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
     // CreateWebSession indicates that a user wants to generate a web session
     // after successful authentication.
     bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
