@@ -439,7 +439,7 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_CREATE => {
@@ -480,7 +480,7 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_OVERWRITE_IF => {
