@@ -513,6 +513,31 @@ export namespace RestartGatewayRequest {
     }
 }
 
+export class SetGatewayTargetSubresourceNameRequest extends jspb.Message { 
+    getGatewayUri(): string;
+    setGatewayUri(value: string): SetGatewayTargetSubresourceNameRequest;
+
+    getTargetSubresourceName(): string;
+    setTargetSubresourceName(value: string): SetGatewayTargetSubresourceNameRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetGatewayTargetSubresourceNameRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SetGatewayTargetSubresourceNameRequest): SetGatewayTargetSubresourceNameRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetGatewayTargetSubresourceNameRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetGatewayTargetSubresourceNameRequest;
+    static deserializeBinaryFromReader(message: SetGatewayTargetSubresourceNameRequest, reader: jspb.BinaryReader): SetGatewayTargetSubresourceNameRequest;
+}
+
+export namespace SetGatewayTargetSubresourceNameRequest {
+    export type AsObject = {
+        gatewayUri: string,
+        targetSubresourceName: string,
+    }
+}
+
 export class ListServersRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): ListServersRequest;

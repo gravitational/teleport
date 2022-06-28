@@ -226,11 +226,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
-		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
+		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

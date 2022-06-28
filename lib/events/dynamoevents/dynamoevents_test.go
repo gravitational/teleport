@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -280,4 +281,66 @@ func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.
 	}
 	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
 	c.Check(trace.Unwrap(err), check.FitsTypeOf, errAWSValidation)
+}
+
+func TestConfig_SetFromURL(t *testing.T) {
+	useFipsCfg := Config{
+		UseFIPSEndpoint: types.ClusterAuditConfigSpecV2_FIPS_ENABLED,
+	}
+	cases := []struct {
+		name         string
+		url          string
+		cfg          Config
+		cfgAssertion func(*testing.T, Config)
+	}{
+		{
+			name: "fips enabled via url",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_ENABLED, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips disabled via url",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=false&endpoint=dynamo.example.com",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
+				require.Equal(t, "dynamo.example.com", config.Endpoint)
+			},
+		},
+		{
+			name: "fips mode not set",
+			url:  "dynamodb://event_table_name",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_UNSET, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips mode enabled by default",
+			url:  "dynamodb://event_table_name",
+			cfg:  useFipsCfg,
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_ENABLED, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips mode can be overridden",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=false",
+			cfg:  useFipsCfg,
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+
+			uri, err := url.Parse(tt.url)
+			require.NoError(t, err)
+			require.NoError(t, tt.cfg.SetFromURL(uri))
+
+			tt.cfgAssertion(t, tt.cfg)
+		})
+	}
 }
