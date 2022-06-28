@@ -441,6 +441,10 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
 	switch {
 	case trace.IsNotFound(err):
+		if connectorID == "" {
+			return nil, trace.BadParameter("ACS URI did not include a valid SAML connector ID parameter")
+		}
+
 		idpInitiated = true
 		connector, provider, err = a.getSAMLConnectorAndProviderByID(ctx, connectorID)
 		if err != nil {
