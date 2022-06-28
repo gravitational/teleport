@@ -18,13 +18,8 @@ package clusters
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
-	"strings"
 
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -38,7 +33,8 @@ type CreateGatewayParams struct {
 	// name on a database server.
 	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort string
+	LocalPort          string
+	CLICommandProvider gateway.CLICommandProvider
 }
 
 // CreateGateway creates a gateway
@@ -48,7 +44,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.ReissueDBCerts(ctx, params.TargetUser, params.TargetSubresourceName, db); err != nil {
+	if err := c.ReissueDBCerts(ctx, params.TargetUser, db); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -64,45 +60,10 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	})
+	}, params.CLICommandProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cliCommand, err := buildCLICommand(c, gw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gw.CLICommand = fmt.Sprintf("%s %s", strings.Join(cliCommand.Env, " "), cliCommand.String())
 
 	return gw, nil
-}
-
-func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
-	routeToDb := tlsca.RouteToDatabase{
-		ServiceName: gw.TargetName,
-		Protocol:    gw.Protocol,
-		Username:    gw.TargetUser,
-		Database:    gw.TargetSubresourceName,
-	}
-
-	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
-		// clusters.
-		//
-		// At this point it doesn't matter though, because this argument is used only for
-		// generating correct CA paths. But we use dbcmd.WithNoTLS here, which doesn't include CA paths
-		// in the returned CLI command.
-		c.GetActualName(),
-		dbcmd.WithLogger(gw.Log),
-		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
-		dbcmd.WithNoTLS(),
-		dbcmd.WithTolerateMissingCLIClient(),
-	).GetConnectCommandNoAbsPath()
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cmd, nil
 }
