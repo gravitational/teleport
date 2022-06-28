@@ -122,7 +122,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 
 		redirect := response.Req.ClientRedirectURL
 		if redirect == "" {
-			redirect = client.LoginSuccessRedirectURL
+			redirect = "/web/"
 		}
 
 		res := &ssoCallbackResponse{
@@ -132,7 +132,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			clientRedirectURL: redirect,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res, response.Req.CSRFToken != ""); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}

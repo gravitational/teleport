@@ -421,7 +421,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, 
 	return auth, nil
 }
 
-func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo, idpInitiated bool) error {
+func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
 	if !connector.GetAllowIdPInitiated() {
 		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
 	}
@@ -477,8 +477,10 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
 	}
 
-	if err := a.checkIDPInitiatedSAML(ctx, connector, assertionInfo, idpInitiated); err != nil {
-		return nil, trace.Wrap(err)
+	if idpInitiated {
+		if err := a.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
