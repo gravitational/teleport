@@ -298,6 +298,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
+			dbcmd.WithPrintFormat(),
 		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)

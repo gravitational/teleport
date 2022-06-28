@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -286,6 +287,11 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 	tids, err := collectReviewThresholdIndexes(req, rev, author)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// set a review created time if not already set
+	if rev.Created.IsZero() {
+		rev.Created = time.Now()
 	}
 
 	// set threshold indexes and store the review
@@ -1075,7 +1081,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		rolesToRequest = append(rolesToRequest, roleName)
 	}
 	if len(rolesToRequest) == 0 {
-		return trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`)
+		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
 	}
 	req.SetRoles(rolesToRequest)
 	return nil

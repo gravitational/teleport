@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -40,7 +41,11 @@ import (
 )
 
 func TestAccessRequest(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ResourceAccessRequests: true,
+		},
+	})
 	ctx := context.Background()
 
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
@@ -212,7 +217,7 @@ func TestAccessRequest(t *testing.T) {
 			desc:               "no search_as_roles",
 			requester:          "nobody",
 			requestResources:   []string{"prod"},
-			expectRequestError: trace.AccessDenied(`user does not have any "search_as_roles" which are valid for this request`),
+			expectRequestError: trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`),
 		},
 	}
 	for _, tc := range testCases {
