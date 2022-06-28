@@ -31,7 +31,7 @@ import (
 )
 
 // New creates an instance of Gateway
-func New(cfg Config) (*Gateway, error) {
+func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,10 +92,11 @@ func New(cfg Config) (*Gateway, error) {
 	cfg.LocalPort = port
 
 	gateway := &Gateway{
-		Config:       cfg,
-		closeContext: closeContext,
-		closeCancel:  closeCancel,
-		localProxy:   localProxy,
+		Config:             cfg,
+		closeContext:       closeContext,
+		closeCancel:        closeCancel,
+		localProxy:         localProxy,
+		cliCommandProvider: cliCommandProvider,
 	}
 
 	ok = true
@@ -129,16 +130,29 @@ func (g *Gateway) LocalPortInt() int {
 	return port
 }
 
+// CLICommand returns a command which launches a CLI client pointed at the given gateway.
+func (g *Gateway) CLICommand() (string, error) {
+	cliCommand, err := g.cliCommandProvider.GetCommand(g)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return cliCommand, nil
+}
+
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
 	Config
-	// Set by the cluster when running clusters.Cluster.CreateGateway.
-	// We can't set here inside New as dbcmd.NewCmdBuilder needs info from the cluster.
-	CLICommand string
 
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
-	closeContext context.Context
-	closeCancel  context.CancelFunc
+	closeContext       context.Context
+	closeCancel        context.CancelFunc
+	cliCommandProvider CLICommandProvider
+}
+
+// CLICommandProvider provides a CLI command for gateways which support CLI clients.
+type CLICommandProvider interface {
+	GetCommand(gateway *Gateway) (string, error)
 }

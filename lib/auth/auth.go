@@ -985,6 +985,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
+		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
+	}
+
 	// Reject the cert request if there is a matching lock in force.
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -1085,7 +1089,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
-	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
@@ -2558,6 +2562,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			req.SetExpiry(pexp)
 		}
 	}
+
+	if req.GetDryRun() {
+		// Made it this far with no errors, return before creating the request
+		// if this is a dry run.
+		return nil
+	}
+
 	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

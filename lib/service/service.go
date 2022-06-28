@@ -1254,10 +1254,12 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{}
+		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
+
 		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		handler, err := s3sessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1306,6 +1308,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 			loggers = append(loggers, logger)
 		case dynamo.GetName():
 			hasNonFileLog = true
+
 			cfg := dynamoevents.Config{
 				Tablename:               uri.Host,
 				Region:                  auditConfig.Region(),
@@ -1318,7 +1321,9 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
 				WriteTargetValue:        auditConfig.WriteTargetValue(),
 				RetentionPeriod:         auditConfig.RetentionPeriod(),
+				UseFIPSEndpoint:         auditConfig.GetUseFIPSEndpoint(),
 			}
+
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1409,9 +1414,12 @@ func (process *TeleportProcess) initAuthService() error {
 			process.log.Warn(warningMessage)
 		}
 
-		auditConfig := cfg.Auth.AuditConfig
+		if cfg.FIPS {
+			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
+		}
+
 		uploadHandler, err = initUploadHandler(
-			process.ExitContext(), auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1425,7 +1433,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
+		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

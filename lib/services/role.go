@@ -122,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRoleV3(RoleNameForUser(u.GetName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -149,6 +149,14 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
+			},
+			JoinSessions: []*types.SessionJoinPolicy{
+				{
+					Name:  "foo",
+					Roles: []string{"*"},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionPeerMode)},
+				},
 			},
 		},
 	})

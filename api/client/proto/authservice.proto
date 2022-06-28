@@ -278,6 +278,10 @@ message UserCertsRequest {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
+
+    // UseRoleRequests is used to ensure a certificate request is intended to
+    // use role impersonation, even if the list of role requests is empty.
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -484,6 +488,10 @@ message Features {
     bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
     // ModeratedSessions enables moderated sessions product
     bool ModeratedSessions = 11 [ (gogoproto.jsontag) = "moderated_sessions" ];
+    // MachineID enables MachineID product
+    bool MachineID = 12 [ (gogoproto.jsontag) = "machine_id" ];
+    // ResourceAccessRequests enables resource access requests product
+    bool ResourceAccessRequests = 13 [ (gogoproto.jsontag) = "resource_access_requests" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

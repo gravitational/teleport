@@ -1646,9 +1646,6 @@ func onListNodes(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
 		return trace.Wrap(err)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
@@ -2384,6 +2381,20 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 		return nil, trace.Wrap(err)
 	}
 	req.SetLoginHint(tc.HostLogin)
+
+	// Set the DryRun flag and send the request to auth for full validation. If
+	// the user has no search_as_roles or is not allowed to SSH to the host with
+	// the requested login, we will get an error here.
+	req.SetDryRun(true)
+	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
+	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SetDryRun(false)
+	req.SetRequestReason("")
+
 	return req, nil
 }
 
@@ -2398,15 +2409,11 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
-	if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+	if err != nil {
 		// We can't request access to the node or it doesn't exist, return the
 		// original error but put this one in the debug log.
 		log.WithError(err).Debug("unable to request access to node")
 		return trace.Wrap(origErr)
-	}
-	if err != nil {
-		// Unexpected error, return it.
-		return trace.Wrap(err)
 	}
 	cf.RequestID = req.GetName()
 
@@ -2435,8 +2442,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
 	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		err := clt.CreateAccessRequest(cf.Context, req)
-		return trace.Wrap(err)
+		return trace.Wrap(clt.CreateAccessRequest(cf.Context, req))
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3519,9 +3525,6 @@ func onApps(cf *CLIConf) error {
 		return err
 	})
 	if err != nil {
-		if utils.IsPredicateError(err) {
-			return trace.Wrap(utils.PredicateError{Err: err})
-		}
 		return trace.Wrap(err)
 	}
 
