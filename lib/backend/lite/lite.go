@@ -374,17 +374,13 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer rows.Close()
 
 		if rows.Next() {
 			err = l.deleteInTransaction(ctx, i.Key, tx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-
-		err = rows.Close()
-		if err != nil {
-			return trace.Wrap(err)
 		}
 
 		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
