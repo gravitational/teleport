@@ -1142,9 +1142,6 @@ impl FileCache {
         self.cache.insert(file_id, file)
     }
 
-    // TODO(isaiah): update get, get_mut, and remove to return RdpResult, because presumably none of them
-    // should ever fail, if they do it means our cache has gotten out of sync with the remote RDP server
-
     /// Retrieves a FileCacheObject from the file cache,
     /// without removing it from the cache.
     fn get(&self, file_id: u32) -> Option<&FileCacheObject> {
