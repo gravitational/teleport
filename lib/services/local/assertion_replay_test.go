@@ -22,8 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +30,7 @@ func TestAssertionReplayService(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	delay := func(t time.Duration) time.Time { return time.Now().UTC().Add(t) }
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	service := NewAssertionReplayService(bk)
