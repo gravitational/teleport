@@ -667,7 +667,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	// Use io.MultiWriter to duplicate stderr to the capture writer. The
 	// captured stderr can be used for diagnosing command failures. The capture
 	// writer captures up to a fixed number to limit memory usage.
-	peakStderr := utils.NewCaptureNBytesWriter(100)
+	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
 	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
 
 	err = cmd.Run()

@@ -48,3 +48,9 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 
 	return trace.Wrap(err)
 }
+
+const (
+	// PeakStderrSize is the recommended size for capturing stderr that is used
+	// for ConvertCommandError.
+	PeakStderrSize = 100
+)
