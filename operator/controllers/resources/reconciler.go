@@ -42,6 +42,30 @@ type ResourceBaseReconciler struct {
 	UpsertExternal UpsertExternal
 }
 
+/*
+Do will receive an update request and reconcile the resource.
+
+When an event arrives we must propagate that change into the Teleport cluster.
+We have two types of events: update/create and delete.
+
+For creating/updating we check if the resource exists in Teleport
+- if it does, we update it
+- otherwise we create it
+Always using the state of the resource in the cluster as the source of truth.
+
+For deleting, the recommendation is to use finalizers.
+Finalizers allow us to map an external resource to a kubernetes resource.
+So, when we create or update a resource, we add our own finalizer to the kubernetes resource list of finalizers.
+
+For a delete event which has our finalizer: the resource is deleted in Teleport.
+If it doesn't have the finalizer, we do nothing.
+
+----
+
+Every time we update a resource in Kubernetes (adding finalizers or the OriginLabel), we end the reconciliation process.
+Afterwards, we receive the request again and we progress to the next step.
+This allow us to progress with smaller changes and avoid a long-running reconciliation.
+*/
 func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kclient.Object) (ctrl.Result, error) {
 	// https://sdk.operatorframework.io/docs/building-operators/golang/advanced-topics/#external-resources
 	log := log.FromContext(ctx).WithValues("namespacedname", req.NamespacedName)
@@ -101,16 +125,11 @@ func hasOriginLabel(obj kclient.Object) bool {
 		return false
 	}
 
-	for k := range obj.GetLabels() {
-		if k == types.OriginLabel {
-			return true
-		}
-	}
-
-	return false
+	_, ok := obj.GetLabels()[types.OriginLabel]
+	return ok
 }
 
-func addOriginLabel(ctx context.Context, k8sClient kclient.Client, obj kclient.Object) error {
+func addOriginLabelToK8SObject(ctx context.Context, k8sClient kclient.Client, obj kclient.Object) error {
 	k8sObjLabels := obj.GetLabels()
 	if k8sObjLabels == nil {
 		k8sObjLabels = make(map[string]string)

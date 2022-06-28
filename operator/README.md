@@ -77,7 +77,7 @@ The first two steps above may change the object's state in K8S. If they do, we u
 ### Requirementes
 
 #### K8S cluster
-You can use `minikube` if you don't have a cluster yet.
+If you don't have a cluster yet, you can start one by using the [minikube](https://minikube.sigs.k8s.io/docs/start/) tool.
 
 #### Operator's docker image
 You can obtain the docker image by pulling from `quay.io/gravitational/teleport`
@@ -92,8 +92,6 @@ This change is not in master, so you'll need to checkout the HELM charts from th
 We also need the following tools: `helm`, `kubectl` and `docker`
 
 ### Running the operator
-
-Start `minikube` with `minikube start`.
 
 Set the `TELEPORT_PROJECT` to the full path to your teleport's project checked out at `marco/plugins-teleport-operator-charts`.
 
@@ -118,9 +116,9 @@ If it doesn't, check the errors.
 
 Now, we want access to two configuration tools using a Web UI: K8S UI and Teleport UI.
 
-First, let's create a tunnel using minikube: `minikube tunnel` (this command runs is foreground, open another terminal for the remaining commands).
+If you are using `minikube`, you have to create a tunnel with: `minikube tunnel` (this command runs is foreground, open another terminal for the remaining commands).
 
-Now, let's create a new Teleport User and login in the web UI:
+Create a new Teleport User and login in the web UI:
 ```bash
 PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 kubectl exec $PROXY_POD teleport -- tctl users add --roles=access,editor teleoperator
@@ -129,9 +127,10 @@ TP_CLUSTER_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.load
 echo "https://${TP_CLUSTER_IP}/web/invite/<id>"
 ```
 
-As for the K8S UI, you only need to run `minikube dashboard`.
+Open the Kubernetes Dashboard (`minikube dashboard` if your cluster was created by `minikube`) and switch to `teleport-cluster` namespace.
+Your resources will appear under the Custom Resources menu.
 
-After this, you should be able to manage users and roles using, for example, `kubectl`.
+You can manage users and roles using to usual kubernetes tools, for example, `kubectl`.
 
 As an example, create the following file (`roles.yaml`) and then apply it:
 ```yaml

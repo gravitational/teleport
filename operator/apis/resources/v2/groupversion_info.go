@@ -22,11 +22,13 @@ package v2
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
+
+	"github.com/gravitational/teleport/operator/apis/resources"
 )
 
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "resources.teleport.dev", Version: "v2"}
+	GroupVersion = schema.GroupVersion{Group: resources.GroupName, Version: "v2"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
