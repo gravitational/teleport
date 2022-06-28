@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -424,7 +425,19 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	if params.RouteToCluster != rootClusterName {
 		clt.Close()
-		clt, err = proxy.ConnectToCluster(ctx, rootClusterName)
+		rootClusterProxy := proxy
+		if jumpHost := proxy.teleportClient.JumpHosts; jumpHost != nil {
+			// In case of MFA connect to root teleport proxy instead of JumpHost to request
+			// MFA certificates.
+			proxy.teleportClient.JumpHosts = nil
+			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
+			proxy.teleportClient.JumpHosts = jumpHost
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer rootClusterProxy.Close()
+		}
+		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1081,15 +1094,20 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 // ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remote/local auth
 // service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
 // cluster name with ALPN values set to teleport-auth protocol.
-func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (auth.ClientI, error) {
 	tlsConfig, err := proxy.loadTLS(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if proxyAddr == "" {
+		proxyAddr = proxy.teleportClient.WebProxyAddr
+	}
+
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
 		Context: ctx,
-		Addrs:   []string{proxy.teleportClient.WebProxyAddr},
+		Addrs:   []string{proxyAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -1100,6 +1118,28 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		return nil, trace.Wrap(err)
 	}
 	return clt, nil
+}
+
+func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string, bool) {
+	if len(proxy.teleportClient.JumpHosts) > 0 {
+		// Check if the provided JumpHost address is a Teleport Proxy.
+		// This is needed to distinguish if the JumpHost address from Teleport Proxy Web address
+		// or Teleport Proxy SSH address.
+		jumpHostAddr := proxy.teleportClient.JumpHosts[0].Addr.String()
+		resp, err := webclient.Find(
+			&webclient.Config{
+				Context:   ctx,
+				ProxyAddr: jumpHostAddr,
+				Insecure:  proxy.teleportClient.InsecureSkipVerify,
+			},
+		)
+		if err != nil {
+			// HTTP ping call failed. The JumpHost address is not a Teleport proxy address
+			return "", false
+		}
+		return jumpHostAddr, resp.Proxy.TLSRoutingEnabled
+	}
+	return proxy.teleportClient.WebProxyAddr, proxy.teleportClient.TLSRoutingEnabled
 }
 
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
@@ -1115,10 +1155,10 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	)
 	defer span.End()
 
-	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
-	// directly without using SSH tunnels.
-	if proxy.teleportClient.TLSRoutingEnabled {
-		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
+	if proxyAddr, ok := proxy.shouldDialWithTLSRouting(ctx); ok {
+		// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
+		// directly without using SSH tunnels.
+		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName, proxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
