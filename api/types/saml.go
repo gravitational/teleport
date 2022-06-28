@@ -88,6 +88,10 @@ type SAMLConnector interface {
 	GetEncryptionKeyPair() *AsymmetricKeyPair
 	// SetEncryptionKeyPair sets the key pair for SAML assertions.
 	SetEncryptionKeyPair(k *AsymmetricKeyPair)
+	// GetAllowIdpInitiated returns whether the identity provider can initiate a login or not.
+	GetAllowIdPInitiated() bool
+	// SetAllowIdPInitiated sets whether the identity provider can initiate a login or not.
+	SetAllowIdPInitiated(bool)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -330,6 +334,16 @@ func (o *SAMLConnectorV2) GetEncryptionKeyPair() *AsymmetricKeyPair {
 // SetEncryptionKeyPair sets the key pair for SAML assertions.
 func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.EncryptionKeyPair = k
+}
+
+// GetAllowIdpInitiated returns whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) GetAllowIdPInitiated() bool {
+	return o.Spec.AllowIdPInitiated
+}
+
+// SetAllowIdPInitiated sets whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) SetAllowIdPInitiated(allow bool) {
+	o.Spec.AllowIdPInitiated = allow
 }
 
 // setStaticFields sets static resource header and metadata fields.
