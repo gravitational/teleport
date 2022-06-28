@@ -41,7 +41,7 @@ EXAMPLES:
 
 	// missingPrincipalsFooter is printed at the bottom of `tsh ls` when no results are returned.
 	missingPrincipalsFooter = `
-  Not seeing nodes? Your user is missing Linux principals. If trying teleport for the first time, follow this guide:
+  Not seeing nodes? Your user may be missing Linux principals. If trying teleport for the first time, follow this guide:
 
 https://goteleport.com/docs/getting-started#principals
   `
