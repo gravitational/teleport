@@ -96,7 +96,8 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(r.Context(), samlResponse)
+	// TODO(joel): set connector ID here
+	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(r.Context(), samlResponse, "")
 
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")

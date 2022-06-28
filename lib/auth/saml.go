@@ -122,6 +122,19 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	return &req, nil
 }
 
+func (a *Server) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+	connector, err := a.Identity.GetSAMLConnector(ctx, connectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	provider, err := a.getSAMLProvider(connector)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return connector, provider, nil
+}
+
 func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
@@ -154,16 +167,7 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetSAMLConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	provider, err := a.getSAMLProvider(connector)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return connector, provider, nil
+	return a.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID)
 }
 
 func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
@@ -363,7 +367,7 @@ type SAMLAuthResponse struct {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -373,7 +377,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 
 	diagCtx := a.newSSODiagContext(types.KindSAML)
 
-	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse)
+	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
 	diagCtx.info.Error = trace.UserMessage(err)
 
 	diagCtx.writeToBackend(ctx)
@@ -429,7 +433,7 @@ func (a *Server) checkIDPInitiatedSAML(ctx context.Context, assertion *saml2.Ass
 	return trace.Wrap(err)
 }
 
-func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -438,7 +442,10 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	switch {
 	case trace.IsNotFound(err):
 		idpInitiated = true
-		// TODO(joel): fetch connector and provider here
+		connector, provider, err = a.getSAMLConnectorAndProviderByID(ctx, connectorID)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+		}
 	case err != nil:
 		trace.Wrap(err)
 	default:
@@ -447,8 +454,8 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
 		}
-		diagCtx.info.TestFlow = request.SSOTestFlow
 
+		diagCtx.info.TestFlow = request.SSOTestFlow
 		connector, provider, err = a.getSAMLConnectorAndProvider(ctx, *request)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
