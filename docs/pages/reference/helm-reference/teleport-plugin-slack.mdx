@@ -98,6 +98,9 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
 | `string` | `""` | No |
 
 Slack token of the bot user to impersonate when sending the messages.
+Ignored when `mattermost.tokenFromSecret` is set.
+It's only recommended for testing purposes. Please use
+[`slack.tokenFromSecret`](#slacktokenfromsecret) instead.
 
 <Tabs>
   <TabItem label="values.yaml">

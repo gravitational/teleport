@@ -38,7 +38,7 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
 ## Step 1/8. Define RBAC resources
 
 Before you set up the Slack plugin, you will need to enable Role Access Requests
-in your Teleport cluster. 
+in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
@@ -72,15 +72,34 @@ and will require access to both the public internet and the Teleport Auth Servic
   $ cd teleport-plugins/access/slack
   $ make
   ```
-  
+
   Place the `teleport-slack` binary into an appropriate location
   within the system's `PATH`, e.g., `/usr/local/bin`:
 
-  ```code 
-  $ mv ./build/teleport-slack /usr/local/bin 
+  ```code
+  $ mv ./build/teleport-slack /usr/local/bin
   ```
 
-</TabItem> 
+</TabItem>
+<TabItem label="Helm Chart">
+  To install from source you need `git` and `go` >= (=teleport.golang=)
+  installed.
+
+  ```code
+  # Check out the teleport-plugins repository
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/slack
+  $ make
+  ```
+
+  Place the `teleport-slack` binary into an appropriate location
+  within the sytem's `PATH`, e.g., `/usr/local/bin`:
+
+  ```code
+  $ mv ./build/teleport-slack /usr/local/bin
+  ```
+
+</TabItem>
 </Tabs>
 
   Make sure the binary is installed:
@@ -164,7 +183,7 @@ Later in this guide, we will configure the plugin to post in other channels as
 well.
 
 After submitting this form, you will see an OAuth token in the "OAuth &
-Permissions" tab under "Tokens for Your Workspace": 
+Permissions" tab under "Tokens for Your Workspace":
 
 ![OAuth Tokens](../../../img/enterprise/plugins/slack/OAuth.png)
 
@@ -201,7 +220,7 @@ fields:
 
 **`[teleport]`**
 
-The Slack plugin uses this section to connect to the Teleport Auth Service. 
+The Slack plugin uses this section to connect to the Teleport Auth Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -209,8 +228,8 @@ The address and credentials you configure depend on whether your plugin can
 access the Auth Service directly:
 
 <Tabs>
-  <TabItem label="Connect to the Auth Service"> 
-    
+  <TabItem label="Connect to the Auth Service">
+
 Set `addr` to the address and port of your Auth Service. This address must be
 reachable from the Teleport Slack Plugin.
 
@@ -253,7 +272,7 @@ identity = "/var/lib/teleport/plugins/slack/auth.pem"
 ```
 
 </ScopedBlock>
- 
+
 **`[slack]`**
 
 `token`: Open [`https://api.slack.com/apps`](https://api.slack.com/apps), find
@@ -326,7 +345,7 @@ those channels.
 You have already configured the plugin to send direct messages as Slackbot. For
 any other channel you mention in your `role_to_recipients` map, you will need
 to invite the plugin to that channel. Navigate to each channel and enter `/invite
-@teleport` in the message box. 
+@teleport` in the message box.
 
 ## Step 7/8. Test your Slack app
 
