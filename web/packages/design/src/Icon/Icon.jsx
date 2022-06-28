@@ -252,6 +252,7 @@ export const Twitter = makeFontIcon('Twitter', 'icon-twitter');
 export const UsbDrive = makeFontIcon('UsbDrive', 'icon-usb-drive');
 export const Unarchive = makeFontIcon('Unarchive', 'icon-unarchive');
 export const Unlock = makeFontIcon('Unlock', 'icon-unlock');
+export const Unlink = makeFontIcon('Unlink', 'icon-unlink2');
 export const Upload = makeFontIcon('Upload', 'icon-file_upload');
 export const User = makeFontIcon('User', 'icon-user');
 export const UserCreated = makeFontIcon('UserCreated', 'icon-user-created');

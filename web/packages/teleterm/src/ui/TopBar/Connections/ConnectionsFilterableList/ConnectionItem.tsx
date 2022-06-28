@@ -1,6 +1,6 @@
 import React from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
-import { CircleCross, CircleStop } from 'design/Icon';
+import { Trash, Unlink } from 'design/Icon';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -28,12 +28,12 @@ export function ConnectionItem(props: ConnectionItemProps) {
     disconnect: {
       title: 'Disconnect',
       action: props.onDisconnect,
-      Icon: CircleStop,
+      Icon: Unlink,
     },
     remove: {
       title: 'Remove',
       action: props.onRemove,
-      Icon: CircleCross,
+      Icon: Trash,
     },
   };
 
@@ -105,14 +105,13 @@ export function ConnectionItem(props: ConnectionItemProps) {
         </div>
         <ButtonIcon
           mr="-3px"
-          color="text.placeholder"
           title={actionIcon.title}
           onClick={e => {
             e.stopPropagation();
             actionIcon.action();
           }}
         >
-          <actionIcon.Icon fontSize={12} />
+          <actionIcon.Icon fontSize={13} />
         </ButtonIcon>
       </Flex>
     </ListItem>
