@@ -26,7 +26,13 @@ import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
   (props, ref) => {
-    const { onSelect, anchorOrigin, transformOrigin, required = true } = props;
+    const {
+      onSelect,
+      anchorOrigin,
+      transformOrigin,
+      required = true,
+      width,
+    } = props;
     const anchorRef = useRef<HTMLElement>();
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
@@ -87,6 +93,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             onKeyPress={onKeyPress}
             onClick={onItemClick}
             placeholder={placeholder}
+            width={width}
           />
         </Menu>
       </React.Fragment>
@@ -99,16 +106,18 @@ const LoginItemList = ({
   onClick,
   onKeyPress,
   placeholder,
+  width,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   onClick: (e: React.MouseEvent<HTMLAnchorElement>, login: string) => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   placeholder: string;
+  width?: string;
 }) => {
   const content = getLoginItemListContent(getLoginItemsAttempt, onClick);
 
   return (
-    <Flex flexDirection="column">
+    <Flex flexDirection="column" width={width}>
       <Input
         p="2"
         m="2"

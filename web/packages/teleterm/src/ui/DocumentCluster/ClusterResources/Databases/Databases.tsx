@@ -20,11 +20,12 @@ import { Table } from 'teleterm/ui/components/Table';
 import { Cell } from 'design/DataTable';
 import { renderLabelCell } from '../renderLabelCell';
 import { Danger } from 'design/Alert';
-import { MenuLogin } from 'shared/components/MenuLogin';
+import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { MenuLoginTheme } from '../MenuLoginTheme';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { IAppContext } from 'teleterm/ui/types';
+import { GatewayProtocol } from 'teleterm/ui/services/clusters';
 
 export default function Container() {
   const state = useDatabases();
@@ -56,6 +57,7 @@ function DatabaseList(props: State) {
               <ConnectButton
                 documentUri={props.documentUri}
                 dbUri={db.uri}
+                protocol={db.protocol as GatewayProtocol}
                 onConnect={dbUser => props.connect(db.uri, dbUser)}
               />
             ),
@@ -71,10 +73,12 @@ function DatabaseList(props: State) {
 function ConnectButton({
   documentUri,
   dbUri,
+  protocol,
   onConnect,
 }: {
   documentUri: string;
   dbUri: string;
+  protocol: GatewayProtocol;
   onConnect: (dbUser: string) => void;
 }) {
   const appContext = useAppContext();
@@ -83,7 +87,8 @@ function ConnectButton({
     <Cell align="right">
       <MenuLoginTheme>
         <MenuLogin
-          placeholder="Enter username"
+          {...getMenuLoginOptions(protocol)}
+          width="195px"
           getLoginItems={() => getDatabaseUsers(appContext, documentUri, dbUri)}
           onSelect={(_, user) => {
             onConnect(user);
@@ -100,6 +105,22 @@ function ConnectButton({
       </MenuLoginTheme>
     </Cell>
   );
+}
+
+function getMenuLoginOptions(
+  protocol: GatewayProtocol
+): Pick<MenuLoginProps, 'placeholder' | 'required'> {
+  if (protocol === 'redis') {
+    return {
+      placeholder: 'Enter username (optional)',
+      required: false,
+    };
+  }
+
+  return {
+    placeholder: 'Enter username',
+    required: true,
+  };
 }
 
 async function getDatabaseUsers(

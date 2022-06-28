@@ -17,6 +17,7 @@ limitations under the License.
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
 import { routing } from 'teleterm/ui/uri';
+import { GatewayProtocol } from 'teleterm/ui/services/clusters';
 
 export function useDatabases() {
   const appContext = useAppContext();
@@ -36,7 +37,7 @@ export function useDatabases() {
       // `port` is not passed as well, we'll let the tsh daemon pick a random one.
       targetUri: db.uri,
       targetName: db.name,
-      targetUser: dbUser,
+      targetUser: getTargetUser(db.protocol as GatewayProtocol, dbUser),
     });
 
     const connectionToReuse =
@@ -48,6 +49,20 @@ export function useDatabases() {
       documentsService.add(doc);
       documentsService.open(doc.uri);
     }
+  }
+
+  function getTargetUser(
+    protocol: GatewayProtocol,
+    providedDbUser: string
+  ): string {
+    // we are replicating tsh behavior (user can be omitted for Redis)
+    // https://github.com/gravitational/teleport/blob/796e37bdbc1cb6e0a93b07115ffefa0e6922c529/tool/tsh/db.go#L240-L244
+    // but unlike tsh, Connect has to provide a user that is then used in a gateway document
+    if (protocol === 'redis') {
+      return providedDbUser || 'default';
+    }
+
+    return providedDbUser;
   }
 
   return {
