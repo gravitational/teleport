@@ -42,13 +42,13 @@ func NewAssertionReplayService(bk backend.Backend) *AssertionReplayService {
 //
 // `safeAfter` must be either at or after the point in time that a given SSO assertion becomes invalid in order to mitigate replay attacks.
 // This function shouldn't be used if the assertion never verifiably expires.
-func (s *AssertionReplayService) RecognizeSSOAssertion(ctx context.Context, assertionId string, user string, safeAfter time.Time) error {
-	key := backend.Key(assertionReplayPrefix, assertionId)
+func (s *AssertionReplayService) RecognizeSSOAssertion(ctx context.Context, assertionID string, user string, safeAfter time.Time) error {
+	key := backend.Key(assertionReplayPrefix, assertionID)
 	item := backend.Item{Key: key, Value: []byte(user), Expires: safeAfter}
 	_, err := s.bk.Create(ctx, item)
 	switch {
 	case trace.IsAlreadyExists(err):
-		return trace.AlreadyExists("Assertion %q already recognized for user %v", assertionId, user)
+		return trace.AlreadyExists("Assertion %q already recognized for user %v", assertionID, user)
 	case err != nil:
 		return trace.Wrap(err)
 	default:
