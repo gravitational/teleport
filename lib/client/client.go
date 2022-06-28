@@ -431,11 +431,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// MFA certificates.
 			proxy.teleportClient.JumpHosts = nil
 			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
+			proxy.teleportClient.JumpHosts = jumpHost
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			defer rootClusterProxy.Close()
-			proxy.teleportClient.JumpHosts = jumpHost
 		}
 		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
 		if err != nil {
