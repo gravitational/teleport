@@ -32,23 +32,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type botTestModules struct {
-	modules.Modules
-}
-
-func (m *botTestModules) Features() modules.Features {
-	return modules.Features{
-		MachineID: false, // Explicitly turn off Machine ID
-	}
-}
-
 func TestBotCreateFeatureDisabled(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			MachineID: false,
+		},
+	})
+
 	srv := newTestTLSServer(t)
-
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&botTestModules{})
-
 	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
 	require.NoError(t, err)
 
@@ -62,9 +53,11 @@ func TestBotCreateFeatureDisabled(t *testing.T) {
 }
 
 func TestBotOnboardFeatureDisabled(t *testing.T) {
-	defaultModules := modules.GetModules()
-	defer modules.SetModules(defaultModules)
-	modules.SetModules(&botTestModules{})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			MachineID: false,
+		},
+	})
 
 	srv := newTestTLSServer(t)
 
@@ -101,6 +94,6 @@ func TestBotOnboardFeatureDisabled(t *testing.T) {
 		PublicTLSKey: tlsPublicKey,
 		PublicSSHKey: publicKey,
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	require.Error(t, err)
 	require.Contains(t, err.Error(), "not licensed")
 }
