@@ -75,12 +75,6 @@ type HostUsersBackend interface {
 	RemoveSudoersFile(user string) error
 }
 
-// HostUsersProvisioningBackend is used to implement HostUsersBackend
-type HostUsersProvisioningBackend struct {
-	sudoersPath string
-	hostUUID    string
-}
-
 type userCloser struct {
 	users    HostUsers
 	backend  HostUsersBackend
