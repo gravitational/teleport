@@ -1002,13 +1002,9 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
-	params := url.Values{}
-	if connectorID != "" {
-		params.Add("connector_id", connectorID)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate")+"?"+params.Encode(), validateSAMLResponseReq{
-		Response: re,
+	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
+		Response:    re,
+		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
