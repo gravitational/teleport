@@ -80,7 +80,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(err)
 	}
 	if trace.IsNotFound(err) && !hasOriginLabel(obj) {
-		return addOriginLabel(ctx, r.Client, obj)
+		return addOriginLabelToK8SObject(ctx, r.Client, obj)
 	}
 
 	return r.TeleportClient.UpsertRole(ctx, teleportResource)

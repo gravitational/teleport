@@ -79,12 +79,11 @@ var _ utilnet.Dialer = &SpdyRoundTripper{}
 type DialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
 type roundTripperConfig struct {
-	ctx             context.Context
-	authCtx         authContext
-	dial            DialWithContext
-	tlsConfig       *tls.Config
-	followRedirects bool
-	pingPeriod      time.Duration
+	ctx        context.Context
+	authCtx    authContext
+	dial       DialWithContext
+	tlsConfig  *tls.Config
+	pingPeriod time.Duration
 }
 
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use

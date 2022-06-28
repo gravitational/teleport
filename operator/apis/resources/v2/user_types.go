@@ -20,9 +20,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/operator/apis/resources"
 )
 
-const DescriptionKey = "description"
+func init() {
+	SchemeBuilder.Register(&User{}, &UserList{})
+}
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -57,10 +60,6 @@ type UserList struct {
 	Items           []User `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&User{}, &UserList{})
-}
-
 func (u User) ToTeleport() types.User {
 	return &types.UserV2{
 		Kind:    types.KindUser,
@@ -68,7 +67,7 @@ func (u User) ToTeleport() types.User {
 		Metadata: types.Metadata{
 			Name:        u.Name,
 			Labels:      u.Labels,
-			Description: u.Annotations[DescriptionKey],
+			Description: u.Annotations[resources.DescriptionKey],
 		},
 		Spec: types.UserSpecV2(u.Spec),
 	}
