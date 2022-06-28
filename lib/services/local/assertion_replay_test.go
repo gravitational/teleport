@@ -40,11 +40,19 @@ func TestAssertionReplayService(t *testing.T) {
 		id[i] = uuid.New().String()
 	}
 
+	// first time foo
 	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[0], "foo", delay(time.Hour)))
+
+	// second time foo
 	require.Error(t, service.RecognizeSSOAssertion(ctx, id[0], "foo", delay(time.Hour)))
 
+	// first time bar
 	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Millisecond)))
 	time.Sleep(time.Second)
+
+	// assertion has expired, no risk of replay
 	require.NoError(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Hour)))
+
+	// assertion should still exist
 	require.Error(t, service.RecognizeSSOAssertion(ctx, id[1], "bar", delay(time.Hour)))
 }
