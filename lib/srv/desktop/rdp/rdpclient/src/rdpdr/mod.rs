@@ -421,7 +421,7 @@ impl Client {
                                     file_id,
                                     FileCacheObject::new(rdp_req.path.clone(), res.fso),
                                 );
-                                return cli.prep_device_create_response(
+                                cli.prep_device_create_response(
                                     &rdp_req,
                                     NTSTATUS::STATUS_SUCCESS,
                                     file_id,
@@ -431,13 +431,13 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_CREATE => {
                             // If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.prep_device_create_response(
+                                cli.prep_device_create_response(
                                     &rdp_req,
                                     NTSTATUS::STATUS_OBJECT_NAME_COLLISION,
                                     0,
@@ -454,7 +454,7 @@ impl Client {
                                     file_id,
                                     FileCacheObject::new(rdp_req.path.clone(), res.fso),
                                 );
-                                return cli.prep_device_create_response(
+                                cli.prep_device_create_response(
                                     &rdp_req,
                                     NTSTATUS::STATUS_SUCCESS,
                                     file_id,
@@ -472,7 +472,7 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_OVERWRITE_IF => {
