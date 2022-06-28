@@ -2995,22 +2995,30 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.kube = listener
 	}
 
-	if !cfg.Proxy.MySQLAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
-		process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
-		listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if !cfg.Proxy.DisableDatabaseProxy {
+		if !cfg.Proxy.MySQLAddr.IsEmpty() {
+			process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.db.mysql = listener
 		}
-		listeners.db.mysql = listener
-	}
 
-	if !cfg.Proxy.MongoAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
-		process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
-		listener, err := process.importOrCreateListener(listenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if !cfg.Proxy.MongoAddr.IsEmpty() {
+			process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.db.mongo = listener
 		}
-		listeners.db.mongo = listener
+
+		if !cfg.Proxy.PostgresAddr.IsEmpty() {
+			if err := process.setPostgresListener(cfg, &listeners); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
 	tunnelStrategy, err := networkingConfig.GetTunnelStrategyType()
