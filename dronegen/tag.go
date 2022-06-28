@@ -375,7 +375,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
       cat $WORKSPACE_DIR/curl_out.txt
       exit 1
     fi
-    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%%20/g')"
   done
 done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),

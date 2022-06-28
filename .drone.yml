@@ -1223,7 +1223,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1379,7 +1379,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1533,7 +1533,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1687,7 +1687,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1863,7 +1863,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2041,7 +2041,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2213,7 +2213,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2377,7 +2377,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2531,7 +2531,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2707,7 +2707,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2879,7 +2879,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3106,7 +3106,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3311,7 +3311,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3497,7 +3497,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3649,7 +3649,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3803,7 +3803,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3970,7 +3970,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4137,7 +4137,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4313,7 +4313,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4494,7 +4494,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4656,7 +4656,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: bd3d35d70926a88f4cd1a1e8607614e2340a1dbbaefcdca2ccec65d2df8c33f8
+hmac: 4f0ec2c5d1a8817bb1a8f44583b3b02a879e8c26118a87c9fc75a19ae932e01b
 
 ...
