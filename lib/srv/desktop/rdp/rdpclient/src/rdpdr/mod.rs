@@ -439,7 +439,7 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_CREATE => {
@@ -480,7 +480,7 @@ impl Client {
                                     &rdp_req,
                                     NTSTATUS::STATUS_NO_SUCH_FILE,
                                     0,
-                                );
+                                )
                             }
                         }
                         flags::CreateDisposition::FILE_OVERWRITE_IF => {
@@ -542,14 +542,14 @@ impl Client {
 
     /// The IRP_MJ_DIRECTORY_CONTROL function we support is when it's sent with minor function IRP_MN_QUERY_DIRECTORY,
     /// which is used to retrieve the contents of a directory. RDP does this by repeatedly sending
-    /// IRP_MN_QUERY_DIRECTORY's, expecting to retrieve the next item in the directory in each reply.
+    /// IRP_MN_QUERY_DIRECTORY, expecting to retrieve the next item in the directory in each reply.
     /// (Which directory is being queried is specified by the FileId in each request).
     ///
     /// An idiosyncrasy of the protocol is that on the first IRP_MN_QUERY_DIRECTORY in a sequence, RDP expects back an
     /// entry for the "." directory, on the second call it expects an entry for the ".." directory, and on subsequent
     /// calls it expects entries for the actual contents of the directory.
     ///
-    /// Once all of the directory's contents has been sent back, we alert RDP to stop sending IRP_MN_QUERY_DIRECTORY's
+    /// Once all of the directory's contents has been sent back, we alert RDP to stop sending IRP_MN_QUERY_DIRECTORY
     /// by sending it back an NTSTATUS::STATUS_NO_MORE_FILES.
     fn process_irp_directory_control(
         &mut self,
@@ -1154,9 +1154,6 @@ impl FileCache {
     fn insert(&mut self, file_id: u32, file: FileCacheObject) -> Option<FileCacheObject> {
         self.cache.insert(file_id, file)
     }
-
-    // TODO(isaiah): update get, get_mut, and remove to return RdpResult, because presumably none of them
-    // should ever fail, if they do it means our cache has gotten out of sync with the remote RDP server
 
     /// Retrieves a FileCacheObject from the file cache,
     /// without removing it from the cache.
