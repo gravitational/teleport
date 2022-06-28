@@ -494,11 +494,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
+				WithExecer(tt.execer),
 			}, tt.opts...)
 
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
 			c.uid = utils.NewFakeUID()
-			c.exe = tt.execer
 			got, err := c.GetConnectCommand()
 			if tt.wantErr {
 				if err == nil {
@@ -541,11 +541,11 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 	opts := []ConnectCommandFunc{
 		WithLocalProxy("localhost", 12345, ""),
 		WithNoTLS(),
+		WithExecer(&fakeExec{commandPathBehavior: forceAbsolutePath}),
 	}
 
 	c := NewCmdBuilder(tc, profile, database, "root", opts...)
 	c.uid = utils.NewFakeUID()
-	c.exe = &fakeExec{commandPathBehavior: forceAbsolutePath}
 
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
@@ -580,11 +580,11 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 	opts := []ConnectCommandFunc{
 		WithLocalProxy("localhost", 12345, ""),
 		WithNoTLS(),
+		WithExecer(&fakeExec{commandPathBehavior: forceBasePath}),
 	}
 
 	c := NewCmdBuilder(tc, profile, database, "root", opts...)
 	c.uid = utils.NewFakeUID()
-	c.exe = &fakeExec{commandPathBehavior: forceBasePath}
 
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
