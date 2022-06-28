@@ -17,15 +17,15 @@ limitations under the License.
 import { Store } from 'shared/libs/stores';
 import { NavGroup } from 'teleport/types';
 
-const defaultState = {
+export const defaultNavState = {
   sideNav: [] as NavItem[],
   topNav: [] as NavItem[],
   topMenu: [] as NavItem[],
 };
 
-export default class StoreNav extends Store<typeof defaultState> {
+export default class StoreNav extends Store<typeof defaultNavState> {
   state = {
-    ...defaultState,
+    ...defaultNavState,
   };
 
   addTopMenuItem(item: NavItem) {
