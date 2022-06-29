@@ -152,11 +152,20 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 				return false, trace.Wrap(err)
 			}
 			return target.Match(res), nil
+		case CertAuthority:
+			var filter CertAuthorityFilter
+			filter.FromMap(kind.Filter)
+			return filter.Match(res), nil
 		default:
-			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)
+			// we don't know about this filter, let the event through
 		}
 	}
 	return true, nil
+}
+
+// IsTrivial returns true iff the WatchKind only specifies a Kind but no other field.
+func (kind WatchKind) IsTrivial() bool {
+	return kind.SubKind == "" && kind.Name == "" && !kind.LoadSecrets && len(kind.Filter) == 0
 }
 
 // Events returns new events interface
