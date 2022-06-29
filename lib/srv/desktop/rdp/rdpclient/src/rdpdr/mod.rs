@@ -31,9 +31,10 @@ use crate::{
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
-    CapabilityType, Component, DeviceType, FsInformationClassLevel, MajorFunction, MinorFunction,
-    PacketId, DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02, NTSTATUS,
-    SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+    CapabilityType, Component, DeviceType, FileInformationClassLevel,
+    FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId,
+    DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02, NTSTATUS, SCARD_DEVICE_ID,
+    SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -272,6 +273,9 @@ impl Client {
             MajorFunction::IRP_MJ_CLOSE => self.process_irp_close(device_io_request),
             MajorFunction::IRP_MJ_DIRECTORY_CONTROL => {
                 self.process_irp_directory_control(device_io_request, payload)
+            }
+            MajorFunction::IRP_MJ_QUERY_VOLUME_INFORMATION => {
+                self.process_irp_query_volume_information(device_io_request, payload)
             }
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
@@ -650,6 +654,54 @@ impl Client {
         }
     }
 
+    /// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L442
+    fn process_irp_query_volume_information(
+        &mut self,
+        device_io_request: DeviceIoRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let rdp_req = ServerDriveQueryVolumeInformationRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
+        if let Some(dir) = self.file_cache.get(rdp_req.device_io_request.file_id) {
+            // TODO(isaiah): we should support all of the fs_info_class_lvls that FreeRDP does:
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L468
+            match rdp_req.fs_info_class_lvl {
+                FileSystemInformationClassLevel::FileFsVolumeInformation => {
+                    let buffer = Some(FileSystemInformationClass::FileFsVolumeInformation(
+                        FileFsVolumeInformation::new(dir.fso.last_modified as i64),
+                    ));
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer,
+                    )
+                }
+                FileSystemInformationClassLevel::FileFsSizeInformation
+                | FileSystemInformationClassLevel::FileFsAttributeInformation
+                | FileSystemInformationClassLevel::FileFsFullSizeInformation
+                | FileSystemInformationClassLevel::FileFsDeviceInformation => {
+                    return Err(not_implemented_error(&format!(
+                        "support for ServerDriveQueryVolumeInformationRequest with fs_info_class_lvl = {:?} is not implemented",
+                        rdp_req.fs_info_class_lvl
+                    )));
+                }
+                _ => {
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L574-L577
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_UNSUCCESSFUL,
+                        None,
+                    )
+                }
+            }
+        } else {
+            Err(invalid_data_error(&format!(
+                "failed to retrieve an item from the file cache with FileId = {}",
+                rdp_req.device_io_request.file_id
+            )))
+        }
+    }
+
     pub fn write_client_device_list_announce<S: Read + Write>(
         &mut self,
         req: ClientDeviceListAnnounce,
@@ -806,7 +858,7 @@ impl Client {
         &self,
         device_io_request: &DeviceIoRequest,
         io_status: NTSTATUS,
-        buffer: Option<FsInformationClass>,
+        buffer: Option<FileInformationClass>,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = ClientDriveQueryDirectoryResponse::new(device_io_request, io_status, buffer)?;
         debug!("sending RDP: {:?}", resp);
@@ -822,7 +874,7 @@ impl Client {
     /// req gives us a FileId, which we use to get the FileCacheObject for the directory that
     /// this request is targeted at. We use that FileCacheObject as an iterator, grabbing the
     /// next() FileSystemObject (starting with ".", then "..", then iterating through the contents
-    /// of the target directory), which we then convert to an RDP FsInformationClass for sending back
+    /// of the target directory), which we then convert to an RDP FileInformationClass for sending back
     /// to the RDP server.
     fn prep_next_drive_query_dir_response(
         &mut self,
@@ -835,11 +887,11 @@ impl Client {
             // time will give us "..", and then we will iterate through any files/directories stored
             // within dir.
             if let Some(fso) = dir.next() {
-                match req.fs_information_class_lvl {
-                // TODO(isaiah): we should support all the fs_information_class_lvl's that FreeRDP does:
+                match req.file_info_class_lvl {
+                // TODO(isaiah): we should support all the file_info_class_lvl's that FreeRDP does:
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
-                FsInformationClassLevel::FileBothDirectoryInformation => {
-                    let buffer = Some(FsInformationClass::FileBothDirectoryInformation(
+                FileInformationClassLevel::FileBothDirectoryInformation => {
+                    let buffer = Some(FileInformationClass::FileBothDirectoryInformation(
                         FileBothDirectoryInformation::from(fso)?
                     ));
                     self.prep_drive_query_dir_response(
@@ -848,8 +900,8 @@ impl Client {
                         buffer
                     )
                 },
-                FsInformationClassLevel::FileFullDirectoryInformation => {
-                    let buffer = Some(FsInformationClass::FileFullDirectoryInformation(
+                FileInformationClassLevel::FileFullDirectoryInformation => {
+                    let buffer = Some(FileInformationClass::FileFullDirectoryInformation(
                         FileFullDirectoryInformation::from(fso)?
                     ));
                     self.prep_drive_query_dir_response(
@@ -858,15 +910,15 @@ impl Client {
                         buffer
                     )
                 }
-                FsInformationClassLevel::FileDirectoryInformation |
-                FsInformationClassLevel::FileNamesInformation => {
+                FileInformationClassLevel::FileDirectoryInformation |
+                FileInformationClassLevel::FileNamesInformation => {
                     Err(not_implemented_error(&format!(
-                        "support for ServerDriveQueryDirectoryRequest with fs_information_class_lvl = {:?} is not implemented",
-                        req.fs_information_class_lvl
+                        "support for ServerDriveQueryDirectoryRequest with file_info_class_lvl = {:?} is not implemented",
+                        req.file_info_class_lvl
                     )))
                 },
                 _ => {
-                    Err(invalid_data_error("received invalid FsInformationClassLevel in ServerDriveQueryDirectoryRequest"))
+                    Err(invalid_data_error("received invalid FileInformationClassLevel in ServerDriveQueryDirectoryRequest"))
                 }
             }
             } else {
@@ -899,6 +951,20 @@ impl Client {
             NTSTATUS::STATUS_UNSUCCESSFUL,
             None,
         )
+    }
+
+    fn prep_query_vol_info_response(
+        &self,
+        device_io_request: &DeviceIoRequest,
+        io_status: NTSTATUS,
+        buffer: Option<FileSystemInformationClass>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let resp =
+            ClientDriveQueryVolumeInformationResponse::new(device_io_request, io_status, buffer)?;
+        debug!("sending RDP: {:?}", resp);
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
+        Ok(resp)
     }
 
     /// Helper function for sending a TDP SharedDirectoryCreateRequest based on an
@@ -1487,12 +1553,8 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
-    /// Creates a ClientDeviceListAnnounceRequest for announcing a new shared drive (directory).
     /// A new drive can be announced at any time during RDP's operation. It is up to the caller
-    /// to ensure that the passed device_id is unique from that of any previously shared devices.
     pub fn new_drive(device_id: u32, drive_name: String) -> Self {
-        // According to the spec:
-        //
         // If the client supports DRIVE_CAPABILITY_VERSION_02 in the Drive Capability Set,
         // then the full name MUST also be specified in the DeviceData field, as a null-terminated
         // Unicode string. If the DeviceDataLength field is nonzero, the content of the
@@ -1858,7 +1920,7 @@ struct ServerDriveQueryInformationRequest {
     ///
     /// FileAttributeTagInformation
     /// This information class is used to query for file attribute and reparse tag information.
-    fs_information_class_lvl: FsInformationClassLevel,
+    file_info_class_lvl: FileInformationClassLevel,
     // Length, Padding, and QueryBuffer appear to be vestigial fields and can safely be ignored. Their description
     // is provided below for documentation purposes.
     //
@@ -1867,24 +1929,24 @@ struct ServerDriveQueryInformationRequest {
     // Padding (24 bytes): An array of 24 bytes. This field is unused and MUST be ignored.
     //
     // QueryBuffer (variable): A variable-length array of bytes. The size of the array is specified by the Length field.
-    // The content of this field is based on the value of the FsInformationClass field, which determines the different
+    // The content of this field is based on the value of the FileInformationClass field, which determines the different
     // structures that MUST be contained in the QueryBuffer field. For a complete list of these structures, see [MS-FSCC]
-    // section 2.4. The "File information class" table defines all the possible values for the FsInformationClass field.
+    // section 2.4. The "File information class" table defines all the possible values for the FileInformationClass field.
 }
 
 #[allow(dead_code)]
 impl ServerDriveQueryInformationRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
-        if let Some(fs_information_class_lvl) =
-            FsInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+        if let Some(file_info_class_lvl) =
+            FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
         {
             Ok(Self {
                 device_io_request,
-                fs_information_class_lvl,
+                file_info_class_lvl,
             })
         } else {
             Err(invalid_data_error(
-                "received invalid FsInformationClass in ServerDriveQueryInformationRequest",
+                "received invalid FileInformationClass in ServerDriveQueryInformationRequest",
             ))
         }
     }
@@ -1894,7 +1956,7 @@ impl ServerDriveQueryInformationRequest {
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
 #[derive(Debug)]
 #[allow(dead_code, clippy::enum_variant_names)]
-enum FsInformationClass {
+enum FileInformationClass {
     FileBasicInformation(FileBasicInformation),
     FileStandardInformation(FileStandardInformation),
     FileBothDirectoryInformation(FileBothDirectoryInformation),
@@ -1903,14 +1965,14 @@ enum FsInformationClass {
 }
 
 #[allow(dead_code)]
-impl FsInformationClass {
+impl FileInformationClass {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         match self {
-            Self::FileBasicInformation(fs_info_class) => fs_info_class.encode(),
-            Self::FileStandardInformation(fs_info_class) => fs_info_class.encode(),
-            Self::FileBothDirectoryInformation(fs_info_class) => fs_info_class.encode(),
-            Self::FileAttributeTagInformation(fs_info_class) => fs_info_class.encode(),
-            Self::FileFullDirectoryInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileBasicInformation(file_info_class) => file_info_class.encode(),
+            Self::FileStandardInformation(file_info_class) => file_info_class.encode(),
+            Self::FileBothDirectoryInformation(file_info_class) => file_info_class.encode(),
+            Self::FileAttributeTagInformation(file_info_class) => file_info_class.encode(),
+            Self::FileFullDirectoryInformation(file_info_class) => file_info_class.encode(),
         }
     }
 }
@@ -2073,7 +2135,7 @@ impl FileBothDirectoryInformation {
             end_of_file: file_size,
             allocation_size: file_size,
             file_attributes,
-            file_name_length: util::unicode_size(&file_name),
+            file_name_length: util::unicode_size(&file_name, false),
             ea_size: 0,
             short_name_length: 0,
             short_name: [0; 24],
@@ -2169,7 +2231,7 @@ impl FileFullDirectoryInformation {
             end_of_file: file_size,
             allocation_size: file_size,
             file_attributes,
-            file_name_length: util::unicode_size(&file_name),
+            file_name_length: util::unicode_size(&file_name, false),
             ea_size: 0,
             file_name,
         }
@@ -2200,7 +2262,9 @@ impl FileFullDirectoryInformation {
         } else {
             flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
         };
-        let last_modified = i64::try_from(fso.last_modified)?;
+
+        let last_modified = to_windows_time(fso.last_modified);
+
         Ok(Self::new(
             last_modified,
             last_modified,
@@ -2213,15 +2277,248 @@ impl FileFullDirectoryInformation {
     }
 }
 
+/// 2.5 File System Information Classes
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ee12042a-9352-46e3-9f67-c094b75fe6c3
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+#[allow(dead_code)]
+enum FileSystemInformationClass {
+    FileFsVolumeInformation(FileFsVolumeInformation),
+    FileFsSizeInformation(FileFsSizeInformation),
+    FileFsAttributeInformation(FileFsAttributeInformation),
+    FileFsFullSizeInformation(FileFsFullSizeInformation),
+    FileFsDeviceInformation(FileFsDeviceInformation),
+}
+
+impl FileSystemInformationClass {
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        match self {
+            Self::FileFsVolumeInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileFsSizeInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileFsAttributeInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileFsFullSizeInformation(fs_info_class) => fs_info_class.encode(),
+            Self::FileFsDeviceInformation(fs_info_class) => fs_info_class.encode(),
+        }
+    }
+}
+
+/// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
+/// 1 i64, 2 u32, 1 Boolean
+const FILE_FS_VOLUME_INFORMATION_BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
+
+/// 2.5.9 FileFsVolumeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/bf691378-c34e-4a13-976e-404ea1a87738
+#[derive(Debug)]
+struct FileFsVolumeInformation {
+    volume_creation_time: i64,
+    volume_serial_number: u32,
+    volume_label_length: u32,
+    supports_objects: Boolean,
+    // reserved is omitted
+    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L495
+    volume_label: String,
+}
+
+impl FileFsVolumeInformation {
+    fn new(volume_creation_time: i64) -> Self {
+        // volume_label can just be something we make up
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L446
+        let volume_label = "TELEPORT".to_string();
+
+        Self {
+            volume_creation_time,
+            // Not sure why the `& 0xffff` is necessary, just copying FreeRDP
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L492
+            // u32::MAX is given due to the fact that FreeRDP uses it as a fallback:
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+            volume_serial_number: u32::MAX & 0xffff,
+            // The FreeRDP function they use to convert the volume_label to unicode is null-terminated
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/crt/unicode.c#L371
+            volume_label_length: util::unicode_size(&volume_label, true),
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L494
+            supports_objects: Boolean::False,
+            volume_label,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.volume_creation_time)?;
+        w.write_u32::<LittleEndian>(self.volume_serial_number)?;
+        w.write_u32::<LittleEndian>(self.volume_label_length)?;
+        w.write_u8(Boolean::to_u8(&self.supports_objects).unwrap())?;
+        w.extend_from_slice(&util::to_unicode(&self.volume_label, true));
+        Ok(w)
+    }
+}
+
+/// Size of the FileFsSizeInformation.
+/// 2 i64, 2 u32
+const FILE_FS_SIZE_INFORMATION_SIZE: u32 = (2 * 8) + (2 * 4); // 24
+
+/// 2.5.8 FileFsSizeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e13e068c-e3a7-4dd4-94fd-3892b492e6e7
+#[derive(Debug)]
+struct FileFsSizeInformation {
+    total_alloc_units: i64,
+    available_alloc_units: i64,
+    sectors_per_alloc_unit: u32,
+    bytes_per_sector: u32,
+}
+
+#[allow(dead_code)]
+impl FileFsSizeInformation {
+    fn new() -> Self {
+        // Fill these out with the default fallback values FreeRDP uses
+        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
+        // With default fallback values ultimately found here:
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+        Self {
+            total_alloc_units: u32::MAX as i64,
+            available_alloc_units: u32::MAX as i64,
+            sectors_per_alloc_unit: u32::MAX,
+            bytes_per_sector: 1,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.total_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.available_alloc_units)?;
+        w.write_u32::<LittleEndian>(self.sectors_per_alloc_unit)?;
+        w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
+        Ok(w)
+    }
+}
+
+/// Base size of the FileFsAttributeInformation, not accounting for variably sized file_system_name.
+/// 3 u32
+const FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE: u32 = 3 * 4; // 12
+
+/// 2.5.1 FileFsAttributeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
+#[derive(Debug)]
+struct FileFsAttributeInformation {
+    file_system_attributes: flags::FileSystemAttributes,
+    max_component_name_len: u32,
+    file_system_name_len: u32,
+    file_system_name: String,
+}
+
+#[allow(dead_code)]
+impl FileFsAttributeInformation {
+    fn new() -> Self {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L538
+        let file_system_name = "FAT32".to_string();
+
+        Self {
+            file_system_attributes: flags::FileSystemAttributes::FILE_CASE_SENSITIVE_SEARCH
+                | flags::FileSystemAttributes::FILE_CASE_PRESERVED_NAMES
+                | flags::FileSystemAttributes::FILE_UNICODE_ON_DISK,
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L536
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/include/winpr/file.h#L36
+            max_component_name_len: 260,
+            // The FreeRDP function they use to convert the file_system_name to unicode is null-terminated
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
+            file_system_name_len: util::unicode_size(&file_system_name, true),
+            file_system_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.file_system_attributes.bits())?;
+        w.write_u32::<LittleEndian>(self.max_component_name_len)?;
+        w.write_u32::<LittleEndian>(self.file_system_name_len)?;
+        w.extend_from_slice(&util::to_unicode(&self.file_system_name, true));
+        Ok(w)
+    }
+}
+
+/// Size of the FileFsFullSizeInformation.
+/// 3 i64, 2 u32
+const FILE_FS_FULL_SIZE_INFORMATION_SIZE: u32 = (3 * 8) + (2 * 4); // 32
+
+/// 2.5.4 FileFsFullSizeInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/63768db7-9012-4209-8cca-00781e7322f5
+#[derive(Debug)]
+struct FileFsFullSizeInformation {
+    total_alloc_units: i64,
+    caller_available_alloc_units: i64,
+    actual_available_alloc_units: i64,
+    sectors_per_alloc_unit: u32,
+    bytes_per_sector: u32,
+}
+
+#[allow(dead_code)]
+impl FileFsFullSizeInformation {
+    fn new() -> Self {
+        // Fill these out with the default fallback values FreeRDP uses
+        // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
+        // With default fallback values ultimately found here:
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/file.c#L1018-L1021
+        Self {
+            total_alloc_units: u32::MAX as i64,
+            caller_available_alloc_units: u32::MAX as i64,
+            actual_available_alloc_units: u32::MAX as i64,
+            sectors_per_alloc_unit: u32::MAX,
+            bytes_per_sector: 1,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_i64::<LittleEndian>(self.total_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.caller_available_alloc_units)?;
+        w.write_i64::<LittleEndian>(self.actual_available_alloc_units)?;
+        w.write_u32::<LittleEndian>(self.sectors_per_alloc_unit)?;
+        w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
+        Ok(w)
+    }
+}
+
+/// Size of the FileFsDeviceInformation.
+/// 2 u32
+const FILE_FS_DEVICE_INFORMATION_SIZE: u32 = 2 * 4; // 8
+
+/// 2.5.10 FileFsDeviceInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/616b66d5-b335-4e1c-8f87-b4a55e8d3e4a
+// Taking a shortcut by ignoring the bitflag typing here, since we will only ever fill this out with single values:
+// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
+#[derive(Debug)]
+struct FileFsDeviceInformation {
+    device_type: u32,
+    characteristics: u32,
+}
+
+#[allow(dead_code)]
+impl FileFsDeviceInformation {
+    fn new() -> Self {
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
+        Self {
+            device_type: 0x00000007, // FILE_DEVICE_DISK
+            characteristics: 0,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.device_type)?;
+        w.write_u32::<LittleEndian>(self.characteristics)?;
+        Ok(w)
+    }
+}
+
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
 #[allow(dead_code)]
-
 struct ClientDriveQueryInformationResponse {
     device_io_response: DeviceIoResponse,
     length: Option<u32>,
-    buffer: Option<FsInformationClass>,
+    buffer: Option<FileInformationClass>,
 }
 
 #[allow(dead_code)]
@@ -2248,10 +2545,10 @@ impl ClientDriveQueryInformationResponse {
         if let Some(file) = file {
             // We support all the FsInformationClasses that FreeRDP does here
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L482
-            let (length, buffer) = match req.fs_information_class_lvl {
-                FsInformationClassLevel::FileBasicInformation => (
+            let (length, buffer) = match req.file_info_class_lvl {
+                FileInformationClassLevel::FileBasicInformation => (
                     Some(FILE_BASIC_INFORMATION_SIZE),
-                    Some(FsInformationClass::FileBasicInformation(
+                    Some(FileInformationClass::FileBasicInformation(
                         FileBasicInformation {
                             creation_time: to_windows_time(file.fso.last_modified),
                             last_access_time: to_windows_time(file.fso.last_modified),
@@ -2265,9 +2562,9 @@ impl ClientDriveQueryInformationResponse {
                         },
                     )),
                 ),
-                FsInformationClassLevel::FileStandardInformation => (
+                FileInformationClassLevel::FileStandardInformation => (
                     Some(FILE_STANDARD_INFORMATION_SIZE),
-                    Some(FsInformationClass::FileStandardInformation(
+                    Some(FileInformationClass::FileStandardInformation(
                         FileStandardInformation {
                             allocation_size: file.fso.size as i64,
                             end_of_file: file.fso.size as i64,
@@ -2285,9 +2582,9 @@ impl ClientDriveQueryInformationResponse {
                         },
                     )),
                 ),
-                FsInformationClassLevel::FileAttributeTagInformation => (
+                FileInformationClassLevel::FileAttributeTagInformation => (
                     Some(FILE_ATTRIBUTE_TAG_INFO_SIZE),
-                    Some(FsInformationClass::FileAttributeTagInformation(
+                    Some(FileInformationClass::FileAttributeTagInformation(
                         FileAttributeTagInformation {
                             file_attributes: if file.fso.file_type == FileType::File {
                                 flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
@@ -2300,8 +2597,8 @@ impl ClientDriveQueryInformationResponse {
                 ),
                 _ => {
                     return Err(not_implemented_error(&format!(
-                        "received unsupported FsInformationClass: {:?}",
-                        req.fs_information_class_lvl
+                        "received unsupported FileInformationClass: {:?}",
+                        req.file_info_class_lvl
                     )))
                 }
             };
@@ -2488,7 +2785,7 @@ struct ServerDriveQueryDirectoryRequest {
     /// and the MinorFunction field MUST be set to IRP_MN_QUERY_DIRECTORY.
     device_io_request: DeviceIoRequest,
     /// Must contain one of FileDirectoryInformation, FileFullDirectoryInformation, FileBothDirectoryInformation, FileNamesInformation
-    fs_information_class_lvl: FsInformationClassLevel,
+    file_info_class_lvl: FileInformationClassLevel,
     /// If the value of this field is zero, the request is for the next file in the directory that was specified in a previous
     /// Server Drive Query Directory Request. If such a file does not exist, the client MUST complete this request with STATUS_NO_MORE_FILES
     /// in the IoStatus field of the Client Drive I/O Response packet (section 2.2.3.4).  If the value of this field is non-zero and such a
@@ -2497,6 +2794,7 @@ struct ServerDriveQueryDirectoryRequest {
     /// Specifies the number of bytes in the Path field, including the null-terminator.
     path_length: u32,
     // Padding (23 bytes): An array of 23 bytes. This field is unused and MUST be ignored.
+    padding: [u8; 23],
     /// A variable-length array of Unicode characters (we will store this as a regular rust String) that specifies the directory
     /// on which this operation will be performed. The Path field MUST be null-terminated. If the value of the InitialQuery field
     /// is zero, then the contents of the Path field MUST be ignored, irrespective of the value specified in the PathLength field.
@@ -2505,33 +2803,34 @@ struct ServerDriveQueryDirectoryRequest {
 
 impl ServerDriveQueryDirectoryRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
-        let fs_information_class_lvl =
-            FsInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
-                .ok_or_else(|| invalid_data_error("failed to read FsInformationClassLevel"))?;
-        if fs_information_class_lvl != FsInformationClassLevel::FileDirectoryInformation
-            && fs_information_class_lvl != FsInformationClassLevel::FileFullDirectoryInformation
-            && fs_information_class_lvl != FsInformationClassLevel::FileBothDirectoryInformation
-            && fs_information_class_lvl != FsInformationClassLevel::FileNamesInformation
-        {
+        let file_info_class_lvl =
+            FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
+
+        // These are all the FileInformationClass's supported for this message by FreeRDP
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+        static VALID_LEVELS: [FileInformationClassLevel; 4] = [
+            FileInformationClassLevel::FileDirectoryInformation,
+            FileInformationClassLevel::FileFullDirectoryInformation,
+            FileInformationClassLevel::FileBothDirectoryInformation,
+            FileInformationClassLevel::FileNamesInformation,
+        ];
+
+        if !VALID_LEVELS.contains(&file_info_class_lvl) {
             return Err(invalid_data_error(&format!(
-                "read invalid FsInformationClassLevel: {:?}, expected one of {:?}",
-                fs_information_class_lvl,
-                vec![
-                    FsInformationClassLevel::FileDirectoryInformation,
-                    FsInformationClassLevel::FileFullDirectoryInformation,
-                    FsInformationClassLevel::FileBothDirectoryInformation,
-                    FsInformationClassLevel::FileNamesInformation
-                ]
+                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
+                file_info_class_lvl, VALID_LEVELS,
             )));
         }
+
         let initial_query = payload.read_u8()?;
         let mut path_length: u32 = 0;
         let mut path = String::from("");
+        let mut padding: [u8; 23] = [0; 23];
         if initial_query != 0 {
             path_length = payload.read_u32::<LittleEndian>()?;
 
             // TODO(isaiah): make a payload.skip(n)
-            let mut padding: [u8; 23] = [0; 23];
             payload.read_exact(&mut padding)?;
 
             // TODO(isaiah): make a from_unicode_exact
@@ -2542,9 +2841,10 @@ impl ServerDriveQueryDirectoryRequest {
 
         Ok(Self {
             device_io_request,
-            fs_information_class_lvl,
+            file_info_class_lvl,
             initial_query,
             path_length,
+            padding,
             path,
         })
     }
@@ -2560,9 +2860,9 @@ struct ClientDriveQueryDirectoryResponse {
     device_io_reply: DeviceIoResponse,
     /// Specifies the number of bytes in the Buffer field.
     length: u32,
-    /// The content of this field is based on the value of the FsInformationClass field in the Server Drive Query Directory Request
+    /// The content of this field is based on the value of the FileInformationClass field in the Server Drive Query Directory Request
     /// message, which determines the different structures that MUST be contained in the Buffer field.
-    buffer: Option<FsInformationClass>,
+    buffer: Option<FileInformationClass>,
     // Padding (1 byte): This field is unused and MUST be ignored.
 }
 
@@ -2570,7 +2870,7 @@ impl ClientDriveQueryDirectoryResponse {
     fn new(
         device_io_request: &DeviceIoRequest,
         io_status: NTSTATUS,
-        buffer: Option<FsInformationClass>,
+        buffer: Option<FileInformationClass>,
     ) -> RdpResult<Self> {
         // This match block ensures that the passed parameters are in a configuration that's
         // explicitly supported by the length calculation (below) and the self.encode() method.
@@ -2579,7 +2879,7 @@ impl ClientDriveQueryDirectoryResponse {
                 if buffer.is_none() {
                     return Err(invalid_data_error(
                         "a ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS \
-                        should have Some(FsInformationClass) buffer, got None",
+                        should have Some(FileInformationClass) buffer, got None",
                     ));
                 }
             }
@@ -2604,12 +2904,14 @@ impl ClientDriveQueryDirectoryResponse {
 
         let length = match buffer {
             Some(ref fs_information_class) => match fs_information_class {
-                FsInformationClass::FileBothDirectoryInformation(fs_info_class) => {
+                FileInformationClass::FileBothDirectoryInformation(fs_info_class) => {
                     FILE_BOTH_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
                 }
-                FsInformationClass::FileFullDirectoryInformation(fs_info_class) => {
+                FileInformationClass::FileFullDirectoryInformation(fs_info_class) => {
                     FILE_FULL_DIRECTORY_INFORMATION_BASE_SIZE + fs_info_class.file_name_length
                 }
+                // TODO(isaiah): add support for FileDirectoryInformation and FileNamesInformation
+                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
                 _ => {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
                 }
@@ -2639,6 +2941,136 @@ impl ClientDriveQueryDirectoryResponse {
         {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L937
             w.write_u8(0)?;
+        }
+
+        Ok(w)
+    }
+}
+
+/// 2.2.3.3.6 Server Drive Query Volume Information Request
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/484e622d-0e2b-423c-8461-7de38878effb
+///
+/// We only need to read the buffer up to the FileInformationClass to get the job done, so the rest of the fields in
+/// this structure are omitted. See FreeRDP:
+/// https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L464
+#[derive(Debug)]
+struct ServerDriveQueryVolumeInformationRequest {
+    device_io_request: DeviceIoRequest,
+    fs_info_class_lvl: FileSystemInformationClassLevel,
+}
+
+impl ServerDriveQueryVolumeInformationRequest {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+        let fs_info_class_lvl =
+            FileSystemInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
+                .ok_or_else(|| {
+                    invalid_data_error("failed to read FileSystemInformationClassLevel")
+                })?;
+
+        // These are all the FileInformationClass's supported for this message by FreeRDP
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L468
+        static VALID_LEVELS: [FileSystemInformationClassLevel; 5] = [
+            FileSystemInformationClassLevel::FileFsVolumeInformation,
+            FileSystemInformationClassLevel::FileFsSizeInformation,
+            FileSystemInformationClassLevel::FileFsAttributeInformation,
+            FileSystemInformationClassLevel::FileFsFullSizeInformation,
+            FileSystemInformationClassLevel::FileFsDeviceInformation,
+        ];
+
+        if !VALID_LEVELS.contains(&fs_info_class_lvl) {
+            return Err(invalid_data_error(&format!(
+                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
+                fs_info_class_lvl, VALID_LEVELS,
+            )));
+        }
+
+        Ok(Self {
+            device_io_request,
+            fs_info_class_lvl,
+        })
+    }
+}
+
+/// 2.2.3.4.6 Client Drive Query Volume Information Response
+#[derive(Debug)]
+struct ClientDriveQueryVolumeInformationResponse {
+    device_io_reply: DeviceIoResponse,
+    /// Specifies the number of bytes in the Buffer field.
+    length: u32,
+    /// The content of this field is based on the value of the FileInformationClass field in the Server Drive Query Volume Information Request message,
+    /// which determines the different structures that MUST be contained in the Buffer field.
+    buffer: Option<FileSystemInformationClass>,
+}
+
+impl ClientDriveQueryVolumeInformationResponse {
+    fn new(
+        device_io_request: &DeviceIoRequest,
+        io_status: NTSTATUS,
+        buffer: Option<FileSystemInformationClass>,
+    ) -> RdpResult<Self> {
+        match io_status {
+            NTSTATUS::STATUS_SUCCESS => {
+                if buffer.is_none() {
+                    return Err(invalid_data_error(
+                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS::STATUS_SUCCESS \
+                        should have Some(FileInformationClass) buffer, got None",
+                    ));
+                }
+            }
+            NTSTATUS::STATUS_UNSUCCESSFUL => {
+                if buffer.is_some() {
+                    return Err(invalid_data_error(&format!(
+                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS = {:?} \
+                        should have a None buffer, got {:?}",
+                        io_status, buffer,
+                    )));
+                }
+            }
+            _ => {
+                return Err(invalid_data_error(&format!(
+                    "received unsupported io_status for ClientDriveQueryVolumeInformationResponse: {:?}",
+                    io_status
+                )))
+            }
+        }
+
+        let length = match buffer {
+            Some(ref buf) => match buf {
+                FileSystemInformationClass::FileFsVolumeInformation(f) => {
+                    FILE_FS_VOLUME_INFORMATION_BASE_SIZE + f.volume_label_length
+                }
+                FileSystemInformationClass::FileFsSizeInformation(_) => {
+                    FILE_FS_SIZE_INFORMATION_SIZE
+                }
+                FileSystemInformationClass::FileFsAttributeInformation(f) => {
+                    FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE + f.file_system_name_len
+                }
+                FileSystemInformationClass::FileFsFullSizeInformation(_) => {
+                    FILE_FS_FULL_SIZE_INFORMATION_SIZE
+                }
+                FileSystemInformationClass::FileFsDeviceInformation(_) => {
+                    FILE_FS_DEVICE_INFORMATION_SIZE
+                }
+            },
+            None => 0,
+        };
+
+        Ok(Self {
+            device_io_reply: DeviceIoResponse::new(
+                device_io_request,
+                NTSTATUS::to_u32(&io_status).unwrap(),
+            ),
+            length,
+            buffer,
+        })
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.extend_from_slice(&self.device_io_reply.encode()?);
+        w.write_u32::<LittleEndian>(self.length)?;
+        if let Some(buffer) = &self.buffer {
+            w.extend_from_slice(&buffer.encode()?);
         }
 
         Ok(w)
