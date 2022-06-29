@@ -52,8 +52,10 @@ function buildTabsShortcuts(
   };
 
   const handleActiveTabClose = () => {
-    const { uri } = documentService.getActive();
-    documentService.close(uri);
+    const activeDocument = documentService.getActive();
+    if (activeDocument) {
+      documentService.close(activeDocument.uri);
+    }
   };
 
   const handleTabSwitch = (direction: 'previous' | 'next') => () => {
