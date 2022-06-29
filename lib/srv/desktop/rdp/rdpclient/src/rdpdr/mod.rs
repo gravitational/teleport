@@ -2772,17 +2772,17 @@ impl ServerDriveQueryDirectoryRequest {
 
         // These are all the FsInformationClass's supported for this message by FreeRDP
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
-        let valid_levels = vec![
+        static VALID_LEVELS: [FileInformationClassLevel; 4] = [
             FileInformationClassLevel::FileDirectoryInformation,
             FileInformationClassLevel::FileFullDirectoryInformation,
             FileInformationClassLevel::FileBothDirectoryInformation,
             FileInformationClassLevel::FileNamesInformation,
         ];
 
-        if !valid_levels.contains(&file_info_class_lvl) {
+        if !VALID_LEVELS.contains(&file_info_class_lvl) {
             return Err(invalid_data_error(&format!(
                 "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                file_info_class_lvl, valid_levels,
+                file_info_class_lvl, VALID_LEVELS,
             )));
         }
 
@@ -2932,7 +2932,7 @@ impl ServerDriveQueryVolumeInformationRequest {
 
         // These are all the FsInformationClass's supported for this message by FreeRDP
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L468
-        let valid_levels = vec![
+        static VALID_LEVELS: [FileSystemInformationClassLevel; 5] = [
             FileSystemInformationClassLevel::FileFsVolumeInformation,
             FileSystemInformationClassLevel::FileFsSizeInformation,
             FileSystemInformationClassLevel::FileFsAttributeInformation,
@@ -2940,10 +2940,10 @@ impl ServerDriveQueryVolumeInformationRequest {
             FileSystemInformationClassLevel::FileFsDeviceInformation,
         ];
 
-        if !valid_levels.contains(&fs_info_class_lvl) {
+        if !VALID_LEVELS.contains(&fs_info_class_lvl) {
             return Err(invalid_data_error(&format!(
                 "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                fs_info_class_lvl, valid_levels,
+                fs_info_class_lvl, VALID_LEVELS,
             )));
         }
 
