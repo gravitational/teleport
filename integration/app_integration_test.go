@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -516,8 +517,9 @@ func (p *pack) appServersHA(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		packInfo        func(pack *pack) packInfo
-		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		packInfo          func(pack *pack) packInfo
+		startAppServers   func(pack *pack, count int) []*service.TeleportProcess
+		waitForTunnelConn func(t *testing.T, pack *pack, count int)
 	}{
 		"RootServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -531,6 +533,9 @@ func (p *pack) appServersHA(t *testing.T) {
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
+			},
 		},
 		"LeafServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -543,6 +548,9 @@ func (p *pack) appServersHA(t *testing.T) {
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
 			},
 		},
 	}
@@ -600,11 +608,14 @@ func (p *pack) appServersHA(t *testing.T) {
 			}
 
 			servers := test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 1)
 			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
 			test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 2)
+
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
 
