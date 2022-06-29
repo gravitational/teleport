@@ -988,8 +988,8 @@ type caCollector struct {
 type CertAuthorityTarget struct {
 	// ClusterName specifies the name of the cluster to watch.
 	ClusterName string
-	// Type specifies the ca types to watch for.
-	Type types.CertAuthType
+	// Types specifies the ca types to watch for.
+	Types []types.CertAuthType
 }
 
 // Subscribe is used to subscribe to the lock updates.
@@ -1018,20 +1018,19 @@ func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, err
 	for _, target := range targets {
 		kind := types.WatchKind{
 			Kind: types.KindCertAuthority,
+			Name: target.ClusterName,
 		}
 
-		if target.ClusterName != "" {
-			kind.Name = target.ClusterName
-		}
+		// Add filter for CA types.
+		if len(target.Types) > 0 {
+			kind.Filter = make(map[string]string)
 
-		// Use filter by CA type.
-		if target.Type != "" {
-			kind.SubKind = string(target.Type)
-
-			if target.ClusterName == "" {
-				kind.Filter = map[string]string{string(target.Type): types.Wildcard}
-			} else {
-				kind.Filter = map[string]string{string(target.Type): target.ClusterName}
+			for _, caType := range target.Types {
+				if target.ClusterName == "" {
+					kind.Filter[string(caType)] = types.Wildcard
+				} else {
+					kind.Filter[string(caType)] = target.ClusterName
+				}
 			}
 		}
 

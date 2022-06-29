@@ -837,14 +837,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	t.Run("subscribe by CA types", func(t *testing.T) {
 		sub, err := w.Subscribe(ctx,
 			services.CertAuthorityTarget{
-				Type: types.HostCA,
-			},
-			services.CertAuthorityTarget{
-				Type: types.UserCA,
-			},
-			services.CertAuthorityTarget{
-				Type:        types.DatabaseCA,
-				ClusterName: "test",
+				Types: []types.CertAuthType{types.HostCA, types.UserCA},
 			},
 		)
 		require.NoError(t, err)
@@ -856,18 +849,6 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		case event := <-sub.Events():
 			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
 			require.Equal(t, string(types.HostCA), event.Resource.GetSubKind())
-			require.Equal(t, "test", event.Resource.GetName())
-			require.Empty(t, sub.Events()) // No more events.
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for event")
-		}
-
-		// Receives one DatabaseCA event, matched by type and cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
-		select {
-		case event := <-sub.Events():
-			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
-			require.Equal(t, string(types.DatabaseCA), event.Resource.GetSubKind())
 			require.Equal(t, "test", event.Resource.GetName())
 			require.Empty(t, sub.Events()) // No more events.
 		case <-time.After(time.Second):
