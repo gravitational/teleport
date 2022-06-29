@@ -582,11 +582,6 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 	return a.authServer.RegisterUsingToken(ctx, req)
 }
 
-func (a *ServerWithRoles) RegisterNewAuthServer(ctx context.Context, token string) error {
-	// tokens have authz mechanism  on their own, no need to check
-	return a.authServer.RegisterNewAuthServer(ctx, token)
-}
-
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
@@ -2083,9 +2078,17 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // user is allowed to assume the returned roles.
 func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequest, user types.User) ([]string, wrappers.Traits, error) {
 	if req.Username == a.context.User.GetName() {
+		// If UseRoleRequests is set, make sure we don't return unusable
+		// certs: an identity without roles can't be parsed.
+		// DEPRECATED: consider making role requests without UseRoleRequests
+		// set an error in V11.
+		if req.UseRoleRequests && len(req.RoleRequests) == 0 {
+			return nil, nil, trace.BadParameter("at least one role request is required")
+		}
+
+		// Otherwise, if no role requests exist, reuse the roles and traits
+		// from the current identity.
 		if len(req.RoleRequests) == 0 {
-			// If no role requests exist, reuse the roles and traits from the
-			// current identity.
 			roles, traits, err := services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -2159,7 +2162,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		if len(req.RoleRequests) > 0 {
+		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 			// Note: technically this should never be needed as all role
 			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
@@ -2359,7 +2362,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
-	} else if len(req.RoleRequests) > 0 {
+	} else if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
@@ -2398,6 +2401,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
 		len(req.RoleRequests) == 0 &&
+		!req.UseRoleRequests &&
 		!certReq.disallowReissue {
 		certReq.renewable = true
 	}

@@ -1859,7 +1859,10 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 // the Auth server and get a signed certificate and private key.
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
-	return resp.Token, trail.FromGRPC(err)
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return resp.Token, nil
 }
 
 // DeleteToken deletes a provision token by name.
@@ -2684,7 +2687,10 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
 	resp, err := c.grpc.GetSessionTracker(ctx, req, c.callOpts...)
-	return resp, trail.FromGRPC(err)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.
