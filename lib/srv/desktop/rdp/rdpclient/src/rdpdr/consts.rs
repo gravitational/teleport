@@ -121,7 +121,7 @@ pub enum NTSTATUS {
 #[derive(FromPrimitive, Debug, PartialEq)]
 #[repr(u32)]
 #[allow(clippy::enum_variant_names)]
-pub enum FsInformationClassLevel {
+pub enum FileInformationClassLevel {
     FileAccessInformation = 8,
     FileAlignmentInformation = 17,
     FileAllInformation = 18,
@@ -169,4 +169,23 @@ pub enum FsInformationClassLevel {
     FileStreamInformation = 22,
     FileTrackingInformation = 36,
     FileValidDataLengthInformation = 39,
+}
+
+/// 2.5 File System Information Classes [MS-FSCC]
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ee12042a-9352-46e3-9f67-c094b75fe6c3
+#[derive(FromPrimitive, Debug, PartialEq)]
+#[repr(u32)]
+#[allow(clippy::enum_variant_names)]
+pub enum FileSystemInformationClassLevel {
+    FileFsVolumeInformation = 1,
+    FileFsLabelInformation = 2,
+    FileFsSizeInformation = 3,
+    FileFsDeviceInformation = 4,
+    FileFsAttributeInformation = 5,
+    FileFsControlInformation = 6,
+    FileFsFullSizeInformation = 7,
+    FileFsObjectIdInformation = 8,
+    FileFsDriverPathInformation = 9,
+    FileFsVolumeFlagsInformation = 10,
+    FileFsSectorSizeInformation = 11,
 }

@@ -198,3 +198,13 @@ bitflags! {
         const FILE_NOTIFY_CHANGE_STREAM_WRITE = 0x00000800;
     }
 }
+
+bitflags! {
+    /// Only defines the subset we require from
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
+    pub struct FileSystemAttributes: u32 {
+        const FILE_CASE_SENSITIVE_SEARCH = 0x00000001;
+        const FILE_CASE_PRESERVED_NAMES = 0x00000002;
+        const FILE_UNICODE_ON_DISK = 0x00000004;
+    }
+}
