@@ -31,14 +31,13 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 type LoggingPurpose int
@@ -75,7 +74,7 @@ func InitLoggerForTests() {
 
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	log.SetFormatter(NewTestTextFormatter())
+	log.SetFormatter(NewTestJSONFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
@@ -89,7 +88,7 @@ func InitLoggerForTests() {
 func NewLoggerForTests() *log.Logger {
 	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(NewTestTextFormatter())
+	logger.SetFormatter(NewTestJSONFormatter())
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
@@ -246,7 +245,6 @@ func formatCertError(err error) string {
 	default:
 		return ""
 	}
-
 }
 
 const (
@@ -339,7 +337,6 @@ func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseCont
 				opt.commandPrintfWidth = len(command.FullCommand)
 			}
 		}
-
 	}
 }
 
