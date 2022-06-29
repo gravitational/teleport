@@ -6237,7 +6237,94 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+
+environment:
+  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check if commit is tagged
+    image: alpine
+    commands:
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+
+  - name: Pull relcli
+    image: docker:git
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+      AWS_DEFAULT_REGION: us-west-2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - docker pull $RELCLI_IMAGE
+
+  - name: Publish in Release API
+    image: docker:git
+    environment:
+      RELEASES_CERT:
+        from_secret: RELEASES_CERT_STAGING
+      RELEASES_KEY:
+        from_secret: RELEASES_KEY_STAGING
+      RELCLI_CERT: /tmpfs/creds/releases.crt
+      RELCLI_KEY: /tmpfs/creds/releases.key
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+    - mkdir -p /tmpfs/creds
+    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+    - trap "rm -rf /tmpfs/creds" EXIT
+    - |
+      docker run -i -v /tmpfs/creds:/tmpfs/creds \
+        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+        $RELCLI_IMAGE relcli auto_publish -f -v 6
+    failure: ignore
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
+---
 kind: signature
-hmac: 886b4ee9d5440155e696730354e0d8f773def8d703105d58d7017bf997e0c687
+hmac: 6a345598a122ff6a3f54db70eb68ff77cea5026909136a8332b5ce4961c62e98
 
 ...
