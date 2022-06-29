@@ -298,10 +298,6 @@ var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
 
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
-
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
@@ -384,18 +380,6 @@ var (
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
 
-	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
-	// to be considered when deciding to restart the process. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	ConnectionErrorMeasurementPeriod = 2 * time.Minute
-
-	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
-	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	MaxConnectionErrorsBeforeRestart = 5
-
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
 	MaxWatcherBackoff = time.Minute
@@ -438,9 +422,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -488,6 +469,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -497,6 +480,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -577,6 +561,11 @@ const (
 	SelfSignedPubPath = "webproxy_pub.pem"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	SelfSignedCertPath = "webproxy_cert.pem"
+)
+
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)

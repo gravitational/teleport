@@ -58,8 +58,6 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		// Deliberately ignore HTTP proxies for backwards compatibility.
-		IgnoreHTTPProxy:      true,
 		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
 	})
 	if err != nil {

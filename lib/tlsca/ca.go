@@ -113,6 +113,10 @@ type Identity struct {
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
 	Groups []string
+	// SystemRoles is a list of system roles (e.g. auth, proxy, node, etc) used
+	// in "multi-role" certificates. Single-role certificates encode the system role
+	// in `Groups` for back-compat reasons.
+	SystemRoles []string
 	// Usage is a list of usage restrictions encoded in the identity
 	Usage []string
 	// Principals is a list of Unix logins allowed.
@@ -391,6 +395,12 @@ var (
 	// AllowedResourcesASN1ExtensionOID is an extension OID used to list the
 	// resources which the certificate should be able to grant access to
 	AllowedResourcesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 10}
+
+	// SystemRolesASN1ExtensionOID is an extension OID used to indicate system roles
+	// (auth, proxy, node, etc). Note that some certs correspond to a single specific
+	// system role, and use `pkix.Name.Organization` to encode this value. This extension
+	// is specifically used for "multi-role" certs.
+	SystemRolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 11}
 )
 
 // Subject converts identity to X.509 subject name
@@ -401,20 +411,25 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	subject := pkix.Name{
-		CommonName: id.Username,
-	}
-	subject.Organization = append([]string{}, id.Groups...)
-	subject.OrganizationalUnit = append([]string{}, id.Usage...)
-	subject.Locality = append([]string{}, id.Principals...)
+		CommonName:         id.Username,
+		Organization:       append([]string{}, id.Groups...),
+		OrganizationalUnit: append([]string{}, id.Usage...),
+		Locality:           append([]string{}, id.Principals...),
 
-	// DELETE IN (5.0.0)
-	// Groups are marshaled to both ASN1 extension
-	// and old Province section, for backwards-compatibility,
-	// however begin migration to ASN1 extensions in the future
-	// for this and other properties
-	subject.Province = append([]string{}, id.KubernetesGroups...)
-	subject.StreetAddress = []string{id.RouteToCluster}
-	subject.PostalCode = []string{string(rawTraits)}
+		// TODO: create ASN.1 extensions for traits and RouteToCluster
+		// and move away from using StreetAddress and PostalCode
+		StreetAddress: []string{id.RouteToCluster},
+		PostalCode:    []string{string(rawTraits)},
+	}
+
+	for i := range id.SystemRoles {
+		systemRole := id.SystemRoles[i]
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  SystemRolesASN1ExtensionOID,
+				Value: systemRole,
+			})
+	}
 
 	for i := range id.KubernetesUsers {
 		kubeUser := id.KubernetesUsers[i]
@@ -632,6 +647,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 
 	for _, attr := range subject.Names {
 		switch {
+		case attr.Type.Equal(SystemRolesASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.SystemRoles = append(id.SystemRoles, val)
+			}
 		case attr.Type.Equal(KubeUsersASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -765,9 +785,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	// DELETE IN(5.0.0): This logic is using Province field
+	// DELETE IN 11.0.0: This logic is using Province field
 	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored
+	// from ASN1 extension, after 5.0 Province field will be ignored,
+	// and after 10.0.0 Province field is never populated
 	if len(id.KubernetesGroups) == 0 {
 		id.KubernetesGroups = subject.Province
 	}

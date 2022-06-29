@@ -250,11 +250,6 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// RestartThreshold describes the number of connection failures per
-	// unit time that the node can sustain before restarting itself, as
-	// measured by the rotation state service.
-	RestartThreshold Rate
-
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
@@ -512,8 +507,8 @@ type AuthConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// SSHAddr is the listening address of SSH tunnel to HTTP service
-	SSHAddr utils.NetAddr
+	// ListenAddr is the listening address of the auth service
+	ListenAddr utils.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -600,6 +595,10 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -743,6 +742,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
 	SecretStore DatabaseAWSSecretStore
 }
@@ -765,6 +766,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string
 }
 
 // DatabaseAWSSecretStore contains secret store configurations.
@@ -853,6 +860,10 @@ func (d *Database) CheckAndSetDefaults() error {
 		_, err := redis.ParseRedisAddress(d.URI)
 		if err != nil {
 			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
+		}
+	} else if d.Protocol == defaults.ProtocolSnowflake {
+		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
+			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
@@ -1103,6 +1114,12 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// LabelAttributes are LDAP attributes to apply to hosts discovered
+	// via LDAP. Teleport labels hosts by prefixing the attribute with
+	// "ldap/" - for example, a value of "location" here would result in
+	// discovered desktops having a label with key "ldap/location" and
+	// the value being the value of the "location" attribute.
+	LabelAttributes []string `yaml:"label_attributes"`
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -1240,7 +1257,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
+	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
@@ -1286,10 +1303,6 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.RestartThreshold = Rate{
-		Amount: defaults.MaxConnectionErrorsBeforeRestart,
-		Time:   defaults.ConnectionErrorMeasurementPeriod,
-	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)

@@ -88,7 +88,11 @@ var _ ClientI = &Client{}
 // functionality that hasn't been ported to the new client yet.
 func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, error) {
 	cfg.DialInBackground = true
-	apiClient, err := client.New(context.TODO(), cfg)
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiClient, err := client.New(cfg.Context, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,12 +133,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		var contextDialer client.ContextDialer
-		if cfg.IgnoreHTTPProxy {
-			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		} else {
-			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
-		}
+		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -354,10 +353,6 @@ func (c *Client) Close() error {
 	return c.APIClient.Close()
 }
 
-func (c *Client) WaitForDelivery(context.Context) error {
-	return nil
-}
-
 // CreateCertAuthority not implemented: can only be called locally.
 func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -469,26 +464,6 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateToken creates a special provisioning token for a new SSH server
-// that is valid for ttl period seconds.
-//
-// This token is used by SSH server to authenticate with Auth server
-// and get signed certificate and private key from the auth server.
-//
-// If token is not supplied, it will be auto generated and returned.
-// If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -506,14 +481,6 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	return &certs, nil
-}
-
-// RegisterNewAuthServer is used to register new auth server with token
-func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
-		Token: token,
-	})
-	return trace.Wrap(err)
 }
 
 // DELETE IN: 5.1.0
@@ -993,34 +960,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// CreateOIDCAuthRequest creates OIDCAuthRequest
-func (c *Client) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
-		Req: req,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.OIDCAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetOIDCAuthRequest gets OIDC AuthnRequest
-func (c *Client) GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("oidc", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.OIDCAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "validate"), validateOIDCAuthCallbackReq{
@@ -1058,47 +997,6 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 	return &response, nil
 }
 
-// CreateSAMLAuthRequest creates SAML AuthnRequest
-func (c *Client) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
-		Req: req,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.SAMLAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetSAMLAuthRequest gets SAML AuthnRequest
-func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("saml", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *services.SAMLAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (c *Client) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
-	out, err := c.Get(ctx, c.Endpoint("sso", "diag", authKind, authRequestID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response types.SSODiagnosticInfo
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
-}
-
 // ValidateSAMLResponse validates response returned by SAML identity provider
 func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
@@ -1132,33 +1030,6 @@ func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuth
 			return nil, trace.Wrap(err)
 		}
 		response.HostSigners[i] = ca
-	}
-	return &response, nil
-}
-
-// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-func (c *Client) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("github", "requests", "create"),
-		createGithubAuthRequestReq{Req: req})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response services.GithubAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
-}
-
-// GetGithubAuthRequest gets Github AuthnRequest
-func (c *Client) GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error) {
-	out, err := c.Get(ctx, c.Endpoint("github", "requests", "get", id), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response services.GithubAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &response, nil
 }
@@ -1488,6 +1359,11 @@ func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession)
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSnowflakeSession not implemented: can only be called locally.
+func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 // This is a wrapper on the grpc endpoint and is deprecated.
 // DELETE IN 7.0.0
@@ -1562,7 +1438,7 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
 	// it is valid, or error otherwise.
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
@@ -1573,6 +1449,8 @@ type WebService interface {
 
 	// AppSession defines application session features.
 	services.AppSession
+	// SnowflakeSession defines Snowflake session features.
+	services.SnowflakeSession
 }
 
 // IdentityService manages identities and users
@@ -1588,9 +1466,9 @@ type IdentityService interface {
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
-	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
+	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found
-	GetOIDCAuthRequest(ctx context.Context, id string) (*services.OIDCAuthRequest, error)
+	GetOIDCAuthRequest(ctx context.Context, id string) (*types.OIDCAuthRequest, error)
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 
@@ -1603,11 +1481,11 @@ type IdentityService interface {
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
-	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
-	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*services.SAMLAuthRequest, error)
+	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
 	// UpsertGithubConnector creates or updates a Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
@@ -1618,9 +1496,9 @@ type IdentityService interface {
 	// DeleteGithubConnector deletes the specified Github connector
 	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
+	CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found
-	GetGithubAuthRequest(ctx context.Context, id string) (*services.GithubAuthRequest, error)
+	GetGithubAuthRequest(ctx context.Context, id string) (*types.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
 	ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error)
 
@@ -1667,7 +1545,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
@@ -1774,9 +1652,6 @@ type ProvisioningService interface {
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
-
-	// RegisterNewAuthServer is used to register new auth server with token
-	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service
@@ -1848,6 +1723,10 @@ type ClientI interface {
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, types.CreateAppSessionRequest) (types.WebSession, error)
 
+	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
+	// sessions represent Database Access Snowflake session the client holds.
+	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
+
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
@@ -1874,4 +1753,10 @@ type ClientI interface {
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
+
+	// GetInventoryStatus gets basic status info about instance inventory.
+	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+
+	// PingInventory attempts to trigger a downstream ping against a connected instance.
+	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
 }

@@ -34,13 +34,20 @@ import (
 
 // TestOnboardViaToken ensures a bot can join using token auth.
 func TestOnboardViaToken(t *testing.T) {
+	t.Parallel()
+
 	// Make a new auth server.
-	fc := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test")
+	const roleName = "dummy-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	b := New(botConfig, libutils.NewLoggerForTests(), nil)
 	ident, err := b.getIdentityFromToken()
@@ -61,8 +68,10 @@ func TestOnboardViaToken(t *testing.T) {
 }
 
 func TestDatabaseRequest(t *testing.T) {
+	t.Parallel()
+
 	// Make a new auth server.
-	fc := testhelpers.DefaultConfig(t)
+	fc, fds := testhelpers.DefaultConfig(t)
 	fc.Databases.Databases = []*libconfig.Database{
 		{
 			Name:     "foo",
@@ -73,7 +82,7 @@ func TestDatabaseRequest(t *testing.T) {
 			},
 		},
 	}
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Wait for the database to become available. Sometimes this takes a bit

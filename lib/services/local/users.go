@@ -1037,7 +1037,7 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateOIDCAuthRequest creates new auth request
-func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1050,7 +1050,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1058,7 +1058,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, tt
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*services.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
@@ -1066,7 +1066,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.OIDCAuthRequest
+	var req types.OIDCAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1159,7 +1159,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateSAMLAuthRequest creates new auth request
-func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1172,7 +1172,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1180,7 +1180,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, tt
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found
-func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*services.SAMLAuthRequest, error) {
+func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
@@ -1188,7 +1188,7 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.SAMLAuthRequest
+	var req types.SAMLAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1325,7 +1325,7 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest) error {
+func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
 	err := req.Check()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1339,7 +1339,7 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 		Value:   value,
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1347,7 +1347,7 @@ func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*services.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
@@ -1355,7 +1355,7 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.GithubAuthRequest
+	var req types.GithubAuthRequest
 	err = json.Unmarshal(item.Value, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)

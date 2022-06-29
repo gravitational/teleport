@@ -1443,6 +1443,32 @@ func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) e
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
+// UpsertHostUserInteractionTime upserts a unix user's interaction time
+func (s *PresenceService) UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error {
+	val, err := utils.FastMarshal(loginTime.UTC())
+	if err != nil {
+		return err
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(loginTimePrefix, name),
+		Value: val,
+	})
+	return trace.Wrap(err)
+}
+
+// GetHostUserInteractionTime retrieves a unix user's interaction time
+func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error) {
+	item, err := s.Get(ctx, backend.Key(loginTimePrefix, name))
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	var t time.Time
+	if err := utils.FastUnmarshal(item.Value, &t); err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return t, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1504,7 +1530,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1575,6 +1601,30 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
+	case types.KindKubernetesCluster:
+		kubeservices, err := s.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Extract kube clusters into its own list.
+		var clusters []types.KubeCluster
+		for _, svc := range kubeservices {
+			for _, legacyCluster := range svc.GetKubernetesClusters() {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				clusters = append(clusters, cluster)
+			}
+		}
+
+		sortedClusters := types.KubeClusters(clusters)
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
+
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
@@ -1583,37 +1633,13 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 }
 
 // FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
+// While applying filters, it will also deduplicate matches found.
 func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// filterAll is a flag to continue matching even after we found limit,
-	// to determine the total count.
-	filterAll := req.NeedTotalCount
-
-	// Trim resources that precede start key, except when total count
-	// was requested, then we have to filter all to get accurate count.
-	pageStart := 0
-	if req.StartKey != "" {
-		for i, resource := range resources {
-			if backend.GetPaginationKey(resource) == req.StartKey {
-				pageStart = i
-				break
-			}
-		}
-
-		if !filterAll {
-			resources = resources[pageStart:]
-		}
-	}
-
-	// Iterate and filter resources, finding match up to limit+1 (+1 to determine next key),
-	// and if total count is not required, we halt matching when we reach page limit, else
-	// we continue to match (but not include into list of filtered) to determine the total count.
-	matchCount := 0
 	limit := int(req.Limit)
-	var nextKey string
 	var filtered []types.ResourceWithLabels
 	filter := services.MatchResourceFilter{
 		ResourceKind:        req.ResourceType,
@@ -1622,40 +1648,45 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		PredicateExpression: req.PredicateExpression,
 	}
 
-	for currIndex, resource := range resources {
-		switch match, err := services.MatchResourceByFilters(resource, filter); {
+	// Iterate and filter every resource, deduplicating while matching.
+	seenResourceMap := make(map[services.ResourceSeenKey]struct{})
+	for _, resource := range resources {
+		switch match, err := services.MatchResourceByFilters(resource, filter, seenResourceMap); {
 		case err != nil:
 			return nil, trace.Wrap(err)
 		case !match:
 			continue
 		}
 
-		matchCount++
-		if filterAll && nextKey != "" {
-			continue
-		}
-
-		if len(filtered) == limit {
-			nextKey = backend.GetPaginationKey(resource)
-			if !filterAll {
-				break
-			}
-			continue
-		}
-
-		if !filterAll || currIndex >= pageStart {
-			filtered = append(filtered, resource)
-		}
+		filtered = append(filtered, resource)
 	}
 
-	if !filterAll {
-		matchCount = 0
+	totalCount := len(filtered)
+	pageStart := 0
+	pageEnd := limit
+
+	// Trim resources that precede start key.
+	if req.StartKey != "" {
+		for i, resource := range filtered {
+			if backend.GetPaginationKey(resource) == req.StartKey {
+				pageStart = i
+				break
+			}
+		}
+		pageEnd = limit + pageStart
+	}
+
+	var nextKey string
+	if pageEnd >= len(filtered) {
+		pageEnd = len(filtered)
+	} else {
+		nextKey = backend.GetPaginationKey(filtered[pageEnd])
 	}
 
 	return &types.ListResourcesResponse{
-		Resources:  filtered,
+		Resources:  filtered[pageStart:pageEnd],
 		NextKey:    nextKey,
-		TotalCount: matchCount,
+		TotalCount: totalCount,
 	}, nil
 }
 
@@ -1699,6 +1730,7 @@ const (
 	remoteClustersPrefix         = "remoteClusters"
 	nodesPrefix                  = "nodes"
 	appsPrefix                   = "apps"
+	snowflakePrefix              = "snowflake"
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"
@@ -1708,4 +1740,5 @@ const (
 	semaphoresPrefix             = "semaphores"
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
+	loginTimePrefix              = "hostuser_interaction_time"
 )

@@ -319,7 +319,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
 
@@ -654,7 +654,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		defer s.mu.Unlock()
 
 		for _, party := range s.parties {
-			if err := party.Client.sendStatus(err); err != nil {
+			if err := party.Client.sendStatus(errExec); err != nil {
 				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
 			}
 		}
@@ -1066,16 +1066,11 @@ func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, err
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:   s.id.String(),
-		Kind:        string(types.KubernetesSessionKind),
-		State:       types.SessionState_SessionStatePending,
-		Hostname:    s.podName,
-		ClusterName: s.ctx.teleportCluster.name,
-		Participants: []types.Participant{{
-			ID:         p.ID.String(),
-			User:       p.Ctx.User.GetName(),
-			LastActive: time.Now().UTC(),
-		}},
+		SessionID:         s.id.String(),
+		Kind:              string(types.KubernetesSessionKind),
+		State:             types.SessionState_SessionStatePending,
+		Hostname:          s.podName,
+		ClusterName:       s.ctx.teleportCluster.name,
 		KubernetesCluster: s.ctx.kubeCluster,
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,

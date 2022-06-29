@@ -176,9 +176,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
 	}
 
-	// if no --type flag is given, export all types
+	// if no --type flag is given, export HostCA and UserCA.
 	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
 	} else {
 		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
@@ -327,8 +327,11 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
+		identityfile.FormatRedis:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
+	case identityfile.FormatSnowflake:
+		return a.generateSnowflakeKey(ctx, clusterAPI)
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
@@ -338,6 +341,42 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
+}
+
+// generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
+// Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
+func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(databaseCA) != 1 {
+		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
+	}
+
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		"files": strings.Join(filesWritten, ", "),
+	})
+
+	return trace.Wrap(err)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
@@ -430,7 +469,7 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if len(principals) == 1 && principals[0] == "" {
+	if a.outputFormat != identityfile.FormatSnowflake && len(principals) == 1 && principals[0] == "" {
 		return trace.BadParameter("at least one hostname must be specified via --host flag")
 	}
 	// For CockroachDB node certificates, CommonName must be "node":
@@ -491,27 +530,31 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 	}
 	switch a.outputFormat {
 	case identityfile.FormatDatabase:
-		dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatMongo:
-		mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatCockroach:
-		cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
 	case identityfile.FormatRedis:
-		redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+		err = redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
 			"files":  strings.Join(filesWritten, ", "),
 			"output": a.output,
 		})
+	case identityfile.FormatSnowflake:
+		err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
+			"files": strings.Join(filesWritten, ", "),
+		})
 	}
-	return nil
+	return trace.Wrap(err)
 }
 
 var (
@@ -565,6 +608,12 @@ tls-ca-cert-file /path/to/{{.output}}.cas
 tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
+`))
+
+	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+Please add the generated key to the Snowflake users as described here:
+https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
 `))
 )
 
@@ -845,7 +894,7 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }
 
