@@ -2575,11 +2575,13 @@ impl ClientDriveQueryDirectoryResponse {
         // This match block ensures that the passed parameters are in a configuration that's
         // explicitly supported by the length calculation (below) and the self.encode() method.
         match io_status {
-            NTSTATUS::STATUS_SUCCESS if buffer.is_none() => {
-                return Err(invalid_data_error(
-                    "a ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS \
+            NTSTATUS::STATUS_SUCCESS => {
+                if buffer.is_none() {
+                    return Err(invalid_data_error(
+                        "a ClientDriveQueryDirectoryResponse with NTSTATUS::STATUS_SUCCESS \
                         should have Some(FsInformationClass) buffer, got None",
-                ));
+                    ));
+                }
             }
             NTSTATUS::STATUS_NOT_SUPPORTED
             | NTSTATUS::STATUS_NO_MORE_FILES
