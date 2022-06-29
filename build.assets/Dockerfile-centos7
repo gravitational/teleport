@@ -99,19 +99,6 @@ ENV GOPATH="/go" \
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
-# Install protoc (for prost, a roletester dependency)
-ARG PROTOC_VER
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-
-# Tell prost to use the system protoc instead of building it from source
-ENV PROTOC_NO_VENDOR true
-ENV PROTOC /usr/local/bin/protoc
-
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
