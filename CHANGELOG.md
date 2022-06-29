@@ -1,5 +1,17 @@
 # Changelog
 
+## 8.3.15
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Improved reliability of dialing auth servers through the proxy. [#13310](https://github.com/gravitational/teleport/pull/13310)
+* Reduced network utilization when using many trusted clusters. [#13961](https://github.com/gravitational/teleport/pull/13961)
+* Fixed issue with dialing remote clusters after proxy restart. [#13798](https://github.com/gravitational/teleport/pull/13798)
+* Fixed backwards compatibility issue with fetching access requests. [#13427](https://github.com/gravitational/teleport/pull/13427)
+* Fixed issue with CA rotation not working when database service has not enabled databases. [#13518](https://github.com/gravitational/teleport/pull/13518)
+* Fixed issue with EC2 metadata options breaking generated Teleport config. [#13538](https://github.com/gravitational/teleport/pull/13538)
+* Added extra troubleshooting tools to Teleport Docker images. [#13198](https://github.com/gravitational/teleport/pull/13198)
+
 ## 8.3.14
 
 This release of Teleport contains multiple security, bug fixes and improvements.
