@@ -223,6 +223,7 @@ const (
 	// ExecCode).
 	KubeRequestCode = "T3009I"
 
+	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
 	SFTPOpenFailureCode     = "TS001E"
 	SFTPCloseCode           = "TS002I"

@@ -56,6 +56,8 @@ func (EventAction) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_8f22242cb04491f9, []int{0}
 }
 
+// SFTPAction denotes what type of SFTP request was made.
+// These actions were taken from https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02.
 type SFTPAction int32
 
 const (

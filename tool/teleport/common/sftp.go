@@ -72,7 +72,7 @@ func onSFTP() error {
 	}
 	defer auditFile.Close()
 
-	sftpEvents := make(chan *apievents.SFTP, 8)
+	sftpEvents := make(chan *apievents.SFTP, 1)
 	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket, path string, opErr error) {
 		event, ok := handleSFTPEvent(reqPacket, path, opErr)
 		if !ok {
