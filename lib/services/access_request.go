@@ -1456,7 +1456,7 @@ func getResources(ctx context.Context, getter PruneResourceRequestGetter, resour
 	var resources []types.ResourceWithLabels
 	for kind, resourceNames := range resourceNamesByKind {
 		req := proto.ListResourcesRequest{
-			ResourceType:        FixListResourcesType(kind),
+			ResourceType:        MapResourceKindToListResourcesType(kind),
 			PredicateExpression: namesMatcher(resourceNames),
 			Limit:               int32(len(resourceNames)),
 		}
@@ -1465,7 +1465,7 @@ func getResources(ctx context.Context, getter PruneResourceRequestGetter, resour
 			return nil, trace.Wrap(err)
 		}
 		for _, result := range resp.Resources {
-			fixedResources, err := FixListResourcesResult(result, kind)
+			fixedResources, err := MapListResourcesResultToLeafResource(result, kind)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1485,12 +1485,12 @@ func namesMatcher(names []string) string {
 	return strings.Join(matchers, " || ")
 }
 
-// FixListResourcesType returns the value to use for ResourceType in a
+// MapResourceKindToListResourcesType returns the value to use for ResourceType in a
 // ListResourcesRequest based on the kind of resource you're searching for.
 // Necessary because some resource kinds don't support ListResources directly,
-// so you have to list the parent kind. Use FixListResourcesResult to map back
+// so you have to list the parent kind. Use MapListResourcesResultToLeafResource to map back
 // to the given kind.
-func FixListResourcesType(kind string) string {
+func MapResourceKindToListResourcesType(kind string) string {
 	switch kind {
 	case types.KindApp:
 		return types.KindAppServer
@@ -1503,9 +1503,12 @@ func FixListResourcesType(kind string) string {
 	}
 }
 
-// FixListResourcesResult is the inverse of FixListResourcesType, after the
-// ListResources call it maps the result back to the kind we really want.
-func FixListResourcesResult(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
+// MapListResourcesResultToLeafResource is the inverse of
+// MapResourceKindToListResourcesType, after the ListResources call it maps the
+// result back to the kind we really want. `hint` should be the name of the
+// desired resource kind, used to disambiguate normal SSH nodes and kubernestes
+// services which are both returned as `types.Server`.
+func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
 	switch r := resource.(type) {
 	case types.AppServer:
 		return types.ResourcesWithLabels{r.GetApp()}, nil
