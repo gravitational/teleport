@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -85,6 +86,11 @@ func TestAppAccess(t *testing.T) {
 	t.Run("TestAppInvalidateAppSessionsOnLogout", pack.appInvalidateAppSessionsOnLogout)
 
 	// This test should go last because it stops/starts app servers.
+	t.Run("TestAppServersHA", pack.appServersHA)
+}
+
+func TestFoo(t *testing.T) {
+	pack := setup(t)
 	t.Run("TestAppServersHA", pack.appServersHA)
 }
 
@@ -581,39 +587,63 @@ func (p *pack) appServersHA(t *testing.T) {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
 			// t.Parallel()
-			info := test.packInfo(p)
-			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
-			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
 
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			var httpCookie string
+			var wsCookie string
+			var info packInfo
+			t.Run("stage1", func(t *testing.T) {
+				info := test.packInfo(p)
+				httpCookie = p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
+				wsCookie = p.createAppSession(t, info.publicWSAddr, info.clusterName)
+			})
 
-			// Stop all root app servers.
-			for i, appServer := range info.appServers {
-				require.NoError(t, appServer.Close())
+			t.Run("stage2", func(t *testing.T) {
+				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			})
 
-				if i == len(info.appServers)-1 {
-					// fails only when the last one is closed.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithError)
-				} else {
-					// otherwise the request should be handled by another
-					// server.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			t.Run("stage3", func(t *testing.T) {
+				// Stop all root app servers.
+				for i, appServer := range info.appServers {
+					require.NoError(t, appServer.Close())
+
+					if i == len(info.appServers)-1 {
+						// fails only when the last one is closed.
+						makeRequests(t, p, httpCookie, wsCookie, responseWithError)
+					} else {
+						// otherwise the request should be handled by another
+						// server.
+						makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+					}
 				}
-			}
 
-			servers := test.startAppServers(p, 1)
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			})
+
+			var servers []*service.TeleportProcess
+			t.Run("stage4", func(t *testing.T) {
+				servers = test.startAppServers(p, 1)
+			})
+
+			t.Run("stage5", func(t *testing.T) {
+				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			})
 
 			// Start an additional app server and stop all current running
 			// ones.
-			test.startAppServers(p, 1)
+
+			t.Run("stage6", func(t *testing.T) {
+				test.startAppServers(p, 1)
+			})
 			for _, appServer := range servers {
-				require.NoError(t, appServer.Close())
+				t.Run("stageend1", func(t *testing.T) {
+					require.NoError(t, appServer.Close())
+				})
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
-				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+				t.Run("stageend2", func(t *testing.T) {
+					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+				})
 			}
 		})
 	}
