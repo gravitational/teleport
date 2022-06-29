@@ -377,7 +377,7 @@ func onRequestSearch(cf *CLIConf) error {
 	clusterName := clusterNameResource.GetClusterName()
 
 	req := proto.ListResourcesRequest{
-		ResourceType:        services.FixListResourcesType(cf.ResourceKind),
+		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
 		Labels:              tc.Labels,
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
@@ -391,7 +391,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var resources types.ResourcesWithLabels
 	for _, result := range results {
-		fixedResources, err := services.FixListResourcesResult(result, cf.ResourceKind)
+		fixedResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
