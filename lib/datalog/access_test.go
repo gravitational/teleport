@@ -64,7 +64,7 @@ func (c mockClient) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return c.roles, nil
 }
 
-func (c mockClient) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (c mockClient) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	return c.nodes, nil
 }
 

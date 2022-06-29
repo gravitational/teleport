@@ -1,28 +1,125 @@
 ---
 title: Introduction to Teleport
-description: How to install and quickly get up and running with Teleport to set up SSH and Kubernetes access to cloud environments.
+description: How to install and quickly get up and running with Teleport.
 h1: Introduction
 layout: tocless-doc
 videoBanner: ErhTeypZ2gw
 ---
 
-## What is Teleport
+Teleport is a certificate authority and access plane for your infrastructure.
+With Teleport you can:
 
-Teleport is a Certificate Authority and an Access Plane for your infrastructure. With Teleport you can:
+- Use a single solution to access your SSH servers, Kubernetes clusters,
+  databases, desktops, and web applications. 
+- Define sophisticated access policies for every component of your infrastructure, with fine-grained audit logs and session recordings.
+- Automatically on– and off-board users via integrations with single sign-on
+  providers like GitHub, Okta, and Google Workspace.
 
-- Set up Single Sign-On and have one place to access your SSH servers, Kubernetes, Databases, Desktops, and Web Apps.
-- Use your favorite programming language to define access policies to your infrastructure.
-- Share and record interactive sessions across all environments.
+## Try out Teleport
+
+Quickly see how Teleport works in one of our demo environments.
+
+<TileSet>
+  <Tile icon="code2" title="Browser Lab" href="https://play.instruqt.com/teleport/invite/rgvuva4gzkon">
+    Try Teleport using our guided interactive labs.
+  </Tile>
+  <Tile icon="integrations" title="Docker Compose Lab" href="./getting-started/docker-compose.mdx">
+    Try Teleport locally using Docker Compose.
+  </Tile>
+    <Tile icon="kubernetes" title="Kubernetes Lab" href="./kubernetes-access/getting-started/local.mdx">
+    See how Teleport runs on Kubernetes with this local lab.
+  </Tile>
+</TileSet>
+
+## Choose an edition
+
+Read one of our Getting Started guides to see how to deploy open source
+Teleport, Teleport Enterprise, or Teleport Cloud.
+
+You can also [compare Teleport editions](faq.mdx#how-is-open-source-different-from-enterprise).
+
+<TileSet>
+  <Tile 
+  icon="stack"
+  title="Open Source Teleport"
+  href="./getting-started/linux-server/?scope=oss"
+  >
+
+  Learn how to host your own open source Teleport deployment on a standalone
+  Linux server.
+
+  </Tile>
+  <Tile
+  icon="building"
+  title="Teleport Enterprise"
+  href="./enterprise/introduction.mdx/?scope=enterprise"
+  >
+
+  Get started with a self-hosted Teleport Enterprise deployment, which gives you
+  more advanced features and full customization.
+
+  </Tile>
+
+  <Tile icon="cloud" title="Teleport Cloud" href="./cloud/getting-started/?scope=cloud">
+
+    Try Teleport hosted by us in the cloud for free.
+
+  </Tile>
+</TileSet>
+
+## Configure access
+
+Secure your infrastructure while keeping your engineers productive.
+
+<TileSet>
+<ScopedBlock scope={["cloud", "enterprise"]}>
+<Tile
+  title="Set up SSO"
+  icon="list"
+  href="./enterprise/sso.mdx"
+>
+
+Configure Teleport's integration with your SSO provider so you can automatically
+on– and off-board users.
+
+</Tile>
+</ScopedBlock>
+<ScopedBlock scope={["oss"]}>
+<Tile
+  title="Set up SSO"
+  icon="github"
+  href="./setup/admin/github-sso.mdx"
+>
+
+Configure Teleport's integration with GitHub so you can automatically on– and
+off-board users.
+
+</Tile>
+</ScopedBlock>
+<Tile
+  title="Define roles"
+  icon="lock"
+  href="./access-controls/guides/role-templates.mdx"
+>
+
+Manage who can access which parts of your infrastructure.
+
+</Tile>
+</TileSet>
+
+## Add your infrastructure
+
+Use Teleport to provide secure access to all of your infrastructure.
 
 <TileSet>
   <Tile icon="bolt" title="Server Access" href="./getting-started.mdx">
-    Single Sign-On, short-lived certificates, and audit for SSH servers.
+    Single sign-on, short-lived certificates, and auditing for SSH servers.
   </Tile>
   <Tile icon="window" title="Application Access" href="./application-access/introduction.mdx">
-    Provide secure access to internal dashboards and web applications.
+    Secure access to internal dashboards and web applications.
   </Tile>
   <Tile icon="kubernetes" title="Kubernetes Access" href="./kubernetes-access/introduction.mdx">
-    Single Sign-On, audit and unified access for Kubernetes clusters.
+    Single sign-on, auditing, and unified access for Kubernetes clusters.
   </Tile>
   <Tile icon="database" title="Database Access" href="./database-access/introduction.mdx">
     Secure access to SQL and NoSQL databases.
@@ -30,24 +127,18 @@ Teleport is a Certificate Authority and an Access Plane for your infrastructure.
   <Tile icon="desktop" title="Desktop Access" href="./desktop-access/introduction.mdx">
     Secure browser-based access to desktop environments.
   </Tile>
-  <Tile icon="cloud" title="Cloud" href="./cloud/introduction.mdx">
-    Connect your nodes, web apps, Kubernetes clusters and databases to Teleport as a service.
-  </Tile>
-  <Tile icon="building" title="Enterprise" href="./enterprise/introduction.mdx">
-    OIDC, SAML, compliance controls and commercial support.
-  </Tile>
 </TileSet>
 
 <TileSet>
   <TileList title="Reach out" icon="question">
   <TileListItem href="https://github.com/gravitational/teleport/discussions">
-    Ask a question in the discussions forum.
+    Ask a question in the discussion forum.
     </TileListItem>
   <TileListItem href="https://goteleport.com/slack">
     Join our Slack channel to get help with your setup.
   </TileListItem>
   <TileListItem href="https://github.com/gravitational/teleport/">
-    Create an issue in GitHub.
+    Create an issue on GitHub.
   </TileListItem>
   <TileListItem href="https://goteleport.com/get-started/">
     Reach out to sales for a demo of Teleport Enterprise.
@@ -58,16 +149,13 @@ Teleport is a Certificate Authority and an Access Plane for your infrastructure.
   </TileList>
   <TileList title="For security teams" icon="lock">
     <TileListItem href="./server-access/guides/openssh.mdx">
-     Capture sessions and manage certificates for existing OpenSSH fleet.
+     Capture sessions and manage certificates for an existing OpenSSH fleet.
     </TileListItem>
     <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
       Replace static keys and passwords with short-lived certificates.
     </TileListItem>
-    <TileListItem href="./setup/reference/cli.mdx#tsh-play">
-     Gather structured events and session recording/replay for `ssh`, `kubectl` and desktop interactions.
-     </TileListItem>
     <TileListItem href="./access-controls/guides/webauthn.mdx">
-     Enforce two-factor auth with WebAuthn or TOTP.
+     Enforce two-factor authentication for all of your infrastructure.
     </TileListItem>
   </TileList>
   <TileList title="For developers" icon="stack">
@@ -75,7 +163,7 @@ Teleport is a Certificate Authority and an Access Plane for your infrastructure.
       Collaborate through session sharing.
     </TileListItem>
     <TileListItem href="./setup/admin/labels.mdx">
-      Discover servers and clusters with dynamic node labels.
+      Discover servers and clusters with dynamic labels.
     </TileListItem>
     <TileListItem href="./setup/admin/adding-nodes.mdx#adding-a-node-located-behind-nat">
      Connect to computing resources located behind firewalls or without static IPs.

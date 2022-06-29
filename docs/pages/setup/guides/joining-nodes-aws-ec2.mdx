@@ -7,13 +7,32 @@ This guide will explain how to use the **EC2 join method** to configure Teleport
 nodes and Proxies to join your Teleport cluster without sharing any secrets when
 they are running in AWS.
 
-<Notice type="warning" scope={["cloud"]}>
+<ScopedBlock scope="cloud">
 
 The EC2 join method is not available in Teleport Cloud. Teleport Cloud customers
 can use the [IAM join method](./joining-nodes-aws-iam.mdx) or
 [secret tokens](../admin/adding-nodes.mdx).
 
-</Notice>
+You can view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+title="Open Source Teleport"
+href="./joining-nodes-aws-ec2.mdx/?scope=oss"
+icon="stack"
+>
+</Tile>
+<Tile
+title="Teleport Enterprise"
+href="./joining-nodes-aws-ec2.mdx/?scope=enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 The EC2 join method is available in self-hosted versions of Teleport 7.3+. It is
 available to any Teleport node or Proxy running on an EC2 instance. Only one
@@ -33,7 +52,7 @@ scopeOnly
 There are two other AWS join methods available depending on your use case.
 
 The **IAM join method** is available in self-hosted editions of Teleport 8.3+.
-It is available to any Teleport node or Proxy running anywhere with access to
+It is available to any Teleport Node or Proxy running anywhere with access to
 IAM credentials, such as an EC2 instance with an attached IAM role. No specific
 permissions or IAM policy is required: an IAM role with no attached policies is
 sufficient. No IAM credentials are required on the Teleport Auth Service.
@@ -282,3 +301,5 @@ spec:
     - us-west-2
     aws_role: "arn:aws:iam::333333333333:role/teleport-DescribeInstances-role"
 ```
+
+</ScopedBlock>
