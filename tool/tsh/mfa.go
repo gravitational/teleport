@@ -28,23 +28,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 const (
@@ -111,7 +111,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -312,7 +312,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(ctx, false)
+		aci, err := pc.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -369,37 +369,58 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		if regChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
-		regResp, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
+		regResp, regCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
 			NewMFARegisterResponse: regResp,
 		}}); err != nil {
+			regCallback.Rollback()
 			return trace.Wrap(err)
 		}
 
 		// Receive registered device ack.
 		resp, err = stream.Recv()
 		if err != nil {
+			// Don't rollback here, the registration may have been successful.
 			return trace.Wrap(err)
 		}
 		ack := resp.GetAck()
 		if ack == nil {
+			// Don't rollback here, the registration may have been successful.
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_Ack", resp.Response)
 		}
 		dev = ack.Device
-		return nil
+
+		return regCallback.Confirm()
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return dev, nil
 }
 
-func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {
+type registerCallback interface {
+	Rollback() error
+	Confirm() error
+}
+
+type noopRegisterCallback struct{}
+
+func (n noopRegisterCallback) Rollback() error {
+	return nil
+}
+
+func (n noopRegisterCallback) Confirm() error {
+	return nil
+}
+
+func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, registerCallback, error) {
 	switch c.Request.(type) {
 	case *proto.MFARegisterChallenge_TOTP:
-		return promptTOTPRegisterChallenge(ctx, c.GetTOTP())
+		resp, err := promptTOTPRegisterChallenge(ctx, c.GetTOTP())
+		return resp, noopRegisterCallback{}, err
+
 	case *proto.MFARegisterChallenge_Webauthn:
 		origin := proxyAddr
 		if !strings.HasPrefix(proxyAddr, "https://") {
@@ -410,9 +431,12 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *
 		if devType == touchIDDeviceType {
 			return promptTouchIDRegisterChallenge(origin, cc)
 		}
-		return promptWebauthnRegisterChallenge(ctx, origin, cc)
+
+		resp, err := promptWebauthnRegisterChallenge(ctx, origin, cc)
+		return resp, noopRegisterCallback{}, err
+
 	default:
-		return nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", c.Request)
+		return nil, nil, trace.BadParameter("server bug: unexpected registration challenge type: %T", c.Request)
 	}
 }
 
@@ -504,18 +528,18 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 	return resp, trace.Wrap(err)
 }
 
-func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	log.Debugf("Touch ID: prompting registration with origin %q", origin)
 
-	ccr, err := touchid.Register(origin, cc)
+	reg, err := touchid.Register(origin, cc)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			Webauthn: wanlib.CredentialCreationResponseToProto(reg.CCR),
 		},
-	}, nil
+	}, reg, nil
 }
 
 type mfaRemoveCommand struct {
@@ -543,7 +567,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
