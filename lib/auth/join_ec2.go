@@ -253,12 +253,10 @@ func dbExists(ctx context.Context, presence services.Presence, hostID string) (b
 	return false, nil
 }
 
-// checkInstanceUnique makes sure the instance which sent the request has not
-// already joined the cluster with the same role. Tokens should be limited to
-// only allow the roles which will actually be used by all expected instances so
-// that a stolen IID could not be used to join the cluster with a different
-// role.
-func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
+// tryToDetectIdentityReuse performs a best-effort check to see if the specified role+id combination
+// is already in use by an instance. This will only detect re-use in the case where a recent heartbeat
+// clearly shows the combination in use since teleport maintains no long-term per-instance state.
+func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
 	expectedHostID := utils.NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
@@ -279,6 +277,9 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsi
 		instanceExists, err = appExists(ctx, a, req.HostID)
 	case types.RoleDatabase:
 		instanceExists, err = dbExists(ctx, a, req.HostID)
+	case types.RoleInstance:
+		// no appropriate check exists for the Instance role
+		instanceExists = false
 	default:
 		return trace.BadParameter("unsupported role: %q", req.Role)
 	}
@@ -297,8 +298,8 @@ func (a *Server) checkInstanceUnique(ctx context.Context, req *types.RegisterUsi
 // checkEC2JoinRequest checks register requests which use EC2 Simplified Node
 // Joining. This method checks that:
 // 1. The given Instance Identity Document has a valid signature (signed by AWS).
-// 2. A node has not already joined the cluster from this EC2 instance (to
-//    prevent re-use of a stolen Instance Identity Document).
+// 2. There is no obvious signs that a node already joined the cluster from this EC2 instance (to
+//    reduce the risk of re-use of a stolen Instance Identity Document).
 // 3. The signed instance attributes match one of the allow rules for the
 //    corresponding token.
 // If the request does not include an Instance Identity Document, and the
@@ -328,7 +329,7 @@ func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsi
 		return trace.Wrap(err)
 	}
 
-	if err := a.checkInstanceUnique(ctx, req, iid); err != nil {
+	if err := a.tryToDetectIdentityReuse(ctx, req, iid); err != nil {
 		return trace.Wrap(err)
 	}
 
