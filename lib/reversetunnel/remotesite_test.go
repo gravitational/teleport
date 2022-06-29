@@ -32,25 +32,24 @@ func Test_remoteSite_getLocalWatchedCerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		clusterVersion string
-		want           []services.CertAuthorityTarget
+		want           services.CertAuthorityTarget
 		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:           "pre Database CA, only Host and User CA",
 			clusterVersion: "9.0.0",
-			want: []services.CertAuthorityTarget{
-				{Type: types.HostCA, ClusterName: "test"},
-				{Type: types.UserCA, ClusterName: "test"},
+			want: services.CertAuthorityTarget{
+				Types:       []types.CertAuthType{types.HostCA, types.UserCA},
+				ClusterName: "test",
 			},
 			errorAssertion: require.NoError,
 		},
 		{
 			name:           "all certs should be returned",
 			clusterVersion: "10.0.0",
-			want: []services.CertAuthorityTarget{
-				{Type: types.HostCA, ClusterName: "test"},
-				{Type: types.UserCA, ClusterName: "test"},
-				{Type: types.DatabaseCA, ClusterName: "test"},
+			want: services.CertAuthorityTarget{
+				Types:       []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+				ClusterName: "test",
 			},
 			errorAssertion: require.NoError,
 		},
