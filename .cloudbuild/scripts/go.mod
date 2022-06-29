@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/.cloudbuild/scripts
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go/secretmanager v1.2.0
