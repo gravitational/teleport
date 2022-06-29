@@ -53,18 +53,12 @@ audited and access control rules can be applied. For these scenarios, Teleport
 supports HTTP CONNECT tunneling. HTTP CONNECT applies to:
 
 - `tsh` in all cases
-- Reverse tunnel agents dialing back to proxies when TLS routing is enabled. `proxy_listener_mode` must be set to `multiplex` in `teleport.yaml` to enable TLS routing.
-
-```yaml
-auth_service:
-  # ...
-  proxy_listener_mode: multiplex
-```
+- Reverse tunnel agents dialing back to proxies.
 
 To use HTTP CONNECT tunneling, set the `HTTPS_PROXY` and `HTTP_PROXY`
 environment variables when running Teleport. You can also optionally set the
 `NO_PROXY` environment variable to avoid use of the proxy when accessing
-specified hosts/netmasks.
+specified hosts/netmasks/ports.
 
 For example, when launching Teleport with `systemd`, you can add
 the following lines to your `systemd` unit file, replacing `proxy.example.com` with
@@ -78,6 +72,14 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 ```
 
 When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
+If you need to not proxy some of this traffic (for example, proxying HTTPS but not SSH), add the corresponding `host:port` to `NO_PROXY`.
+
+```
+[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:8080/"
+Environment="HTTPS_PROXY=http://proxy.example.com:8080/"
+Environment="NO_PROXY=example.com:3024"
+```
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 `scheme://[user[:password]@]host:port` where scheme is either `https` or `http` . If the value is
