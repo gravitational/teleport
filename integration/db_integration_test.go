@@ -283,7 +283,7 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 
 	sub, err := watcher.Subscribe(ctx, services.CertAuthorityTarget{
 		ClusterName: p.clusterRootName,
-		Type:        p.certType,
+		Types:       []types.CertAuthType{p.certType},
 	})
 	if err != nil {
 		return trace.Wrap(err)
