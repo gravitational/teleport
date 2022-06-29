@@ -633,7 +633,7 @@ INTEGRATION_ROOT_REGEX := TestAppServersHA/RootServer
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep integration)
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -json --failfast --count=10 ---run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| $(RENDER_TESTS) -report-by test
 

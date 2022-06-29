@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -728,7 +729,6 @@ func TestAppServersHA(t *testing.T) {
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			info := test.packInfo(pack)
 			httpCookie := pack.createAppSession(t, info.publicHTTPAddr, info.clusterName)
 			wsCookie := pack.createAppSession(t, info.publicWSAddr, info.clusterName)
