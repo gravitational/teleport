@@ -628,7 +628,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 # Integration tests which need to be run as root in order to complete successfully
 # are run separately to all other integration tests. Need a TTY to work.
 #
-INTEGRATION_ROOT_REGEX := ^TestRoot
+INTEGRATION_ROOT_REGEX := TestAppServersHA/RootServer
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep integration)
