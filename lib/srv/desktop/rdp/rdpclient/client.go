@@ -558,8 +558,10 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+
+	return C.ErrCodeFailure
 }
 
 //export tdp_sd_info_request
@@ -577,8 +579,10 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+
+	return C.ErrCodeFailure
 }
 
 //export tdp_sd_create_request
@@ -597,8 +601,10 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+
+	return C.ErrCodeFailure
 }
 
 //export tdp_sd_delete_request
@@ -616,12 +622,15 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+
+	return C.ErrCodeFailure
 }
 
 //export tdp_sd_list_request
 func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
+	// TODO(isaiah): WRONG
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
@@ -635,8 +644,10 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
 			return C.ErrCodeFailure
 		}
+		return C.ErrCodeSuccess
 	}
-	return C.ErrCodeSuccess
+
+	return C.ErrCodeFailure
 }
 
 // close closes the RDP client connection and
