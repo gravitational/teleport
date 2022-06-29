@@ -298,14 +298,26 @@ const (
 func unmarshalSFTPAttrs(flags uint32, b []byte) *apievents.SFTPAttributes {
 	var attrs apievents.SFTPAttributes
 	if flags&sftpSizeAttr != 0 {
+		if len(b) < 8 {
+			return nil
+		}
+
 		attrs.Size_ = binary.BigEndian.Uint64(b)
 		b = b[8:]
 	}
 	if flags&sftpPermsAttr != 0 {
+		if len(b) < 4 {
+			return nil
+		}
+
 		attrs.Permissions = binary.BigEndian.Uint32(b)
 		b = b[4:]
 	}
 	if flags&sftpACMODTimeAttr != 0 {
+		if len(b) < 8 {
+			return nil
+		}
+
 		atime := binary.BigEndian.Uint32(b)
 		b = b[4:]
 		mtime := binary.BigEndian.Uint32(b)
@@ -317,6 +329,10 @@ func unmarshalSFTPAttrs(flags uint32, b []byte) *apievents.SFTPAttributes {
 		attrs.ModificationTime = &mtimeT
 	}
 	if flags&sftpUIDGIDAttr != 0 {
+		if len(b) < 8 {
+			return nil
+		}
+
 		attrs.UID = binary.BigEndian.Uint32(b)
 		b = b[4:]
 		attrs.GID = binary.BigEndian.Uint32(b)

@@ -6477,37 +6477,48 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, testFile.Sync())
 
 	// Test stat'ing a file.
-	fi, err := sftpClient.Stat(testFilePath)
-	require.NoError(t, err)
-	require.NotNil(t, fi)
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
 
 	// Test downloading a file.
-	testFileDownload := testFilePath + "-download"
-	downloadFile, err := os.Create(testFileDownload)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, downloadFile.Close())
-	})
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
 
-	remoteDownloadFile, err := sftpClient.Open(testFilePath)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, remoteDownloadFile.Close())
-	})
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
 
-	_, err = io.Copy(downloadFile, remoteDownloadFile)
-	require.NoError(t, err)
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
 
 	// Test uploading a file.
-	testFileUpload := testFilePath + "-upload"
-	remoteUploadFile, err := sftpClient.Create(testFileUpload)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, remoteUploadFile.Close())
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
 	})
 
-	_, err = io.Copy(remoteUploadFile, testFile)
-	require.NoError(t, err)
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
 
 	// Ensure SFTP audit events are present.
 	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)

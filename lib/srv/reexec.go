@@ -271,7 +271,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	defer func() {
 		for _, f := range cmd.ExtraFiles {
 			if err := f.Close(); err != nil {
-				log.WithError(err).Debug("error closing extra file")
+				log.WithError(err).Warn("Error closing extra file.")
 			}
 		}
 	}()
