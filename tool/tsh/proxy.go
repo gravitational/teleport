@@ -31,10 +31,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -210,12 +210,25 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
-	knownHostsPath := keypaths.KnownHostsPath(keysDir)
+
+	// Get knownhosts, ssh certificate, and identity from the tsh profile.
+	profile, err := profile.FromDir(tc.Config.KeysDir, "")
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.BadParameter("No current profile detected, are you logged in?")
+		}
+		return trace.Wrap(err)
+	}
+
+	// If we are using a jump host, then the desired cluster name might
+	// be different from the current cluster of the tsh profile.
+	profile.SiteName = params.clusterName
 
 	args := []string{
 		"-A",
-		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
+		"-o", fmt.Sprintf("UserKnownHostsFile=%s", profile.KnownHostsPath()),
+		"-o", fmt.Sprintf("CertificateFile=%s", profile.SSHCertPath()),
+		"-o", fmt.Sprintf("IdentityFile=%s", profile.UserKeyPath()),
 		"-p", params.proxyPort,
 		params.proxyHost,
 		"-s",
@@ -224,6 +237,10 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 
 	if tc.HostLogin != "" {
 		args = append([]string{"-l", tc.HostLogin}, args...)
+	}
+
+	if logrus.GetLevel() == logrus.DebugLevel {
+		args = append([]string{"-v"}, args...)
 	}
 
 	log.Debugf("Executing proxy command: %v %v.", sshPath, strings.Join(args, " "))
