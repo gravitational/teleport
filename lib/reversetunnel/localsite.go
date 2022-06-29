@@ -634,6 +634,22 @@ func (s *localSite) sshTunnelStats() error {
 			return false
 		}
 
+		ids := server.GetProxyIDs()
+		containsID := false
+		for _, id := range ids {
+			if id == s.srv.ID {
+				containsID = true
+				break
+			}
+		}
+
+		// A node is expected to be connected to the current proxy if the proxy
+		// id is present. A node is expected to be connected to all proxies if
+		// no proxy ids are present.
+		if !(containsID || len(ids) == 0) {
+			return false
+		}
+
 		// Check if the tunnel actually exists.
 		_, err := s.getRemoteConn(&sshutils.DialReq{
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
@@ -646,8 +662,7 @@ func (s *localSite) sshTunnelStats() error {
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))
 
-	// Don't log if proxy peering is enabled as there will likely always be missing tunnels.
-	if len(missing) > 0 && s.peerClient == nil {
+	if len(missing) > 0 {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
 		n := len(missing)
