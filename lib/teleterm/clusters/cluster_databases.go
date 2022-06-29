@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -150,13 +151,29 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Data
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	var roleSet services.RoleSet
-	var err error
+	var authClient auth.ClientI
 
-	err = addMetadataToRetryableError(ctx, func() error {
-		roleSet, err = services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
-		return err
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer authClient.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
