@@ -78,7 +78,10 @@ const js = `
         }).then(response => {
           if (response.ok) {
             try {
-                window.location.replace(url.origin + path);
+              if (path.charAt(0) !== "/") {
+                throw "malformed url"
+              }
+              window.location.replace(url.origin + path);
             } catch (error) {
                 // in case of malformed url, return to origin
                 window.location.replace(url.origin)
