@@ -649,6 +649,9 @@ func (c *Client) close() {
 			c.cfg.Log.Warningf("failed to close the RDP client")
 		}
 
+		// Let the Rust side free its data
+		C.free_rdp(c.rustClient)
+
 		// Release the memory of the cgo.Handle
 		c.handle.Delete()
 	})
