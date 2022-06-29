@@ -126,6 +126,13 @@ func TestHasName(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/foo",
 			hasName:     true,
 		},
+		{
+			desc:        "OK - adds root path",
+			addrs:       []string{"proxy.com"},
+			reqURL:      "https://app1.proxy.com/",
+			expectedURL: "https://proxy.com/web/launch/app1.proxy.com%3Fpath=/",
+			hasName:     true,
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
