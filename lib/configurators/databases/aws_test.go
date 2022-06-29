@@ -205,7 +205,19 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeReplicationGroups",
 					"elasticache:DescribeCacheClusters",
 					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
 				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -213,7 +225,19 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeReplicationGroups",
 					"elasticache:DescribeCacheClusters",
 					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
 				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
 			},
 		},
 		"ElastiCache static database": {
@@ -225,6 +249,16 @@ func TestAWSIAMDocuments(t *testing.T) {
 							Name: "redis-1",
 							URI:  "clustercfg.redis1.xxxxxx.usw2.cache.amazonaws.com:6379",
 						},
+						{
+							Name: "redis-2",
+							URI:  "clustercfg.redis2.xxxxxx.usw2.cache.amazonaws.com:6379",
+							AWS: config.DatabaseAWS{
+								SecretStore: config.SecretStore{
+									KeyPrefix: "my-prefix/",
+									KMSKeyID:  "my-kms-id",
+								},
+							},
+						},
 					},
 				},
 			},
@@ -234,7 +268,29 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeReplicationGroups",
 					"elasticache:DescribeCacheClusters",
 					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
 				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -242,7 +298,158 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeReplicationGroups",
 					"elasticache:DescribeCacheClusters",
 					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
 				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+		},
+		"MemoryDB auto discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.DatabaseTypeMemoryDB}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+		},
+		"MemoryDB static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name: "memorydb-1",
+							URI:  "clustercfg.memorydb1.xxxxxx.us-east-1.memorydb.amazonaws.com:6379",
+						},
+						{
+							Name: "memorydb-2",
+							URI:  "clustercfg.memorydb0.xxxxxx.us-east-1.memorydb.amazonaws.com:6379",
+							AWS: config.DatabaseAWS{
+								SecretStore: config.SecretStore{
+									KeyPrefix: "my-prefix/",
+									KMSKeyID:  "my-kms-id",
+								},
+							},
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
 			},
 		},
 		"AutoDiscoveryUnknownIdentity": {

@@ -31,7 +31,7 @@ users.
 ### `tctl` concepts
 
 [`tctl`](./cli.mdx#tctl) has convenient sub-commands for dynamic
-configuration, such as `tctl users` or `tctl nodes`. 
+configuration, such as `tctl users` or `tctl nodes`.
 
 For more advanced management tasks, like connecting clusters together or
 troubleshooting trust, [`tctl`](./cli.mdx#tctl) offers the more powerful,
@@ -116,7 +116,7 @@ Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 | - | - |
 | [user](#user) | A user record in the internal Teleport user DB. |
 | [role](#role) | A role assumed by interactive and non-interactive users. |
-| connector | Authentication connectors for [Single Sign-On](../../enterprise/sso.mdx) (SSO) for SAML, OIDC and Github. |
+| connector | Authentication connectors for [Single Sign-On](../../enterprise/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster | A trusted cluster. See [here](../../setup/admin/trustedclusters.mdx) for more details on connecting clusters together. |
 
@@ -265,10 +265,10 @@ spec:
       '*': '*'
       # a list of alternative options:
       'region': ['us-west-1', 'eu-central-1']
-      # regular expressions start with ^ and end with $
-      # Teleport uses golang regexp syntax.
-      # of the list example above can be expressed as:
-      'reg': '^us-west-1|eu-central-1$'
+      # Teleport uses Go's regular expression syntax, which you can read about here:
+      # https://github.com/google/re2/wiki/Syntax
+      # The list example above can be expressed as:
+      # 'region': '^us-west-1|eu-central-1$'
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the "external" property bag.
@@ -370,7 +370,7 @@ spec:
     # auth_connector     - any auth connector resource
     # oidc               - OIDC connector resource
     # saml               - connector resource
-    # github             - Github connector resource
+    # github             - GitHub connector resource
     #
     # trusted_cluster    - trusted cluster resource
     # remote_cluster     - remote cluster resource

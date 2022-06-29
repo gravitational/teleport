@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
@@ -125,7 +126,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
-
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
@@ -133,7 +133,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
-
 			},
 			expectError: require.Error,
 		},
@@ -332,6 +331,37 @@ func TestAuthenticationSection(t *testing.T) {
 	}
 }
 
+func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc  string
+		token string
+	}{
+		{desc: "file path on windows", token: `C:\path\to\some\file`},
+		{desc: "literal string", token: "some-literal-token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			provisionTokens, err := staticToken.Parse()
+			require.NoError(t, err)
+
+			require.Len(t, provisionTokens, 1)
+			provisionToken := provisionTokens[0]
+
+			want := types.ProvisionTokenV1{
+				Roles: []types.SystemRole{
+					types.RoleAuth, types.RoleNode, types.RoleProxy,
+				},
+				Token:   tt.token,
+				Expires: provisionToken.Expires,
+			}
+			require.Equal(t, provisionToken, want)
+		})
+	}
+}
+
 func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 	// An absent U2F section should be reflected as a nil U2F object.
 	// The config below is a valid config without U2F, but other than that we
@@ -433,7 +463,6 @@ func TestSSHSection(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestX11Config(t *testing.T) {
@@ -458,7 +487,8 @@ func TestX11Config(t *testing.T) {
 				}
 			},
 			expectX11Config: &x11.ServerConfig{},
-		}, {
+		},
+		{
 			desc: "x11 enabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -485,7 +515,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: 100,
 				MaxDisplay:    100 + x11.DefaultMaxDisplays,
 			},
-		}, {
+		},
+		{
 			desc: "display offset value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -513,21 +544,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100,
 			},
-		}, {
-			// DELETE IN 10.0.0 (Joerger): yaml typo, use max_display.
-			desc: "max displays set",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":      "yes",
-					"max_displays": 100,
-				}
-			},
-			expectX11Config: &x11.ServerConfig{
-				Enabled:       true,
-				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    100,
-			},
-		}, {
+		},
+		{
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -540,7 +558,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    x11.MaxDisplayNumber,
 			},
-		}, {
+		},
+		{
 			desc: "max display smaller than display offset",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -700,10 +719,21 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Token", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthToken:  "auth-token",
+			JoinMethod: "token",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+	})
+
+	t.Run("Token, method not specified", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthToken: "auth-token",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-token", fc.AuthToken)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
 	})
 
 	t.Run("App name and URI", func(t *testing.T) {
@@ -714,5 +744,36 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
 		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
+	})
+
+	t.Run("Node labels", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo=bar,baz=bax",
+		})
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{
+			"foo": "bar",
+			"baz": "bax",
+		}, fc.SSH.Labels)
+	})
+
+	t.Run("Node labels - invalid", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			NodeLabels: "foo=bar,baz",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("CAPin", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			CAPin: "sha256:7e12c17c20d9cb",
+		})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb"}, fc.CAPin)
+		fc, err = MakeSampleFileConfig(SampleFlags{
+			CAPin: "sha256:7e12c17c20d9cb,sha256:7e12c17c20d9cb",
+		})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
 }

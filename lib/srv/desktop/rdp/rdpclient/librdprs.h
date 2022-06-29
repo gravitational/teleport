@@ -69,11 +69,11 @@ typedef enum TdpErrCode {
   /**
    * resource does not exist
    */
-  DNE = 2,
+  DoesNotExist = 2,
   /**
    * resource already exists
    */
-  AE = 3,
+  AlreadyExists = 3,
 } TdpErrCode;
 
 /**
@@ -112,6 +112,10 @@ typedef struct CGOSharedDirectoryInfoResponse {
   struct CGOFileSystemObject fso;
 } CGOSharedDirectoryInfoResponse;
 
+/**
+ * SharedDirectoryCreateResponse is sent by the TDP client to the server
+ * to acknowledge a SharedDirectoryCreateRequest was received and executed.
+ */
 typedef struct SharedDirectoryCreateResponse {
   uint32_t completion_id;
   enum TdpErrCode err_code;
@@ -167,6 +171,10 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+/**
+ * SharedDirectoryAcknowledge is sent by the TDP server to the client
+ * to acknowledge that a SharedDirectoryAnnounce was received.
+ */
 typedef struct SharedDirectoryAcknowledge {
   enum TdpErrCode err_code;
   uint32_t directory_id;
@@ -242,9 +250,6 @@ enum CGOErrCode update_clipboard(struct Client *client_ptr,
  * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  *
  * sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
- *
- * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
- * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
                                        struct CGOSharedDirectoryAnnounce sd_announce);
@@ -258,10 +263,7 @@ enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
  * client_ptr MUST be a valid pointer.
  * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
  *
- * The caller must ensure that res.fso.path MUST be a non-null pointer to a C-style null terminated string.
- *
- * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
- * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+ * res.fso.path MUST be a non-null pointer to a C-style null terminated string.
  */
 enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryInfoResponse res);
@@ -274,9 +276,6 @@ enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
  *
  * client_ptr MUST be a valid pointer.
  * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
- *
- * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
- * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
                                               CGOSharedDirectoryCreateResponse res);
@@ -289,9 +288,6 @@ enum CGOErrCode handle_tdp_sd_create_response(struct Client *client_ptr,
  *
  * client_ptr MUST be a valid pointer.
  * (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
- *
- * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
- * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
                                               CGOSharedDirectoryDeleteResponse res);
@@ -308,9 +304,6 @@ enum CGOErrCode handle_tdp_sd_delete_response(struct Client *client_ptr,
  * (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
  *
  * each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
- *
- * This function MUST NOT hang on to any of the pointers passed in to it after it returns.
- * All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
  */
 enum CGOErrCode handle_tdp_sd_list_response(struct Client *client_ptr,
                                             struct CGOSharedDirectoryListResponse res);

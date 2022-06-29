@@ -25,6 +25,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
@@ -43,7 +47,7 @@ var (
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
-	IsAvailable() bool
+	Diag() (*DiagResult, error)
 
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
 	Authenticate(credentialID string, digest []byte) ([]byte, error)
@@ -56,7 +60,24 @@ type nativeTID interface {
 	// Requires user interaction.
 	ListCredentials() ([]CredentialInfo, error)
 
+	// DeleteCredential deletes a credential.
+	// Requires user interaction.
 	DeleteCredential(credentialID string) error
+
+	// DeleteNonInteractive deletes a credential without user interaction.
+	DeleteNonInteractive(credentialID string) error
+}
+
+// DiagResult is the result from a Touch ID self diagnostics check.
+type DiagResult struct {
+	HasCompileSupport       bool
+	HasSignature            bool
+	HasEntitlements         bool
+	PassedLAPolicyTest      bool
+	PassedSecureEnclaveTest bool
+	// IsAvailable is true if Touch ID is considered functional.
+	// It means enough of the preceding tests to enable the feature.
+	IsAvailable bool
 }
 
 // CredentialInfo holds information about a Secure Enclave credential.
@@ -66,26 +87,93 @@ type CredentialInfo struct {
 	RPID         string
 	User         string
 	PublicKey    *ecdsa.PublicKey
+	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
 	publicKeyRaw []byte
 }
 
+var (
+	cachedDiag   *DiagResult
+	cachedDiagMU sync.Mutex
+)
+
 // IsAvailable returns true if Touch ID is available in the system.
-// Presently, IsAvailable is hidden behind a somewhat cheap check, so it may be
-// prone to false positives (for example, a binary compiled with Touch ID
-// support but not properly signed/notarized).
-// In case of false positives, other Touch IDs should fail gracefully.
+// Typically, a series of checks is performed in an attempt to avoid false
+// positives.
+// See Diag.
 func IsAvailable() bool {
-	// TODO(codingllama): Consider adding more depth to availability checks.
-	//  They are prone to false positives as it stands.
-	return native.IsAvailable()
+	// IsAvailable guards most of the public APIs, so results are cached between
+	// invocations to avoid user-visible delays.
+	// Diagnostics are safe to cache. State such as code signature, entitlements
+	// and system availability of Touch ID / Secure Enclave isn't something that
+	// could change during program invocation.
+	// The outlier here is having a closed macbook (aka clamshell mode), as that
+	// does impede Touch ID APIs and is something that can change.
+	cachedDiagMU.Lock()
+	defer cachedDiagMU.Unlock()
+
+	if cachedDiag == nil {
+		var err error
+		cachedDiag, err = Diag()
+		if err != nil {
+			log.WithError(err).Warn("Touch ID self-diagnostics failed")
+			return false
+		}
+	}
+
+	return cachedDiag.IsAvailable
+}
+
+// Diag returns diagnostics information about Touch ID support.
+func Diag() (*DiagResult, error) {
+	return native.Diag()
+}
+
+// Registration represents an ongoing registration, with an already-created
+// Secure Enclave key.
+// The created key may be used as-is, but callers are encouraged to explicitly
+// Confirm or Rollback the registration.
+// Rollback assumes the server-side registration failed and removes the created
+// Secure Enclave key.
+// Confirm may replace equivalent keys with the new key, at the implementation's
+// discretion.
+type Registration struct {
+	CCR *wanlib.CredentialCreationResponse
+
+	credentialID string
+
+	// done is atomically set to 1 after either Rollback or Confirm are called.
+	done int32
+}
+
+// Confirm confirms the registration.
+// Keys equivalent to the current registration may be replaced by it, at the
+// implementation's discretion.
+func (r *Registration) Confirm() error {
+	// Set r.done to disallow rollbacks after Confirm is called.
+	atomic.StoreInt32(&r.done, 1)
+	return nil
+}
+
+// Rollback rolls back the registration, deleting the Secure Enclave key as a
+// result.
+func (r *Registration) Rollback() error {
+	if !atomic.CompareAndSwapInt32(&r.done, 0, 1) {
+		return nil
+	}
+
+	// Delete the newly-created credential.
+	return native.DeleteNonInteractive(r.credentialID)
 }
 
 // Register creates a new Secure Enclave-backed biometric credential.
-func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialCreationResponse, error) {
-	if !native.IsAvailable() {
+// Callers are encouraged to either explicitly Confirm or Rollback the returned
+// registration.
+// See Registration.
+func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, error) {
+	if !IsAvailable() {
 		return nil, ErrNotAvailable
 	}
 
@@ -192,7 +280,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 		return nil, trace.Wrap(err)
 	}
 
-	return &wanlib.CredentialCreationResponse{
+	ccr := &wanlib.CredentialCreationResponse{
 		PublicKeyCredential: wanlib.PublicKeyCredential{
 			Credential: wanlib.Credential{
 				ID:   credentialID,
@@ -206,6 +294,10 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*wanlib.CredentialC
 			},
 			AttestationObject: attObj,
 		},
+	}
+	return &Registration{
+		CCR:          ccr,
+		credentialID: credentialID,
 	}, nil
 }
 
@@ -303,7 +395,7 @@ func makeAttestationData(ceremony protocol.CeremonyType, origin, rpID string, ch
 // It returns the assertion response and the user that owns the credential to
 // sign it.
 func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
-	if !native.IsAvailable() {
+	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
 
@@ -334,6 +426,14 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", ErrCredentialNotFound
 	}
 
+	// If everything else is equal, prefer newer credentials.
+	sort.Slice(infos, func(i, j int) bool {
+		i1 := infos[i]
+		i2 := infos[j]
+		// Sorted in descending order.
+		return i1.CreateTime.After(i2.CreateTime)
+	})
+
 	// Verify infos against allowed credentials, if any.
 	var cred *CredentialInfo
 	if len(assertion.Response.AllowedCredentials) > 0 {
@@ -351,12 +451,14 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	if cred == nil {
 		return nil, "", ErrCredentialNotFound
 	}
+	log.Debugf("Using Touch ID credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
+	log.Debug("Prompting for Touch ID")
 	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -384,7 +486,10 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 // ListCredentials lists all registered Secure Enclave credentials.
 // Requires user interaction.
 func ListCredentials() ([]CredentialInfo, error) {
-	// Skipped IsAvailable check in favor of a direct call to native.
+	if !IsAvailable() {
+		return nil, ErrNotAvailable
+	}
+
 	infos, err := native.ListCredentials()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,6 +512,9 @@ func ListCredentials() ([]CredentialInfo, error) {
 // DeleteCredential deletes a Secure Enclave credential.
 // Requires user interaction.
 func DeleteCredential(credentialID string) error {
-	// Skipped IsAvailable check in favor of a direct call to native.
+	if !IsAvailable() {
+		return ErrNotAvailable
+	}
+
 	return native.DeleteCredential(credentialID)
 }

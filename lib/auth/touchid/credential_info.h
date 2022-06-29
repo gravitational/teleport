@@ -34,6 +34,10 @@ typedef struct CredentialInfo {
   // Refer to
   // https://developer.apple.com/documentation/security/1643698-seckeycopyexternalrepresentation?language=objc.
   const char *pub_key_b64;
+
+  // creation_date in ISO 8601 format.
+  // Only present when reading existing credentials.
+  const char *creation_date;
 } CredentialInfo;
 
 #endif // CREDENTIAL_INFO_H_
