@@ -149,7 +149,8 @@ func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	if err == nil {
 		return secret, nil
 	}
-	kubeErr := &kubeerrors.StatusError{}
+
+	var kubeErr *kubeerrors.StatusError
 	if errors.As(err, &kubeErr) && kubeErr.ErrStatus.Code == http.StatusNotFound {
 		return nil, trace.NotFound("secret %v not found", b.secretName)
 	}
