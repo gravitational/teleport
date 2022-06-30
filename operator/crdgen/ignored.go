@@ -18,6 +18,15 @@ package main
 
 import "github.com/Clever/go-utils/stringset"
 
+/*
+Fields that we are ignoring when creating a CRD
+Each entry represents the ignore fields using the resource name as the version
+
+One of the reasons to ignore fields those fields is because they are readonly in Teleport
+CRD do not support readonly logic
+This should be removed when the following feature is implemented
+https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#transition-rules
+*/
 var ignoredFields = map[string]stringset.StringSet{
 	"UserSpecV2": stringset.New("LocalAuth", "Expires", "CreatedBy", "Status"),
 }
