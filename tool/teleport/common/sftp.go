@@ -53,9 +53,6 @@ func (c compositeCh) Close() error {
 }
 
 func onSFTP() error {
-	// Ensure the parent process will receive log messages from us
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
-
 	chr := os.NewFile(3, "chr")
 	if chr == nil {
 		return trace.NotFound("channel read file not found")
@@ -72,6 +69,16 @@ func onSFTP() error {
 		return trace.NotFound("audit write file not found")
 	}
 	defer auditFile.Close()
+
+	// Write to the audit file to ensure it was inherited correctly. If
+	// this write errors, we most likely aren't a re-exec.
+	_, err := auditFile.Write([]byte{0x00})
+	if err != nil {
+		return trace.BadParameter("'%s sftp' should not be run directly. It will be executed by Teleport when SFTP connections are received.", os.Args[0])
+	}
+
+	// Ensure the parent process will receive log messages from us
+	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
 	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket, path string, opErr error) {
