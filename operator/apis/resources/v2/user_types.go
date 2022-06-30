@@ -35,8 +35,11 @@ type UserSpec types.UserSpecV2
 
 // UserStatus defines the observed state of User
 type UserStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +optional
+	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -18,8 +18,9 @@ package resources
 
 import (
 	"context"
-
+	"fmt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -124,23 +125,57 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	return ctrl.Result{}, nil
 }
 
-func hasOriginLabel(obj kclient.Object) bool {
-	if obj.GetLabels() == nil {
-		return false
+// isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
+// value is kubernetes.
+func isResourceOriginKubernetes(resource types.Resource) bool {
+	metadata := resource.GetMetadata()
+	if label, ok := metadata.Labels[types.OriginLabel]; ok {
+		return label == types.OriginKubernetes
 	}
-
-	_, ok := obj.GetLabels()[types.OriginLabel]
-	return ok
+	return false
 }
 
-func addOriginLabelToK8SObject(ctx context.Context, k8sClient kclient.Client, obj kclient.Object) error {
-	k8sObjLabels := obj.GetLabels()
-	if k8sObjLabels == nil {
-		k8sObjLabels = make(map[string]string)
+func checkOwnership(exists bool, existingResource types.Resource, setCondition func(condition metav1.Condition) error) error {
+	if exists {
+		if !isResourceOriginKubernetes(existingResource) {
+			// Existing Teleport resource does not belong to us, bailing out
+
+			condition := metav1.Condition{
+				Type:    "TeleportResourceOwned",
+				Status:  metav1.ConditionFalse,
+				Reason:  "OriginLabelNotMatching",
+				Message: "A resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
+			}
+			err := setCondition(condition)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.AlreadyExists("unowned resource already exists", existingResource)
+		}
+		fmt.Println("Existing resource owned")
+
+		condition := metav1.Condition{
+			Type:    "TeleportResourceOwned",
+			Status:  metav1.ConditionTrue,
+			Reason:  "OriginLabelMatching",
+			Message: "Teleport resource has the Kubernetes origin label.",
+		}
+		err := setCondition(condition)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
-	k8sObjLabels[types.OriginLabel] = types.OriginKubernetes
-	obj.SetLabels(k8sObjLabels)
-
-	return trace.Wrap(k8sClient.Update(ctx, obj))
+	condition := metav1.Condition{
+		Type:    "TeleportResourceOwned",
+		Status:  metav1.ConditionTrue,
+		Reason:  "NewResource",
+		Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
+	}
+	err := setCondition(condition)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

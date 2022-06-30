@@ -19,6 +19,9 @@ package resources
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/types"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -75,13 +78,34 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	}
 	teleportResource := k8sResource.ToTeleport()
 
-	_, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
+	existingResource, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if trace.IsNotFound(err) && !hasOriginLabel(obj) {
-		return addOriginLabelToK8SObject(ctx, r.Client, obj)
+
+	exists := trace.IsNotFound(err)
+
+	updateCondition := func(condition metav1.Condition) error {
+		meta.SetStatusCondition(&k8sResource.Status.Conditions, condition)
+		err := r.Status().Update(ctx, k8sResource)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
+	err = checkOwnership(exists, existingResource, updateCondition)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	r.addTeleportResourceOrigin(&teleportResource)
+
 	return r.TeleportClient.UpsertRole(ctx, teleportResource)
+}
+
+func (r *RoleReconciler) addTeleportResourceOrigin(resource *types.Role) {
+	metadata := (*resource).GetMetadata()
+	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
+	(*resource).SetMetadata(metadata)
 }
