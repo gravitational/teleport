@@ -1075,10 +1075,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser 
 		}()
 	}
 
-	if err := s.addParty(p, types.SessionPeerMode); err != nil {
-		return trace.Wrap(err)
-	}
-
 	ctx.Debug("Waiting for continue signal")
 
 	if tempUser != nil {
