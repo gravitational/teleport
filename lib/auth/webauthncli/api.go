@@ -39,7 +39,8 @@ const (
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
-	// If empty, Login may either choose a credential or error due to ambiguity.
+	// If empty, Login may either choose a credential or prompt the user for input
+	// (via LoginPrompt).
 	User string
 	// OptimisticAssertion allows Login to skip credential listing and attempt
 	// to assert directly. The drawback of an optimistic assertion is that the
