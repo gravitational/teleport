@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -230,8 +231,33 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 	child := exec.Command(sshPath, args...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-	return trace.Wrap(child.Run())
+
+	// Since we want to capture the stderr in case of an error,
+	// create a stderr pipe and tee it into os.stderr after reading it
+	stdErrPipe, err := child.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stdErrPipe.Close()
+
+	if err := child.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	stdErr, err := io.ReadAll(io.TeeReader(stdErrPipe, os.Stderr))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := child.Wait(); err != nil {
+		// If the provided publickey was rejected, return a
+		// trust error to signal tsh to attempt to relogin.
+		if strings.Contains(string(stdErr), "Permission denied (publickey)") {
+			return trace.Trust(err, "stderr: %s", stdErr)
+		}
+		return trace.Wrap(err, "stderr: %s", stdErr)
+	}
+	return nil
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
