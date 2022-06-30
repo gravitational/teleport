@@ -64,9 +64,13 @@ func main() {
 	var metricsAddr string
 	var probeAddr string
 	var leaderElectionID string
+	var syncPeriodString string
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.StringVar(&leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use")
+	flag.StringVar(&syncPeriodString, "sync-period", "10h", "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -81,6 +85,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	syncPeriod, err := time.ParseDuration(syncPeriodString)
+	if err != nil {
+		setupLog.Error(err, "invalid sync-period, please ensure the value is currectly parsed with https://pkg.go.dev/time#ParseDuration")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -89,6 +99,7 @@ func main() {
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
 		Namespace:              namespace,
+		SyncPeriod:             &syncPeriod,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
