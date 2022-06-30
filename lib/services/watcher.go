@@ -984,21 +984,17 @@ type caCollector struct {
 	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
-// CertAuthorityTarget lists the attributes of interactions to be disabled.
-type CertAuthorityTarget struct {
-	// ClusterName specifies the name of the cluster to watch.
-	ClusterName string
-	// Types specifies the ca types to watch for.
-	Types []types.CertAuthType
-}
-
 // Subscribe is used to subscribe to the lock updates.
-func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTarget) (types.Watcher, error) {
-	watchKinds, err := caTargetToWatchKinds(targets)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	watch := types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind:   c.resourceKind(),
+				Filter: filter.IntoMap(),
+			},
+		},
 	}
-	sub, err := c.fanout.NewWatcher(ctx, types.Watch{Kinds: watchKinds})
+	sub, err := c.fanout.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1011,37 +1007,6 @@ func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTar
 		return nil, trace.Wrap(sub.Error())
 	}
 	return sub, nil
-}
-
-func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, error) {
-	watchKinds := make([]types.WatchKind, 0, len(targets))
-	for _, target := range targets {
-		kind := types.WatchKind{
-			Kind: types.KindCertAuthority,
-			Name: target.ClusterName,
-		}
-
-		// Add filter for CA types.
-		if len(target.Types) > 0 {
-			kind.Filter = make(map[string]string)
-
-			for _, caType := range target.Types {
-				if target.ClusterName == "" {
-					kind.Filter[string(caType)] = types.Wildcard
-				} else {
-					kind.Filter[string(caType)] = target.ClusterName
-				}
-			}
-		}
-
-		watchKinds = append(watchKinds, kind)
-	}
-
-	if len(watchKinds) == 0 {
-		watchKinds = []types.WatchKind{{Kind: types.KindCertAuthority}}
-	}
-
-	return watchKinds, nil
 }
 
 // resourceKind specifies the resource kind to watch.
