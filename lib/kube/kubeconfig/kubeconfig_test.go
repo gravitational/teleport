@@ -17,7 +17,6 @@ package kubeconfig
 import (
 	"crypto/x509/pkix"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ import (
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
-	f, err := ioutil.TempFile("", "kubeconfig")
+	f, err := os.CreateTemp("", "kubeconfig")
 	if err != nil {
 		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}
@@ -253,7 +252,8 @@ func TestUpdateWithExec(t *testing.T) {
 				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 			},
-			Env: []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
@@ -314,7 +314,8 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 				fmt.Sprintf("--teleport-cluster=%s", clusterName),
 				fmt.Sprintf("--proxy=%s", proxy),
 			},
-			Env: []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
+			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
@@ -404,7 +405,7 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair("")
+	priv, pub, err := keygen.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

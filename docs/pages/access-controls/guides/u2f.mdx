@@ -3,7 +3,7 @@ title: Second Factor - U2F
 description: Configuring U2F support in Teleport clusters.
 ---
 
-#  U2F ( Hardware Tokens) 
+#  U2F (Hardware Tokens)
 
 <Admonition type="tip">
   Consider updating your cluster to use [WebAuthn](./webauthn.mdx) as the second
@@ -18,9 +18,12 @@ into individual SSH nodes or Kubernetes clusters (`tsh ssh` and `kubectl`).
 
 ## Prerequisites
 
-- Installed [Teleport](../getting-started.mdx) or [Teleport Cloud](../../cloud/introduction.mdx) >= (=teleport.version=)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - U2F hardware device, such as Yubikey or Solokey
 - Web browser that [supports U2F](https://caniuse.com/u2f)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Enable U2F support
 
@@ -39,8 +42,6 @@ auth_service:
        facets:
        - "https://example.com"      # app_id should always also be listed as a facet
        - "https://example.com:443"
-       - "example.com:443"
-       - "example.com"
        device_attestation_cas:
        - "/path/to/u2f_attestation_ca.pem"
 ```
@@ -73,9 +74,8 @@ The fields in the above snippet are:
 
   For compatibility with multiple browsers, it's recommended to write down the
   proxy address in several formats. For example, if your `app_id` is
-  `https://example.com`, your `facets` should include
-  `https://example.com:443`, `https://example.com`, `example.com:443` and
-  `example.com`.
+  `https://example.com`, your `facets` should include `https://example.com`
+  (same as the app_id) and `https://example.com:443`.
 
 - `device_attestation_cas` - optional list of certificate authorities (as local
   file paths or in-line PEM certificate string) for U2F [device
@@ -128,7 +128,7 @@ $ tsh login --proxy=example.com
 
 <Admonition type="note">
 U2F for logging into Teleport is only required for [local
-users](../../setup/reference/authentication.mdx#local). SSO users should configure
+users](../../setup/reference/authentication.mdx#local-no-authentication-connector). SSO users should configure
 multi-factor authentication in their SSO provider.
 </Admonition>
 

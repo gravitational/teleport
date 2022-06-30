@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -102,10 +101,20 @@ func Write(idFile *IdentityFile, path string) error {
 	if err := encodeIdentityFile(buf, idFile); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ioutil.WriteFile(path, buf.Bytes(), FilePermissions); err != nil {
+	if err := os.WriteFile(path, buf.Bytes(), FilePermissions); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+}
+
+// Encode encodes the given identityFile to bytes.
+func Encode(idFile *IdentityFile) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := encodeIdentityFile(buf, idFile); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // Read reads an identity file from generic io.Reader interface.
@@ -139,7 +148,7 @@ func ReadFile(path string) (*IdentityFile, error) {
 	// separate file with -cert.pub suffix.
 	if len(ident.Certs.SSH) == 0 {
 		certFn := keypaths.IdentitySSHCertPath(path)
-		if ident.Certs.SSH, err = ioutil.ReadFile(certFn); err != nil {
+		if ident.Certs.SSH, err = os.ReadFile(certFn); err != nil {
 			return nil, trace.Wrap(err, "could not find SSH cert in the identity file or %v", certFn)
 		}
 	}

@@ -1,0 +1,46 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+
+// AuthSettings contains the form of authentication the auth server supports.
+message AuthSettings {
+    // local_auth_enabled is a flag that enables local authentication
+    bool local_auth_enabled = 1;
+    // second_factor is the type of second factor to use in authentication.
+    string second_factor = 2;
+    // preferred_mfa is the prefered mfa for local logins
+    string preferred_mfa = 3;
+    // auth_providers contains a list of auth providers
+    repeated AuthProvider auth_providers = 4;
+    // has_message_of_the_day is a flag indicating that the cluster has MOTD
+    // banner text that must be retrieved, displayed and acknowledged by
+    // the user.
+    bool has_message_of_the_day = 5;
+}
+
+// AuthProvider describes a way of authentication that is supported by the server. Auth provider is
+// referred to as "auth connector" on the backend.
+message AuthProvider {
+    // Type is the auth provider type (github|oidc|etc)
+    string type = 1;
+    // Name is the internal name of the connector.
+    string name = 2;
+    // Display is the display name for the connector.
+    string display_name = 3;
+}

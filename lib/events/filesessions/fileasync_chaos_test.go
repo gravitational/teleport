@@ -23,7 +23,6 @@ package filesessions
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,7 +64,7 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	scanDir, err := os.MkdirTemp("", "teleport-streams")
 	require.NoError(t, err)
 	defer os.RemoveAll(scanDir)
 
@@ -95,7 +94,7 @@ func TestChaosUpload(t *testing.T) {
 				return nil, trace.ConnectionProblem(nil, "failed to resume stream")
 			} else if resumed >= 5 && resumed < 8 {
 				// for the next several resumes, lose checkpoint file for the stream
-				files, err := ioutil.ReadDir(scanDir)
+				files, err := os.ReadDir(scanDir)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -118,7 +117,6 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		Context:    ctx,
 		ScanDir:    scanDir,
 		ScanPeriod: scanPeriod,
 		Streamer:   faultyStreamer,
@@ -126,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
-	go uploader.Serve()
+	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 
@@ -174,11 +172,7 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			if err := uploader.uploadCompleter.CheckUploads(ctx); err != nil {
-				scansCh <- trace.Wrap(err)
-				return
-			}
-			_, err := uploader.Scan()
+			_, err := uploader.Scan(ctx)
 			scansCh <- trace.Wrap(err)
 		}()
 	}
@@ -207,7 +201,7 @@ func TestChaosUpload(t *testing.T) {
 
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
-		_, err = uploader.Scan()
+		_, err = uploader.Scan(ctx)
 		require.NoError(t, err)
 
 		// wait for the upload events

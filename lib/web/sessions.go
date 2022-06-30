@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -61,6 +62,9 @@ type SessionContext struct {
 	// clt holds a connection to the root auth. Note that requests made using this
 	// client are made with the identity of the user and are NOT cached.
 	clt *auth.Client
+	// remoteClientCache holds the remote clients that have been used in this
+	// session.
+	remoteClientCache
 
 	// unsafeCachedAuthClient holds a read-only cache to root auth. Note this access
 	// point cache is authenticated with the identity of the node, not of the
@@ -77,9 +81,6 @@ type SessionContext struct {
 	resources *sessionResources
 	// session refers the web session created for the user.
 	session types.WebSession
-
-	mu        sync.Mutex
-	remoteClt map[string]auth.ClientI
 }
 
 // String returns the text representation of this context
@@ -110,24 +111,21 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
+	fetchedToken, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
-	return trace.Wrap(err)
-}
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.remoteClt[siteName] = remoteClient
-}
+	if fetchedToken.GetUser() != c.user {
+		c.log.Warnf("Failed validating bearer token: the user[%s] in bearer token[%s] did not match the user[%s] for session[%s]",
+			fetchedToken.GetUser(), token, c.user, c.GetSessionID())
+		return trace.AccessDenied("access denied")
+	}
 
-func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	remoteClt, ok := c.remoteClt[siteName]
-	return remoteClt, ok
+	return nil
 }
 
 // GetClient returns the client connected to the auth server
@@ -157,7 +155,7 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 	}
 
 	// check if we already have a connection to this cluster
-	remoteClt, ok := c.getRemoteClient(site.GetName())
+	remoteClt, ok := c.getRemoteClient(site)
 	if !ok {
 		rClt, err := c.newRemoteClient(site)
 		if err != nil {
@@ -167,7 +165,10 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
 		// the session context is closed.
-		c.addRemoteClient(site.GetName(), rClt)
+		err = c.addRemoteClient(site, rClt)
+		if err != nil {
+			c.log.WithError(err).Info("Failed closing stale remote client for site: ", site.GetName())
+		}
 
 		return rClt, nil
 	}
@@ -199,9 +200,9 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = clt.GetDomainName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
-		return clt, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, clt.Close())
 	}
 	return clt, nil
 }
@@ -209,18 +210,19 @@ func (c *SessionContext) tryRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 // ClientTLSConfig returns client TLS authentication associated
 // with the web session context
 func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, error) {
+	ctx := context.TODO()
 	var certPool *x509.CertPool
 	if len(clusterName) == 0 {
-		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(types.HostCA, false)
+		certAuthorities, err := c.parent.proxyClient.GetCertAuthorities(ctx, types.HostCA, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
+		certPool, _, err = services.CertPoolFromCertAuthorities(certAuthorities)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		certAuthority, err := c.parent.proxyClient.GetCertAuthority(types.CertAuthID{
+		certAuthority, err := c.parent.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName[0],
 		}, false)
@@ -255,6 +257,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -265,8 +268,8 @@ func (c *SessionContext) GetUser() string {
 
 // extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) extendWebSession(accessRequestID string, switchback bool) (types.WebSession, error) {
-	session, err := c.clt.ExtendWebSession(auth.WebSessionReq{
+func (c *SessionContext) extendWebSession(ctx context.Context, accessRequestID string, switchback bool) (types.WebSession, error) {
+	session, err := c.clt.ExtendWebSession(ctx, auth.WebSessionReq{
 		User:            c.user,
 		PrevSessionID:   c.session.GetName(),
 		AccessRequestID: accessRequestID,
@@ -305,7 +308,8 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 }
 
 func (c *SessionContext) getCheckers() ([]ssh.PublicKey, error) {
-	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(types.HostCA, false)
+	ctx := context.TODO()
+	cas, err := c.unsafeCachedAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -334,22 +338,22 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 	return tlsCert, nil
 }
 
-// GetUserRoles return roles from the SSH certificate associated with
-// this session.
-func (c *SessionContext) GetUserRoles() (services.RoleSet, error) {
+// GetUserAccessChecker returns AccessChecker derived from the SSH certificate
+// associated with this session.
+func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromCertificate(cert)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.unsafeCachedAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleset, err := services.FetchRoles(roles, c.unsafeCachedAuthClient, traits)
+	clusterName, err := c.unsafeCachedAuthClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return roleset, nil
+	return services.NewAccessChecker(accessInfo, clusterName.GetClusterName()), nil
 }
 
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
@@ -382,18 +386,7 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	var errors []error
-	for _, clt := range c.remoteClt {
-		if err := clt.Close(); err != nil {
-			errors = append(errors, err)
-		}
-	}
-	if err := c.clt.Close(); err != nil {
-		errors = append(errors, err)
-	}
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(c.remoteClientCache.Close(), c.clt.Close())
 }
 
 // getToken returns the bearer token associated with the underlying
@@ -557,7 +550,10 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (types.WebSession, error) {
+func (s *sessionCache) AuthWithOTP(
+	user, pass, otpToken string,
+	clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass:     &auth.PassCreds{Password: []byte(pass)},
@@ -565,28 +561,30 @@ func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (types.WebSessio
 			Password: []byte(pass),
 			Token:    otpToken,
 		},
+		ClientMetadata: clientMeta,
 	})
 }
 
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
-func (s *sessionCache) AuthWithoutOTP(user, pass string) (types.WebSession, error) {
+func (s *sessionCache) AuthWithoutOTP(
+	user, pass string, clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Pass: &auth.PassCreds{
 			Password: []byte(pass),
 		},
+		ClientMetadata: clientMeta,
 	})
 }
 
-func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserRequest) (types.WebSession, error) {
+func (s *sessionCache) AuthenticateWebUser(
+	req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+) (types.WebSession, error) {
 	authReq := auth.AuthenticateUserRequest{
-		Username: req.User,
-	}
-	if req.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *req.U2FSignResponse,
-		}
+		Username:       req.User,
+		ClientMetadata: clientMeta,
 	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse
@@ -595,13 +593,16 @@ func (s *sessionCache) AuthenticateWebUser(req *client.AuthenticateWebUserReques
 }
 
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.
-func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithoutOTP(
+	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
 			Pass: &auth.PassCreds{
 				Password: []byte(c.Password),
 			},
+			ClientMetadata: clientMeta,
 		},
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
@@ -613,7 +614,9 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*aut
 
 // GetCertificateWithOTP returns a new user certificate for the specified request.
 // The request is used with the given OTP token.
-func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) GetCertificateWithOTP(
+	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
 			Username: c.User,
@@ -621,6 +624,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 				Password: []byte(c.Password),
 				Token:    c.OTPToken,
 			},
+			ClientMetadata: clientMeta,
 		},
 		PublicKey:         c.PubKey,
 		CompatibilityMode: c.Compatibility,
@@ -630,17 +634,16 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 	})
 }
 
-func (s *sessionCache) AuthenticateSSHUser(c client.AuthenticateSSHUserRequest) (*auth.SSHLoginResponse, error) {
+func (s *sessionCache) AuthenticateSSHUser(
+	c client.AuthenticateSSHUserRequest,
+	clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
-		Username: c.User,
+		Username:       c.User,
+		ClientMetadata: clientMeta,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
-	}
-	if c.U2FSignResponse != nil {
-		authReq.U2F = &auth.U2FSignResponseCreds{
-			SignResponse: *c.U2FSignResponse,
-		}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse
@@ -696,6 +699,9 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 		SessionID: ctx.session.GetName(),
 	})
 	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err := clt.DeleteUserAppSessions(context.TODO(), &proto.DeleteUserAppSessionsRequest{Username: ctx.user}); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
@@ -803,8 +809,9 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 		return nil, trace.Wrap(err)
 	}
 	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs:       utils.NetAddrsToStrings(s.authServers),
-		Credentials: []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		Addrs:                utils.NetAddrsToStrings(s.authServers),
+		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -813,7 +820,6 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 	ctx := &SessionContext{
 		clt:                    userClient,
 		unsafeCachedAuthClient: s.accessPoint,
-		remoteClt:              make(map[string]auth.ClientI),
 		user:                   session.GetUser(),
 		session:                session,
 		parent:                 s,
@@ -836,7 +842,8 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ca, err := s.proxyClient.GetCertAuthority(types.CertAuthID{
+	ctx := context.TODO()
+	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.clusterName,
 	}, false)
@@ -972,4 +979,56 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		logger.WithError(err).Warn("Failed to wait for web session.")
 	}
 	return trace.Wrap(err)
+}
+
+// remoteClientCache stores remote clients keyed by site name while also keeping
+// track of the actual remote site associated with the client (in case the
+// remote site has changed). Safe for concurrent access. Closes all clients and
+// wipes the cache on Close.
+type remoteClientCache struct {
+	sync.Mutex
+	clients map[string]struct {
+		auth.ClientI
+		reversetunnel.RemoteSite
+	}
+}
+
+func (c *remoteClientCache) addRemoteClient(site reversetunnel.RemoteSite, remoteClient auth.ClientI) error {
+	c.Lock()
+	defer c.Unlock()
+	if c.clients == nil {
+		c.clients = make(map[string]struct {
+			auth.ClientI
+			reversetunnel.RemoteSite
+		})
+	}
+	var err error
+	if c.clients[site.GetName()].ClientI != nil {
+		err = c.clients[site.GetName()].ClientI.Close()
+	}
+	c.clients[site.GetName()] = struct {
+		auth.ClientI
+		reversetunnel.RemoteSite
+	}{remoteClient, site}
+	return err
+}
+
+func (c *remoteClientCache) getRemoteClient(site reversetunnel.RemoteSite) (auth.ClientI, bool) {
+	c.Lock()
+	defer c.Unlock()
+	remoteClt, ok := c.clients[site.GetName()]
+	return remoteClt.ClientI, ok && remoteClt.RemoteSite == site
+}
+
+func (c *remoteClientCache) Close() error {
+	c.Lock()
+	defer c.Unlock()
+
+	errors := make([]error, 0, len(c.clients))
+	for _, clt := range c.clients {
+		errors = append(errors, clt.ClientI.Close())
+	}
+	c.clients = nil
+
+	return trace.NewAggregate(errors...)
 }

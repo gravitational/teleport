@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 
 	"github.com/gravitational/trace"
@@ -46,6 +45,10 @@ import (
 
 //go:embed bytecode
 var embedFS embed.FS
+
+// ArgsCacheSize is the number of args events to store before dropping args
+// events.
+const ArgsCacheSize = 1024
 
 // SessionWatch is a map of cgroup IDs that the BPF service is watching and
 // emitting events for.
@@ -153,7 +156,7 @@ func New(config *Config) (BPF, error) {
 	}
 
 	// Create args cache used by the exec BPF program.
-	s.argsCache, err = ttlmap.New(defaults.ArgsCacheSize)
+	s.argsCache, err = ttlmap.New(ArgsCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

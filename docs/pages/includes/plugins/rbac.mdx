@@ -1,0 +1,34 @@
+Using an existing Teleport cluster, create the following `user` and `role` resources with the command below, replacing `YAML_PATH` with the path to each resource spec.
+
+```
+$ tctl create -f YAML_PATH.yaml
+```
+
+(!docs/pages/includes/plugins/impersonations.mdx!)
+
+Create a non-interactive bot user and role called `access-plugin`.
+
+```yaml
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+kind: role
+version: v4
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read', 'update']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
+```
+
+<Admonition type="tip">
+  If you're using other plugins, you might want to create different users and roles for different plugins
+</Admonition>

@@ -122,6 +122,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 	// Create the application routes.
 	h.router = httprouter.New()
+	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))

@@ -375,9 +375,13 @@ func TestMatchResourceByFilters(t *testing.T) {
 		resource       func() types.ResourceWithLabels
 	}{
 		{
-			name:     "empty filter",
-			resource: func() types.ResourceWithLabels { return nil },
-			filters:  MatchResourceFilter{},
+			name: "no filter should return true",
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
+				require.NoError(t, err)
+				return server
+			},
+			filters: MatchResourceFilter{ResourceKind: types.KindNode},
 		},
 		{
 			name:     "unsupported resource kind",
@@ -452,6 +456,20 @@ func TestMatchResourceByFilters(t *testing.T) {
 			},
 		},
 		{
+			name: "kube cluster",
+			resource: func() types.ResourceWithLabels {
+				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster("_", &types.KubernetesCluster{
+					Name: "foo",
+				})
+				require.NoError(t, err)
+				return cluster
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindKubernetesCluster,
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
 			name: "node",
 			resource: func() types.ResourceWithLabels {
 				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
@@ -463,6 +481,18 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "windows desktop",
+			resource: func() types.ResourceWithLabels {
+				desktop, err := types.NewWindowsDesktopV3("foo", nil, types.WindowsDesktopSpecV3{Addr: "_"})
+				require.NoError(t, err)
+				return desktop
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindWindowsDesktop,
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -471,7 +501,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 			t.Parallel()
 
 			resource := tc.resource()
-			match, err := MatchResourceByFilters(resource, tc.filters)
+			match, err := MatchResourceByFilters(resource, tc.filters, nil)
 
 			switch tc.wantNotImplErr {
 			case true:

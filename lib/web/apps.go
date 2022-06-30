@@ -53,7 +53,12 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
+	resp, err := listResources(clt, r, types.KindAppServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,13 +68,17 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		apps = append(apps, server.GetApp())
 	}
 
-	return makeResponse(ui.MakeApps(ui.MakeAppsConfig{
-		LocalClusterName:  h.auth.clusterName,
-		LocalProxyDNSName: h.proxyDNSName(),
-		AppClusterName:    appClusterName,
-		Identity:          identity,
-		Apps:              types.DeduplicateApps(apps),
-	}))
+	return listResourcesGetResponse{
+		Items: ui.MakeApps(ui.MakeAppsConfig{
+			LocalClusterName:  h.auth.clusterName,
+			LocalProxyDNSName: h.proxyDNSName(),
+			AppClusterName:    appClusterName,
+			Identity:          identity,
+			Apps:              apps,
+		}),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}, nil
 }
 
 type GetAppFQDNRequest resolveAppParams

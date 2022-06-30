@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -62,6 +63,7 @@ type KubeCSRResponse struct {
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
 func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+	ctx := context.TODO()
 	if !modules.GetModules().Features().Kubernetes {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
@@ -79,7 +81,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// with special provisions.
 	log.Debugf("Generating certificate to access remote Kubernetes clusters.")
 
-	hostCA, err := s.GetCertAuthority(types.CertAuthID{
+	hostCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
 	}, false)
@@ -109,7 +111,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	roleNames := id.Groups
 	// This is a remote user, map roles to local roles first.
 	if id.TeleportCluster != clusterName.GetClusterName() {
-		ca, err := s.GetCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: id.TeleportCluster}, false)
+		ca, err := s.GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: id.TeleportCluster}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -130,7 +132,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
-	userCA, err := s.Trust.GetCertAuthority(types.CertAuthID{
+	userCA, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

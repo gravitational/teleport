@@ -105,6 +105,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSnowflakeSession:
+				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
 				parser = newAppSessionParser()
 			case types.KindWebSession:
@@ -861,6 +863,17 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
+func newSnowflakeSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSnowflakeSession,
+			Version: types.V2,
+		},
+	}
+}
+
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
@@ -1187,7 +1200,19 @@ type windowsDesktopsParser struct {
 func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindWindowsDesktop, types.V3, 0)
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindWindowsDesktop,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // pass ID via description field for the cache
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktop(
 			event.Item.Value,

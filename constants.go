@@ -27,9 +27,6 @@ import (
 // WebAPIVersion is a current webapi version
 const WebAPIVersion = "v1"
 
-// ForeverTTL means that object TTL will not expire unless deleted
-const ForeverTTL time.Duration = 0
-
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -59,18 +56,6 @@ const (
 	// HTTP/1.1.'s TLS setup.
 	// https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids
 	HTTPNextProtoTLS = "http/1.1"
-)
-
-const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
 )
 
 const (
@@ -131,6 +116,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentProxyPeer is the proxy peering component of the proxy service
+	ComponentProxyPeer = "proxy:peer"
+
 	// ComponentApp is the application proxy service.
 	ComponentApp = "app:service"
 
@@ -157,9 +145,6 @@ const (
 
 	// ComponentBackend is a backend component
 	ComponentBackend = "backend"
-
-	// ComponentCachingClient is a caching auth client
-	ComponentCachingClient = "client:cache"
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
@@ -221,8 +206,14 @@ const (
 	// and vice versa.
 	ComponentKeepAlive = "keepalive"
 
+	// ComponentTeleport is the "teleport" binary.
+	ComponentTeleport = "teleport"
+
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
+
+	// ComponentTBot is the "tbot" binary
+	ComponentTBot = "tbot"
 
 	// ComponentKubeClient is the Kubernetes client.
 	ComponentKubeClient = "client:kube"
@@ -251,6 +242,12 @@ const (
 
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
+
+	// ComponentTracing is a tracing exporter
+	ComponentTracing = "tracing"
+
+	// ComponentInstance is an abstract component common to all services.
+	ComponentInstance = "instance"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -446,8 +443,20 @@ const (
 	// CertExtensionDisallowReissue is set when a certificate should not be allowed
 	// to request future certificates.
 	CertExtensionDisallowReissue = "disallow-reissue"
+	// CertExtensionRenewable is a flag to indicate the certificate may be
+	// renewed.
+	CertExtensionRenewable = "renewable"
+	// CertExtensionGeneration counts the number of times a certificate has
+	// been renewed.
+	CertExtensionGeneration = "generation"
+	// CertExtensionAllowedResources lists the resources which this certificate
+	// should be allowed to access
+	CertExtensionAllowedResources = "teleport-allowed-resources"
 )
 
+// Note: when adding new providers to this list, consider updating the help message for --provider flag
+// for `tctl sso configure oidc` and `tctl sso configure saml` commands
+// as well as docs at https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
@@ -456,6 +465,10 @@ const (
 	// Ping is the common backend for all Ping Identity-branded identity
 	// providers (including PingOne, PingFederate, etc).
 	Ping = "ping"
+	// Okta should be used for Okta OIDC providers.
+	Okta = "okta"
+	// JumpCloud is an identity provider.
+	JumpCloud = "jumpcloud"
 )
 
 const (
@@ -464,6 +477,9 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
+	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// find the user's home directory.
+	HomeDirNotFound = 254
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -525,9 +541,16 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
+
+	// TraitJWT is the name of the trait containing JWT header for app access.
+	TraitJWT = "jwt"
 
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
@@ -552,16 +575,18 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
+
+	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
+	// role ARNs for local accounts.
+	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
+
+	// TraitInternalJWTVariable is the variable used to store JWT token for
+	// app sessions.
+	TraitInternalJWTVariable = "{{internal.jwt}}"
 )
 
 // SCP is Secure Copy.
 const SCP = "scp"
-
-// Root is *nix system administrator account name.
-const Root = "root"
-
-// Administrator is the Windows system administrator account name.
-const Administrator = "Administrator"
 
 // AdminRoleName is the name of the default admin role for all local users if
 // another role is not explicitly assigned
@@ -616,6 +641,32 @@ const (
 	// VersionRequest is sent by clients to server requesting the Teleport
 	// version they are running.
 	VersionRequest = "x-teleport-version"
+
+	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
+	ForceTerminateRequest = "x-teleport-force-terminate"
+
+	// TerminalSizeRequest is a request for the terminal size of the session.
+	TerminalSizeRequest = "x-teleport-terminal-size"
+
+	// MFAPresenceRequest is an SSH request to notify clients that MFA presence is required for a session.
+	MFAPresenceRequest = "x-teleport-mfa-presence"
+
+	// EnvSSHJoinMode is the SSH environment variable that contains the requested participant mode.
+	EnvSSHJoinMode = "TELEPORT_SSH_JOIN_MODE"
+
+	// EnvSSHSessionReason is a reason attached to started sessions meant to describe their intent.
+	EnvSSHSessionReason = "TELEPORT_SESSION_REASON"
+
+	// EnvSSHSessionInvited is an environment variable listning people invited to a session.
+	EnvSSHSessionInvited = "TELEPORT_SESSION_JOIN_MODE"
+
+	// EnvSSHSessionDisplayParticipantRequirements is set to true or false to indicate if participant
+	// requirement information should be printed.
+	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
+
+	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
+	// This starts with a hyphen so it isn't a valid unix login.
+	SSHSessionJoinPrincipal = "-teleport-internal-join"
 )
 
 const (
@@ -627,15 +678,6 @@ const (
 
 	// KubeConfigFile is a default filename where k8s stores its user local config
 	KubeConfigFile = "config"
-
-	// EnvHome is home environment variable
-	EnvHome = "HOME"
-
-	// EnvUserProfile is the home directory environment variable on Windows.
-	EnvUserProfile = "USERPROFILE"
-
-	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
-	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
@@ -696,6 +738,15 @@ const (
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
 	ForwardSubCommand = "forward"
+
+	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
+	// to check if the user's home directory exists.
+	CheckHomeDirSubCommand = "checkhomedir"
+
+	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
+	// specific UID to prevent the matching user from being deleted before
+	// spawning the intended child process.
+	ParkSubCommand = "park"
 )
 
 const (
@@ -741,6 +792,3 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
-
-// StandardRDPPort is the default port used for RDP.
-const StandardRDPPort = 3389

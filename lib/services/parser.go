@@ -176,9 +176,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
-	// Session is an optional session.end event. These events hold information
-	// about session recordings.
-	Session *events.SessionEnd
+	// Session is an optional session.end or windows.desktop.session.end event.
+	// These events hold information about session recordings.
+	Session events.AuditEvent
 	// SSHSession is an optional (active) SSH session.
 	SSHSession *session.Session
 }
@@ -236,8 +236,9 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 	case SessionIdentifier:
-		session := &events.SessionEnd{}
-		if ctx.Session != nil {
+		var session events.AuditEvent = &events.SessionEnd{}
+		switch ctx.Session.(type) {
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
 		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -387,7 +388,7 @@ func (p boolPredicateParser) EvalBoolPredicate(expr string) (bool, error) {
 
 	fn, ok := ifn.(predicate.BoolPredicate)
 	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
+		return false, trace.BadParameter("expected boolean predicate, got unsupported type: %T", ifn)
 	}
 
 	return fn(), nil
@@ -599,7 +600,7 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			case ResourceIdentifier:
 				return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 			default:
-				return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+				return nil, trace.NotFound("identifier %q is not defined", strings.Join(fields, "."))
 			}
 		},
 		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {

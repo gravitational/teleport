@@ -1,0 +1,4 @@
+clusterName: test-persistence-cluster
+standalone:
+  existingClaimName: ""
+  volumeSize: 10Gi

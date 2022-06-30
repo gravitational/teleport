@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,8 +55,8 @@ import (
 )
 
 type ProxySuite struct {
-	root *TeleInstance
-	leaf *TeleInstance
+	root *helpers.TeleInstance
+	leaf *helpers.TeleInstance
 }
 
 type proxySuiteOptions struct {
@@ -64,11 +66,14 @@ type proxySuiteOptions struct {
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
 
-	rootClusterPorts *InstancePorts
-	leafClusterPorts *InstancePorts
+	rootClusterNodeName string
+	leafClusterNodeName string
 
-	rootTrustedSecretFunc func(suite *ProxySuite) []*InstanceSecrets
-	leafTrustedFunc       func(suite *ProxySuite) []*InstanceSecrets
+	rootClusterPorts *helpers.InstancePorts
+	leafClusterPorts *helpers.InstancePorts
+
+	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
+	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
 
 	rootClusterRoles      []types.Role
 	leafClusterRoles      []types.Role
@@ -79,29 +84,31 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterPorts: singleProxyPortSetup(),
-		leafClusterPorts: singleProxyPortSetup(),
+		rootClusterNodeName: Host,
+		leafClusterNodeName: Host,
+		rootClusterPorts:    helpers.SingleProxyPortSetup(),
+		leafClusterPorts:    helpers.SingleProxyPortSetup(),
 	}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	rc := NewInstance(InstanceConfig{
+	rc := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
-		log:         utils.NewLoggerForTests(),
+		NodeName:    options.rootClusterNodeName,
+		Log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
 
 	// Create leaf cluster.
-	lc := NewInstance(InstanceConfig{
+	lc := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    Host,
+		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       options.leafClusterPorts,
 	})
 	suite := &ProxySuite{
@@ -178,6 +185,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
 	_, err := p.leaf.StartNode(nodeConfig())
@@ -194,9 +202,9 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 }
 
-func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config ClientConfig) {
+func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
-		deadline         = time.Second
+		deadline         = time.Second * 5
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
@@ -255,29 +263,41 @@ func withRootClusterConfig(fn func(suite *ProxySuite) *service.Config, configMod
 
 func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
 			return nil
 		}
-		options.leafTrustedFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.leafTrustedFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
 			return nil
 		}
 	}
 }
 
-func withRootClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
+func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.rootClusterNodeName = nodeName
+	}
+}
+
+func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
+	return func(options *proxySuiteOptions) {
+		options.leafClusterNodeName = nodeName
+	}
+}
+
+func withRootClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.rootClusterPorts = ports
 	}
 }
 
-func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
+func withLeafClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.leafClusterPorts = ports
 	}
 }
 
 func newRole(t *testing.T, roleName string, username string) types.Role {
-	role, err := types.NewRole(roleName, types.RoleSpecV4{
+	role, err := types.NewRoleV3(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
 		},
@@ -301,6 +321,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
+		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
 	}
 }
@@ -320,6 +341,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
+		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
 	}
 }
@@ -338,7 +360,7 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
@@ -460,7 +482,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 	require.NoError(t, err)
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
-		Protocol:           protocol,
+		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),
@@ -491,25 +513,26 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
+	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
 }
 
-func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string) string {
+func mustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) string {
 	key, err := libclient.NewKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.Pub, username, time.Hour,
+		key.Pub, username, ttl,
 		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName,
+		tc.Secrets.SiteName, "",
 	)
 	require.NoError(t, err)
 
 	key.Cert = sshCert
 	key.TLSCert = tlsCert
 
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(types.HostCA, false)
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 

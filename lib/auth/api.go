@@ -43,7 +43,11 @@ type Announcer interface {
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
+	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
+
+	// UpsertKubeServiceV2 registers a kubernetes kubernetes service
+	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -100,10 +104,10 @@ type ReadNodeAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -158,10 +162,10 @@ type ReadProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -197,7 +201,7 @@ type ReadProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -206,7 +210,7 @@ type ReadProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -259,13 +263,20 @@ type ReadProxyAccessPoint interface {
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+}
+
+// SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
+type SnowflakeSessionWatcher interface {
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	// GetSnowflakeSession gets a Snowflake web session for a given request.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 }
 
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -290,10 +301,10 @@ type ReadRemoteProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -326,7 +337,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -335,7 +346,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -386,10 +397,10 @@ type ReadKubernetesAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -447,10 +458,10 @@ type ReadAppsAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -514,10 +525,10 @@ type ReadDatabaseAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -581,10 +592,10 @@ type ReadWindowsDesktopAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -617,13 +628,13 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -639,10 +650,10 @@ type WindowsDesktopAccessPoint interface {
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -667,7 +678,7 @@ type Cache interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -694,10 +705,7 @@ type Cache interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
-	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -706,10 +714,10 @@ type Cache interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -746,6 +754,9 @@ type Cache interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
 
@@ -774,19 +785,19 @@ type Cache interface {
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 
 	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktop returns a named windows desktop host.
-	GetWindowsDesktop(ctx context.Context, name string) (types.WindowsDesktop, error)
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
+	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
@@ -805,7 +816,9 @@ type Cache interface {
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
 	// ListResources returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (resources []types.ResourceWithLabels, nextKey string, err error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	// ListWindowsDesktops returns a paginated list of windows desktops.
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 }
 
 type NodeWrapper struct {

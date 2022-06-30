@@ -21,8 +21,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -79,6 +79,8 @@ type EngineConfig struct {
 	Clock clockwork.Clock
 	// Log is used for logging.
 	Log logrus.FieldLogger
+	// Users handles database users.
+	Users Users
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

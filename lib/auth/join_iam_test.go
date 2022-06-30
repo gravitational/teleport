@@ -26,7 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -97,7 +99,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	require.NoError(t, err)
 	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
+	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -401,18 +403,20 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
-			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*types.RegisterUsingTokenRequest, error) {
+			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				if tc.challengeResponseOverride != "" {
 					challenge = tc.challengeResponseOverride
 				}
 				identityRequest := []byte(fmt.Sprintf(tc.requestTemplate, challenge))
-				req := &types.RegisterUsingTokenRequest{
-					Token:              tc.requestTokenName,
-					HostID:             "test-node",
-					Role:               types.RoleNode,
-					PublicSSHKey:       sshPublicKey,
-					PublicTLSKey:       tlsPublicKey,
-					STSIdentityRequest: identityRequest,
+				req := &proto.RegisterUsingIAMMethodRequest{
+					RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+						Token:        tc.requestTokenName,
+						HostID:       "test-node",
+						Role:         types.RoleNode,
+						PublicSSHKey: sshPublicKey,
+						PublicTLSKey: tlsPublicKey,
+					},
+					StsIdentityRequest: identityRequest,
 				}
 				return req, tc.challengeResponseErr
 			})

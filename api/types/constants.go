@@ -33,14 +33,15 @@ const (
 	// True holds "true" string value
 	True = "true"
 
+	// HomeEnvVar specifies the home location for tsh configuration
+	// and data
+	HomeEnvVar = "TELEPORT_HOME"
+
 	// KindNamespace is a namespace
 	KindNamespace = "namespace"
 
 	// KindUser is a user resource
 	KindUser = "user"
-
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -96,6 +97,9 @@ const (
 
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
+
+	// KindSnowflakeSession represents a Snowflake specific web session.
+	KindSnowflakeSession = "snowflake_session"
 
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
@@ -193,6 +197,9 @@ const (
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
 
+	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
+	MetaNameSessionTracker = "session-tracker"
+
 	// KindTrustedCluster is a resource that contains trusted cluster configuration.
 	KindTrustedCluster = "trusted_cluster"
 
@@ -246,6 +253,12 @@ const (
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
+	// KindSessionTracker is a resource that tracks a live session.
+	KindSessionTracker = "session_tracker"
+
+	// V5 is the fifth version of resources.
+	V5 = "v5"
+
 	// V4 is the fourth version of resources.
 	V4 = "v4"
 
@@ -261,7 +274,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -288,11 +301,15 @@ const (
 )
 
 const (
+	// TeleportNamespace is used as the namespace prefix for any
+	// labels defined by teleport
+	TeleportNamespace = "teleport.dev"
+
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = "teleport.dev/origin"
+	OriginLabel = TeleportNamespace + "/origin"
 
-	// OriginConfigFile is an origin value indicating that the resource was
+	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
 
@@ -307,10 +324,17 @@ const (
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
 	OriginCloud = "cloud"
+
+	// OriginKubernetes is an origin value indicating that the resource was
+	// created from the Kubernetes Operator.
+	OriginKubernetes = "kubernetes"
 )
 
+// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
+const EC2HostnameTag = "TeleportHostname"
+
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}
+var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -356,4 +380,59 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+)
+
+type TunnelStrategyType string
+
+const (
+	// AgentMesh requires agents to create a reverse tunnel to
+	// every proxy server.
+	AgentMesh TunnelStrategyType = "agent_mesh"
+	// ProxyPeering requires agents to create a reverse tunnel to a configured
+	// number of proxy servers and enables proxy to proxy communication.
+	ProxyPeering TunnelStrategyType = "proxy_peering"
+)
+
+const (
+	// ResourceMetadataName refers to a resource metadata field named "name".
+	ResourceMetadataName = "name"
+
+	// ResourceSpecDescription refers to a resource spec field named "description".
+	ResourceSpecDescription = "description"
+
+	// ResourceSpecHostname refers to a resource spec field named "hostname".
+	ResourceSpecHostname = "hostname"
+
+	// ResourceSpecAddr refers to a resource spec field named "address".
+	ResourceSpecAddr = "address"
+
+	// ResourceSpecPublicAddr refers to a resource field named "address".
+	ResourceSpecPublicAddr = "publicAddress"
+
+	// ResourceSpecType refers to a resource field named "type".
+	ResourceSpecType = "type"
+)
+
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
+)
+
+// RequestableResourceKinds lists all Teleport resource kinds users can request access to.
+var RequestableResourceKinds = []string{
+	KindNode,
+	KindKubernetesCluster,
+	KindDatabase,
+	KindApp,
+	KindWindowsDesktop,
+}
+
+const (
+	// TeleportServiceGroup is a default group that users of the
+	// teleport automated user provisioning system get added to so
+	// already existing users are not deleted
+	TeleportServiceGroup = "teleport-system"
 )

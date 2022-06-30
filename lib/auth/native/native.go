@@ -23,6 +23,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -33,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -46,110 +47,14 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentKeyGen,
 })
 
-// PrecomputedNum is the number of keys to precompute and keep cached.
-var PrecomputedNum = 25
+// precomputedKeys is a queue of cached keys ready for usage.
+var precomputedKeys = make(chan keyPair, 25)
 
-type keyPair struct {
-	privPem  []byte
-	pubBytes []byte
-}
+// precomputeTaskStarted is used to start the background task that precomputes key pairs.
+// This may only ever be accessed atomically.
+var precomputeTaskStarted int32
 
-// keygen is a key generator that precomputes keys to provide quick access to
-// public/private key pairs.
-type Keygen struct {
-	keysCh chan keyPair
-
-	ctx             context.Context
-	cancel          context.CancelFunc
-	precomputeCount int
-
-	// clock is used to control time.
-	clock clockwork.Clock
-}
-
-// KeygenOption is a functional optional argument for key generator
-type KeygenOption func(k *Keygen)
-
-// SetClock sets the clock to use for key generation.
-func SetClock(clock clockwork.Clock) KeygenOption {
-	return func(k *Keygen) {
-		k.clock = clock
-	}
-}
-
-// PrecomputeKeys sets up a number of private keys to pre-compute
-// in background, 0 disables the process
-func PrecomputeKeys(count int) KeygenOption {
-	return func(k *Keygen) {
-		k.precomputeCount = count
-	}
-}
-
-// New returns a new key generator.
-func New(ctx context.Context, opts ...KeygenOption) *Keygen {
-	ctx, cancel := context.WithCancel(ctx)
-	k := &Keygen{
-		ctx:             ctx,
-		cancel:          cancel,
-		precomputeCount: PrecomputedNum,
-		clock:           clockwork.NewRealClock(),
-	}
-	for _, opt := range opts {
-		opt(k)
-	}
-
-	if k.precomputeCount > 0 {
-		log.Debugf("SSH cert authority is going to pre-compute %v keys.", k.precomputeCount)
-		k.keysCh = make(chan keyPair, k.precomputeCount)
-		go k.precomputeKeys()
-	} else {
-		log.Debugf("SSH cert authority started with no keys pre-compute.")
-	}
-
-	return k
-}
-
-// Close stops the precomputation of keys (if enabled) and releases all resources.
-func (k *Keygen) Close() {
-	k.cancel()
-}
-
-// GetNewKeyPairFromPool returns precomputed key pair from the pool.
-func (k *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
-	select {
-	case key := <-k.keysCh:
-		return key.privPem, key.pubBytes, nil
-	default:
-		return GenerateKeyPair("")
-	}
-}
-
-// precomputeKeys continues loops forever trying to compute cache key pairs.
-func (k *Keygen) precomputeKeys() {
-	for {
-		privPem, pubBytes, err := GenerateKeyPair("")
-		if err != nil {
-			log.Errorf("Unable to generate key pair: %v.", err)
-			continue
-		}
-		key := keyPair{
-			privPem:  privPem,
-			pubBytes: pubBytes,
-		}
-
-		select {
-		case <-k.ctx.Done():
-			log.Infof("Stopping key precomputation routine.")
-			return
-		case k.keysCh <- key:
-			continue
-		}
-	}
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
-// execute.
-func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func generateKeyPairImpl() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, err
@@ -170,10 +75,88 @@ func GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
+func replenishKeys() {
+	// Mark the task as stopped.
+	defer atomic.StoreInt32(&precomputeTaskStarted, 0)
+
+	for {
+		priv, pub, err := generateKeyPairImpl()
+		if err != nil {
+			log.Errorf("Failed to generate key pair: %v", err)
+			return
+		}
+
+		precomputedKeys <- keyPair{priv, pub}
+	}
+}
+
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
+// This will in most cases pull from a precomputed cache of ready to use keys.
+func GenerateKeyPair() ([]byte, []byte, error) {
+	// Start the background task to replenish the queue of precomputed keys.
+	// This is only started once this function is called to avoid starting the task
+	// just by pulling in this package.
+	if atomic.SwapInt32(&precomputeTaskStarted, 1) == 0 {
+		go replenishKeys()
+	}
+
+	select {
+	case k := <-precomputedKeys:
+		return k.privPem, k.pubBytes, nil
+	default:
+		return generateKeyPairImpl()
+	}
+}
+
+type keyPair struct {
+	privPem  []byte
+	pubBytes []byte
+}
+
+// keygen is a key generator that precomputes keys to provide quick access to
+// public/private key pairs.
+type Keygen struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// clock is used to control time.
+	clock clockwork.Clock
+}
+
+// KeygenOption is a functional optional argument for key generator
+type KeygenOption func(k *Keygen)
+
+// SetClock sets the clock to use for key generation.
+func SetClock(clock clockwork.Clock) KeygenOption {
+	return func(k *Keygen) {
+		k.clock = clock
+	}
+}
+
+// New returns a new key generator.
+func New(ctx context.Context, opts ...KeygenOption) *Keygen {
+	ctx, cancel := context.WithCancel(ctx)
+	k := &Keygen{
+		ctx:    ctx,
+		cancel: cancel,
+		clock:  clockwork.NewRealClock(),
+	}
+	for _, opt := range opts {
+		opt(k)
+	}
+
+	return k
+}
+
+// Close stops the precomputation of keys (if enabled) and releases all resources.
+func (k *Keygen) Close() {
+	k.cancel()
+}
+
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
-func (k *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
-	return GenerateKeyPair(passphrase)
+func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
+	return GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
@@ -193,8 +176,6 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
 
 	// Build a valid list of principals from the HostID and NodeName and then
 	// add in any additional principals passed in.
@@ -224,7 +205,7 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 	cert.Permissions.Extensions[utils.CertExtensionAuthority] = c.ClusterName
 
 	// sign host certificate with private signing key of certificate authority
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -241,6 +222,11 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	}
 	return k.GenerateUserCertWithoutValidation(c)
 }
+
+// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
+// from which this certificate is accepted for authentication.
+// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+const sourceAddress = "source-address"
 
 // GenerateUserCertWithoutValidation generates a user certificate with the
 // passed in parameters without validating them. For use in tests only.
@@ -288,6 +274,37 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.DisallowReissue {
 		cert.Permissions.Extensions[teleport.CertExtensionDisallowReissue] = ""
 	}
+	if c.Renewable {
+		cert.Permissions.Extensions[teleport.CertExtensionRenewable] = ""
+	}
+	if c.Generation > 0 {
+		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
+	}
+	if c.AllowedResourceIDs != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
+	}
+
+	if c.SourceIP != "" {
+		if cert.CriticalOptions == nil {
+			cert.CriticalOptions = make(map[string]string)
+		}
+		//IPv4, all bits matter
+		ip := c.SourceIP + "/32"
+		if strings.Contains(c.SourceIP, ":") {
+			//IPv6
+			ip = c.SourceIP + "/128"
+		}
+		cert.CriticalOptions[sourceAddress] = ip
+	}
+
+	for _, extension := range c.CertificateExtensions {
+		// TODO(lxea): update behavior when non ssh, non extensions are supported.
+		if extension.Mode != types.CertExtensionMode_EXTENSION ||
+			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		cert.Extensions[extension.Name] = extension.Value
+	}
 
 	// Add roles, traits, and route to cluster in the certificate extensions if
 	// the standard format was requested. Certificate extensions are not included
@@ -320,8 +337,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		}
 	}
 
-	signer := sshutils.AlgSigner(c.CASigner, c.CASigningAlg)
-	if err := cert.SignCert(rand.Reader, signer); err != nil {
+	if err := cert.SignCert(rand.Reader, c.CASigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ssh.MarshalAuthorizedKey(cert), nil

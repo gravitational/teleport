@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -343,8 +345,8 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if o.Metadata.Name == constants.Local {
-		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
+	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
@@ -365,5 +367,32 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+	return nil
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *SAMLAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
 	return nil
 }

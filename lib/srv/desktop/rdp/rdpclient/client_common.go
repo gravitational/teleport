@@ -45,6 +45,14 @@ type Config struct {
 	// Encoder is an optional override for PNG encoding.
 	Encoder *png.Encoder
 
+	// AllowClipboard indicates whether the RDP connection should enable
+	// clipboard sharing.
+	AllowClipboard bool
+
+	// AllowDirectorySharing indicates whether the RDP connection should enable
+	// directory sharing.
+	AllowDirectorySharing bool
+
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }

@@ -49,6 +49,19 @@ message SessionData {
     bytes user_id = 2 [ (gogoproto.jsontag) = "userId,omitempty" ];
     // Raw Credential IDs of the credentials allowed for the ceremony.
     repeated bytes allow_credentials = 3 [ (gogoproto.jsontag) = "allowCredentials,omitempty" ];
+    // True if resident keys were required by the server / Relying Party.
+    bool resident_key = 4 [ (gogoproto.jsontag) = "residentKey,omitempty" ];
+    // Requested user verification requirement, either "discouraged" or
+    // "required".
+    // An empty value is treated equivalently to "discouraged".
+    string user_verification = 5 [ (gogoproto.jsontag) = "userVerification,omitempty" ];
+}
+
+// User represents a WebAuthn user.
+// Used mainly to correlated a WebAuthn user handle with a Teleport user.
+message User {
+    // Teleport user ID.
+    string teleport_user = 1;
 }
 
 // -----------------------------------------------------------------------------

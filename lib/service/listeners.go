@@ -28,7 +28,7 @@ import (
 type listenerType string
 
 var (
-	listenerAuthSSH    = listenerType(teleport.ComponentAuth)
+	listenerAuth       = listenerType(teleport.ComponentAuth)
 	listenerNodeSSH    = listenerType(teleport.ComponentNode)
 	listenerProxySSH   = listenerType(teleport.Component(teleport.ComponentProxy, "ssh"))
 	listenerDiagnostic = listenerType(teleport.ComponentDiagnostic)
@@ -42,13 +42,14 @@ var (
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
 	listenerProxyPostgres     = listenerType(teleport.Component(teleport.ComponentProxy, "postgres"))
 	listenerProxyMongo        = listenerType(teleport.Component(teleport.ComponentProxy, "mongo"))
+	listenerProxyPeer         = listenerType(teleport.Component(teleport.ComponentProxy, "peer"))
 	listenerMetrics           = listenerType(teleport.ComponentMetrics)
 	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
 )
 
-// AuthSSHAddr returns auth server SSH endpoint, if configured and started.
-func (process *TeleportProcess) AuthSSHAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerAuthSSH)
+// AuthAddr returns auth server endpoint, if configured and started.
+func (process *TeleportProcess) AuthAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(listenerAuth)
 }
 
 // NodeSSHAddr returns the node SSH endpoint, if configured and started.
@@ -90,6 +91,11 @@ func (process *TeleportProcess) ProxyTunnelAddr() (*utils.NetAddr, error) {
 		return addr, nil
 	}
 	return process.registeredListenerAddr(listenerProxyTunnel)
+}
+
+// ProxyTunnelAddr returns the proxy peer address, if configured and started.
+func (process *TeleportProcess) ProxyPeerAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(listenerProxyPeer)
 }
 
 func (process *TeleportProcess) registeredListenerAddr(typ listenerType) (*utils.NetAddr, error) {

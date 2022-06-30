@@ -71,10 +71,6 @@ type CertAuthority interface {
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
-	// GetSigningAlg returns the signing algorithm used by signing keys.
-	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
-	// SetSigningAlg sets the signing algorithm used by signing keys.
-	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
 	// AllKeyTypesMatch returns true if all keys in the CA are of the same type.
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
@@ -263,16 +259,6 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
-// GetSigningAlg returns the CA's signing algorithm type
-func (ca *CertAuthorityV2) GetSigningAlg() CertAuthoritySpecV2_SigningAlgType {
-	return ca.Spec.SigningAlg
-}
-
-// SetSigningAlg sets the CA's signing algorith type
-func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType) {
-	ca.Spec.SigningAlg = alg
-}
-
 func (ca *CertAuthorityV2) getOldKeySet(index int) (keySet CAKeySet) {
 	// in the "old" CA schema, index 0 contains the active keys and index 1 the
 	// additional trusted keys
@@ -402,10 +388,8 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch ca.GetType() {
-	case UserCA, HostCA, JWTSigner:
-	default:
-		return trace.BadParameter("invalid CA type %q", ca.GetType())
+	if err := ca.GetType().Check(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -722,4 +706,47 @@ func (k *JWTKeyPair) CheckAndSetDefaults() error {
 		return trace.BadParameter("JWT key pair missing public key")
 	}
 	return nil
+}
+
+type CertAuthorityFilter map[CertAuthType]string
+
+func (f CertAuthorityFilter) IsEmpty() bool {
+	return len(f) == 0
+}
+
+// Match checks if a given CA matches this filter.
+func (f CertAuthorityFilter) Match(ca CertAuthority) bool {
+	if len(f) == 0 {
+		return true
+	}
+
+	return f[ca.GetType()] == Wildcard || f[ca.GetType()] == ca.GetClusterName()
+}
+
+// IntoMap makes this filter into a map for use as the Filter in a WatchKind.
+func (f CertAuthorityFilter) IntoMap() map[string]string {
+	if len(f) == 0 {
+		return nil
+	}
+
+	m := make(map[string]string, len(f))
+	for caType, name := range f {
+		m[string(caType)] = name
+	}
+	return m
+}
+
+// FromMap converts the provided map into this filter.
+func (f *CertAuthorityFilter) FromMap(m map[string]string) {
+	if len(m) == 0 {
+		*f = nil
+		return
+	}
+
+	*f = make(CertAuthorityFilter, len(m))
+	// there's not a lot of value in rejecting unknown values from the filter
+	for key, val := range m {
+		(*f)[CertAuthType(key)] = val
+	}
+
 }

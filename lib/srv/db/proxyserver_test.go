@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,10 +92,10 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			t.Run("limit can be hit", func(t *testing.T) {
 				for i := 0; i < connLimitNumber; i++ {
 					// Try to connect to the database.
-					pgConn, err := tt.connect()
+					dbConn, err := tt.connect()
 					require.NoError(t, err)
 
-					connsClosers = append(connsClosers, pgConn)
+					connsClosers = append(connsClosers, dbConn)
 				}
 
 				// This connection should go over the limit.
@@ -106,6 +107,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			// When a connection is released a new can be established
 			t.Run("reconnect one", func(t *testing.T) {
 				// Get one open connection.
+				require.GreaterOrEqual(t, len(connsClosers), 1)
 				oneConn := connsClosers[len(connsClosers)-1]
 				connsClosers = connsClosers[:len(connsClosers)-1]
 
@@ -114,9 +116,9 @@ func TestProxyConnectionLimiting(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create a new connection. We do not expect an error here as we have just closed one.
-				pgConn, err := tt.connect()
+				dbConn, err := tt.connect()
 				require.NoError(t, err)
-				connsClosers = append(connsClosers, pgConn)
+				connsClosers = append(connsClosers, dbConn)
 
 				// Here the limit should be reached again.
 				_, err = tt.connect()
@@ -141,6 +143,7 @@ func TestProxyRateLimiting(t *testing.T) {
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
 		withSelfHostedMongo("mongodb"),
+		withSelfHostedRedis("redis"),
 	)
 
 	connLimit, err := limiter.NewLimiter(limiter.Config{
@@ -189,6 +192,15 @@ func TestProxyRateLimiting(t *testing.T) {
 				return mongoClient.Disconnect, err
 			},
 		},
+		{
+			"redis",
+			func() (func(context.Context) error, error) {
+				redisClient, err := testCtx.redisClient(ctx, user, "redis", dbUser)
+				return func(_ context.Context) error {
+					return redisClient.Close()
+				}, err
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,9 +227,11 @@ func TestProxyRateLimiting(t *testing.T) {
 
 				require.Error(t, err)
 
-				//TODO(jakule) currently mongodb proxy don't know how to propagate an error,
-				// so this check for mongo is disabled
-				if tt.name != "mongodb" {
+				switch tt.name {
+				case "mongodb", "redis":
+					//TODO(jakule) currently TLS proxy (which is used by mongodb and redis) doesn't know
+					// how to propagate errors, so this check is disabled.
+				default:
 					require.Contains(t, err.Error(), "rate limit exceeded")
 				}
 
@@ -227,4 +241,26 @@ func TestProxyRateLimiting(t *testing.T) {
 			require.FailNow(t, "we should hit the limit by now")
 		})
 	}
+}
+
+func TestProxyMySQLVersion(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.12")),
+	)
+
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	t.Run("correct version when using proxy", func(t *testing.T) {
+		mysqlClient, proxy, err := testCtx.mysqlClientLocalProxy(ctx, "bob", "mysql", "bob")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, mysqlClient.Close())
+			require.NoError(t, proxy.Close())
+		})
+		require.Equal(t, "8.0.12", mysqlClient.GetServerVersion())
+	})
 }

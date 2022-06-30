@@ -19,9 +19,12 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -38,22 +41,44 @@ func (a *Server) tokenJoinMethod(ctx context.Context, tokenName string) types.Jo
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
 // all join methods, including token existence, token TTL, and allowed roles.
-func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.RegisterUsingTokenRequest) (types.ProvisionToken, error) {
 	// make sure the token is valid
-	roles, _, err := a.ValidateToken(ctx, req.Token)
+	provisionToken, err := a.ValidateToken(ctx, req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
+		msg := "the token is not valid" // default to most generic message
+		if strings.Contains(err.Error(), TokenExpiredOrNotFound) {
+			// propagate ExpiredOrNotFound message so that clients can attempt
+			// assertion-based fallback if appropriate.
+			msg = TokenExpiredOrNotFound
+		}
+		return nil, trace.AccessDenied("%q [%v] can not join the cluster with role %q, %s", req.NodeName, req.HostID, req.Role, msg)
+	}
+
+	// instance certs can be requested by any agent that has at least one local service role (e.g. proxy, node, etc).
+	if req.Role == types.RoleInstance {
+		hasLocalServiceRole := false
+		for _, role := range provisionToken.GetRoles() {
+			if role.IsLocalService() {
+				hasLocalServiceRole = true
+				break
+			}
+		}
+		if !hasLocalServiceRole {
+			msg := fmt.Sprintf("%q [%v] cannot requisition instance certs (token contains no local service roles)", req.NodeName, req.HostID)
+			log.Warn(msg)
+			return nil, trace.AccessDenied(msg)
+		}
 	}
 
 	// make sure the caller is requesting a role allowed by the token
-	if !roles.Include(req.Role) {
+	if !provisionToken.GetRoles().Include(req.Role) && req.Role != types.RoleInstance {
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
-		return trace.BadParameter(msg)
+		return nil, trace.BadParameter(msg)
 	}
 
-	return nil
+	return provisionToken, nil
 }
 
 // RegisterUsingToken returns credentials for a new node to join the Teleport
@@ -93,8 +118,70 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	// perform common token checks
-	if err := a.checkTokenJoinRequestCommon(ctx, req); err != nil {
+	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateCerts(ctx, provisionToken, req)
+	return certs, trace.Wrap(err)
+}
+
+func (a *Server) generateCerts(ctx context.Context, provisionToken types.ProvisionToken, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	if req.Role == types.RoleBot {
+		// bots use this endpoint but get a user cert
+		// botResourceName must be set, enforced in CheckAndSetDefaults
+		botName := provisionToken.GetBotName()
+
+		// Append `bot-` to the bot name to derive its username.
+		botResourceName := BotResourceName(botName)
+		expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
+
+		joinMethod := provisionToken.GetJoinMethod()
+
+		// certs for IAM method should not be renewable
+		var renewable bool
+		switch joinMethod {
+		case types.JoinMethodToken:
+			renewable = true
+		case types.JoinMethodIAM:
+			renewable = false
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch joinMethod {
+		case types.JoinMethodToken:
+			// delete ephemeral bot join tokens so they can't be re-used
+			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
+					string(backend.MaskKeyName(provisionToken.GetName())))
+			}
+		case types.JoinMethodIAM:
+			// don't delete long-lived IAM join tokens
+		default:
+			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
+		}
+
+		log.Infof("Bot %q has joined the cluster.", botName)
+		return certs, nil
+	}
+
+	// instance certs include an additional field that specifies the list of
+	// all services authorized by the token.
+	var systemRoles []types.SystemRole
+	if req.Role == types.RoleInstance {
+		for _, r := range provisionToken.GetRoles() {
+			if r.IsLocalService() {
+				systemRoles = append(systemRoles, r)
+			} else {
+				log.Warnf("Omitting non-service system role from instance cert: %q", r)
+			}
+		}
 	}
 
 	// generate and return host certificate and keys
@@ -108,24 +195,11 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			PublicSSHKey:         req.PublicSSHKey,
 			RemoteAddr:           req.RemoteAddr,
 			DNSNames:             req.DNSNames,
+			SystemRoles:          systemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
 	return certs, nil
-}
-
-func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
-	tok, err := a.GetToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !tok.GetRoles().Include(types.RoleAuth) {
-		return trace.AccessDenied("role does not match")
-	}
-	if err := a.DeleteToken(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }

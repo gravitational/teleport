@@ -86,7 +86,9 @@ type Key struct {
 	// AppTLSCerts are TLS certificates for application access.
 	// Map key is the application name.
 	AppTLSCerts map[string][]byte `json:"AppCerts,omitempty"`
-
+	// WindowsDesktopCerts are TLS certificates for Windows Desktop access.
+	// Map key is the desktop server name.
+	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCA is a list of trusted certificate authorities
 	TrustedCA []auth.TrustedCerts
 }
@@ -94,7 +96,7 @@ type Key struct {
 // NewKey generates a new unsigned key. Such key must be signed by a
 // Teleport CA (auth server) before it becomes useful.
 func NewKey() (key *Key, err error) {
-	priv, pub, err := native.GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,6 +107,21 @@ func NewKey() (key *Key, err error) {
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
 	}, nil
+}
+
+// extractIdentityFromCert parses a tlsca.Identity from raw PEM cert bytes.
+func extractIdentityFromCert(certBytes []byte) (*tlsca.Identity, error) {
+	cert, err := tlsca.ParseCertificatePEM(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS certificate")
+	}
+
+	parsed, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return parsed, nil
 }
 
 // KeyFromIdentityFile loads the private key + certificate
@@ -125,11 +142,25 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dbTLSCerts := make(map[string][]byte)
+
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
 		if _, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		parsedIdent, err := extractIdentityFromCert(ident.Certs.TLS)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// If this identity file has any database certs, copy it into the DBTLSCerts map.
+		if parsedIdent.RouteToDatabase.ServiceName != "" {
+			dbTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+		}
+
+		// TODO: add k8s, app, etc certs as well.
 	}
 
 	// Validate TLS CA certs (if present).
@@ -155,11 +186,12 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		Priv:      ident.PrivateKey,
-		Pub:       signer.PublicKey().Marshal(),
-		Cert:      ident.Certs.SSH,
-		TLSCert:   ident.Certs.TLS,
-		TrustedCA: trustedCA,
+		Priv:       ident.PrivateKey,
+		Pub:        ssh.MarshalAuthorizedKey(signer.PublicKey()),
+		Cert:       ident.Certs.SSH,
+		TLSCert:    ident.Certs.TLS,
+		TrustedCA:  trustedCA,
+		DBTLSCerts: dbTLSCerts,
 	}, nil
 }
 

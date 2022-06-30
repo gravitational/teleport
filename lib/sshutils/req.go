@@ -166,6 +166,10 @@ const (
 
 	// X11ChannelRequest is the type of an X11 forwarding channel.
 	X11ChannelRequest = "x11"
+
+	// PuTTYSimpleRequest is a PuTTY-specific channel name which it automatically requests when it proxies
+	// connections. Teleport does not support this channel type, so deliberately ignores requests for it.
+	PuTTYSimpleRequest = "simple@putty.projects.tartarus.org"
 )
 
 const (

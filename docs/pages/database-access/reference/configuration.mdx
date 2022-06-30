@@ -9,75 +9,13 @@ The following snippet shows full YAML configuration of a Database Service
 appearing in `teleport.yaml` configuration file:
 
 ```yaml
-db_service:
-  # Enables the Database Service.
-  enabled: "yes"
-
-  # Matchers for database resources created with "tctl create" command.
-  resources:
-  - labels:
-      "*": "*"
-
-  # Matchers for registering AWS-hosted databases.
-  aws:
-    # Database types. Valid options are:
-    # 'rds' - discovers and registers AWS RDS and Aurora databases.
-    # 'redshift' - discovers and registers AWS Redshift databases.
-  - types: ["rds", "redshift"]
-    # AWS regions to register databases from.
-    regions: ["us-west-1", "us-east-2"]
-    # AWS resource tags to match when registering databases.
-    tags:
-      "*": "*"
-
-  # Lists statically registered databases proxied by this agent.
-  databases:
-    # Name of the database proxy instance, used to reference in CLI.
-  - name: "prod"
-    # Free-form description of the database proxy instance.
-    description: "Production database"
-    # Database protocol. Can be "postgres", "mysql" or "mongodb".
-    protocol: "postgres"
-    # Database connection endpoint. Must be reachable from Database Service.
-    uri: "postgres.example.com:5432"
-    # Optional TLS configuration.
-    tls:
-      # TLS verification mode. Valid options are:
-      # 'verify-full' - performs full certificate validation (default).
-      # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
-      # 'insecure' - accepts any certificate provided by database (not recommended).
-      mode: verify-full
-      # Optional database DNS server name. It allows to override the DNS name on
-      # a client certificate when connecting to a database.
-      # Use only with 'verify-full' mode.
-      server_name: db.example.com
-      # Optional path to the CA used to validate the database certificate.
-      ca_cert_file: /path/to/pem
-    # AWS specific configuration, only required for RDS/Aurora/Redshift.
-    aws:
-      # Region the database is deployed in.
-      region: "us-east-1"
-      # Redshift specific configuration.
-      redshift:
-        # Redshift cluster identifier.
-        cluster_id: "redshift-cluster-1"
-    # GCP specific configuration for Cloud SQL databases.
-    gcp:
-      # GCP project ID.
-      project_id: "xxx-1234"
-      # Cloud SQL instance ID.
-      instance_id: "example"
-    # Static labels to assign to the database. Used in RBAC.
-    static_labels:
-      env: "prod"
-    # Dynamic labels ("commands"). Used in RBAC.
-    dynamic_labels:
-    - name: "hostname"
-      command: ["hostname"]
-      period: 1m0s
+(!docs/pages/includes/database-access/database-config.yaml!)
 ```
 
 ## Proxy configuration
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 The following Proxy service configuration is relevant for Database Access:
 
@@ -116,6 +54,32 @@ proxy_service:
   mongo_public_addr: "mongo.teleport.example.com:443"
 ```
 
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Teleport Cloud automatically configures the Teleport Proxy Service with the
+following settings that are relevant to Database Access. This reference
+configuration uses `mytenant.teleport.sh` in place of your Teleport Cloud tenant
+address.
+
+```yaml
+proxy_service:
+  enabled: "yes"
+  # PostgreSQL proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:3080"
+  # MySQL proxy is listening on a separate port.
+  mysql_listen_addr: "0.0.0.0:3036"
+  # Database clients will connect to the Proxy Service over this hostname.
+  public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to MySQL clients.
+  mysql_public_addr: "mytenant.teleport.sh:3036"
+  # Address advertised to PostgreSQL clients.
+  postgres_public_addr: "mytenant.teleport.sh:443"
+```
+
+</TabItem>
+</Tabs>
+
 ## Database resource
 
 Full YAML spec of database resources managed by `tctl` resource commands:
@@ -126,21 +90,47 @@ version: v3
 metadata:
   # Database resource name.
   name: example
+
   # Database resource description.
   description: "Example database"
+
   # Database resource static labels.
   labels:
     env: example
+
 spec:
   # Database protocol.
   protocol: "postgres"
+
   # Database connection endpoint.
   uri: "localhost:5432"
+
   # Optional CA for validating the database certificate.
   ca_cert: |
     -----BEGIN CERTIFICATE-----
     ...
     -----END CERTIFICATE-----
+
+  # MySQL only options.
+  mysql:
+    # The MySQL server version reported by the Teleport Proxy Service.
+    # Teleport uses this string when reporting the server version to a 
+    # connecting client.
+    #
+    # When this option is not set, the Database Service will try to connect to
+    # a MySQL instance on startup and fetch the server version. Otherwise, 
+    # it will use the provided value without connecting to a database. 
+    #
+    # In both cases, the MySQL server version reported to a client will be 
+    # updated on the first successful connection made by a user.
+    # Teleport uses that string instead of default '8.0.0-Teleport' version when reporting
+    # the server version to a connecting client. When this option is not set, the Database Service will try
+    # to connect to MySQL instance on startup and fetch the server version.
+    # Otherwise, it will use the provided value without connecting to a database.
+    # In both cases MySQL server version reported to a client will be updated on the first successful
+    # connection made by a user.
+    server_version: 8.0.28
+
   # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
   aws:
     # Region the database is deployed in.
@@ -149,15 +139,54 @@ spec:
     redshift:
       # Redshift cluster identifier.
       cluster_id: "redshift-cluster-1"
+
   # Optional GCP configuration for Cloud SQL.
   gcp:
     # GCP project ID.
     project_id: "xxx-1234"
     # Cloud SQL instance ID.
     instance_id: "example"
+
+  # Settings specific to Active Directory authentication e.g. for SQL Server.
+  ad:
+    # Path to Kerberos keytab file.
+    keytab_file: /path/to/keytab
+    # Active Directory domain name.
+    domain: EXAMPLE.COM
+    # Service Principal Name to obtain Kerberos tickets for.
+    spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+    # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+    krb5_file: /etc/krb5.conf
+
   # Optional dynamic labels.
   dynamic_labels:
   - name: "hostname"
     command: ["hostname"]
     period: 1m0s
 ```
+
+You can create a new `db` resource by running the following commands, which
+assume that you have created a YAML file called `db.yaml` with your configuration:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
+# Create the resource
+$ tctl create -f db.yaml
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+# Log in to your Teleport cluster so you can use tctl from your local machine.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+# Create the resource
+$ tctl create -f db.yaml
+```
+
+</ScopedBlock>

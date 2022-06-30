@@ -56,6 +56,8 @@ type ProvisionToken interface {
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
+	// GetBotName returns the BotName field which must be set for joining bots.
+	GetBotName() string
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -85,7 +87,7 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 }
 
 // MustCreateProvisionToken returns a new valid provision token
-// or panics, used in testes
+// or panics, used in tests
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
@@ -112,6 +114,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	}
 	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if SystemRoles(p.Spec.Roles).Include(RoleBot) && p.Spec.BotName == "" {
+		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
+	}
+
+	if p.Spec.BotName != "" && !SystemRoles(p.Spec.Roles).Include(RoleBot) {
+		return trace.BadParameter("can only set bot_name on token with role %q", RoleBot)
 	}
 
 	hasAllowRules := len(p.Spec.Allow) > 0
@@ -198,6 +208,11 @@ func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 // GetJoinMethod returns joining method that must be used with this token.
 func (p *ProvisionTokenV2) GetJoinMethod() JoinMethod {
 	return p.Spec.JoinMethod
+}
+
+// GetBotName returns the BotName field which must be set for joining bots.
+func (p *ProvisionTokenV2) GetBotName() string {
+	return p.Spec.BotName
 }
 
 // GetKind returns resource kind

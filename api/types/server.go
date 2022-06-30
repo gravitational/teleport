@@ -77,6 +77,12 @@ type Server interface {
 	GetKubernetesClusters() []*KubernetesCluster
 	// SetKubeClusters sets the kubernetes clusters handled by this server.
 	SetKubernetesClusters([]*KubernetesCluster)
+	// GetPeerAddr returns the peer address of the server.
+	GetPeerAddr() string
+	// SetPeerAddr sets the peer address of the server.
+	SetPeerAddr(string)
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 	// MatchAgainst takes a map of labels and returns True if this server
 	// has ALL of them
 	//
@@ -221,9 +227,23 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
+
 // GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// GetStaticLabels returns the server static labels.
+func (s *ServerV2) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the server static labels.
+func (s *ServerV2) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // GetCmdLabels returns command labels
@@ -268,6 +288,16 @@ func (s *ServerV2) GetNamespace() string {
 	return ProcessNamespace(s.Metadata.Namespace)
 }
 
+// GetProxyID returns the proxy id this server is connected to.
+func (s *ServerV2) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
@@ -308,6 +338,16 @@ func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.
 // SetKubernetesClusters sets the kubernetes clusters handled by this server.
 func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 	s.Spec.KubernetesClusters = clusters
+}
+
+// GetPeerAddr returns the peer address of the server.
+func (s *ServerV2) GetPeerAddr() string {
+	return s.Spec.PeerAddr
+}
+
+// SetPeerAddr sets the peer address of the server.
+func (s *ServerV2) SetPeerAddr(addr string) {
+	s.Spec.PeerAddr = addr
 }
 
 // MatchAgainst takes a map of labels and returns True if this server
@@ -484,3 +524,76 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 // client side, in the ~/.tsh directory. Restricting characters helps with
 // sneaky cluster names being used for client directory traversal and exploits.
 var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// Servers represents a list of servers.
+type Servers []Server
+
+// Len returns the slice length.
+func (s Servers) Len() int { return len(s) }
+
+// Less compares servers by name.
+func (s Servers) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two servers.
+func (s Servers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s Servers) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecHostname:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetHostname(), s[j].GetHostname(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindNode)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (s Servers) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s Servers) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecHostname:
+		for _, server := range s {
+			vals = append(vals, server.GetHostname())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindNode)
+	}
+
+	return vals, nil
+}
