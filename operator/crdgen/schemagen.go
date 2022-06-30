@@ -262,25 +262,6 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 						},
 						"metadata": {Type: "object"},
 						"spec":     schema.JSONSchemaProps,
-						"status": {
-							Type:        "object",
-							Description: fmt.Sprintf("%s resource status", root.kind),
-							Properties: map[string]apiextv1.JSONSchemaProps{
-								"lastError": {
-									Type: "object",
-									Properties: map[string]apiextv1.JSONSchemaProps{
-										"kind": {
-											Type:        "string",
-											Description: "Error kind",
-										},
-										"text": {
-											Type:        "string",
-											Description: "Error text",
-										},
-									},
-								},
-							},
-						},
 					},
 				},
 			},
