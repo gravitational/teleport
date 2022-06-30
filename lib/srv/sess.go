@@ -1589,12 +1589,13 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
-	s.term.AddParty(1)
 
 	s.BroadcastMessage("User %v joined the session.", p.user)
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	if mode == types.SessionPeerMode {
+		s.term.AddParty(1)
+
 		// This goroutine keeps pumping party's input into the session.
 		go func() {
 			defer s.term.AddParty(-1)
