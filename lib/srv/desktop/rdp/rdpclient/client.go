@@ -521,8 +521,7 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 // and frees the Rust client.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
-		c.handle.Delete()
-
+		// Close the RDP client
 		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("failed to close the RDP client")
 		}
