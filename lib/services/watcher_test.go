@@ -518,17 +518,6 @@ func resourceDiff(res1, res2 types.Resource) string {
 		cmpopts.EquateEmpty())
 }
 
-func caDiff(ca1, ca2 types.CertAuthority) string {
-	return cmp.Diff(ca1, ca2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.IgnoreFields(types.CertAuthoritySpecV2{}, "CheckingKeys", "TLSKeyPairs", "JWTKeyPairs"),
-		cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
-		cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
-		cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
-		cmpopts.EquateEmpty(),
-	)
-}
-
 // TestDatabaseWatcher tests that database resource watcher properly receives
 // and dispatches updates to database resources.
 func TestDatabaseWatcher(t *testing.T) {
@@ -784,7 +773,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
-		// Create a CA and ensure we receive the events.
+		// Create a CA and ensure we receive the event.
 		ca := newCertAuthority(t, "test", types.HostCA)
 		require.NoError(t, caService.UpsertCertAuthority(ca))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
