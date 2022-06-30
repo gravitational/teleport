@@ -28,12 +28,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"k8s.io/utils/strings/slices"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -189,7 +188,7 @@ Outer:
 		event, ok := arr[0].(*apievents.UserLogin)
 		c.Assert(ok, check.Equals, true)
 		c.Assert(event.GetTime(), check.Equals, baseTime2)
-		c.Assert(slices.Contains(names, event.User), check.Equals, true)
+		c.Assert(apiutils.SliceContainsStr(names, event.User), check.Equals, true)
 
 		for i, name := range names {
 			if name == event.User {
