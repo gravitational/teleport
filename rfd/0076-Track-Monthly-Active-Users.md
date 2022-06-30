@@ -192,7 +192,7 @@ This allows us to later extend the mechanism proposed in this RFD to also track 
 
 A exporter task will be spawn in order to periodically update the following [Prometheus gauge](https://prometheus.io/docs/concepts/metric_types/#gauge) with the result of `ActiveUsers.Count`:
 ```go
-prometheus.NewGaugeVec(
+metric := prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "active_users",
 		Help: "Number of active users during window",
@@ -201,7 +201,10 @@ prometheus.NewGaugeVec(
 )
 ```
 
-If at some point we extend the mechanism proposed in this RFD to also track the number of active users during e.g. the last week, we can simply add a Prometheus gauge with the same name (i.e. `"active_users"`) but with a different label (`"window": "7d"`).
+The above allows us to extend the mechanism proposed in this RFD to also track the number of active users during different time windows (e.g. the last day or last week) by setting different label values:
+```go
+metric.WithLabelValues("7d").Set(count)
+```
 
 ### Concerns and open questions
 
