@@ -333,16 +333,30 @@ func showRequestTable(reqs []types.AccessRequest) error {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
 
-	table := asciitable.MakeTable([]string{"ID", "User", "Roles", "Created (UTC)", "Status"})
+	table := asciitable.MakeTable([]string{"ID", "User", "Roles"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Resources",
+		MaxCellLength: 20,
+		FootnoteLabel: "[+]",
+	})
+	table.AddFootnote("[+]",
+		"Requested resources truncated, use `tsh request show <request-id>` to view the full list")
+	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
+		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
 			strings.Join(req.GetRoles(), ","),
+			resourceIDsString,
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			req.GetState().String(),
 		})
