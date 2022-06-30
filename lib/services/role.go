@@ -353,6 +353,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		// apply templates to windows desktop labels
+		inLabels = r.GetWindowsDesktopLabels(condition)
+		if inLabels != nil {
+			r.SetWindowsDesktopLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
 		r.SetHostGroups(condition,
 			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
 
@@ -741,6 +747,38 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil
+}
+
+// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchClusterRoles.
+type CurrentUserRoleGetter interface {
+	GetCurrentUser(context.Context) (types.User, error)
+	RoleGetter
+}
+
+// FetchAllClusterRoles fetches all roles available to the user on the specified cluster.
+func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoles []string, defaultTraits wrappers.Traits) (RoleSet, error) {
+	roles := defaultRoles
+	traits := defaultTraits
+
+	// Typically, auth.ClientI is passed as currentUserRoleGetter. Older versions of the auth client
+	// may not implement GetCurrentUser() so we fail gracefully and use default roles and traits instead.
+	user, err := access.GetCurrentUser(ctx)
+	if err == nil {
+		roles = user.GetRoles()
+		traits = user.GetTraits()
+	} else {
+		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// get the role definition for all roles of user.
+	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+	// example scenario when this may happen:
+	// 1. we have set of roles [foo bar] from profile.
+	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+	// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+	roleSet, err := FetchRoles(roles, access, traits)
+	return roleSet, trace.Wrap(err)
 }
 
 // ExtractRolesFromCert extracts roles from certificate metadata extensions.
