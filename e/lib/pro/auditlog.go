@@ -4,47 +4,33 @@ import (
 	"context"
 	"time"
 
+	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 
-	rclient "github.com/gravitational/reporting/client"
-	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
-// AuditLog implements events.IAuditLog and extends the open-source implementation
-// it is initialized with by anonymizing certain usage events and forwarding them
-// to the control plane
+// AuditLog implements events.IAuditLog and wraps the open-source implementation
 type AuditLog struct {
-	// AuditLogConfig is the audit log configuration
-	AuditLogConfig
+	// Inner is the audit log this logger wraps
+	Inner events.IAuditLog
 	// Entry is used for logging
-	*log.Entry
+	Entry *log.Entry
 }
 
 // AuditLogConfig represents the audit log configuration
 type AuditLogConfig struct {
-	// Inner the audit log this logger wraps
+	// Inner is the audit log this logger wraps
 	Inner events.IAuditLog
-	// Recorder is the underlying recording client
-	Recorder rclient.Client
-	// Anonymizer is used for anonymizing sent data
-	Anonymizer utils.Anonymizer
 }
 
 // Check checks that the audit log config is valid
 func (c *AuditLogConfig) Check() error {
 	if c.Inner == nil {
-		return trace.BadParameter("missing Inner")
-	}
-	if c.Recorder == nil {
-		return trace.BadParameter("missing Recorder")
-	}
-	if c.Anonymizer == nil {
-		return trace.BadParameter("missing Anonymizer")
+		return trace.BadParameter("audit log config is missing inner")
 	}
 	return nil
 }
@@ -55,7 +41,7 @@ func NewAuditLog(config AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &AuditLog{
-		AuditLogConfig: config,
+		Inner: config.Inner,
 		Entry: log.WithFields(log.Fields{
 			trace.Component: "usage",
 		}),

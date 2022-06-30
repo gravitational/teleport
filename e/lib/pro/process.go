@@ -4,15 +4,12 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/e/lib/auth"
-	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 
-	liblicense "github.com/gravitational/license"
-	reporting "github.com/gravitational/reporting/client"
 	"github.com/gravitational/trace"
 )
 
@@ -90,20 +87,6 @@ type proConfig struct {
 
 // initServices initializes services for teleport pro mode
 func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, error) {
-	certificate, err := liblicense.MakeTLSCert(*config.Teleport.LicenseFile.KeyPair)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	recorder, err := reporting.NewClient(ctx,
-		reporting.ClientConfig{
-			ServerAddr:  constants.GetControlPlaneAPIAddr(),
-			ServerName:  constants.GetControlPlaneAPIHost(),
-			Certificate: *certificate,
-			Insecure:    config.Insecure,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	clusterName, err := config.Teleport.GetAuthServer().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,9 +96,7 @@ func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, e
 		return nil, trace.Wrap(err)
 	}
 	auditLog, err := NewAuditLog(AuditLogConfig{
-		Inner:      config.Teleport.GetAuditLog(),
-		Recorder:   recorder,
-		Anonymizer: anonymizer,
+		Inner: config.Teleport.GetAuditLog(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
