@@ -87,7 +87,11 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 		if hasDeletionFinalizer {
 			log.Info("deleting object in Teleport")
 			if err := r.DeleteExternal(ctx, obj); err != nil {
-				return ctrl.Result{}, trace.Wrap(err)
+				// if the object was already deleted in Teleport, we can continue our flow
+				// Any other error will be returned
+				if !trace.IsNotFound(err) {
+					return ctrl.Result{}, trace.Wrap(err)
+				}
 			}
 
 			log.Info("removing finalizer")

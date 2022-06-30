@@ -112,12 +112,12 @@ func TestUserDeletionDrift(t *testing.T) {
 	// The role is deleted in K8S
 	k8sDeleteUser(ctx, t, k8sClient, userName, ns.Name)
 
-	var kUser resourcesv2.User
+	var k8sUser resourcesv2.User
 	fastEventually(t, func() bool {
 		err = k8sClient.Get(ctx, kclient.ObjectKey{
 			Namespace: ns.Name,
 			Name:      userName,
-		}, &kUser)
+		}, &k8sUser)
 		return kerrors.IsNotFound(err)
 	})
 }
