@@ -3015,9 +3015,12 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 
 		if !cfg.Proxy.PostgresAddr.IsEmpty() {
-			if err := process.setPostgresListener(cfg, &listeners); err != nil {
+			process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			listeners.db.postgres = listener
 		}
 	}
 
@@ -3164,14 +3167,6 @@ func (process *TeleportProcess) setPostgresListener(cfg *Config, listeners *prox
 		listeners.db.postgres = listeners.mux.DB()
 		return nil
 	}
-	// If cfg.Proxy.PostgresAddr address was provided start Postgres service on separate listener without
-	// multiplexing it on webPort.
-	process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
-	listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	listeners.db.postgres = listener
 	return nil
 }
 
