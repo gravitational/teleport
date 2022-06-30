@@ -65,7 +65,7 @@ function ServerList(props: State) {
         ]}
         emptyText="No Nodes Found"
         data={servers}
-        pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
+        pagination={{ pageSize: 15, pagerPosition: 'bottom' }}
       />
     </>
   );

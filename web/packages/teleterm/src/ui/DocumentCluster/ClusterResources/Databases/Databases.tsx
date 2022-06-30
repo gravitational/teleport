@@ -63,7 +63,7 @@ function DatabaseList(props: State) {
             ),
           },
         ]}
-        pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
+        pagination={{ pageSize: 15, pagerPosition: 'bottom' }}
         emptyText="No Databases Found"
       />
     </>
