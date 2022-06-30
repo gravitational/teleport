@@ -942,16 +942,6 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IsWatched return true if the given certificate auth type is being observer by the watcher.
-func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
-	for _, observedType := range cfg.Types {
-		if observedType == certType {
-			return true
-		}
-	}
-	return false
-}
-
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
 func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -994,21 +984,17 @@ type caCollector struct {
 	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
-// CertAuthorityTarget lists the attributes of interactions to be disabled.
-type CertAuthorityTarget struct {
-	// ClusterName specifies the name of the cluster to watch.
-	ClusterName string
-	// Type specifies the ca types to watch for.
-	Type types.CertAuthType
-}
-
 // Subscribe is used to subscribe to the lock updates.
-func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTarget) (types.Watcher, error) {
-	watchKinds, err := caTargetToWatchKinds(targets)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	watch := types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind:   c.resourceKind(),
+				Filter: filter.IntoMap(),
+			},
+		},
 	}
-	sub, err := c.fanout.NewWatcher(ctx, types.Watch{Kinds: watchKinds})
+	sub, err := c.fanout.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1021,31 +1007,6 @@ func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTar
 		return nil, trace.Wrap(sub.Error())
 	}
 	return sub, nil
-}
-
-func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, error) {
-	watchKinds := make([]types.WatchKind, 0, len(targets))
-	for _, target := range targets {
-		kind := types.WatchKind{
-			Kind: types.KindCertAuthority,
-			// Note that watching SubKind doesn't work for types.WatchKind - to do so it would
-			// require a custom filter, which was recently added but - we can't use yet due to
-			// older clients not supporting the filter.
-			SubKind: string(target.Type),
-		}
-
-		if target.ClusterName != "" {
-			kind.Name = target.ClusterName
-		}
-
-		watchKinds = append(watchKinds, kind)
-	}
-
-	if len(watchKinds) == 0 {
-		watchKinds = []types.WatchKind{{Kind: types.KindCertAuthority}}
-	}
-
-	return watchKinds, nil
 }
 
 // resourceKind specifies the resource kind to watch.
