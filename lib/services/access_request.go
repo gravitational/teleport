@@ -1457,7 +1457,7 @@ func getResources(ctx context.Context, getter PruneResourceRequestGetter, resour
 	for kind, resourceNames := range resourceNamesByKind {
 		req := proto.ListResourcesRequest{
 			ResourceType:        MapResourceKindToListResourcesType(kind),
-			PredicateExpression: namesMatcher(resourceNames),
+			PredicateExpression: anyNameMatcher(resourceNames),
 			Limit:               int32(len(resourceNames)),
 		}
 		resp, err := getter.ListResources(ctx, req)
@@ -1475,9 +1475,9 @@ func getResources(ctx context.Context, getter PruneResourceRequestGetter, resour
 	return resources, nil
 }
 
-// namesMatcher returns a PredicateExpression which matches any of a given list
+// anyNameMatcher returns a PredicateExpression which matches any of a given list
 // of names. Given names will be escaped and quoted when building the expression.
-func namesMatcher(names []string) string {
+func anyNameMatcher(names []string) string {
 	matchers := make([]string, len(names))
 	for i := range names {
 		matchers[i] = fmt.Sprintf(`name == %q`, names[i])
