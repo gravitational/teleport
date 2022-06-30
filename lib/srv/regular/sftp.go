@@ -35,6 +35,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// number of goroutines that copy SFTP data from a SSH channel to
+// and from anonymous pipes
+const copyingGoroutines = 2
+
 type sftpSubsys struct {
 	sftpCmd *exec.Cmd
 	ch      ssh.Channel
@@ -99,7 +103,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	serverCtx.ExecRequest.Continue()
 
 	// Copy the SSH channel to and from the anonymous pipes
-	s.errCh = make(chan error, 2)
+	s.errCh = make(chan error, copyingGoroutines)
 	go func() {
 		defer chReadPipeIn.Close()
 
@@ -172,7 +176,7 @@ func (s *sftpSubsys) Wait() error {
 	s.log.Debug("SFTP process finished")
 
 	errs := []error{waitErr}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < copyingGoroutines; i++ {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.log.WithError(err).Warn("Connection problem.")

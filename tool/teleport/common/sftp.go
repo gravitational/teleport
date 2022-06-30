@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -138,7 +139,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPOpenFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPEN
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 		event.Flags = p.Pflags
 	case *sftp.ClosePacket:
 		if opErr == nil {
@@ -147,7 +148,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPCloseFailureCode
 		}
 		event.Action = apievents.SFTPAction_CLOSE
-		event.Path = path
+		event.Path = makePathAbs(path)
 	case *sftp.ReadPacket:
 		if opErr == nil {
 			event.Code = events.SFTPReadCode
@@ -155,7 +156,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPReadFailureCode
 		}
 		event.Action = apievents.SFTPAction_READ
-		event.Path = path
+		event.Path = makePathAbs(path)
 	case *sftp.WritePacket:
 		if opErr == nil {
 			event.Code = events.SFTPWriteCode
@@ -163,7 +164,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPWriteFailureCode
 		}
 		event.Action = apievents.SFTPAction_WRITE
-		event.Path = path
+		event.Path = makePathAbs(path)
 	case *sftp.LstatPacket:
 		if opErr == nil {
 			event.Code = events.SFTPLstatCode
@@ -171,7 +172,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPLstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_LSTAT
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.FstatPacket:
 		if opErr == nil {
 			event.Code = events.SFTPFstatCode
@@ -179,7 +180,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPFstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_FSTAT
-		event.Path = path
+		event.Path = makePathAbs(path)
 	case *sftp.SetstatPacket:
 		if opErr == nil {
 			event.Code = events.SFTPSetstatCode
@@ -187,7 +188,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPSetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_SETSTAT
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
 	case *sftp.FsetstatPacket:
 		if opErr == nil {
@@ -196,7 +197,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPFsetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_FSETSTAT
-		event.Path = path
+		event.Path = makePathAbs(path)
 		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
 	case *sftp.OpendirPacket:
 		if opErr == nil {
@@ -205,7 +206,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPOpendirFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPENDIR
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.ReaddirPacket:
 		if opErr == nil {
 			event.Code = events.SFTPReaddirCode
@@ -213,7 +214,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPReaddirFailureCode
 		}
 		event.Action = apievents.SFTPAction_READDIR
-		event.Path = path
+		event.Path = makePathAbs(path)
 	case *sftp.RemovePacket:
 		if opErr == nil {
 			event.Code = events.SFTPRemoveCode
@@ -221,7 +222,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPRemoveFailureCode
 		}
 		event.Action = apievents.SFTPAction_REMOVE
-		event.Path = p.Filename
+		event.Path = makePathAbs(p.Filename)
 	case *sftp.MkdirPacket:
 		if opErr == nil {
 			event.Code = events.SFTPMkdirCode
@@ -229,7 +230,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPMkdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_MKDIR
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 		event.Flags = p.Flags
 	case *sftp.RmdirPacket:
 		if opErr == nil {
@@ -238,7 +239,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPRmdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_RMDIR
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.RealpathPacket:
 		if opErr == nil {
 			event.Code = events.SFTPRealpathCode
@@ -246,7 +247,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPRealpathFailureCode
 		}
 		event.Action = apievents.SFTPAction_REALPATH
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.StatPacket:
 		if opErr == nil {
 			event.Code = events.SFTPStatCode
@@ -254,7 +255,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPStatFailureCode
 		}
 		event.Action = apievents.SFTPAction_STAT
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.RenamePacket:
 		if opErr == nil {
 			event.Code = events.SFTPRenameCode
@@ -262,8 +263,8 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPRenameFailureCode
 		}
 		event.Action = apievents.SFTPAction_RENAME
-		event.Path = p.Oldpath
-		event.TargetPath = p.Newpath
+		event.Path = makePathAbs(p.Oldpath)
+		event.TargetPath = makePathAbs(p.Newpath)
 	case *sftp.ReadlinkPacket:
 		if opErr == nil {
 			event.Code = events.SFTPReadlinkCode
@@ -271,7 +272,7 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPReadlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_READLINK
-		event.Path = p.Path
+		event.Path = makePathAbs(p.Path)
 	case *sftp.SymlinkPacket:
 		if opErr == nil {
 			event.Code = events.SFTPSymlinkCode
@@ -279,13 +280,22 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 			event.Code = events.SFTPSymlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_SYMLINK
-		event.Path = p.Targetpath
-		event.TargetPath = p.Linkpath
+		event.Path = makePathAbs(p.Targetpath)
+		event.TargetPath = makePathAbs(p.Linkpath)
 	default:
 		return nil, false
 	}
 
 	return event, true
+}
+
+func makePathAbs(path string) string {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		log.WithError(err).Warn("Failed to make filepath in SFTP request absolute.")
+	}
+
+	return absPath
 }
 
 const (
