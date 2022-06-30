@@ -141,7 +141,7 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     /opt/go/bin/go version
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
-    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+    PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 ARG BUILDARCH
 
