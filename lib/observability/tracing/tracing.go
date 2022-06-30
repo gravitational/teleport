@@ -125,7 +125,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c Config) Endpoint() string {
+func (c *Config) Endpoint() string {
 	if !strings.HasPrefix(c.ExporterURL, c.exporterURL.Scheme) {
 		return c.ExporterURL
 	}
