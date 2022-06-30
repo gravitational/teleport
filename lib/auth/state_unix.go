@@ -30,10 +30,6 @@ import (
 
 // NewProcessStorage returns a new instance of the process storage.
 func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
-	var (
-		identityStorage stateBackend
-	)
-
 	if path == "" {
 		return nil, trace.BadParameter("missing parameter path")
 	}
@@ -47,6 +43,10 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// identityStorage is the
+	// if in Kubernetes it's replaced by kubernetes secret storage
+	var identityStorage stateBackend = litebk
 
 	// if running in a K8S cluster and required env vars are available
 	// the agent will automatically switch state storage from local
@@ -68,9 +68,6 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		}
 
 		identityStorage = kubeStorage
-	} else {
-		// if not in Kubernetes or env vars are not available use local sqlite as identity backend
-		identityStorage = litebk
 	}
 
 	return &ProcessStorage{BackendStorage: litebk, stateStorage: identityStorage}, nil

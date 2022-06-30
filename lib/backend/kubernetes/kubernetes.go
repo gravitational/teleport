@@ -181,10 +181,11 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 
 	secret, err := b.getSecret(ctx)
 	if err != nil && trace.IsNotFound(err) {
-		secret, err = b.createSecret(ctx)
+		_, err = b.createSecret(ctx, items...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return &backend.Lease{}, nil
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,9 +194,7 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 		secret.Data = map[string][]byte{}
 	}
 
-	for _, item := range items {
-		secret.Data[backendKeyToSecret(item.Key)] = item.Value
-	}
+	updateDataMap(secret.Data, items...)
 
 	if err := b.updateSecret(ctx, secret); err != nil {
 		return nil, trace.Wrap(err)
@@ -219,15 +218,18 @@ func (b *Backend) updateSecret(ctx context.Context, secret *corev1.Secret) error
 	return trace.Wrap(err)
 }
 
-func (b *Backend) createSecret(ctx context.Context) (*corev1.Secret, error) {
+func (b *Backend) createSecret(ctx context.Context, items ...backend.Item) (*corev1.Secret, error) {
 	const (
 		helmReleaseNameAnnotation     = "meta.helm.sh/release-name"
 		helmReleaseNamesaceAnnotation = "meta.helm.sh/release-namespace"
 		helmK8SManaged                = "app.kubernetes.io/managed-by"
 		helmResourcePolicy            = "helm.sh/resource-policy"
 	)
+	data := map[string][]byte{}
+	updateDataMap(data, items...)
+
 	secretApply := applyconfigv1.Secret(b.secretName, b.namespace).
-		WithData(map[string][]byte{}).
+		WithData(data).
 		WithLabels(map[string]string{
 			helmK8SManaged: "Helm",
 		}).
@@ -252,4 +254,10 @@ func (b *Backend) createSecret(ctx context.Context) (*corev1.Secret, error) {
 // "/" chars are not allowed in Kubernetes Secret keys.
 func backendKeyToSecret(k []byte) string {
 	return strings.ReplaceAll(string(k), "/", ".")
+}
+
+func updateDataMap(data map[string][]byte, items ...backend.Item) {
+	for _, item := range items {
+		data[backendKeyToSecret(item.Key)] = item.Value
+	}
 }

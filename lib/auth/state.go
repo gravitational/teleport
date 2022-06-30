@@ -47,13 +47,18 @@ type stateBackend interface {
 // it helps to manage rotation for certificate authorities
 // and keeps local process credentials - x509 and SSH certs and keys.
 type ProcessStorage struct {
+	// BackendStorage is the SQLite backend used for operations unrelated to storing/reading identities and states.
 	BackendStorage backend.Backend
-	stateStorage   stateBackend
+
+	// stateStorage is the backend to store agents' identities and states.
+	// it is not required to close stateBackend storage because it's either the same as BackendStorage or it is Kubernetes
+	// which does not require any close method
+	stateStorage stateBackend
 }
 
 // Close closes all resources used by process storage backend.
 func (p *ProcessStorage) Close() error {
-	// we do not need to close identity storage because it's either the same as backend or it's kubernetes
+	// we do not need to close stateBackend storage because it's either the same as backend or it's kubernetes
 	// which does not require any close method
 	return p.BackendStorage.Close()
 }
