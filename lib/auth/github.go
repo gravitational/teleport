@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +39,17 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
+
+func githubNoTeamsError(username, connectorName string) error {
+	return trace.BadParameter("user %q does not belong to any teams configured in %q connector; the configuration may have typos.", username, connectorName)
+}
+
+var githubNoTeamsPattern = regexp.MustCompile(githubNoTeamsError(".+", ".+").Error())
+
+// IsGithubNoTeamsError checks if an error results from a github user not beloging to any teams.
+func IsGithubNoTeamsError(err error) bool {
+	return trace.IsBadParameter(err) && githubNoTeamsPattern.MatchString(err.Error())
+}
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -453,9 +465,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	// Calculate logins, kubegroups, roles, and traits.
 	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.roles) == 0 {
-		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
-			claims.Username, connector.GetName())
+		return nil, trace.Wrap(githubNoTeamsError(claims.Username, connector.GetName()))
 	}
 	p.traits = map[string][]string{
 		teleport.TraitLogins:     {p.username},

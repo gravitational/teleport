@@ -1160,6 +1160,10 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			}
 		}
 
+		if auth.IsGithubNoTeamsError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
+
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
@@ -1260,6 +1264,10 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 					return redURL.String()
 				}
 			}
+		}
+
+		if auth.IsOIDCNoRolesError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
 		return client.LoginFailedBadCallbackRedirectURL

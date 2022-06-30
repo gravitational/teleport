@@ -113,6 +113,10 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			}
 		}
 
+		if auth.IsSAMLNoRolesError(err) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
+
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
