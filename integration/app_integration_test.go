@@ -596,6 +596,7 @@ func (p *pack) appServersHA(t *testing.T) {
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
@@ -618,6 +619,7 @@ func (p *pack) appServersHA(t *testing.T) {
 
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
