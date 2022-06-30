@@ -885,19 +885,6 @@ spec:
                     type: boolean
                 type: object
             type: object
-          status:
-            description: Role resource status
-            properties:
-              lastError:
-                properties:
-                  kind:
-                    description: Error kind
-                    type: string
-                  text:
-                    description: Error text
-                    type: string
-                type: object
-            type: object
         type: object
     served: true
     storage: true
