@@ -56,7 +56,7 @@ func InKubeCluster() bool {
 // Backend uses Kubernetes Secrets to store identities.
 type Backend struct {
 	// kubernetes client
-	k8sClientSet *kubernetes.Clientset
+	k8sClientSet kubernetes.Interface
 	namespace    string
 	secretName   string
 	replicaName  string
@@ -75,6 +75,12 @@ func New() (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	return NewWithClient(restClient)
+
+}
+
+// NewWithClient returns a new instance of Kubernetes Secret identity backend storage with the provided client.
+func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 	return &Backend{
 		k8sClientSet: restClient,
 		namespace:    os.Getenv(namespaceEnv),
@@ -149,7 +155,6 @@ func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	if err == nil {
 		return secret, nil
 	}
-
 	var kubeErr *kubeerrors.StatusError
 	if errors.As(err, &kubeErr) && kubeErr.ErrStatus.Code == http.StatusNotFound {
 		return nil, trace.NotFound("secret %v not found", b.secretName)
@@ -220,25 +225,14 @@ func (b *Backend) updateSecret(ctx context.Context, secret *corev1.Secret) error
 }
 
 func (b *Backend) createSecret(ctx context.Context, items ...backend.Item) (*corev1.Secret, error) {
-	const (
-		helmReleaseNameAnnotation     = "meta.helm.sh/release-name"
-		helmReleaseNamesaceAnnotation = "meta.helm.sh/release-namespace"
-		helmK8SManaged                = "app.kubernetes.io/managed-by"
-		helmResourcePolicy            = "helm.sh/resource-policy"
-	)
+
 	data := map[string][]byte{}
 	updateDataMap(data, items...)
 
 	secretApply := applyconfigv1.Secret(b.secretName, b.namespace).
 		WithData(data).
-		WithLabels(map[string]string{
-			helmK8SManaged: "Helm",
-		}).
-		WithAnnotations(map[string]string{
-			helmReleaseNameAnnotation:     os.Getenv(releaseNameEnv),
-			helmReleaseNamesaceAnnotation: os.Getenv(namespaceEnv),
-			helmResourcePolicy:            "keep",
-		})
+		WithLabels(generateSecretLabels()).
+		WithAnnotations(generateSecretAnnotations(b.namespace, os.Getenv(releaseNameEnv)))
 
 	return b.k8sClientSet.
 		CoreV1().
@@ -249,6 +243,28 @@ func (b *Backend) createSecret(ctx context.Context, items ...backend.Item) (*cor
 			metav1.ApplyOptions{FieldManager: b.replicaName},
 		)
 
+}
+
+func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]string {
+	const (
+		helmReleaseNameAnnotation     = "meta.helm.sh/release-name"
+		helmReleaseNamesaceAnnotation = "meta.helm.sh/release-namespace"
+		helmResourcePolicy            = "helm.sh/resource-policy"
+	)
+	return map[string]string{
+		helmReleaseNameAnnotation:     releaseNameEnv,
+		helmReleaseNamesaceAnnotation: namespace,
+		helmResourcePolicy:            "keep",
+	}
+}
+
+func generateSecretLabels() map[string]string {
+	const (
+		helmK8SManaged = "app.kubernetes.io/managed-by"
+	)
+	return map[string]string{
+		helmK8SManaged: "Helm",
+	}
 }
 
 // backendKeyToSecret replaces the "/" with "."
