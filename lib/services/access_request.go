@@ -1465,11 +1465,11 @@ func getResources(ctx context.Context, getter PruneResourceRequestGetter, resour
 			return nil, trace.Wrap(err)
 		}
 		for _, result := range resp.Resources {
-			fixedResources, err := MapListResourcesResultToLeafResource(result, kind)
+			leafResources, err := MapListResourcesResultToLeafResource(result, kind)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			resources = append(resources, fixedResources...)
+			resources = append(resources, leafResources...)
 		}
 	}
 	return resources, nil
@@ -1506,7 +1506,7 @@ func MapResourceKindToListResourcesType(kind string) string {
 // MapListResourcesResultToLeafResource is the inverse of
 // MapResourceKindToListResourcesType, after the ListResources call it maps the
 // result back to the kind we really want. `hint` should be the name of the
-// desired resource kind, used to disambiguate normal SSH nodes and kubernestes
+// desired resource kind, used to disambiguate normal SSH nodes and kubernetes
 // services which are both returned as `types.Server`.
 func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
 	switch r := resource.(type) {
