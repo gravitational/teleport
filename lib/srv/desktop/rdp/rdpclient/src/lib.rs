@@ -17,6 +17,7 @@ pub mod errors;
 pub mod piv;
 pub mod rdpdr;
 pub mod scard;
+pub mod util;
 pub mod vchan;
 
 #[macro_use]
@@ -71,10 +72,13 @@ impl Client {
     fn into_raw(self: Box<Self>) -> *mut Self {
         Box::into_raw(self)
     }
-    unsafe fn from_ptr<'a>(ptr: *const Self) -> Result<&'a Client, CGOError> {
+    unsafe fn from_ptr<'a>(ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
         match ptr.as_ref() {
             Some(c) => Ok(c),
-            None => Err(to_cgo_error("invalid Rust client pointer".to_string())),
+            None => {
+                error!("invalid Rust client pointer");
+                Err(CGOErrCode::ErrCodeFailure)
+            }
         }
     }
     unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
@@ -85,7 +89,7 @@ impl Client {
 #[repr(C)]
 pub struct ClientOrError {
     client: *mut Client,
-    err: CGOError,
+    err: CGOErrCode,
 }
 
 impl From<Result<Client, ConnectError>> for ClientOrError {
@@ -93,12 +97,15 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
         match r {
             Ok(client) => ClientOrError {
                 client: Box::new(client).into_raw(),
-                err: CGO_OK,
+                err: CGOErrCode::ErrCodeSuccess,
             },
-            Err(e) => ClientOrError {
-                client: ptr::null_mut(),
-                err: to_cgo_error(format!("{:?}", e)),
-            },
+            Err(e) => {
+                error!("{:?}", e);
+                ClientOrError {
+                    client: ptr::null_mut(),
+                    err: CGOErrCode::ErrCodeFailure,
+                }
+            }
         }
     }
 }
@@ -165,6 +172,7 @@ impl From<RdpError> for ConnectError {
 }
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
 struct ConnectParams {
     username: String,
@@ -200,7 +208,10 @@ fn connect_rdp_inner(
     // rdpdr: derive redirection (smart cards)
     // rdpsnd: sound (for some reason we need to request this)
     // cliprdr: clipboard
-    let mut static_channels = vec![rdpdr::CHANNEL_NAME.to_string(), "rdpsnd".to_string()];
+    let mut static_channels = vec![
+        rdpdr::CHANNEL_NAME.to_string(),
+        RDPSND_CHANNEL_NAME.to_string(),
+    ];
     if params.allow_clipboard {
         static_channels.push(cliprdr::CHANNEL_NAME.to_string())
     }
@@ -243,8 +254,15 @@ fn connect_rdp_inner(
 
     // Client for the "cliprdr" channel - clipboard sharing.
     let cliprdr = if params.allow_clipboard {
-        Some(cliprdr::Client::new(Box::new(move |v| unsafe {
-            handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32);
+        Some(cliprdr::Client::new(Box::new(move |v| -> RdpResult<()> {
+            unsafe {
+                if handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32)
+                    != CGOErrCode::ErrCodeSuccess
+                {
+                    return Err(errors::try_error("failed to handle remote copy"));
+                }
+            }
+            Ok(())
         })))
     } else {
         None
@@ -282,11 +300,15 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
             cliprdr::CHANNEL_NAME => match self.cliprdr {
-                Some(ref mut clip) => clip.read(message, &mut self.mcs),
+                Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
             },
+            RDPSND_CHANNEL_NAME => {
+                debug!("skipping RDPSND message, audio output not supported");
+                Ok(())
+            }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 &format!("Invalid channel name {:?}", channel_name),
@@ -397,7 +419,7 @@ pub unsafe extern "C" fn update_clipboard(
     client_ptr: *mut Client,
     data: *mut u8,
     len: u32,
-) -> CGOError {
+) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -408,21 +430,24 @@ pub unsafe extern "C" fn update_clipboard(
     let mut lock = client.rdp_client.lock().unwrap();
 
     match lock.cliprdr {
-        Some(ref mut clip) => match clip.update_clipboard(data) {
+        Some(ref mut clip) => match clip
+            .update_clipboard(String::from_utf8_lossy(&data).into_owned())
+        {
             Ok(messages) => {
                 for message in messages {
                     if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
-                        return to_cgo_error(format!(
-                            "failed writing cliprdr format list: {:?}",
-                            e
-                        ));
+                        error!("failed writing cliprdr format list: {:?}", e);
+                        return CGOErrCode::ErrCodeFailure;
                     }
                 }
-                CGO_OK
+                CGOErrCode::ErrCodeSuccess
             }
-            Err(e) => to_cgo_error(format!("failed updating clipboard: {:?}", e)),
+            Err(e) => {
+                error!("failed updating clipboard: {:?}", e);
+                CGOErrCode::ErrCodeFailure
+            }
         },
-        None => CGO_OK,
+        None => CGOErrCode::ErrCodeSuccess,
     }
 }
 
@@ -434,7 +459,7 @@ pub unsafe extern "C" fn update_clipboard(
 /// `client_ptr` must be a valid pointer to a Client.
 /// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOError {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -442,9 +467,10 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOError {
         }
     };
     if let Some(err) = read_rdp_output_inner(client) {
-        to_cgo_error(err)
+        error!("{}", err);
+        CGOErrCode::ErrCodeFailure
     } else {
-        CGO_OK
+        CGOErrCode::ErrCodeSuccess
     }
 }
 
@@ -456,7 +482,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
     while wait_for_fd(tcp_fd as usize) {
-        let mut err = CGO_OK;
+        let mut err = CGOErrCode::ErrCodeSuccess;
         let res = client
             .rdp_client
             .lock()
@@ -474,7 +500,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                         }
                     };
                     unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOError;
+                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
                     };
                 }
                 // These should never really be sent by the server to us.
@@ -492,9 +518,8 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             }
             _ => {}
         }
-        if err != CGO_OK {
-            let err_str = unsafe { from_cgo_error(err) };
-            return Some(format!("failed forwarding RDP bitmap frame: {}", err_str));
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Some("failed forwarding RDP bitmap frame".to_string());
         }
     }
     None
@@ -559,7 +584,7 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
     pointer: CGOMousePointerEvent,
-) -> CGOError {
+) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -573,9 +598,10 @@ pub unsafe extern "C" fn write_rdp_pointer(
         .write(RdpEvent::Pointer(pointer.into()));
 
     if let Err(e) = res {
-        to_cgo_error(format!("failed writing RDP pointer event: {:?}", e))
+        error!("failed writing RDP pointer event: {:?}", e);
+        CGOErrCode::ErrCodeFailure
     } else {
-        CGO_OK
+        CGOErrCode::ErrCodeSuccess
     }
 }
 
@@ -607,7 +633,7 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 pub unsafe extern "C" fn write_rdp_keyboard(
     client_ptr: *mut Client,
     key: CGOKeyboardEvent,
-) -> CGOError {
+) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -620,9 +646,10 @@ pub unsafe extern "C" fn write_rdp_keyboard(
         .unwrap()
         .write(RdpEvent::Key(key.into()));
     if let Err(e) = res {
-        to_cgo_error(format!("failed writing RDP keyboard event: {:?}", e))
+        error!("failed writing RDP keyboard event: {:?}", e);
+        CGOErrCode::ErrCodeFailure
     } else {
-        CGO_OK
+        CGOErrCode::ErrCodeSuccess
     }
 }
 
@@ -630,7 +657,7 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 ///
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
+pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -638,9 +665,10 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOError {
         }
     };
     if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
-        to_cgo_error(format!("failed writing RDP keyboard event: {:?}", e))
+        error!("failed writing RDP keyboard event: {:?}", e);
+        CGOErrCode::ErrCodeFailure
     } else {
-        CGO_OK
+        CGOErrCode::ErrCodeSuccess
     }
 }
 
@@ -676,33 +704,18 @@ unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
     slice::from_raw_parts(ptr, len as usize).to_vec()
 }
 
-/// CGOError is an alias for a C string pointer, for C API clarity.
-pub type CGOError = *mut c_char;
-
-/// CGO_OK is a CGOError value that means "success".
-const CGO_OK: CGOError = ptr::null_mut();
-
-fn to_cgo_error(s: String) -> CGOError {
-    CString::new(s).expect("CString::new failed").into_raw()
-}
-
-/// from_cgo_error copies CGOError into a String and frees the underlying Go memory.
-///
-/// # Safety
-///
-/// The pointer inside the CGOError must point to a valid null terminated Go string.
-unsafe fn from_cgo_error(e: CGOError) -> String {
-    let s = from_go_string(e);
-    free_go_string(e);
-    s
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq)]
+pub enum CGOErrCode {
+    ErrCodeSuccess = 0,
+    ErrCodeFailure = 1,
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
-    fn free_go_string(s: *mut c_char);
-    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOError;
-    fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOError;
+    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
+    fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.

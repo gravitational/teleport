@@ -153,10 +153,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// sendError is used to send errors to errChan with context.
 	errChan := make(chan error)
 	sendError := func(err error) {
-		select {
-		case <-ctx.Done():
-		case errChan <- trace.Wrap(err):
-		}
+		errChan <- trace.Wrap(err)
 	}
 
 	// syncConnect is used to concurrently create multiple clients
@@ -248,7 +245,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	}()
 
 	var errs []error
-	for {
+	for errChan != nil {
 		select {
 		// Use the first client to successfully connect in syncConnect.
 		case clt := <-cltChan:
@@ -259,20 +256,23 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				errs = append(errs, trace.Wrap(err, ""))
 				continue
 			}
-			// errChan is closed, return errors.
-			if len(errs) == 0 {
-				if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
-					// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
-					return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
-				}
-				// This case should never be reached with config validation and above case.
-				return nil, trace.Errorf("no connection methods found")
-			}
-			return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
-		case <-ctx.Done():
-			return nil, trace.Wrap(ctx.Err())
+			errChan = nil
 		}
 	}
+
+	// errChan is closed, return errors.
+	if len(errs) == 0 {
+		if len(cfg.Addrs) == 0 && cfg.Dialer == nil {
+			// Some credentials don't require these fields. If no errors propagate, then they need to provide these fields.
+			return nil, trace.BadParameter("no connection methods found, try providing Dialer or Addrs in config")
+		}
+		// This case should never be reached with config validation and above case.
+		return nil, trace.Errorf("no connection methods found")
+	}
+	if ctx.Err() != nil {
+		errs = append(errs, trace.Wrap(ctx.Err()))
+	}
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "all connection methods failed")
 }
 
 type (
@@ -750,16 +750,40 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
 	var reqs []types.AccessRequest
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
-			return nil, trail.FromGRPC(err)
+			err := trail.FromGRPC(err)
+			if trace.IsNotImplemented(err) {
+				return c.getAccessRequestsLegacy(ctx, filter)
+			}
+
+			return nil, err
 		}
 		reqs = append(reqs, req)
+	}
+
+	return reqs, nil
+}
+
+// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
+//
+// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
+func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
+	for i, request := range requests.AccessRequests {
+		reqs[i] = request
 	}
 
 	return reqs, nil

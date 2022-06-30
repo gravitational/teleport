@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -41,12 +40,14 @@ import (
 
 // mockServer mocks an Auth Server.
 type mockServer struct {
+	addr string
 	grpc *grpc.Server
 	*proto.UnimplementedAuthServiceServer
 }
 
-func newMockServer() *mockServer {
+func newMockServer(addr string) *mockServer {
 	m := &mockServer{
+		addr:                           addr,
 		grpc:                           grpc.NewServer(),
 		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
 	}
@@ -59,8 +60,22 @@ func startMockServer(t *testing.T) string {
 	l, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, l.Close()) })
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	return l.Addr().String()
+}
+
+func (m *mockServer) NewClient(ctx context.Context) (*Client, error) {
+	cfg := Config{
+		Addrs: []string{m.addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{},
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		},
+	}
+
+	return New(ctx, cfg)
 }
 
 func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
@@ -322,7 +337,8 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.True(t, strings.Contains(err.Error(), "all connection methods failed"))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "all connection methods failed")
 		},
 	}, {
 		desc: "fail to dial with no address or dialer.",
@@ -336,7 +352,8 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.True(t, strings.Contains(err.Error(), "no connection methods found, try providing Dialer or Addrs in config"))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "no connection methods found, try providing Dialer or Addrs in config")
 		},
 	}}
 
@@ -386,7 +403,7 @@ func TestNewDialBackground(t *testing.T) {
 	require.Error(t, err)
 
 	// Start the server and wait for the client connection to be ready.
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// requests to the server should succeed.
@@ -424,7 +441,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	require.Error(t, clt.waitForConnectionReady(cancelCtx))
 
 	// WaitForConnectionReady should return nil if the server is open to connections.
-	go newMockServer().grpc.Serve(l)
+	go newMockServer(l.Addr().String()).grpc.Serve(l)
 	require.NoError(t, clt.waitForConnectionReady(ctx))
 
 	// WaitForConnectionReady should return an error if the grpc connection is closed.
@@ -712,4 +729,51 @@ func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
 	require.Equal(t, 1, len(connectorsResp))
 	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
 	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
+}
+
+type mockAccessRequestServer struct {
+	*mockServer
+}
+
+func (g *mockAccessRequestServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
+	req, err := types.NewAccessRequest("foo", "bob", "admin")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.AccessRequests{
+		AccessRequests: []*types.AccessRequestV3{req.(*types.AccessRequestV3)},
+	}, nil
+}
+
+// TestAccessRequestDowngrade tests that the client will downgrade to the non stream API for fetching access requests
+// if the stream API is not available.
+func TestAccessRequestDowngrade(t *testing.T) {
+	ctx := context.Background()
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+
+	m := &mockAccessRequestServer{
+		&mockServer{
+			addr:                           l.Addr().String(),
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	t.Cleanup(m.grpc.Stop)
+
+	remoteErr := make(chan error)
+	go func() {
+		remoteErr <- m.grpc.Serve(l)
+	}()
+
+	clt, err := m.NewClient(ctx)
+	require.NoError(t, err)
+
+	items, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	m.grpc.Stop()
+	require.NoError(t, <-remoteErr)
 }

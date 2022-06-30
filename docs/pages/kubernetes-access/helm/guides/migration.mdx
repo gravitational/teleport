@@ -13,7 +13,30 @@ to use the newer `teleport-cluster` Helm chart instead.
   consider [following a different guide](../guides.mdx) and storing your cluster's data in AWS DynamoDB or Google Cloud Firestore.
 </Admonition>
 
+<ScopedBlock scope="cloud">
+
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
+
+You can also view this guide as a user of another Teleport edition:
+
+<TileSet>
+<Tile
+href="./gcp.mdx/?scope=oss"
+title="Open Source"
+icon="stack"
+>
+</Tile>
+<Tile
+href="./gcp.mdx/?scope=enterprise"
+title="Enterprise"
+icon="building"
+>
+</Tile>
+</TileSet>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Prerequisites
 
@@ -247,3 +270,5 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 ```code
 $ helm --namespace teleport-cluster uninstall teleport
 ```
+
+</ScopedBlock>

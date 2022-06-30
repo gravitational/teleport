@@ -1004,7 +1004,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1235,7 +1235,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		// Extract kube clusters into its own list.
-		clusters := []types.KubeCluster{}
+		var clusters []types.KubeCluster
 		for _, svc := range kubeservices {
 			for _, legacyCluster := range svc.GetKubernetesClusters() {
 				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
@@ -1246,7 +1246,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			}
 		}
 
-		sortedClusters := types.KubeClusters(types.DeduplicateKubeClusters(clusters))
+		sortedClusters := types.KubeClusters(clusters)
 		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1981,9 +1981,17 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // user is allowed to assume the returned roles.
 func (a *ServerWithRoles) determineDesiredRolesAndTraits(req proto.UserCertsRequest, user types.User) ([]string, wrappers.Traits, error) {
 	if req.Username == a.context.User.GetName() {
+		// If UseRoleRequests is set, make sure we don't return unusable
+		// certs: an identity without roles can't be parsed.
+		// DEPRECATED: consider making role requests without UseRoleRequests
+		// set an error in V11.
+		if req.UseRoleRequests && len(req.RoleRequests) == 0 {
+			return nil, nil, trace.BadParameter("at least one role request is required")
+		}
+
+		// Otherwise, if no role requests exist, reuse the roles and traits
+		// from the current identity.
 		if len(req.RoleRequests) == 0 {
-			// If no role requests exist, reuse the roles and traits from the
-			// current identity.
 			roles, traits, err := services.ExtractFromIdentity(a.authServer, a.context.Identity.GetIdentity())
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
@@ -2057,7 +2065,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		if len(req.RoleRequests) > 0 {
+		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 			// Note: technically this should never be needed as all role
 			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
@@ -2204,7 +2212,6 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				return nil, trace.Wrap(err)
 			}
 		}
-		// users can impersonate themselves
 	default:
 		// check if this user is allowed to impersonate other users
 		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
@@ -2260,7 +2267,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
-	} else if len(req.RoleRequests) > 0 {
+	} else if req.UseRoleRequests || len(req.RoleRequests) > 0 {
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
@@ -2299,6 +2306,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
 		len(req.RoleRequests) == 0 &&
+		!req.UseRoleRequests &&
 		!certReq.disallowReissue {
 		certReq.renewable = true
 	}

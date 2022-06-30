@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -692,11 +693,17 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	if err == nil {
 		return nil
 	}
+
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	// Assume that failed handshake is a result of expired credentials,
 	// retry the login procedure
 	if !utils.IsHandshakeFailedError(err) && !utils.IsCertExpiredError(err) && !trace.IsBadParameter(err) && !trace.IsTrustError(err) {
 		return trace.Wrap(err)
 	}
+
 	// Don't try to login when using an identity file.
 	if tc.SkipLocalAuth {
 		return trace.Wrap(err)
@@ -1575,12 +1582,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params,
-		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
+	return proxyClient.IssueUserCertsWithMFA(
+		ctx, params,
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
 		})
-
-	return key, err
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -1704,7 +1710,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer nodeClient.Close()
 
 	// If forwarding ports were specified, start port forwarding.
-	tc.startPortForwarding(ctx, nodeClient)
+	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// If no remote command execution was requested, block on the context which
 	// will unblock upon error or SIGINT.
@@ -1745,14 +1753,13 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
+				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 			}
 			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 		}
@@ -1762,12 +1769,12 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
+				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 			}
 			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
+	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -1849,7 +1856,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer nc.Close()
 
 	// Start forwarding ports if configured.
-	tc.startPortForwarding(ctx, nc)
+	if err := tc.startPortForwarding(ctx, nc); err != nil {
+		return trace.Wrap(err)
+	}
 
 	presenceCtx, presenceCancel := context.WithCancel(ctx)
 	defer presenceCancel()
@@ -2192,6 +2201,34 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	return servers, nil
 }
 
+// ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
+func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clusters, err := proxyClient.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.Server, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListAppServersWithFilters returns a list of application servers.
 func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.AppServer, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2218,6 +2255,39 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	return servers, nil
 }
 
+// listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
+func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	filter := customFilter
+	if customFilter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	clusters, err := proxyClient.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.AppServer, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindAppServersByFiltersForCluster(ctx, *filter, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListApps returns all registered applications.
 func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Application, error) {
 	servers, err := tc.ListAppServersWithFilters(ctx, customFilter)
@@ -2229,6 +2299,23 @@ func (tc *TeleportClient) ListApps(ctx context.Context, customFilter *proto.List
 		apps = append(apps, server.GetApp())
 	}
 	return types.DeduplicateApps(apps), nil
+}
+
+// ListAppsAllClusters returns all registered applications across all clusters.
+func (tc *TeleportClient) ListAppsAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Application, error) {
+	serversByCluster, err := tc.listAppServersWithFiltersAllClusters(ctx, customFilter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make(map[string][]types.Application, len(serversByCluster))
+	for cluster, servers := range serversByCluster {
+		var apps []types.Application
+		for _, server := range servers {
+			apps = append(apps, server.GetApp())
+		}
+		clusters[cluster] = types.DeduplicateApps(apps)
+	}
+	return clusters, nil
 }
 
 // CreateAppSession creates a new application access session.
@@ -2277,6 +2364,39 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	return servers, nil
 }
 
+// listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
+func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	filter := customFilter
+	if customFilter == nil {
+		filter = &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+		}
+	}
+
+	clusters, err := proxyClient.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make(map[string][]types.DatabaseServer, len(clusters))
+	for _, cluster := range clusters {
+		s, err := proxyClient.FindDatabaseServersByFiltersForCluster(ctx, *filter, cluster.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[cluster.Name] = s
+	}
+	return servers, nil
+}
+
 // ListDatabases returns all registered databases.
 func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
 	servers, err := tc.ListDatabaseServersWithFilters(ctx, customFilter)
@@ -2290,6 +2410,23 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 	return types.DeduplicateDatabases(databases), nil
 }
 
+// ListDatabasesAllClusters returns all registered databases across all clusters.
+func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
+	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters := make(map[string][]types.Database, len(serversByCluster))
+	for cluster, servers := range serversByCluster {
+		var databases []types.Database
+		for _, server := range servers {
+			databases = append(databases, server.GetDatabase())
+		}
+		clusters[cluster] = types.DeduplicateDatabases(databases)
+	}
+	return clusters, nil
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -2301,6 +2438,33 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	return proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
 		Namespace: tc.Namespace,
 	})
+}
+
+// ListKubeClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
+func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]string, error) {
+	pc, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := pc.GetSites()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeClusters := make(map[string][]string, 0)
+	for _, cluster := range clusters {
+		ac, err := pc.ConnectToCluster(ctx, cluster.Name, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		kc, err := kubeutils.ListKubeClusterNamesWithFilters(ctx, ac, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeClusters[cluster.Name] = kc
+	}
+
+	return kubeClusters, nil
 }
 
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.

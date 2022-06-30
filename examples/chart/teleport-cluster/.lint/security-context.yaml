@@ -1,0 +1,8 @@
+clusterName: helm-lint
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  runAsGroup: 99
+  runAsNonRoot: true
+  runAsUser: 99
