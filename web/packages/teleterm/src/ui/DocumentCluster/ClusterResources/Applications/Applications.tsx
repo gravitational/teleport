@@ -83,7 +83,7 @@ export function AppList(props: State) {
           },
         ]}
         emptyText="No Applications Found"
-        pagination={{ pageSize: 100, pagerPosition: 'bottom' }}
+        pagination={{ pageSize: 15, pagerPosition: 'bottom' }}
       />
     </>
   );

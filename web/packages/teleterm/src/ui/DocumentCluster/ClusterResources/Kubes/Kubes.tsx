@@ -28,7 +28,7 @@ export default function Container() {
 }
 
 function KubeList(props: State) {
-  const { kubes = [], pageSize = 100, connect, syncStatus } = props;
+  const { kubes = [], pageSize = 15, connect, syncStatus } = props;
 
   return (
     <>
