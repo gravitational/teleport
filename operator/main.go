@@ -63,8 +63,10 @@ func main() {
 	var err error
 	var metricsAddr string
 	var probeAddr string
+	var leaderElectionID string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -79,7 +81,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         true,
-		LeaderElectionID:       "431e83f4.teleport.dev",
+		LeaderElectionID:       leaderElectionID,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
