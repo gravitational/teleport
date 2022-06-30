@@ -410,7 +410,7 @@ func (e *Enforcer) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat,
 
 // acquireRecordingLock attempts to set a lock for recording new usage. Returns an isAlreadyExists error in case the
 // lock already exists.
-// The lock will expire in time for the next hearbeat, but prevents other teleport processes to record their usage in
+// The lock will expire in time for the next heartbeat, but prevents other teleport processes to record their usage in
 // between.
 func (e *Enforcer) acquireRecordingLock(ctx context.Context, ttl time.Duration) error {
 	item := backend.Item{
@@ -465,11 +465,11 @@ func makeItemFromUsageRecord(m map[string]time.Duration) (backend.Item, error) {
 var licenseCheckConnectionProblemText = fmt.Sprintf(
 	"Teleport has failed to contact the license server for more than %v "+
 		"consecutive hours. Please make sure the Teleport auth server machine "+
-		"is capable of connecting to %v. Otherwise, contact Gravitational "+
+		"is capable of connecting to %v. Otherwise, contact Teleport "+
 		"support (%v).",
 	constants.MaxControlPlaneUnreachableHours,
-	constants.GravitationalDownloadPortalURL,
-	constants.GravitationalSupportURL)
+	constants.TeleportDownloadPortalURL,
+	constants.TeleportSupportURL)
 
 // licenseCheckConnectionProblemHTML is a warning message in HTML format that
 // gets displayed when teleport has failed to contact control plane for 48 hours
@@ -477,7 +477,7 @@ var licenseCheckConnectionProblemHTML = fmt.Sprintf(
 	"Teleport has failed to contact the license server for more than %v "+
 		"consecutive hours. Please make sure the Teleport auth server machine "+
 		`is capable of connecting to (%v). Otherwise, contact <a href="%v">`+
-		"Gravitational Support</a>.",
+		"Teleport Support</a>.",
 	constants.MaxControlPlaneUnreachableHours,
-	constants.GravitationalDownloadPortalURL,
-	constants.GravitationalSupportURL)
+	constants.TeleportDownloadPortalURL,
+	constants.TeleportSupportURL)

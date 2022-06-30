@@ -34,10 +34,10 @@ const (
 	// enforces the validity of the current license
 	HeartbeatInterval = 5 * time.Minute
 
-	// GravitationalSupportURL is company support website URL
-	GravitationalSupportURL = "https://support.gravitational.com"
-	// GravitationalDownloadPortalURL is Teleport Download Portal website URL
-	GravitationalDownloadPortalURL = "https://dashboard.gravitational.com"
+	// TeleportSupportURL is company support website URL
+	TeleportSupportURL = "https://support.goteleport.com"
+	// TeleportDownloadPortalURL is Teleport Download Portal website URL
+	TeleportDownloadPortalURL = "https://dashboard.gravitational.com"
 )
 
 var (
