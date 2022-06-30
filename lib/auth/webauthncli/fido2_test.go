@@ -1625,7 +1625,7 @@ func (f *fakeFIDO2Device) Assertion(
 	credentialIDs [][]byte,
 	pin string,
 	opts *libfido2.AssertionOpts,
-) (*libfido2.Assertion, error) {
+) ([]*libfido2.Assertion, error) {
 	switch {
 	case rpID == "":
 		return nil, errors.New("rp.ID required")
@@ -1693,12 +1693,14 @@ func (f *fakeFIDO2Device) Assertion(
 		return nil, libfido2.ErrNoCredentials
 	}
 
-	return &libfido2.Assertion{
-		AuthDataCBOR: assertionAuthDataCBOR,
-		Sig:          assertionSig,
-		CredentialID: credID,
-		User: libfido2.User{
-			ID: userID,
+	return []*libfido2.Assertion{
+		{
+			AuthDataCBOR: assertionAuthDataCBOR,
+			Sig:          assertionSig,
+			CredentialID: credID,
+			User: libfido2.User{
+				ID: userID,
+			},
 		},
 	}, nil
 }

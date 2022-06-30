@@ -66,7 +66,7 @@ type FIDODevice interface {
 		clientDataHash []byte,
 		credentialIDs [][]byte,
 		pin string,
-		opts *libfido2.AssertionOpts) (*libfido2.Assertion, error)
+		opts *libfido2.AssertionOpts) ([]*libfido2.Assertion, error)
 }
 
 // fidoDeviceLocations and fidoNewDevice are used to allow testing.
@@ -185,10 +185,11 @@ func fido2Login(
 		if uv {
 			opts.UV = libfido2.True
 		}
-		resp, err := dev.Assertion(actualRPID, ccdHash[:], creds, pin, opts)
+		assertions, err := dev.Assertion(actualRPID, ccdHash[:], creds, pin, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		resp := assertions[0]
 		log.Debugf(
 			"FIDO2: Authenticated: credential ID (b64) = %v, user ID (hex) = %x, username = %q",
 			base64.RawURLEncoding.EncodeToString(resp.CredentialID), resp.User.ID, uName)
