@@ -721,6 +721,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return nil
 	}
 
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}
@@ -1655,8 +1659,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	return proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
-		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
 		})
 }
 
@@ -1947,7 +1951,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	notFoundErrorMessage := fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -1963,13 +1966,23 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return trace.BadParameter("session joining is not supported in proxy recording mode")
+	}
+
 	session, err := site.GetSessionTracker(ctx, string(sessionID))
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("session %q not found or it has ended", sessionID)
+		}
 		return trace.Wrap(err)
 	}
 
-	if session == nil {
-		return trace.NotFound(notFoundErrorMessage)
+	if session.GetSessionKind() != types.SSHSessionKind {
+		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
 
 	// connect to server:
