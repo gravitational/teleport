@@ -100,8 +100,6 @@ func TestEnvironment(t *testing.T) {
 				require.Equal(t, environment.Number, test.number)
 				require.Equal(t, environment.Author, test.author)
 				require.Equal(t, environment.UnsafeHead, test.unsafeBranch)
-				require.Equal(t, environment.IsLargePR(), test.isLarge, "+%d / %d",
-					environment.Additions, environment.Deletions)
 			}
 		})
 	}
