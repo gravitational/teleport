@@ -31,30 +31,17 @@ import (
 // NewLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends using round robin algo
 func NewLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
-	if ctx == nil {
-		return nil, trace.BadParameter("missing parameter context")
-	}
-	waitCtx, waitCancel := context.WithCancel(ctx)
-	return &LoadBalancer{
-		frontend:   frontend,
-		ctx:        ctx,
-		backends:   backends,
-		policy:     roundRobinPolicy(),
-		waitCtx:    waitCtx,
-		waitCancel: waitCancel,
-		Entry: log.WithFields(log.Fields{
-			trace.Component: "loadbalancer",
-			trace.ComponentFields: log.Fields{
-				"listen": frontend.String(),
-			},
-		}),
-		connections: make(map[NetAddr]map[int64]net.Conn),
-	}, nil
+	return newLoadBalancer(ctx, frontend, roundRobinPolicy(), backends...)
 }
 
-// NewLoadBalancer returns new load balancer listening on frontend
+// NewRandomLoadBalancer returns new load balancer listening on frontend
 // and redirecting requests to backends randomly.
 func NewRandomLoadBalancer(ctx context.Context, frontend NetAddr, backends ...NetAddr) (*LoadBalancer, error) {
+	return newLoadBalancer(ctx, frontend, randomPolicy(), backends...)
+}
+
+// newLoadBalancer returns new load balancer with the given load balance policy.
+func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerPolicy, backends ...NetAddr) (*LoadBalancer, error) {
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
@@ -63,7 +50,7 @@ func NewRandomLoadBalancer(ctx context.Context, frontend NetAddr, backends ...Ne
 		frontend:   frontend,
 		ctx:        ctx,
 		backends:   backends,
-		policy:     randomPolicy(),
+		policy:     policy,
 		waitCtx:    waitCtx,
 		waitCancel: waitCancel,
 		Entry: log.WithFields(log.Fields{
