@@ -75,6 +75,12 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	namespace, err := GetKubernetesNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to read the namespace, you can force a namespace by setting the POD_NAMESPACE env variable")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -82,6 +88,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         true,
 		LeaderElectionID:       leaderElectionID,
+		Namespace:              namespace,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
