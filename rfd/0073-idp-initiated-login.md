@@ -73,3 +73,5 @@ Due to the security risks below, this feature should be opt-in using the configu
 ## References and Resources
 
 [Auth0: Configure SAML Identity Provider-Initiated Single Sign-On](https://auth0.com/docs/authenticate/protocols/saml/saml-sso-integrations/identity-provider-initiated-single-sign-on)
+
+[OWASP: Unsolicited Response (ie. IdP Initiated SSO) Considerations for Service Providers](https://cheatsheetseries.owasp.org/cheatsheets/SAML_Security_Cheat_Sheet.html#unsolicited-response-ie-idp-initiated-sso-considerations-for-service-providers)
