@@ -755,115 +755,74 @@ func TestCertAuthorityWatcher(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
-	t.Run("subscribe by cluster name", func(t *testing.T) {
-		target := services.CertAuthorityTarget{ClusterName: "test"}
-		sub, err := w.Subscribe(ctx, target)
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, sub.Close()) })
-
-		// create a CA for the cluster and a type we are filtering for
-		// and ensure we receive the event
-		ca := newCertAuthority(t, "test", types.HostCA)
-		require.NoError(t, caService.UpsertCertAuthority(ca))
-		select {
-		case event := <-sub.Events():
-			caFromEvent, ok := event.Resource.(types.CertAuthority)
-			require.True(t, ok)
-			require.Empty(t, caDiff(ca, caFromEvent))
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for event")
-		}
-
-		// create a CA with a type we are filtering for another cluster that we are NOT filtering for
-		// and ensure that we DO NOT receive the event
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
-		select {
-		case event := <-sub.Events():
-			t.Fatalf("Unexpected event: %v.", event)
-		case <-sub.Done():
-			t.Fatal("CA watcher subscription has unexpectedly exited.")
-		case <-time.After(time.Second):
-		}
-
-		// create a CA for the cluster and a type we are filtering for
-		// and ensure we receive the event
-		ca2 := newCertAuthority(t, "test", types.UserCA)
-		require.NoError(t, caService.UpsertCertAuthority(ca2))
-		select {
-		case event := <-sub.Events():
-			caFromEvent, ok := event.Resource.(types.CertAuthority)
-			require.True(t, ok)
-			require.Empty(t, caDiff(ca2, caFromEvent))
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for event")
-		}
-
-		// delete a CA with type being watched in the cluster we are filtering for
-		// and ensure we receive the event
-		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
+	waitForEvent := func(t *testing.T, sub types.Watcher, caType types.CertAuthType, clusterName string, op types.OpType) {
 		select {
 		case event := <-sub.Events():
 			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
-			require.Equal(t, string(types.HostCA), event.Resource.GetSubKind())
-			require.Equal(t, "test", event.Resource.GetName())
+			require.Equal(t, string(caType), event.Resource.GetSubKind())
+			require.Equal(t, clusterName, event.Resource.GetName())
+			require.Equal(t, op, event.Type)
+			require.Empty(t, sub.Events()) // no more events.
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for event")
 		}
+	}
 
-		// create a CA with a type we are NOT filtering for but for a cluster we are filtering for
-		// and ensure we DO NOT receive the event
+	ensureNoEvents := func(t *testing.T, sub types.Watcher) {
+		select {
+		case event := <-sub.Events():
+			t.Fatalf("Unexpected event: %v.", event)
+		case <-sub.Done():
+			t.Fatal("CA watcher subscription has unexpectedly exited.")
+		case <-time.After(time.Second):
+		}
+	}
+
+	t.Run("Subscribe all", func(t *testing.T) {
+		// Use nil CertAuthorityFilter to subscribe all events from the watcher.
+		sub, err := w.Subscribe(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+		// Create a CA and ensure we receive the events.
+		ca := newCertAuthority(t, "test", types.HostCA)
+		require.NoError(t, caService.UpsertCertAuthority(ca))
+		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
+
+		// Delete a CA and ensure we receive the event.
+		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
+		waitForEvent(t, sub, types.HostCA, "test", types.OpDelete)
+
+		// Create a CA with a type that the watcher is NOT receiving and ensure
+		// we DO NOT receive the event.
 		signer := newCertAuthority(t, "test", types.JWTSigner)
 		require.NoError(t, caService.UpsertCertAuthority(signer))
-		select {
-		case event := <-sub.Events():
-			t.Fatalf("Unexpected event: %v.", event)
-		case <-sub.Done():
-			t.Fatal("CA watcher subscription has unexpectedly exited.")
-		case <-time.After(time.Second):
-		}
-
-		// delete a CA with a name we are filtering for but a type we are NOT filtering for
-		// and ensure we do NOT receive the event
-		require.NoError(t, caService.DeleteCertAuthority(signer.GetID()))
-		select {
-		case event := <-sub.Events():
-			t.Fatalf("Unexpected event: %v.", event)
-		case <-sub.Done():
-			t.Fatal("CA watcher subscription has unexpectedly exited.")
-		case <-time.After(time.Second):
-		}
+		ensureNoEvents(t, sub)
 	})
 
-	t.Run("subscribe by CA types", func(t *testing.T) {
+	t.Run("Subscribe with filter", func(t *testing.T) {
 		sub, err := w.Subscribe(ctx,
-			services.CertAuthorityTarget{
-				Types: []types.CertAuthType{types.HostCA, types.UserCA},
+			types.CertAuthorityFilter{
+				types.HostCA: "test",
+				types.UserCA: types.Wildcard,
 			},
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
-		// Receives one HostCA event, matched by type.
+		// Receives one HostCA event, matched by type and specific cluster name.
 		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
-		select {
-		case event := <-sub.Events():
-			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
-			require.Equal(t, string(types.HostCA), event.Resource.GetSubKind())
-			require.Equal(t, "test", event.Resource.GetName())
-			require.Empty(t, sub.Events()) // No more events.
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for event")
-		}
+		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
-		// Should NOT receive any events.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.DatabaseCA)))
-		select {
-		case event := <-sub.Events():
-			t.Fatalf("Unexpected event: %v.", event)
-		case <-sub.Done():
-			t.Fatal("CA watcher subscription has unexpectedly exited.")
-		case <-time.After(time.Second):
-		}
+		// Receives one UserCA event, matched by type and wildcard cluster name.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
+		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
+
+		// Should NOT receive any HostCA events from another cluster.
+		// Should NOT receive any DatabaseCA events.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
+		ensureNoEvents(t, sub)
 	})
 }
 
