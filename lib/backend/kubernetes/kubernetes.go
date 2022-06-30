@@ -132,12 +132,12 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	return b.updateSecretContent(ctx, i)
 }
 
-// PutItems receives multiple items and upserts them into the Kubernetes Secret.
+// PutRange receives multiple items and upserts them into the Kubernetes Secret.
 // This function is only used when the Agent's Secret does not exist, but local SQLite database
 // has identity credentials.
 // TODO(tigrato): remove this once the compatibility layer between local storage and
 // Kube secret storage is no longer required!
-func (b *Backend) PutItems(ctx context.Context, items ...backend.Item) error {
+func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

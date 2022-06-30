@@ -79,7 +79,7 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 // secret already exists in K8S
 // TODO(tigrato): remove this once the compatibility layer between local storage and
 // Kube secret storage is no longer required!
-func copyLocalStorageIntoKubernetes(ctx context.Context, k8sStorage *kubernetes.Backend, litebk *lite.Backend) error {
+func copyLocalStorageIntoKubernetes(ctx context.Context, k8sStorage stateBackend, litebk *lite.Backend) error {
 	// read keys starting with `/ids`, e.g. `/ids/{role}/{current,replacement}`
 	idsStorage := readPrefixedKeysFromLocalStorage(ctx, litebk, idsPrefix)
 
@@ -92,7 +92,7 @@ func copyLocalStorageIntoKubernetes(ctx context.Context, k8sStorage *kubernetes.
 	}
 
 	// store keys in K8S Secret
-	return trace.Wrap(k8sStorage.PutItems(ctx, append(idsStorage, stateStorage...)...))
+	return trace.Wrap(k8sStorage.PutRange(ctx, append(idsStorage, stateStorage...)))
 }
 
 // readPrefixedKeysFromLocalStorage reads every key from local storage whose key starts with `prefix`.
