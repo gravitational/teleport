@@ -186,6 +186,16 @@ test('close active tab', () => {
   expect(docsService.close).toHaveBeenCalledWith(documentToClose.uri);
 });
 
+test('should ignore close command if no tabs are open', () => {
+  const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
+    documents: [],
+  });
+
+  emitKeyboardShortcutEvent({ type: 'tab-close' });
+
+  expect(docsService.close).not.toHaveBeenCalled();
+});
+
 test('open new tab', () => {
   const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
     documents: [],
@@ -258,5 +268,14 @@ describe('open next/previous tab', () => {
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[docsService.getDocuments().length - 1].uri
     );
+  });
+
+  test('do not switch tabs if tabs do not exist', () => {
+    const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
+      documents: [],
+    });
+    emitKeyboardShortcutEvent({ type: 'tab-next' });
+
+    expect(docsService.open).not.toHaveBeenCalled();
   });
 });
