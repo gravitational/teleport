@@ -338,12 +338,12 @@ func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 
 // GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
 func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
-	return o.Spec.AllowIdPInitiated
+	return o.Spec.AllowIDPInitiated
 }
 
 // SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
-	o.Spec.AllowIdPInitiated = allow
+	o.Spec.AllowIDPInitiated = allow
 }
 
 // setStaticFields sets static resource header and metadata fields.
