@@ -21,7 +21,6 @@ use rdp::core::mcs;
 use rdp::core::tpkt;
 use rdp::model::data::Message;
 use rdp::model::error::*;
-use rdp::try_let;
 use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "rdpdr";
@@ -31,95 +30,101 @@ pub const CHANNEL_NAME: &str = "rdpdr";
 ///
 /// This client only supports a single smartcard device.
 pub struct Client {
+    vchan: vchan::Client,
     scard: scard::Client,
 }
 
 impl Client {
     pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
         Client {
+            vchan: vchan::Client::new(),
             scard: scard::Client::new(cert_der, key_der, pin),
         }
     }
-    pub fn read<S: Read + Write>(
+    /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
+    pub fn read_and_reply<S: Read + Write>(
         &mut self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
-
-        // Ignore this, we don't need anything from this header.
-        let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
-
-        let header = Header::decode(&mut payload)?;
-        if let Component::RDPDR_CTYP_PRN = header.component {
-            warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
-            return Ok(());
-        }
-        let resp = match header.packet_id {
-            PacketId::PAKID_CORE_SERVER_ANNOUNCE => self.handle_server_announce(&mut payload)?,
-            PacketId::PAKID_CORE_SERVER_CAPABILITY => {
-                self.handle_server_capability(&mut payload)?
+        if let Some(mut payload) = self.vchan.read(payload)? {
+            let header = SharedHeader::decode(&mut payload)?;
+            if let Component::RDPDR_CTYP_PRN = header.component {
+                warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
+                return Ok(());
             }
-            PacketId::PAKID_CORE_CLIENTID_CONFIRM => self.handle_client_id_confirm(&mut payload)?,
-            PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
-            // Device IO request is where communication with the smartcard actually happens.
-            // Everything up to this point was negotiation and smartcard device registration.
-            PacketId::PAKID_CORE_DEVICE_IOREQUEST => self.handle_device_io_request(&mut payload)?,
-            _ => {
-                // We don't implement the full set of messages. Only the ones necessary for initial
-                // negotiation and registration of a smartcard device.
-                error!(
-                    "RDPDR packets {:?} are not implemented yet, ignoring",
-                    header.packet_id
-                );
-                None
-            }
-        };
+            let responses = match header.packet_id {
+                PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
+                    self.handle_server_announce(&mut payload)?
+                }
+                PacketId::PAKID_CORE_SERVER_CAPABILITY => {
+                    self.handle_server_capability(&mut payload)?
+                }
+                PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
+                    self.handle_client_id_confirm(&mut payload)?
+                }
+                PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+                // Device IO request is where communication with the smartcard actually happens.
+                // Everything up to this point was negotiation and smartcard device registration.
+                PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
+                    self.handle_device_io_request(&mut payload)?
+                }
+                _ => {
+                    // We don't implement the full set of messages. Only the ones necessary for initial
+                    // negotiation and registration of a smartcard device.
+                    error!(
+                        "RDPDR packets {:?} are not implemented yet, ignoring",
+                        header.packet_id
+                    );
+                    vec![]
+                }
+            };
 
-        if let Some(resp) = resp {
-            Ok(mcs.write(&CHANNEL_NAME.to_string(), resp)?)
-        } else {
-            Ok(())
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in responses {
+                mcs.write(chan, resp)?;
+            }
         }
+        Ok(())
     }
 
-    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerAnnounceRequest::decode(payload)?;
         debug!("got ServerAnnounceRequest {:?}", req);
 
-        let resp = encode_message(
+        let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_CLIENTID_CONFIRM,
             ClientAnnounceReply::new(req).encode()?,
         )?;
         debug!("sending client announce reply");
-        Ok(Some(resp))
+        Ok(resp)
     }
 
-    fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerCoreCapabilityRequest::decode(payload)?;
         debug!("got {:?}", req);
 
-        let resp = encode_message(
+        let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_CLIENT_CAPABILITY,
             ClientCoreCapabilityResponse::new_response().encode()?,
         )?;
         debug!("sending client core capability response");
-        Ok(Some(resp))
+        Ok(resp)
     }
 
-    fn handle_client_id_confirm(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_client_id_confirm(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("got ServerClientIdConfirm {:?}", req);
 
-        let resp = encode_message(
+        let resp = self.add_headers_and_chunkify(
             PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
             ClientDeviceListAnnounceRequest::new_smartcard().encode()?,
         )?;
         debug!("sending client device list announce request");
-        Ok(Some(resp))
+        Ok(resp)
     }
 
-    fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -134,11 +139,11 @@ impl Client {
                 &req.result_code
             )))
         } else {
-            Ok(None)
+            Ok(vec![])
         }
     }
 
-    fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = DeviceIoRequest::decode(payload)?;
         debug!("got {:?}", req);
 
@@ -148,14 +153,14 @@ impl Client {
 
             let (code, res) = self.scard.ioctl(ioctl.io_control_code, payload)?;
             if code == SPECIAL_NO_RESPONSE {
-                return Ok(None);
+                return Ok(vec![]);
             }
-            let resp = encode_message(
+            let resp = self.add_headers_and_chunkify(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
                 DeviceControlResponse::new(&ioctl, code, res).encode()?,
             )?;
             debug!("sending device IO response");
-            Ok(Some(resp))
+            Ok(resp)
         } else {
             Err(invalid_data_error(&format!(
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -163,27 +168,32 @@ impl Client {
             )))
         }
     }
+
+    /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
+    /// adds on the Shared Header based the passed packet_id, adds the appropriate (virtual) Channel PDU Header,
+    /// and splits the entire payload into chunks if the payload exceeds the maximum size.
+    fn add_headers_and_chunkify(
+        &self,
+        packet_id: PacketId,
+        payload: Vec<u8>,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
+        inner.extend_from_slice(&payload);
+        self.vchan.add_header_and_chunkify(None, inner)
+    }
 }
 
-fn encode_message(packet_id: PacketId, payload: Vec<u8>) -> RdpResult<Vec<u8>> {
-    let mut inner = Header::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
-    inner.extend_from_slice(&payload);
-    let mut outer = vchan::ChannelPDUHeader::new(
-        inner.length() as u32,
-        vchan::ChannelPDUFlags::CHANNEL_FLAG_ONLY,
-    )
-    .encode()?;
-    outer.extend_from_slice(&inner);
-    Ok(outer)
-}
-
+/// 2.2.1.1 Shared Header (RDPDR_HEADER)
+/// This header is present at the beginning of every message in sent over the rdpdr virtual channel.
+/// The purpose of this header is to describe the type of the message.
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/29d4108f-8163-4a67-8271-e48c4b9c2a7c
 #[derive(Debug)]
-struct Header {
+struct SharedHeader {
     component: Component,
     packet_id: PacketId,
 }
 
-impl Header {
+impl SharedHeader {
     fn new(component: Component, packet_id: PacketId) -> Self {
         Self {
             component,

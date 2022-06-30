@@ -270,13 +270,35 @@ type Config struct {
 func (cfg *Config) ApplyToken(token string) (bool, error) {
 	if token != "" {
 		var err error
-		cfg.Token, err = utils.ReadToken(token)
+		cfg.Token, err = utils.TryReadValueAsFile(token)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		return true, nil
 	}
 	return false, nil
+}
+
+// ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
+// If a pin is specified as a path to a file, that file must not be empty.
+func (cfg *Config) ApplyCAPins(caPins []string) error {
+	var filteredPins []string
+	for _, pinOrPath := range caPins {
+		if pinOrPath == "" {
+			continue
+		}
+		pins, err := utils.TryReadValueAsFile(pinOrPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// an empty pin file is less obvious than a blank ca_pin in the config yaml.
+		if pins == "" {
+			return trace.BadParameter("empty ca_pin file: %v", pinOrPath)
+		}
+		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
+	}
+	cfg.CAPins = filteredPins
+	return nil
 }
 
 // RoleConfig is a config for particular Teleport role

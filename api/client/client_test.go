@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -338,7 +337,8 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.True(t, strings.Contains(err.Error(), "all connection methods failed"))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "all connection methods failed")
 		},
 	}, {
 		desc: "fail to dial with no address or dialer.",
@@ -352,7 +352,8 @@ func TestNew(t *testing.T) {
 			},
 		},
 		assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-			require.True(t, strings.Contains(err.Error(), "no connection methods found, try providing Dialer or Addrs in config"))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "no connection methods found, try providing Dialer or Addrs in config")
 		},
 	}}
 
