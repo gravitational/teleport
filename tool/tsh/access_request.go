@@ -405,11 +405,11 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var resources types.ResourcesWithLabels
 	for _, result := range results {
-		fixedResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+		leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, fixedResources...)
+		resources = append(resources, leafResources...)
 	}
 
 	rows := [][]string{}
