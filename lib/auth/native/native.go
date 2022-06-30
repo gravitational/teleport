@@ -90,15 +90,18 @@ func replenishKeys() {
 	}
 }
 
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
-// This will in most cases pull from a precomputed cache of ready to use keys.
-func GenerateKeyPair() ([]byte, []byte, error) {
+func PrecomputeKeys() {
 	// Start the background task to replenish the queue of precomputed keys.
 	// This is only started once this function is called to avoid starting the task
 	// just by pulling in this package.
 	if atomic.SwapInt32(&precomputeTaskStarted, 1) == 0 {
 		go replenishKeys()
 	}
+}
+
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
+// This will in most cases pull from a precomputed cache of ready to use keys.
+func GenerateKeyPair() ([]byte, []byte, error) {
 
 	select {
 	case k := <-precomputedKeys:

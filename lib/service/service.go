@@ -718,6 +718,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	var err error
 
+	// in case if not auth or proxy services are enabled,
+	// there is no need to precompute any SSH keys in the pool
+	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
+		native.PrecomputeKeys()
+	}
+
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
