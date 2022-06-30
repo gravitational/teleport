@@ -71,6 +71,57 @@ func TestRoleCreation(t *testing.T) {
 	})
 }
 
+func TestRoleDeletionDrift(t *testing.T) {
+	ctx := context.Background()
+
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+
+	require.NoError(t, teleportServer.Start())
+
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+	k8sClient := startKubernetesOperator(t, tClient)
+
+	ns := createNamespaceForTest(t, k8sClient)
+	roleName := validRandomResourceName("role-")
+
+	// The role is created in K8S
+	k8sCreateDummyRole(ctx, t, k8sClient, ns.Name, roleName)
+
+	fastEventually(t, func() bool {
+		tRole, err := tClient.GetRole(ctx, roleName)
+		if trace.IsNotFound(err) {
+			return false
+		}
+		require.NoError(t, err)
+
+		require.Equal(t, tRole.GetName(), roleName)
+
+		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+
+		return true
+	})
+
+	err := tClient.DeleteRole(ctx, roleName)
+	require.NoError(t, err)
+	fastEventually(t, func() bool {
+		_, err := tClient.GetRole(ctx, roleName)
+		return trace.IsNotFound(err)
+	})
+
+	// The role is deleted in K8S
+	k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
+
+	var kRole resourcesv5.Role
+	fastEventually(t, func() bool {
+		err = k8sClient.Get(ctx, kclient.ObjectKey{
+			Namespace: ns.Name,
+			Name:      roleName,
+		}, &kRole)
+		return kerrors.IsNotFound(err)
+	})
+}
+
 func TestRoleUpdate(t *testing.T) {
 	ctx := context.Background()
 
