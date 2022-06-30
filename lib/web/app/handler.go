@@ -156,6 +156,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 
 	session, err := h.renewSession(req)
 	if err != nil {
+		fmt.Printf("--> in handleForwardError: %v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
@@ -191,6 +192,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
 		h.log.Debugf("Failed to fetch application session: not found.")
+		fmt.Printf("Failed to fetch application session: not found.")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -202,6 +204,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	session, err := h.getSession(r.Context(), ws)
 	if err != nil {
 		h.log.Warnf("Failed to get session: %v.", err)
+		fmt.Printf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -214,6 +217,7 @@ func (h *Handler) getAppSession(r *http.Request) (types.WebSession, error) {
 	sessionID, err := h.extractSessionID(r)
 	if err != nil {
 		h.log.Warnf("Failed to extract session id: %v.", err)
+		fmt.Printf("Failed to extract session id: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -263,12 +267,14 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 	// Create a new session with a forwarder in it.
 	session, err = h.newSession(ctx, ws)
 	if err != nil {
+		fmt.Printf("--> getSession: 1: %v\n", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
 	// Put the session in the cache so the next request can use it.
 	err = h.cache.set(ws.GetName(), session, ws.Expiry().Sub(h.c.Clock.Now()))
 	if err != nil {
+		fmt.Printf("--> getSession: 2: %v\n", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 

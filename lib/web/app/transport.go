@@ -129,6 +129,7 @@ func newTransport(c *transportConfig) (*transport, error) {
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	fmt.Printf("--> [Proxy] RoundTrip\n")
 	// Perform any request rewriting needed before forwarding the request.
 	if err := t.rewriteRequest(r); err != nil {
 		return nil, trace.Wrap(err)

@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -62,6 +63,11 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	accessPoint, err := clusterClient.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	aa, err := accessPoint.GetApplicationServers(context.Background(), "default")
+	for i, v := range aa {
+		fmt.Printf("--> newSession: %v %v\n", i, v.GetName())
 	}
 
 	// Match healthy and PublicAddr servers. Having a list of only healthy

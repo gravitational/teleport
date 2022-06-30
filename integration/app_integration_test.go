@@ -571,9 +571,11 @@ func (p *pack) appServersHA(t *testing.T) {
 
 	makeRequests := func(t *testing.T, pack *pack, httpCookie, wsCookie string, responseAssertion func(*testing.T, int, error)) {
 		status, _, err := pack.makeRequest(httpCookie, http.MethodGet, "/")
+		fmt.Printf("--> pack.makeRequest: %v.\n", err)
 		responseAssertion(t, status, err)
 
 		_, err = pack.makeWebsocketRequest(wsCookie, "/")
+		fmt.Printf("--> pack.makeWebsocketRequest: %v.\n", err)
 		responseAssertion(t, 0, err)
 	}
 
@@ -585,34 +587,47 @@ func (p *pack) appServersHA(t *testing.T) {
 			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
 			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
 
+			fmt.Printf("--> 1\n")
 			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
+				err2 := appServer.Wait()
+				fmt.Printf("--> err2: %v.\n", err2)
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
+					fmt.Printf("--> [%v/%v] 2\n", i, len(info.appServers))
 					makeRequests(t, p, httpCookie, wsCookie, responseWithError)
 				} else {
 					// otherwise the request should be handled by another
 					// server.
+					fmt.Printf("--> [%v/%v] 3\n", i, len(info.appServers))
 					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 				}
 			}
 
 			servers := test.startAppServers(p, 1)
+			time.Sleep(30 * time.Second)
+			// TODO(russjones): Might be a bug here as well, does startAppServers wait
+			// until an app server is actually started?
+			fmt.Printf("--> 4\n")
 			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
 			test.startAppServers(p, 1)
+			time.Sleep(30 * time.Second)
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
+				err2 := appServer.Wait()
+				fmt.Printf("--> err2: %v.\n", err2)
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
+				fmt.Printf("--> 5\n")
 				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 			}
 		})
@@ -1327,6 +1342,8 @@ func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, strin
 	if err != nil {
 		return 0, "", trace.Wrap(err)
 	}
+
+	fmt.Printf("--> body=%v StatusCode: %v.\n", string(body), resp.StatusCode)
 
 	return resp.StatusCode, string(body), nil
 }
