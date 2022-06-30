@@ -419,9 +419,6 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if resourceIDsString == "" {
-				resourceIDsString = "[none]"
-			}
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
