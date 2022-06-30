@@ -267,17 +267,48 @@ func TestProxySSHDial(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	unreachableSubsystem := "alice@unknownhost:22"
+	mustRunTSHProxySSH(t, "alice", []string{}, setHomePath(tmpHomePath))
+}
 
-	// Check if the tsh proxy ssh command can establish a connection to the Teleport proxy.
-	// After connection is established the unknown submodule is requested and the call is expected to fail with the
-	// "subsystem request failed" error.
-	// For real case scenario the 'tsh proxy ssh' and openssh binary use stdin,stdout,stderr pipes
-	// as communication channels but in unit test there is no easy way to mock this behavior.
-	err = Run(context.Background(), []string{
-		"proxy", "ssh", unreachableSubsystem,
-	}, setHomePath(tmpHomePath))
-	require.Contains(t, err.Error(), "subsystem request failed")
+func TestProxySSHRelogin(t *testing.T) {
+	createAgent(t)
+
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"alice"},
+		},
+	})
+
+	require.NoError(t, err)
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access", "ssh-login"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice, sshLoginRole),
+		withAuthConfig(func(cfg *service.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+	)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// provide additional flags so that "tsh proxy ssh" can relogin successfully.
+	mustRunTSHProxySSH(t, "alice", []string{
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--auth", connector.GetName(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	})
 }
 
 // TestProxySSHDialWithIdentityFile retries
@@ -588,4 +619,21 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, av []apievents.AuditEvent, nod
 		}
 	}
 	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+}
+
+// Check if the tsh proxy ssh command can establish a connection to the Teleport proxy.
+// After connection is established the unknown submodule is requested and the call is
+// expected to fail with the "subsystem request failed" error.
+//
+// For real case scenario the 'tsh proxy ssh' and openssh binary use stdin,stdout,stderr pipes
+// as communication channels but in unit test there is no easy way to mock this behavior.
+func mustRunTSHProxySSH(t *testing.T, login string, flags []string, opts ...cliOption) {
+	// run "tsh proxy ssh [additional args] alice@unknownhost:22"
+	args := append([]string{"proxy", "ssh"}, flags...)
+
+	unreachableSubsystem := fmt.Sprintf("%v@unknownhost:22", login)
+	args = append(args, unreachableSubsystem)
+
+	err := Run(context.Background(), args, opts...)
+	require.Contains(t, err.Error(), "subsystem request failed")
 }
