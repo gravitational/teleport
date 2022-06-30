@@ -805,8 +805,15 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
+	// DELETE IN 11.0.
+	// missingDatabaseCA is needed only when leaf cluster v9 is connected
+	// to root cluster v10. Database CA has been added in v10, so older
+	// clusters don't have it and fetchCertAuthorities() returns an error.
+	missingDatabaseCA := false
 	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
-	if err != nil {
+	if trace.IsBadParameter(err) {
+		missingDatabaseCA = true
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -822,8 +829,16 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		if err := applyUserCAs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := applyDatabaseCAs(ctx); err != nil {
-			return trace.Wrap(err)
+		if !missingDatabaseCA {
+			if err := applyDatabaseCAs(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
 		return trace.Wrap(applyJWTSigners(ctx))
 	}, nil
