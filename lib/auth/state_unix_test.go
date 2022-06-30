@@ -39,7 +39,7 @@ func Test_copyLocalStorageIntoKubernetes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer litebk.Close()
-	items := []backend.Item{
+	stateKeys := []backend.Item{
 		{
 			Key:   backend.Key(idsPrefix, "kube", "current"),
 			Value: []byte("test1"),
@@ -58,8 +58,10 @@ func Test_copyLocalStorageIntoKubernetes(t *testing.T) {
 		},
 	}
 
-	err = litebk.PutRange(context.TODO(), items)
+	err = litebk.PutRange(context.TODO(), stateKeys)
 	require.NoError(t, err)
+
+	// write another key that is neither an identity neither a state
 	_, err = litebk.Put(
 		context.TODO(),
 		backend.Item{
@@ -68,16 +70,17 @@ func Test_copyLocalStorageIntoKubernetes(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	kubeMock := &k8sStorageMock{}
 
+	// simple mock to catch the keys
+	kubeMock := &k8sStorageMock{}
 	err = copyLocalStorageIntoKubernetes(context.TODO(), kubeMock, litebk)
 	require.NoError(t, err)
 
 	// SQLite returns keys in alphabetical order
-	sort.Slice(items, func(i, j int) bool {
-		return string(items[i].Key) < string(items[j].Key)
+	sort.Slice(stateKeys, func(i, j int) bool {
+		return string(stateKeys[i].Key) < string(stateKeys[j].Key)
 	})
-	require.Equal(t, items, kubeMock.items)
+	require.Equal(t, stateKeys, kubeMock.items)
 }
 
 type k8sStorageMock struct {

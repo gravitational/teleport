@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -32,11 +31,6 @@ import (
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	os.Exit(m.Run())
-}
 
 func TestBackend_Exists(t *testing.T) {
 	type fields struct {
@@ -98,11 +92,13 @@ func TestBackend_Exists(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
 				os.Setenv(namespaceEnv, tt.fields.namespace)
 				defer os.Unsetenv(namespaceEnv)
 			}
 
+			// set replicaName env variable
 			if len(tt.fields.replicaName) > 0 {
 				os.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 				defer os.Unsetenv(teleportReplicaNameEnv)
@@ -171,7 +167,7 @@ func TestBackend_Get(t *testing.T) {
 			wantNotFound: true,
 		},
 		{
-			name: "secret exists and key is there",
+			name: "secret exists and key is present",
 			args: args{
 				key: backend.Key("ids", "kube", "current"),
 			},
@@ -191,7 +187,7 @@ func TestBackend_Get(t *testing.T) {
 			want: payloadTestData,
 		},
 		{
-			name: "secret exists and key is there but empty",
+			name: "secret exists and key is present but empty",
 			args: args{
 				key: backend.Key("ids", "kube", "current"),
 			},
@@ -283,7 +279,7 @@ func TestBackend_Put(t *testing.T) {
 		want   *corev1.Secret
 	}{
 		{
-			name: "secret does not exist and it's created",
+			name: "secret does not exist and should be created",
 			fields: fields{
 				objects:     nil,
 				namespace:   "test",
@@ -336,11 +332,13 @@ func TestBackend_Put(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// set namespace env var
 			if len(tt.fields.namespace) > 0 {
 				os.Setenv(namespaceEnv, tt.fields.namespace)
 				defer os.Unsetenv(namespaceEnv)
 			}
 
+			// set replicaName env var
 			if len(tt.fields.replicaName) > 0 {
 				os.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 				defer os.Unsetenv(teleportReplicaNameEnv)
@@ -351,8 +349,8 @@ func TestBackend_Put(t *testing.T) {
 			b, err := NewWithClient(k8sClient)
 			require.NoError(t, err)
 
-			// k8s fake client does not support apply so we need to install a reactor to
-			// handle that.
+			// k8s fake client does not support apply operations,
+			// so we need to install a reactor to handle them.
 			// https://github.com/kubernetes/kubernetes/issues/99953
 			k8sClient.CoreV1().(*fakecorev1.FakeCoreV1).Fake.PrependReactor(
 				"patch",
@@ -365,6 +363,7 @@ func TestBackend_Put(t *testing.T) {
 
 					// FIXME(tigrato): in the future merge  applyAction.Patch into the data
 					// it requires unmarshal + merge into the structue with the given rules
+					// for now it just grabs the Item from the test and sets the value.
 					if obj, err := k8sClient.Tracker().Get(
 						secretResourceVersion,
 						applyAction.Namespace,
@@ -392,10 +391,11 @@ func TestBackend_Put(t *testing.T) {
 					return true, secret, nil
 				},
 			)
-
+			// Put upserts the content in the secret
 			_, err = b.Put(context.TODO(), tt.args.item)
 			require.NoError(t, err)
 
+			// get secret loads the kubernetes secret to compare.
 			got, err := b.getSecret(context.TODO())
 			require.NoError(t, err)
 			require.Equal(t, got, tt.want)
