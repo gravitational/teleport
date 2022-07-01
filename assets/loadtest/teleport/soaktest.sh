@@ -10,21 +10,21 @@ echo "${node}"
 echo "${iot_node}"
 
 if [ -z "${node}" ]; then
-		echo "no regular nodes found to run soak test on.";
+		echo "no direct dial nodes found to run soak test on.";
 		exit 1;
 fi
 
 if [ -z "${iot_node}" ]; then
-		echo "no IoT nodes found to run soak test on.";
+		echo "no reverse tunnel nodes found to run soak test on.";
 		exit 1;
 fi
 
-echo "----Non-IoT Node Test----"
+echo "----Direct Dial Node Test----"
 tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth bench --duration="${DURATION}" root@"${node}" ls
 
 tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth bench --duration="${DURATION}" --interactive root@"${node}" ps aux
 
-echo "----IoT Node Test----"
+echo "----Reverse Tunnel Node Test----"
 tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth bench --duration="${DURATION}" root@"${iot_node}" ls
 
 tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth bench --duration="${DURATION}" --interactive root@"${iot_node}" ps aux
