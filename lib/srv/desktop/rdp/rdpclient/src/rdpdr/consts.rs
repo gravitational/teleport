@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::flags;
+use super::Boolean;
+
 pub const CHANNEL_NAME: &str = "rdpdr";
 
 // Each redirected device requires a unique ID. We only share
@@ -192,3 +195,14 @@ pub enum FileSystemInformationClassLevel {
     FileFsVolumeFlagsInformation = 10,
     FileFsSectorSizeInformation = 11,
 }
+
+const fn size_of<T>() -> u32 {
+    std::mem::size_of::<T>() as u32
+}
+
+pub const U32_SIZE: u32 = size_of::<u32>();
+pub const I64_SIZE: u32 = size_of::<i64>();
+pub const I8_SIZE: u32 = size_of::<i8>();
+pub const U8_SIZE: u32 = size_of::<u8>();
+pub const FILE_ATTR_SIZE: u32 = size_of::<flags::FileAttributes>();
+pub const BOOL_SIZE: u32 = size_of::<Boolean>();
