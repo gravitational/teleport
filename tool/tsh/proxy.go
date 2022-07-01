@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -249,30 +250,17 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 
-	// Since we want to capture the stderr in case of an error,
-	// create a stderr pipe and tee it into os.stderr after reading it
-	stdErrPipe, err := child.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer stdErrPipe.Close()
+	// copy command stderr into a buffer so that we can check and return the error
+	captureStdErr := new(bytes.Buffer)
+	child.Stderr = io.MultiWriter(os.Stderr, captureStdErr)
 
-	if err := child.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	stdErr, err := io.ReadAll(io.TeeReader(stdErrPipe, os.Stderr))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := child.Wait(); err != nil {
+	if err := child.Run(); err != nil {
 		// If the provided publickey was rejected, return a
 		// trust error to signal tsh to attempt to relogin.
-		if strings.Contains(string(stdErr), "Permission denied (publickey)") {
-			return trace.Trust(err, "stderr: %s", stdErr)
+		if strings.Contains(captureStdErr.String(), "Permission denied (publickey)") {
+			return trace.Trust(err, "stderr: %s", captureStdErr)
 		}
-		return trace.Wrap(err, "stderr: %s", stdErr)
+		return trace.Wrap(err, "stderr: %s", captureStdErr)
 	}
 	return nil
 }
