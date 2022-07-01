@@ -18,7 +18,8 @@ RUN apt-get update && \
 # libudev-zero replaces systemd's libudev
 RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    make install-static
+    make install-static && \
+    make clean
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -29,7 +30,8 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DWITH_EXAMPLES=OFF . && \
     make && \
-    make install
+    make install && \
+    make clean
 
 # Install libfido2.
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
@@ -41,7 +43,8 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
     make && \
-    make install
+    make install && \
+    make clean
 
 FROM ubuntu:18.04 AS buildbox
 
@@ -107,10 +110,12 @@ RUN apt-get update -y --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 # Install gcloud SDK and Firestore emulator.
-RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
+RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
+    rm -rf /opt/google-cloud-sdk/.install/.backup
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 # beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
-RUN gcloud components install cloud-firestore-emulator beta
+RUN gcloud components install cloud-firestore-emulator beta && \
+    rm -rf /opt/google-cloud-sdk/.install/.backup
 
 ARG UID
 ARG GID
@@ -119,7 +124,8 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
+     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -172,11 +178,11 @@ RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
+     rm /tmp/${PROTOC_TARBALL})     
+RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} --depth 1 ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
-     git reset --hard ${GOGO_PROTO_TAG} && \
-     make install)
+     make install && \
+     make clean)
 
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
