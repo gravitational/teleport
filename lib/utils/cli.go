@@ -31,14 +31,12 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 )
 
 type LoggingPurpose int
@@ -49,22 +47,22 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
-	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
-	log.SetLevel(level)
+func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
+	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == log.DebugLevel {
-			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-			log.SetOutput(os.Stderr)
+		if level == logrus.DebugLevel {
+			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			logrus.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(io.Discard)
+			logrus.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		log.SetOutput(os.Stderr)
+		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		logrus.SetOutput(os.Stderr)
 	}
 }
 
@@ -73,49 +71,49 @@ func InitLoggerForTests() {
 	// Parse flags to check testing.Verbose().
 	flag.Parse()
 
-	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	log.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
-	logger.SetLevel(log.WarnLevel)
+	logger.SetLevel(logrus.WarnLevel)
 	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *log.Logger {
-	logger := log.New()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+func NewLoggerForTests() *logrus.Logger {
+	logger := logrus.New()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logger.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
 
 // WrapLogger wraps an existing logger entry and returns
 // an value satisfying the Logger interface
-func WrapLogger(logger *log.Entry) Logger {
+func WrapLogger(logger *logrus.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
 // NewLogger creates a new empty logger
-func NewLogger() *log.Logger {
-	logger := log.New()
+func NewLogger() *logrus.Logger {
+	logger := logrus.New()
 	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
 // Logger describes a logger value
 type Logger interface {
-	log.FieldLogger
+	logrus.FieldLogger
 	// GetLevel specifies the level at which this logger
 	// value is logging
-	GetLevel() log.Level
+	GetLevel() logrus.Level
 	// SetLevel sets the logger's level to the specified value
-	SetLevel(level log.Level)
+	SetLevel(level logrus.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -136,7 +134,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	log.Debugf("Starting tests with %v iterations.", iter)
+	logrus.Debugf("Starting tests with %v iterations.", iter)
 	return iter
 }
 
@@ -147,7 +145,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if log.GetLevel() == log.DebugLevel {
+	if logrus.GetLevel() == logrus.DebugLevel {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -246,7 +244,6 @@ func formatCertError(err error) string {
 	default:
 		return ""
 	}
-
 }
 
 const (
@@ -269,7 +266,7 @@ func Color(color int, v interface{}) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
+func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	log.Info(msg)
 	if w != nil {
@@ -339,7 +336,6 @@ func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseCont
 				opt.commandPrintfWidth = len(command.FullCommand)
 			}
 		}
-
 	}
 }
 
