@@ -867,6 +867,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	defer span.End()
 
 	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+		ctx = oteltrace.ContextWithSpan(ctx, span)
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 

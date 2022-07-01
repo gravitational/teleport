@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -250,6 +251,15 @@ type CLIConf struct {
 
 	// ConfigProxyTarget is the node which should be connected to in `tsh config-proxy`.
 	ConfigProxyTarget string
+
+	// SampleTraces indicates whether traces should be sampled.
+	SampleTraces bool
+
+	// TraceExporterURL is the tracing exporter url to use.
+	TraceExporterURL string
+
+	// TracingProvider is the provider to use to create tracers, from which spans can be created.
+	TracingProvider oteltrace.TracerProvider
 }
 
 // Stderr returns the stderr writer.
@@ -272,6 +282,9 @@ func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
 	switch path.Base(os.Args[0]) {
@@ -282,7 +295,7 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(cmdLine); err != nil {
+	if err := Run(ctx, cmdLine); err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -323,8 +336,11 @@ const (
 type cliOption func(*CLIConf) error
 
 // Run executes TSH client. same as main() but easier to test
-func Run(args []string, opts ...cliOption) error {
-	var cf CLIConf
+func Run(ctx context.Context, args []string, opts ...cliOption) error {
+	cf := CLIConf{
+		Context:         ctx,
+		TracingProvider: tracing.NoopProvider(),
+	}
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	moduleCfg := modules.GetModules()
@@ -344,6 +360,8 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
+	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
+	app.Flag("trace-exporter", "Trace exporter URL").Hidden().StringVar(&cf.TraceExporterURL)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -565,16 +583,34 @@ func Run(args []string, opts ...cliOption) error {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		exitSignals := make(chan os.Signal, 1)
-		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+	// Connect to the span exporter and initialize the trace provider only if
+	// the --trace flag was set.
+	if cf.SampleTraces {
+		provider, err := newTraceProvider(&cf, command, []string{login.FullCommand()})
+		if err != nil {
+			log.WithError(err).Debug("failed to set up span forwarding.")
+		} else {
+			// only update the provider if we successfully set it up
+			cf.TracingProvider = provider
 
-		sig := <-exitSignals
-		log.Debugf("signal: %v", sig)
-		cancel()
-	}()
+			// ensure that the provider is shutdown on exit to flush any spans
+			// that haven't been forwarded yet.
+			defer func() {
+				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
+				defer cancel()
+				err := provider.Shutdown(shutdownCtx)
+				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+					log.WithError(err).Debugf("failed to shutdown trace provider")
+				}
+			}()
+		}
+	}
+
+	// start the span for the command and update the config context so that all spans created
+	// in the future will be rooted at this span.
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
 	cf.Context = ctx
+	defer span.End()
 
 	if cf.Gops {
 		log.Debugf("Starting gops agent.")
@@ -681,6 +717,36 @@ func Run(args []string, opts ...cliOption) error {
 	return trace.Wrap(err)
 }
 
+// newTraceProvider initializes the tracing provider and exports all recorded spans
+// to the auth server to be forwarded to the telemetry backend. The whitelist allows
+// certain commands to have exporting spans be a no-op. Since the provider requires
+// connecting to the auth server, this means a user may have to log in first before
+// the provider can be created. By whitelisting the login command we can avoid having
+// users logging in twice at the expense of not exporting spans for the login command.
+func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been whitelisted
+	for _, c := range whitelist {
+		if strings.EqualFold(command, c) {
+			return tracing.NoopProvider(), nil
+		}
+	}
+
+	provider, err := tracing.NewTraceProvider(cf.Context,
+		tracing.Config{
+			Service:     teleport.ComponentTSH,
+			ExporterURL: cf.TraceExporterURL,
+			// We are using 1 here to record all spans as a result of this tsh command. Teleport
+			// will respect the recording flag of remote spans even if the spans it generates
+			// wouldn't otherwise be recorded due to its configured sampling rate.
+			SamplingRate: 1.0,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return provider, nil
+}
+
 // onPlay replays a session with a given ID
 func onPlay(cf *CLIConf) error {
 	switch cf.Format {
@@ -693,7 +759,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
-			if err := client.PlayFile(context.TODO(), tarFile, sid); err != nil {
+			if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
@@ -701,14 +767,14 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+			if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	default:
 		switch {
 		case path.Ext(cf.SessionID) == ".tar":
-			err := exportFile(cf.SessionID, cf.Format)
+			err := exportFile(cf.Context, cf.SessionID, cf.Format)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -717,7 +783,7 @@ func onPlay(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			events, err := tc.GetSessionEvents(context.TODO(), cf.Namespace, cf.SessionID)
+			events, err := tc.GetSessionEvents(cf.Context, cf.Namespace, cf.SessionID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -741,13 +807,13 @@ func sessionIDFromPath(path string) string {
 	return strings.TrimSuffix(fileName, ".tar")
 }
 
-func exportFile(path string, format string) error {
+func exportFile(ctx context.Context, path string, format string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	err = events.Export(context.TODO(), f, os.Stdout, format)
+	err = events.Export(ctx, f, os.Stdout, format)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1670,7 +1736,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(context.TODO(), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, cf.Namespace, *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
