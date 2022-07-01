@@ -1067,35 +1067,62 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	type testCase struct {
+		name                  string
+		f                     func(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error)
+		enableEscapeSequences bool
+	}
 
-	site := teleport.GetSiteAPI(helpers.Site)
-	require.NotNil(t, site)
+	testCases := []testCase{
+		{
+			name:                  "yes",
+			f:                     testEscapeSequenceYesTrigger,
+			enableEscapeSequences: true,
+		},
+		{
+			name:                  "no",
+			f:                     testEscapeSequenceNoTrigger,
+			enableEscapeSequences: false,
+		},
+	}
 
-	terminal := NewTerminal(250)
-	cl, err := teleport.NewClient(helpers.ClientConfig{
-		Login:                 suite.Me.Username,
-		Cluster:               helpers.Site,
-		Host:                  Host,
-		EnableEscapeSequences: true,
-	})
-	require.NoError(t, err)
+	for _, testCase := range testCases {
+		ctx := context.Background()
+		teleport := suite.newTeleport(t, nil, true)
+		defer teleport.StopAll()
 
-	cl.Stdout = terminal
-	cl.Stdin = terminal
-	sess := make(chan error)
-	go func() {
-		sess <- cl.SSH(ctx, []string{}, false)
-	}()
+		site := teleport.GetSiteAPI(helpers.Site)
+		require.NotNil(t, site)
 
-	require.Eventually(t, func() bool {
-		trackers, err := site.GetActiveSessionTrackers(ctx)
+		terminal := NewTerminal(250)
+		cl, err := teleport.NewClient(helpers.ClientConfig{
+			Login:                 suite.Me.Username,
+			Cluster:               helpers.Site,
+			Host:                  Host,
+			EnableEscapeSequences: testCase.enableEscapeSequences,
+		})
 		require.NoError(t, err)
-		return len(trackers) == 1
-	}, time.Second*15, time.Millisecond*100)
 
+		cl.Stdout = terminal
+		cl.Stdin = terminal
+		sess := make(chan error)
+		go func() {
+			sess <- cl.SSH(ctx, []string{}, false)
+		}()
+
+		require.Eventually(t, func() bool {
+			trackers, err := site.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
+			return len(trackers) == 1
+		}, time.Second*15, time.Millisecond*100)
+
+		t.Run(testCase.name, func(t *testing.T) {
+			testCase.f(t, ctx, terminal, sess)
+		})
+	}
+}
+
+func testEscapeSequenceYesTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
 	select {
 	case err := <-sess:
 		require.FailNow(t, "session should not have ended", err)
@@ -1103,6 +1130,29 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	terminal.Type("\a~.\n\r")
+	select {
+	case err := <-sess:
+		require.NoError(t, err)
+	case <-time.After(time.Second * 15):
+		require.FailNow(t, "session should have ended")
+	}
+}
+
+func testEscapeSequenceNoTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
+	sessionIsAlive := func() {
+		select {
+		case err := <-sess:
+			require.FailNow(t, "session should not have ended", err)
+		default:
+		}
+	}
+
+	sessionIsAlive()
+	terminal.Type("\a~.\n\r")
+	time.Sleep(time.Second * 5)
+	sessionIsAlive()
+
+	terminal.Type("\aexit 0\n\r")
 	select {
 	case err := <-sess:
 		require.NoError(t, err)
