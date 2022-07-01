@@ -50,9 +50,9 @@ type UserCommand struct {
 
 	ttl time.Duration
 
-	// updateRoles is used for update users command
+	// updateRoles contains new roles for update users command
 	updateRoles string
-
+	// updateLogins contains new logins for update users command
 	updateLogins string
 
 	// format is the output format, e.g. text or json
@@ -95,7 +95,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		Default("").StringVar(&u.updateRoles)
-	u.userUpdate.Flag("set-logins", "List of ssh logins for the user to use, replaces current logins").
+	u.userUpdate.Flag("set-logins", "List of SSH logins for the user, replaces current logins").
 		Default("").StringVar(&u.updateLogins)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
@@ -282,8 +282,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 // Update updates existing user
 func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	if u.updateRoles == "" && u.updateLogins == "" {
-		fmt.Println("Nothing to update. Please provide --set-roles or --set-logins.")
-		return nil
+		return trace.BadParameter("Nothing to update. Please provide --set-roles or --set-logins flag.")
 	}
 	user, err := client.GetUser(u.login, false)
 	if err != nil {
