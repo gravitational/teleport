@@ -3341,7 +3341,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Reverse tunnel service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
-			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
+			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, listeners.reverseTunnel.Addr(), process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
 				log.Error(err)
 				return trace.Wrap(err)
@@ -3508,7 +3508,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
-		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, listeners.ssh.Addr())
 		go sshProxy.Serve(listeners.ssh)
 		// broadcast that the proxy ssh server has started
 		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
@@ -3596,7 +3596,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				trace.Component: component,
 			})
 
-			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
+			log.Infof("Starting Kube proxy on %v.", listeners.kube.Addr())
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
@@ -3667,7 +3667,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
 		if listeners.db.postgres != nil {
 			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
-				log.Infof("Starting Postgres proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				log.Infof("Starting Database Postgres proxy server on %v.", listeners.db.postgres.Addr())
 				if err := dbProxyServer.ServePostgres(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
@@ -3676,7 +3676,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if listeners.db.mysql != nil {
 			process.RegisterCriticalFunc("proxy.db.mysql", func() error {
-				log.Infof("Starting MySQL proxy server on %v.", cfg.Proxy.MySQLAddr.Addr)
+				log.Infof("Starting Database MySQL proxy server on %v.", listeners.db.mysql.Addr())
 				if err := dbProxyServer.ServeMySQL(listeners.db.mysql); err != nil {
 					log.WithError(err).Warn("MySQL proxy server exited with error.")
 				}
@@ -3685,7 +3685,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if listeners.db.tls != nil {
 			process.RegisterCriticalFunc("proxy.db.tls", func() error {
-				log.Infof("Starting Database TLS proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				log.Infof("Starting Database TLS proxy server on %v.", listeners.db.tls.Addr())
 				if err := dbProxyServer.ServeTLS(listeners.db.tls); err != nil {
 					log.WithError(err).Warn("Database TLS proxy server exited with error.")
 				}
@@ -3695,7 +3695,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if listeners.db.mongo != nil {
 			process.RegisterCriticalFunc("proxy.db.mongo", func() error {
-				log.Infof("Starting Database Mongo proxy server on %v.", cfg.Proxy.MongoAddr.Addr)
+				log.Infof("Starting Database Mongo proxy server on %v.", listeners.db.mongo.Addr())
 				if err := dbProxyServer.ServeMongo(listeners.db.mongo, tlsConfigWeb.Clone()); err != nil {
 					log.WithError(err).Warn("Database Mongo proxy server exited with error.")
 				}
