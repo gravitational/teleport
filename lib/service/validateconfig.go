@@ -20,7 +20,6 @@
 package service
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -85,9 +84,6 @@ func applyDefaults(cfg *Config) {
 func validateAuthOrProxyServices(cfg *Config) error {
 	haveAuthServers := len(cfg.AuthServers) > 0
 	haveProxyServers := len(cfg.ProxyServers) > 0
-
-	fmt.Printf("has proxy", haveProxyServers)
-	fmt.Printf("cfg version", cfg.Version)
 
 	if haveProxyServers && cfg.Version != defaults.TeleportConfigVersionV3 {
 		return trace.BadParameter("config: proxy_servers is supported from config version v3 onwards")

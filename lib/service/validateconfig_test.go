@@ -21,12 +21,13 @@ package service
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateConfig(t *testing.T) {

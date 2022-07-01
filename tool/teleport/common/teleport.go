@@ -113,7 +113,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
 	start.Flag("proxy-server",
-		fmt.Sprintf("Address of the proxy server [none]")).
+		"Address of the proxy server [none]").
 		StringsVar(&ccf.ProxyServerAddr)
 	start.Flag("token",
 		"Invitation token to register with an auth server [none]").
