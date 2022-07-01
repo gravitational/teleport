@@ -90,7 +90,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -299,7 +299,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1464,7 +1464,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1619,7 +1619,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
