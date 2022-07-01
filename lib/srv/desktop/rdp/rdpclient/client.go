@@ -165,7 +165,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 }
 
 // Run starts the rdp client and blocks until the client disconnects,
-// then runs the cleanup.
+// then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
 	defer c.close()
 
@@ -256,6 +256,7 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		defer c.close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
@@ -275,7 +276,9 @@ func (c *Client) start() {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		defer c.close()
 		defer c.cfg.Log.Info("TDP input streaming finished")
+
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
 		for {
@@ -521,9 +524,9 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 // and frees the Rust client.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
-		// Close the RDP client
-		if err := C.close_rdp(c.rustClient); err != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("failed to close the RDP client")
+		// Ensure the RDP connection is closed
+		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
+			c.cfg.Log.Warningf("error closing the RDP connection")
 		}
 
 		// Let the Rust side free its data
@@ -531,6 +534,11 @@ func (c *Client) close() {
 
 		// Release the memory of the cgo.Handle
 		c.handle.Delete()
+
+		// Ensure the TDP connection is closed
+		if err := c.cfg.Conn.Close(); err != nil {
+			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
+		}
 	})
 }
 
