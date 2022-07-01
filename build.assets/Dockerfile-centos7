@@ -95,7 +95,7 @@ ARG RUST_VERSION
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
@@ -120,11 +120,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     # required by libbpf
     zlib-static && \
     yum clean all
-
-# Add devtoolset to /etc/profile to enable it when logging in.
-RUN echo "source /opt/rh/devtoolset-11/enable" >> /etc/profile
-# Enable devtoolset for docker build.
-SHELL [ "/usr/bin/scl", "enable", "devtoolset-11"]
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -200,6 +195,4 @@ COPY --from=libbpf /opt/libbpf/usr /usr
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
-# Add login option to bash, so startup scripts like /etc/profile are being loaded.
-ENTRYPOINT [ "/bin/bash", "-l", "-c"]
 EXPOSE 6600 2379 2380
