@@ -53,7 +53,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
 
-FROM centos:7 AS centos-devtoolset
+FROM centos:7 AS libbpf
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -61,25 +61,18 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf, Clang
+    # required by libbpf
     centos-release-scl \
-    # required by Clang/LLVM
-    cmake3 \
-    # required by libbpf and Clang
+    # required by libbpf
     devtoolset-11-gcc* \
     # required by libbpf
     devtoolset-11-make \
     # required by libbpf
     elfutils-libelf-devel-static \
     git \
-    # required by libbpf, Clang
-    scl-utils \
     # required by libbpf
-    zlib-static && \
+    scl-utils \
     yum clean all
-
-# Use just created devtools image with never GCC
-FROM centos-devtoolset as libbpf
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
@@ -109,9 +102,9 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    #required by libbpf, Clang
+    #required by libbpf
     centos-release-scl \
-    # required by libbpf and Clang
+    # required by libbpf
     devtoolset-11-* \
     # required by libbpf
     elfutils-libelf-devel-static \
@@ -121,7 +114,7 @@ RUN yum groupinstall -y 'Development Tools' && \
     pam-devel \
     perl-IPC-Cmd \
     tree \
-    # used by our Makefile
+    # used in our Makefile
     which \
     zip \
     # required by libbpf
@@ -130,8 +123,9 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 #RUN echo "source scl_source enable devtoolset-11" >> /etc/profile
 RUN echo "source /opt/rh/devtoolset-11/enable" >> /etc/profile
+#ENV PROMPT_COMMAND=". /etc/profile"
 
-ENV PROMPT_COMMAND=". /etc/profile"
+SHELL [ "/usr/bin/scl", "enable", "devtoolset-11"]
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
@@ -207,4 +201,5 @@ COPY --from=libbpf /opt/libbpf/usr /usr
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
+ENTRYPOINT [ "/bin/bash", "-l", "-c"]
 EXPOSE 6600 2379 2380
