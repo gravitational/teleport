@@ -59,8 +59,8 @@ spec:
       # is set to 'off' in teleport.yaml (Auth Service) or if the cluster's
       # session_recording_config resource has set 'mode: off'.
       desktop: true
-      # Optional: Session recording mode default value used when sessions kind
-      # doesn't have one set.
+      # Optional: the default session recording mode to use when a
+      # protocol-specific mode is not set.
       default: best_effort|strict
       # Optional: Session recording mode for SSH sessions (Teleport Server
       # Access). If not set, the value set on default will be used.
