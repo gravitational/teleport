@@ -199,10 +199,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 		switch mode {
 		case types.SessionPeerMode:
-			forceDisconnect := false
-			handlePeerControls(s.term, enableEscapeSequences, s.stream, &forceDisconnect)
-
-			if forceDisconnect {
+			if handlePeerControls(s.term, enableEscapeSequences, s.stream) {
 				s.cancel()
 			}
 		default:

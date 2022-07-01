@@ -651,7 +651,7 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 
 // handlePeerControls streams the terminal input to the remote shell's standard input.
 // Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
-func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer, forceDisconnect *bool) {
+func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer) (forceDisconnect bool) {
 	stdin := term.Stdin()
 	if enableEscapeSequences {
 		// escape.NewReader is used to enable manual disconnect sequences as those supported
@@ -675,8 +675,10 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 	if err != nil {
 		log.Debugf("Error copying data to remote peer: %v", err)
 		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
-		*forceDisconnect = true
+		forceDisconnect = true
 	}
+
+	return forceDisconnect
 }
 
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
@@ -706,7 +708,7 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
-			handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell, &ns.forceDisconnect)
+			ns.forceDisconnect = handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell)
 			ns.closer.Close()
 		}()
 	}
