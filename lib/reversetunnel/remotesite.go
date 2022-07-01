@@ -488,12 +488,12 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteWatcher *ser
 }
 
 func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityWatcher, remoteVersion string, cas map[types.CertAuthType]types.CertAuthority) error {
-	targets, err := s.getLocalWatchedCerts(remoteVersion)
+	filter, err := s.getLocalWatchedCerts(remoteVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, targets...)
+	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -505,9 +505,8 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 
 	remoteWatch, err := remoteWatcher.Subscribe(
 		s.ctx,
-		services.CertAuthorityTarget{
-			ClusterName: s.domainName,
-			Type:        types.HostCA,
+		types.CertAuthorityFilter{
+			types.HostCA: s.domainName,
 		},
 	)
 	if err != nil {
@@ -587,31 +586,26 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 }
 
 // getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
-func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) ([]services.CertAuthorityTarget, error) {
-	localWatchedTypes := []services.CertAuthorityTarget{
-		{
-			Type:        types.HostCA,
-			ClusterName: s.srv.ClusterName,
-		},
-		{
-			Type:        types.UserCA,
-			ClusterName: s.srv.ClusterName,
-		},
-	}
-
+func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.CertAuthorityFilter, error) {
 	// Delete in 11.0.
 	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if ver10orAbove {
-		localWatchedTypes = append(localWatchedTypes, services.CertAuthorityTarget{ClusterName: s.srv.ClusterName, Type: types.DatabaseCA})
-	} else {
+	if !ver10orAbove {
 		s.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
+		return types.CertAuthorityFilter{
+			types.HostCA: s.srv.ClusterName,
+			types.UserCA: s.srv.ClusterName,
+		}, nil
 	}
 
-	return localWatchedTypes, nil
+	return types.CertAuthorityFilter{
+		types.HostCA:     s.srv.ClusterName,
+		types.UserCA:     s.srv.ClusterName,
+		types.DatabaseCA: s.srv.ClusterName,
+	}, nil
 }
 
 func (s *remoteSite) updateLocks(retry utils.Retry) {
