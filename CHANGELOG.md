@@ -1,5 +1,31 @@
 # Changelog
 
+## 9.3.9
+
+This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+### Auth bypass in Moderated Sessions
+
+When checking a user’s roles prior to starting a session, Teleport may have
+incorrectly allowed a session to proceed without moderation depending on the
+order roles are received from the backend.
+
+### Other improvements and fixes
+
+* Fixed issue with per-session MFA swallowing keypresses. [#13822](https://github.com/gravitational/teleport/pull/13822)
+* Fixed issue with `tsh db ls -R` now showing allowed users. [#13626](https://github.com/gravitational/teleport/pull/13626)
+* Fixed vertical and horizontal scroll in desktop access. [#13905](https://github.com/gravitational/teleport/pull/13905)
+* Fixed issue with invalid query filters forcing `tsh` relogin. [#13747](https://github.com/gravitational/teleport/pull/13747)
+* Fixed issue with TLS routing and proxy jump. [#13928](https://github.com/gravitational/teleport/pull/13928)
+* Fixed issue with MongoDB connections timing out in certain scenarios. [#13859](https://github.com/gravitational/teleport/pull/13859)
+* Fixed issue with Machine ID certificate renewal with empty requested roles. [#13893](https://github.com/gravitational/teleport/pull/13893)
+* Fixed issue with Windows desktops not being labeled with LDAP attribute labels. [#13681](https://github.com/gravitational/teleport/pull/13681)
+* Fixed issue with desktop access streaming not being terminated properly. [#14024](https://github.com/gravitational/teleport/pull/14024)
+* Added ability to use FIPS endpoints for S3 and DynamoDB using `use_fips_endpoint` connection option. [#13703](https://github.com/gravitational/teleport/pull/13703)
+* Added ability to specify CA pin as a file path in the config. [#13089](https://github.com/gravitational/teleport/pull/13089)
+* Improved reconnect reliability after root proxy restart. [#13967](https://github.com/gravitational/teleport/pull/13967)
+* Improved error messages for failed auth client connections. [#13835](https://github.com/gravitational/teleport/pull/13835)
+
 ## 9.3.7
 
 This release of Teleport contains multiple improvements and bug fixes.
