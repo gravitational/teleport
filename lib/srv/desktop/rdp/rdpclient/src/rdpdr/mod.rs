@@ -2340,11 +2340,8 @@ struct FileBasicInformation {
     //reserved: u32,
 }
 
-#[allow(dead_code)]
-/// 4 i64's and 1 u32's = (4 * 8) + 4
-const FILE_BASIC_INFORMATION_SIZE: u32 = (4 * 8) + 4;
-
 impl FileBasicInformation {
+    /// 4 i64's and 1 u32's = (4 * 8) + 4
     const BASE_SIZE: u32 = (4 * 8) + 4;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -2431,9 +2428,6 @@ impl FileStandardInformation {
     }
 }
 
-// 2 i64's + 1 u32 + 2 Boolean (u8) = (2 * 8) + 4 + 2
-const FILE_STANDARD_INFORMATION_SIZE: u32 = (2 * 8) + 4 + 2;
-
 /// 2.4.6 FileAttributeTagInformation [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/d295752f-ce89-4b98-8553-266d37c84f0e?redirectedfrom=MSDN
 #[derive(Debug)]
@@ -2443,8 +2437,7 @@ struct FileAttributeTagInformation {
 }
 
 impl FileAttributeTagInformation {
-    // 2 i64's + 1 u32 + 2 Boolean (u8) = (2 * 8) + 4 + 2
-    const BASE_SIZE: u32 = (2 * 8) + 4 + 2;
+    const BASE_SIZE: u32 = 2 * 4;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2457,9 +2450,6 @@ impl FileAttributeTagInformation {
         Self::BASE_SIZE
     }
 }
-
-// 2 u32's
-const FILE_ATTRIBUTE_TAG_INFO_SIZE: u32 = 8;
 
 /// 2.1.8 Boolean
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/8ce7b38c-d3cc-415d-ab39-944000ea77ff
@@ -2678,7 +2668,7 @@ struct FileEndOfFileInformation {
 }
 
 impl FileEndOfFileInformation {
-    const BASE_SIZE: u32 = 4;
+    const BASE_SIZE: u32 = 8;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2731,6 +2721,8 @@ struct FileRenameInformation {
 }
 
 impl FileRenameInformation {
+    // This matches the FreeRDP implementation rather than Microsoft specification
+    // see encode method
     const BASE_SIZE: u32 = 1 + 1 + 4;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
@@ -2775,7 +2767,7 @@ struct FileAllocationInformation {
 }
 
 impl FileAllocationInformation {
-    const BASE_SIZE: u32 = 4;
+    const BASE_SIZE: u32 = 8;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2819,10 +2811,6 @@ impl FileSystemInformationClass {
     }
 }
 
-/// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
-/// 1 i64, 2 u32, 1 Boolean
-const FILE_FS_VOLUME_INFORMATION_BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
-
 /// 2.5.9 FileFsVolumeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/bf691378-c34e-4a13-976e-404ea1a87738
 #[derive(Debug)]
@@ -2837,6 +2825,10 @@ struct FileFsVolumeInformation {
 }
 
 impl FileFsVolumeInformation {
+    /// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
+    /// 1 i64, 2 u32, 1 Boolean
+    const BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
+
     fn new(volume_creation_time: i64) -> Self {
         // volume_label can just be something we make up
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L446
@@ -2867,11 +2859,11 @@ impl FileFsVolumeInformation {
         w.extend_from_slice(&util::to_unicode(&self.volume_label, true));
         Ok(w)
     }
-}
 
-/// Size of the FileFsSizeInformation.
-/// 2 i64, 2 u32
-const FILE_FS_SIZE_INFORMATION_SIZE: u32 = (2 * 8) + (2 * 4); // 24
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.volume_label_length
+    }
+}
 
 /// 2.5.8 FileFsSizeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/e13e068c-e3a7-4dd4-94fd-3892b492e6e7
@@ -2885,6 +2877,8 @@ struct FileFsSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsSizeInformation {
+    const BASE_SIZE: u32 = (2 * 8) + (2 * 4);
+
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
         // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L510-L513
@@ -2906,11 +2900,11 @@ impl FileFsSizeInformation {
         w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
         Ok(w)
     }
-}
 
-/// Base size of the FileFsAttributeInformation, not accounting for variably sized file_system_name.
-/// 3 u32
-const FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE: u32 = 3 * 4; // 12
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.5.1 FileFsAttributeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
@@ -2924,6 +2918,8 @@ struct FileFsAttributeInformation {
 
 #[allow(dead_code)]
 impl FileFsAttributeInformation {
+    const BASE_SIZE: u32 = 3 * 4;
+
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L519
@@ -2952,11 +2948,11 @@ impl FileFsAttributeInformation {
         w.extend_from_slice(&util::to_unicode(&self.file_system_name, true));
         Ok(w)
     }
-}
 
-/// Size of the FileFsFullSizeInformation.
-/// 3 i64, 2 u32
-const FILE_FS_FULL_SIZE_INFORMATION_SIZE: u32 = (3 * 8) + (2 * 4); // 32
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_system_name_len
+    }
+}
 
 /// 2.5.4 FileFsFullSizeInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/63768db7-9012-4209-8cca-00781e7322f5
@@ -2971,6 +2967,8 @@ struct FileFsFullSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsFullSizeInformation {
+    const BASE_SIZE: u32 = (3 * 8) + (2 * 4);
+
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
         // Written here: https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L552-L557
@@ -2994,11 +2992,11 @@ impl FileFsFullSizeInformation {
         w.write_u32::<LittleEndian>(self.bytes_per_sector)?;
         Ok(w)
     }
-}
 
-/// Size of the FileFsDeviceInformation.
-/// 2 u32
-const FILE_FS_DEVICE_INFORMATION_SIZE: u32 = 2 * 4; // 8
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
+    }
+}
 
 /// 2.5.10 FileFsDeviceInformation
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/616b66d5-b335-4e1c-8f87-b4a55e8d3e4a
@@ -3012,6 +3010,8 @@ struct FileFsDeviceInformation {
 
 #[allow(dead_code)]
 impl FileFsDeviceInformation {
+    const BASE_SIZE: u32 = 2 * 4;
+
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
         Self {
@@ -3025,6 +3025,10 @@ impl FileFsDeviceInformation {
         w.write_u32::<LittleEndian>(self.device_type)?;
         w.write_u32::<LittleEndian>(self.characteristics)?;
         Ok(w)
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE
     }
 }
 
@@ -3064,7 +3068,7 @@ impl ClientDriveQueryInformationResponse {
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L482
             let (length, buffer) = match req.file_info_class_lvl {
                 FileInformationClassLevel::FileBasicInformation => (
-                    Some(FILE_BASIC_INFORMATION_SIZE),
+                    Some(FileBasicInformation::BASE_SIZE),
                     Some(FileInformationClass::FileBasicInformation(
                         FileBasicInformation {
                             creation_time: to_windows_time(file.fso.last_modified),
@@ -3080,7 +3084,7 @@ impl ClientDriveQueryInformationResponse {
                     )),
                 ),
                 FileInformationClassLevel::FileStandardInformation => (
-                    Some(FILE_STANDARD_INFORMATION_SIZE),
+                    Some(FileStandardInformation::BASE_SIZE),
                     Some(FileInformationClass::FileStandardInformation(
                         FileStandardInformation {
                             allocation_size: file.fso.size as i64,
@@ -3100,7 +3104,7 @@ impl ClientDriveQueryInformationResponse {
                     )),
                 ),
                 FileInformationClassLevel::FileAttributeTagInformation => (
-                    Some(FILE_ATTRIBUTE_TAG_INFO_SIZE),
+                    Some(FileAttributeTagInformation::BASE_SIZE),
                     Some(FileInformationClass::FileAttributeTagInformation(
                         FileAttributeTagInformation {
                             file_attributes: if file.fso.file_type == FileType::File {
@@ -3370,13 +3374,13 @@ struct ClientDriveSetInformationResponse {
 }
 
 impl ClientDriveSetInformationResponse {
-    fn new(device_read_request: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
+    fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
             device_io_reply: DeviceIoResponse::new(
-                &device_read_request.device_io_request,
+                &req.device_io_request,
                 NTSTATUS::to_u32(&io_status).unwrap(),
             ),
-            length: device_read_request.set_buffer.size() as u32,
+            length: req.set_buffer.size() as u32,
         }
     }
 
@@ -3698,21 +3702,11 @@ impl ClientDriveQueryVolumeInformationResponse {
 
         let length = match buffer {
             Some(ref buf) => match buf {
-                FileSystemInformationClass::FileFsVolumeInformation(f) => {
-                    FILE_FS_VOLUME_INFORMATION_BASE_SIZE + f.volume_label_length
-                }
-                FileSystemInformationClass::FileFsSizeInformation(_) => {
-                    FILE_FS_SIZE_INFORMATION_SIZE
-                }
-                FileSystemInformationClass::FileFsAttributeInformation(f) => {
-                    FILE_FS_ATTRIBUTE_INFORMATION_BASE_SIZE + f.file_system_name_len
-                }
-                FileSystemInformationClass::FileFsFullSizeInformation(_) => {
-                    FILE_FS_FULL_SIZE_INFORMATION_SIZE
-                }
-                FileSystemInformationClass::FileFsDeviceInformation(_) => {
-                    FILE_FS_DEVICE_INFORMATION_SIZE
-                }
+                FileSystemInformationClass::FileFsVolumeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsSizeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsAttributeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsFullSizeInformation(f) => f.size(),
+                FileSystemInformationClass::FileFsDeviceInformation(f) => f.size(),
             },
             None => 0,
         };

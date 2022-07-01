@@ -470,7 +470,6 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryReadResponse:
 				if c.cfg.AllowDirectorySharing {
-
 					var readData *C.uint8_t
 					if m.ReadDataLength > 0 {
 						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
