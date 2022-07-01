@@ -306,7 +306,7 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 			a.LicenseFile = flags.LicensePath
 		}
 
-		if flags.Version == defaults.TeleportConfigVersionV2 {
+		if flags.Version != defaults.TeleportConfigVersionV1 {
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {

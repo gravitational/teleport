@@ -1754,6 +1754,15 @@ func TestProxyKube(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
+			desc:    "v3 kube service should be enabled by default",
+			version: defaults.TeleportConfigVersionV3,
+			cfg:     Proxy{},
+			want: service.KubeProxyConfig{
+				Enabled: true,
+			},
+			checkErr: require.NoError,
+		},
+		{
 			desc:    "v2 kube service should be enabled by default",
 			version: defaults.TeleportConfigVersionV2,
 			cfg:     Proxy{},
@@ -1788,9 +1797,9 @@ func TestProxyConfigurationVersion(t *testing.T) {
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			desc: "v2 config with default web address",
+			desc: "v3 config with default web address",
 			fc: FileConfig{
-				Version: defaults.TeleportConfigVersionV2,
+				Version: defaults.TeleportConfigVersionV3,
 				Proxy: Proxy{
 					Service: Service{
 						defaultEnabled: true,
@@ -1801,6 +1810,31 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
 				Enabled:             true,
 				EnableProxyProtocol: true,
+				Kube: service.KubeProxyConfig{
+					Enabled: true,
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "v3 config with custom web address",
+			fc: FileConfig{
+				Version: defaults.TeleportConfigVersionV3,
+				Proxy: Proxy{
+					Service: Service{
+						defaultEnabled: true,
+					},
+					WebAddr: "0.0.0.0:9999",
+				},
+			},
+			want: service.ProxyConfig{
+				Enabled:             true,
+				EnableProxyProtocol: true,
+				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
 				Kube: service.KubeProxyConfig{
 					Enabled: true,
 				},

@@ -363,10 +363,10 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	suite := newProxySuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
 			config.Proxy.Kube.Enabled = true
-			config.Version = defaults.TeleportConfigVersionV2
+			config.Version = defaults.TeleportConfigVersionV3
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
-			config.Version = defaults.TeleportConfigVersionV2
+			config.Version = defaults.TeleportConfigVersionV3
 			config.Proxy.Kube.Enabled = true
 
 			config.Kube.Enabled = true

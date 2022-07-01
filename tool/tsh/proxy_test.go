@@ -53,6 +53,10 @@ func TestSSH(t *testing.T) {
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV3
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),

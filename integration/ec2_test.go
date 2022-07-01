@@ -71,7 +71,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Version = defaults.TeleportConfigVersionV2
+	config.Version = defaults.TeleportConfigVersionV3
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false

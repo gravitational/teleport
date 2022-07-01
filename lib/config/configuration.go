@@ -855,8 +855,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	case legacyKube && newKube:
 		return trace.BadParameter("proxy_service should either set kube_listen_addr/kube_public_addr or kubernetes.enabled, not both; keep kubernetes.enabled if you don't enable kubernetes_service, or keep kube_listen_addr otherwise")
 	case !legacyKube && !newKube:
-		if fc.Version == defaults.TeleportConfigVersionV2 {
-			// Always enable kube service if using config V2 (TLS routing is supported)
+		if fc.Version != defaults.TeleportConfigVersionV1 {
+			// Always enable kube service if using config version 2 onwards (TLS routing is supported)
 			cfg.Proxy.Kube.Enabled = true
 		}
 	}
@@ -953,8 +953,8 @@ func getPostgresDefaultPort(cfg *service.Config) int {
 }
 
 func applyDefaultProxyListenerAddresses(cfg *service.Config) {
-	if cfg.Version == defaults.TeleportConfigVersionV2 {
-		// For v2 configuration if an address is not provided don't fallback to the default values.
+	if cfg.Version != defaults.TeleportConfigVersionV1 {
+		// From v2 onwards, if an address is not provided don't fallback to the default values.
 		return
 	}
 

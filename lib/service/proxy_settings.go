@@ -47,12 +47,11 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 		return nil, trace.Wrap(err)
 	}
 
-	switch p.cfg.Version {
-	case defaults.TeleportConfigVersionV2:
-		return p.buildProxySettingsV2(resp.GetProxyListenerMode()), nil
-	default:
+	if p.cfg.Version == defaults.TeleportConfigVersionV1 {
 		return p.buildProxySettings(resp.GetProxyListenerMode()), nil
 	}
+
+	return p.buildProxySettingsV2(resp.GetProxyListenerMode()), nil
 }
 
 // buildProxySettings builds standard proxy configuration where proxy services are
