@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -81,7 +82,7 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -195,7 +196,7 @@ func (c *mfaAddCommand) addDeviceRPC(cf *CLIConf, devName string, devType proto.
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -403,7 +404,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context, false)
+		aci, err := pc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}

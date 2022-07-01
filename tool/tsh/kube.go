@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -263,7 +264,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx, true)
+		ac, err := pc.ConnectToCurrentCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -42,6 +42,7 @@ import (
 	"unicode/utf8"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
@@ -1121,7 +1122,17 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
-func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
+func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/LoadKeyForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("clusterName", clusterName),
+		),
+	)
+	defer span.End()
+
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
@@ -1132,10 +1143,20 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 	return nil
 }
 
-// LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
+// LoadKeyForClusterWithReissue fetches a cluster-specific SSH key and loads it into the
 // SSH agent.  If the key is not found, it is requested to be reissued.
 func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
-	err := tc.LoadKeyForCluster(clusterName)
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/LoadKeyForClusterWithReissue",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("clusterName", clusterName),
+		),
+	)
+	defer span.End()
+
+	err := tc.LoadKeyForCluster(ctx, clusterName)
 	if err == nil {
 		return nil
 	}
@@ -1170,6 +1191,13 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/getTargetNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	var (
 		err    error
 		nodes  []types.Server
@@ -1207,6 +1235,13 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 // ReissueUserCerts issues new user certs based on params and stores them in
 // the local key agent (usually on disk in ~/.tsh).
 func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ReissueUserCerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1226,6 +1261,13 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
 func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/IssueUserCertsWithMFA",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1242,6 +1284,13 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 // CreateAccessRequest registers a new access request with the auth server.
 func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/CreateAccessRequest",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1253,6 +1302,13 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.Acc
 
 // GetAccessRequests loads all access requests matching the supplied filter.
 func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/GetAccessRequests",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1264,6 +1320,13 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 
 // GetRole loads a role resource by name.
 func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/GetRole",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1287,6 +1350,13 @@ func (w watchCloser) Close() error {
 
 // NewWatcher sets up a new event watcher.
 func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/NewWatcher",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1307,6 +1377,13 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 // WithRootClusterClient provides a functional interface for making calls
 // against the root cluster's auth server.
 func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/WithRootClusterClient",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1327,6 +1404,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
 func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/SSH",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -1428,6 +1512,13 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 
 // Join connects to the existing/active SSH session
 func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID session.ID, input io.Reader) (err error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/Join",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
@@ -1513,6 +1604,13 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 
 // Play replays the recorded session
 func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/Play",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	var sessionEvents []events.EventFields
 	var stream []byte
 	if namespace == "" {
@@ -1555,6 +1653,13 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 }
 
 func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/GetSessionEvents",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
@@ -1609,6 +1714,13 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 // ExecuteSCP executes SCP command. It executes scp.Command using
 // lower-level API integrations that mimic SCP CLI command behavior
 func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ExecuteSCP",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -1659,6 +1771,13 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 
 // SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/SCP",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	if len(args) < 2 {
 		return trace.Errorf("need at least two arguments for scp")
 	}
@@ -1814,6 +1933,13 @@ func isRemoteDest(name string) bool {
 
 // ListNodes returns a list of nodes connected to a proxy
 func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ListNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	var err error
 	// userhost is specified? that must be labels
 	if tc.Host != "" {
@@ -1835,6 +1961,13 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]types.Server, error)
 
 // ListAppServers returns a list of application servers.
 func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ListAppServers",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1846,6 +1979,13 @@ func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]types.Server, e
 
 // CreateAppSession creates a new application access session.
 func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/CreateAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1856,6 +1996,13 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 
 // DeleteAppSession removes the specified application access session.
 func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/DeleteAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1866,6 +2013,13 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 
 // ListDatabaseServers returns all registered database proxy servers.
 func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.DatabaseServer, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ListDatabaseServers",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1876,6 +2030,13 @@ func (tc *TeleportClient) ListDatabaseServers(ctx context.Context) ([]types.Data
 
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ListAllNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1888,6 +2049,12 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
 func (tc *TeleportClient) runCommandOnNodes(
 	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/runCommandOnNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
 
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
@@ -1924,7 +2091,17 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
-	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/runCommand",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.StringSlice("command", command),
+		),
+	)
+	defer span.End()
+
+	nodeSession, err := newSession(ctx, nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1952,7 +2129,17 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/runShell",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("session", sessToJoin.ID.String()),
+		),
+	)
+	defer span.End()
+
+	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2002,6 +2189,13 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
 func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
+	ctx, span := tc.TracerProvider.Tracer("TeleportClient").Start(
+		ctx,
+		"teleportClient/ConnectToProxy",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	var err error
 	var proxyClient *ProxyClient
 
