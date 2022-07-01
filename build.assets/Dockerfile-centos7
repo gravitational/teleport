@@ -70,14 +70,10 @@ RUN yum groupinstall -y 'Development Tools' && \
     # required by libbpf
     devtoolset-11-make \
     # required by libbpf
-    elfutils-libelf-devel \
-    # required by libbpf
     elfutils-libelf-devel-static \
     git \
     # required by libbpf, Clang
     scl-utils \
-    # required by libbpf
-    zlib-devel \
     # required by libbpf
     zlib-static && \
     yum clean all
@@ -109,9 +105,14 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    elfutils-libelf-devel \
+    #required by libbpf, Clang
+    centos-release-scl \
+    # required by libbpf and Clang
+    devtoolset-11-* \
     # required by libbpf
     elfutils-libelf-devel-static \
     git \
@@ -124,10 +125,13 @@ RUN yum groupinstall -y 'Development Tools' && \
     which \
     zip \
     # required by libbpf
-    zlib-devel \
-    # required by libbpf
     zlib-static && \
     yum clean all
+
+#RUN echo "source scl_source enable devtoolset-11" >> /etc/profile
+RUN echo "source /opt/rh/devtoolset-11/enable" >> /etc/profile
+
+ENV PROMPT_COMMAND=". /etc/profile"
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \

@@ -115,7 +115,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -l:libbpf.a -l:libelf.a -l:libz.a -Wl,-Bdynamic -Wl,--as-needed -static-libgcc"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lelf -lz -Wl,-Bdynamic"
 endif
 endif
@@ -213,6 +213,8 @@ CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
+	gcc --version
+	@gcc --version
 	$(MAKE) $(BINARIES)
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
@@ -362,6 +364,7 @@ release-arm64:
 #
 .PHONY:
 release-unix: clean full
+	gcc --version
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
