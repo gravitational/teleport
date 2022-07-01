@@ -1950,7 +1950,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	notFoundErrorMessage := fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -1974,12 +1973,11 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	session, err := site.GetSessionTracker(ctx, string(sessionID))
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("session %q not found or it has ended", sessionID)
+		}
 		return trace.Wrap(err)
-	}
-
-	if session == nil {
-		return trace.NotFound(notFoundErrorMessage)
 	}
 
 	if session.GetSessionKind() != types.SSHSessionKind {
