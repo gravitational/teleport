@@ -78,6 +78,7 @@ type NodeSession struct {
 
 	terminal *terminal.Terminal
 
+	// forceDisconnect if we should immediately disconnect upon finish instead of waiting for the remote status.
 	forceDisconnect bool
 
 	// shouldClearOnExit marks whether or not the terminal should be cleared
