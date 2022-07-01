@@ -59,25 +59,11 @@ RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-pro
     cd ../.. && \
     rm -rf llvm-project
 
-# Use just created devtools image with never GCC
-FROM centos-devtoolset as libbpf
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
-
 FROM centos:7 AS assetbox
 
 # Copy Clang into the final image.
 COPY --from=clang10 /opt/llvm /opt/llvm/
 ENV PATH=/opt/llvm/bin:${PATH}
-
-# Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
 
 # Create the archive and copy it to the host.
 RUN tar -czvf centos7-assets.tar.gz /opt
