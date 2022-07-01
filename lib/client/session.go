@@ -78,6 +78,8 @@ type NodeSession struct {
 
 	terminal *terminal.Terminal
 
+	forceDisconnect bool
+
 	// shouldClearOnExit marks whether or not the terminal should be cleared
 	// when the session ends.
 	shouldClearOnExit bool
@@ -94,7 +96,7 @@ type NodeSession struct {
 }
 
 // newSession creates a new Teleport session with the given remote node
-// if 'joinSessin' is given, the session will join the existing session
+// if 'joinSession' is given, the session will join the existing session
 // of another user
 func newSession(ctx context.Context,
 	client *NodeClient,
@@ -312,6 +314,11 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 
 	// Wait for any cleanup tasks (particularly terminal reset on Windows).
 	ns.closeWait.Wait()
+
+	if ns.forceDisconnect {
+		return nil
+	}
+
 	return sess.Wait()
 }
 
@@ -643,9 +650,9 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 
 // handlePeerControls streams the terminal input to the remote shell's standard input.
 // Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
-func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer) {
+func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer, forceDisconnect *bool) {
 	stdin := term.Stdin()
-	if term.IsAttached() && enableEscapeSequences {
+	if enableEscapeSequences {
 		// escape.NewReader is used to enable manual disconnect sequences as those supported
 		// by tsh. These can be used to force a client disconnect since CTRL-C is merely passed
 		// to the other end and not interpreted as an exit request locally
@@ -667,6 +674,7 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 	if err != nil {
 		log.Debugf("Error copying data to remote peer: %v", err)
 		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
+		*forceDisconnect = true
 	}
 }
 
@@ -697,7 +705,8 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
-			handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell)
+			handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell, &ns.forceDisconnect)
+			ns.closer.Close()
 		}()
 	}
 }

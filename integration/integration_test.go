@@ -156,6 +156,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("SFTP", suite.bind(testSFTP))
+	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -789,7 +790,9 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 
 // testSSHTracker verifies that an SSH session creates a tracker for sessions.
 func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 
@@ -1061,6 +1064,51 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
 	require.NoError(t, err)
+}
+
+func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+	teleport := suite.newTeleport(t, nil, true)
+	defer teleport.StopAll()
+
+	site := teleport.GetSiteAPI(helpers.Site)
+	require.NotNil(t, site)
+
+	terminal := NewTerminal(250)
+	cl, err := teleport.NewClient(helpers.ClientConfig{
+		Login:                 suite.Me.Username,
+		Cluster:               helpers.Site,
+		Host:                  Host,
+		EnableEscapeSequences: true,
+	})
+	require.NoError(t, err)
+
+	cl.Stdout = terminal
+	cl.Stdin = terminal
+	sess := make(chan error)
+	go func() {
+		sess <- cl.SSH(ctx, []string{}, false)
+	}()
+
+	require.Eventually(t, func() bool {
+		trackers, err := site.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		return len(trackers) == 1
+	}, time.Second*15, time.Millisecond*100)
+
+	select {
+	case err := <-sess:
+		require.FailNow(t, "session should not have ended", err)
+	default:
+	}
+
+	terminal.Type("\a~.\n\r")
+	select {
+	case err := <-sess:
+		require.NoError(t, err)
+	case <-time.After(time.Second * 15):
+		require.FailNow(t, "session should have ended")
+	}
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
