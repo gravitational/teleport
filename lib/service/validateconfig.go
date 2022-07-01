@@ -68,6 +68,10 @@ func validateConfig(cfg *Config) error {
 }
 
 func applyDefaults(cfg *Config) {
+	if cfg.Version == "" {
+		cfg.Version = defaults.TeleportConfigVersionV3
+	}
+
 	if cfg.Console == nil {
 		cfg.Console = io.Discard
 	}
