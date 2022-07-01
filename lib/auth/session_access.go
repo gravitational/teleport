@@ -355,13 +355,15 @@ func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
 		for _, policySet := range e.policySets {
 			switch policySet.Version {
 			case types.V1, types.V2, types.V3, types.V4:
-				return false, nil
+				continue
 			case types.V5:
 				return true, nil
 			default:
 				return false, trace.BadParameter("unsupported role version: %v", policySet.Version)
 			}
 		}
+
+		return false, nil
 	}
 
 	return true, nil
