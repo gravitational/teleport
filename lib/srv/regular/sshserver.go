@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -394,6 +395,9 @@ func (s *Server) startPeriodicOperations() {
 	}
 	if s.heartbeat != nil {
 		go s.heartbeat.Run()
+	}
+	if s.cloudWatcher != nil {
+		go s.handleEC2Discovery()
 	}
 }
 
@@ -803,7 +807,6 @@ func New(addr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		s.cloudWatcher.Start()
 	}
 
 	server, err := sshutils.NewServer(
@@ -1022,6 +1025,28 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
+}
+
+func (s *Server) handleEC2Discovery() {
+	go s.cloudWatcher.Start()
+	for instances := range s.cloudWatcher.EC2C() {
+		for _, inst := range instances {
+			client, err := s.cloudClients.GetAWSSSMClient(inst.Region)
+			if err != nil {
+				log.Error("error getting AWS SSM client: ", err)
+				return
+			}
+			installer := server.NewInstallation(client, inst.Instances)
+			results, err := installer.DoInstall(inst.Document)
+			if err != nil {
+				log.Error("error executing install: ", err)
+				return
+			}
+			for _, ev := range results {
+				s.EmitAuditEvent(s.ctx, ev)
+			}
+		}
+	}
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.

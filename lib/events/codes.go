@@ -326,6 +326,9 @@ const (
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
 
+	DiscoveryScriptEC2SuccessCode = "TDS00I"
+	DiscoveryScriptEC2FailCode    = "TDS00W"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

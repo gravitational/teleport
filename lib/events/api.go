@@ -538,6 +538,10 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
+	// EC2DiscoveryInstallScriptEvent is emitted when a run of an
+	// install script completes on a discovered EC2 node
+	EC2DiscoveryInstallScriptEvent = "discovery.ec2.install_script"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )

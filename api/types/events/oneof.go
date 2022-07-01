@@ -399,6 +399,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SFTP{
 			SFTP: e,
 		}
+	case *EC2DiscoveryScriptRun:
+		out.Event = &OneOf_EC2DiscoveryScriptRun{
+			EC2DiscoveryScriptRun: e,
+		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,

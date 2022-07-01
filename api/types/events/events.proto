@@ -2025,6 +2025,7 @@ message OneOf {
         events.SQLServerRPCRequest SQLServerRPCRequest = 89;
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
         events.SFTP SFTP = 91;
+        events.EC2DiscoveryScriptRun EC2DiscoveryScriptRun = 92;
     }
 }
 
@@ -2481,4 +2482,22 @@ message DatabaseSessionMalformedPacket {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // Payload is the malformed packet payload.
     bytes Payload = 5 [ (gogoproto.jsontag) = "payload,omitempty" ];
+}
+
+message EC2DiscoveryScriptRun {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // CommandID is the id of the SSM command that was run.
+    string CommandID = 2 [ (gogoproto.jsontag) = "command_id" ];
+
+    // InstanceID is the id of the EC2 instance the command was run on.
+    string InstanceID = 3 [ (gogoproto.jsontag) = "instance_id" ];
+
+    // ExitCode is the exit code resulting from the script run.
+    int64 ExitCode = 4 [ (gogoproto.jsontag) = "exit_code" ];
+
+    // Status represents the success or failure status of a script run.
+    string Status = 5 [ (gogoproto.jsontag) = "status" ];
 }
