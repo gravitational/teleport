@@ -176,6 +176,13 @@ func (r *UsageReporter) acquireReportingLock(ctx context.Context, ttl time.Durat
 		Expires: r.BackendGetter.Clock().Now().UTC().Add(ttl),
 	}
 
+	// Check if the item exists before attempting to create it to reduce the amount of reported backend write failures. Errors in the backend will be caught by the following Create.
+	if resp, err := r.BackendGetter.Get(ctx, item.Key); err == nil {
+		if r.BackendGetter.Clock().Now().UTC().Before(resp.Expires) {
+			return trace.AlreadyExists("%v already exists", item.Key)
+		}
+	}
+
 	_, err := r.BackendGetter.Create(ctx, item)
 	return trace.Wrap(err)
 }

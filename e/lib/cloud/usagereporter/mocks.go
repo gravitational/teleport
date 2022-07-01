@@ -15,6 +15,10 @@ import (
 type MockedBackendGetter struct {
 }
 
+func (m *MockedBackendGetter) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	return nil, nil
+}
+
 func (m *MockedBackendGetter) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	return nil, nil
 }
