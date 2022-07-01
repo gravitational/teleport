@@ -18,8 +18,10 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 
@@ -31,13 +33,13 @@ import (
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
-	users        map[string]types.User
-	roles        map[string]types.Role
-	nodes        map[string]types.Server
-	kubeServices []types.Server
-	dbs          map[string]types.Database
-	apps         map[string]types.Application
-	desktops     map[string]types.WindowsDesktop
+	users       map[string]types.User
+	roles       map[string]types.Role
+	nodes       map[string]types.Server
+	kubeServers map[string]types.Server
+	dbServers   map[string]types.DatabaseServer
+	appServers  map[string]types.AppServer
+	desktops    map[string]types.WindowsDesktop
 }
 
 // user inserts a new user with the specified roles and returns the username.
@@ -78,40 +80,37 @@ func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
-func (m *mockGetter) GetNode(ctx context.Context, namespace string, name string) (types.Server, error) {
-	node, ok := m.nodes[name]
-	if !ok {
-		return nil, trace.NotFound("no such node: %q", name)
+// ListResources is a very dumb implementation for the mockGetter that just
+// returns all resources which have names matching the request
+// PredicateExpression.
+func (m *mockGetter) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	resp := &types.ListResourcesResponse{}
+	for nodeName, node := range m.nodes {
+		if strings.Contains(req.PredicateExpression, nodeName) {
+			resp.Resources = append(resp.Resources, types.ResourceWithLabels(node))
+		}
 	}
-	return node, nil
-}
-
-func (m *mockGetter) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	return append([]types.Server{}, m.kubeServices...), nil
-}
-
-func (m *mockGetter) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	db, ok := m.dbs[name]
-	if !ok {
-		return nil, trace.NotFound("no such db: %q", name)
+	for kubeName, kubeService := range m.kubeServers {
+		if strings.Contains(req.PredicateExpression, kubeName) {
+			resp.Resources = append(resp.Resources, types.ResourceWithLabels(kubeService))
+		}
 	}
-	return db, nil
-}
-
-func (m *mockGetter) GetApp(ctx context.Context, name string) (types.Application, error) {
-	app, ok := m.apps[name]
-	if !ok {
-		return nil, trace.NotFound("no such app: %q", name)
+	for dbName, dbServer := range m.dbServers {
+		if strings.Contains(req.PredicateExpression, dbName) {
+			resp.Resources = append(resp.Resources, dbServer)
+		}
 	}
-	return app, nil
-}
-
-func (m *mockGetter) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	desktop, ok := m.desktops[filter.Name]
-	if !ok {
-		return nil, trace.NotFound("no such desktop: %q", filter.Name)
+	for appName, appServer := range m.appServers {
+		if strings.Contains(req.PredicateExpression, appName) {
+			resp.Resources = append(resp.Resources, appServer)
+		}
 	}
-	return []types.WindowsDesktop{desktop}, nil
+	for desktopName, desktop := range m.desktops {
+		if strings.Contains(req.PredicateExpression, desktopName) {
+			resp.Resources = append(resp.Resources, desktop)
+		}
+	}
+	return resp, nil
 }
 
 // TestReviewThresholds tests various review threshold scenarios
@@ -1044,12 +1043,13 @@ func TestPruneRequestRoles(t *testing.T) {
 	ctx := context.Background()
 
 	g := &mockGetter{
-		roles:    make(map[string]types.Role),
-		users:    make(map[string]types.User),
-		nodes:    make(map[string]types.Server),
-		dbs:      make(map[string]types.Database),
-		apps:     make(map[string]types.Application),
-		desktops: make(map[string]types.WindowsDesktop),
+		roles:       make(map[string]types.Role),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.Server),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
 	}
 
 	// set up test roles
@@ -1143,6 +1143,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			},
 		},
 		{
+			name: "admins-node-2",
+			labels: map[string]string{
+				"owner": "node-admins",
+			},
+		},
+		{
 			name: "denied-node",
 		},
 	}
@@ -1161,7 +1167,7 @@ func TestPruneRequestRoles(t *testing.T) {
 		},
 	}, nil)
 	require.NoError(t, err)
-	g.kubeServices = append(g.kubeServices, kube)
+	g.kubeServers[kube.GetName()] = kube
 
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "db",
@@ -1170,7 +1176,15 @@ func TestPruneRequestRoles(t *testing.T) {
 		URI:      "example.com:3000",
 	})
 	require.NoError(t, err)
-	g.dbs[db.GetName()] = db
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: db.GetName(),
+	}, types.DatabaseServerSpecV3{
+		HostID:   "db-server",
+		Hostname: "db-server",
+		Database: db,
+	})
+	require.NoError(t, err)
+	g.dbServers[dbServer.GetName()] = dbServer
 
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "app",
@@ -1178,7 +1192,9 @@ func TestPruneRequestRoles(t *testing.T) {
 		URI: "example.com:3000",
 	})
 	require.NoError(t, err)
-	g.apps[app.GetName()] = app
+	appServer, err := types.NewAppServerV3FromApp(app, "app-server", "app-server")
+	require.NoError(t, err)
+	g.appServers[app.GetName()] = appServer
 
 	desktop, err := types.NewWindowsDesktopV3("windows", nil, types.WindowsDesktopSpecV3{
 		Addr: "example.com:3001",
@@ -1216,6 +1232,24 @@ func TestPruneRequestRoles(t *testing.T) {
 					ClusterName: clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
+				},
+			},
+			loginHint: "responder",
+			// With "responder" login hint, only request node-access.
+			expectRoles: []string{"node-access"},
+		},
+		{
+			desc: "multiple nodes",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node-2",
 				},
 			},
 			loginHint: "responder",

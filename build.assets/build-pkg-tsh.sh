@@ -130,7 +130,8 @@ password created by APPLE_USERNAME"
     "$target"
 
   # Prepare and sign the installer package.
-  target="$tmp/tsh-v$TELEPORT_VERSION.pkg" # switches from app to pkg
+  # Note that the installer does __NOT__ have a `v` in the version number.
+  target="$tmp/tsh-$TELEPORT_VERSION.pkg" # switches from app to pkg
   pkgbuild \
     --root "$tmp/root/" \
     --identifier "$TSH_BUNDLEID" \
