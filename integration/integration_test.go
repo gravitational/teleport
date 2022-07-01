@@ -1087,48 +1087,48 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, testCase := range testCases {
-		ctx := context.Background()
-		teleport := suite.newTeleport(t, nil, true)
-		defer teleport.StopAll()
-
-		site := teleport.GetSiteAPI(helpers.Site)
-		require.NotNil(t, site)
-
-		terminal := NewTerminal(250)
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:                 suite.Me.Username,
-			Cluster:               helpers.Site,
-			Host:                  Host,
-			EnableEscapeSequences: testCase.enableEscapeSequences,
-		})
-		require.NoError(t, err)
-
-		cl.Stdout = terminal
-		cl.Stdin = terminal
-		sess := make(chan error)
-		go func() {
-			sess <- cl.SSH(ctx, []string{}, false)
-		}()
-
-		require.Eventually(t, func() bool {
-			trackers, err := site.GetActiveSessionTrackers(ctx)
-			require.NoError(t, err)
-			return len(trackers) == 1
-		}, time.Second*15, time.Millisecond*100)
-
 		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
+
+			site := teleport.GetSiteAPI(helpers.Site)
+			require.NotNil(t, site)
+
+			terminal := NewTerminal(250)
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:                 suite.Me.Username,
+				Cluster:               helpers.Site,
+				Host:                  Host,
+				EnableEscapeSequences: testCase.enableEscapeSequences,
+			})
+			require.NoError(t, err)
+
+			cl.Stdout = terminal
+			cl.Stdin = terminal
+			sess := make(chan error)
+			go func() {
+				sess <- cl.SSH(ctx, []string{}, false)
+			}()
+
+			require.Eventually(t, func() bool {
+				trackers, err := site.GetActiveSessionTrackers(ctx)
+				require.NoError(t, err)
+				return len(trackers) == 1
+			}, time.Second*15, time.Millisecond*100)
+
+			select {
+			case err := <-sess:
+				require.FailNow(t, "session should not have ended", err)
+			default:
+			}
+
 			testCase.f(t, ctx, terminal, sess)
 		})
 	}
 }
 
 func testEscapeSequenceYesTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
-	select {
-	case err := <-sess:
-		require.FailNow(t, "session should not have ended", err)
-	default:
-	}
-
 	terminal.Type("\a~.\n\r")
 	select {
 	case err := <-sess:
@@ -1139,18 +1139,13 @@ func testEscapeSequenceYesTrigger(t *testing.T, ctx context.Context, terminal *T
 }
 
 func testEscapeSequenceNoTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
-	sessionIsAlive := func() {
-		select {
-		case err := <-sess:
-			require.FailNow(t, "session should not have ended", err)
-		default:
-		}
-	}
-
-	sessionIsAlive()
 	terminal.Type("\a~.\n\r")
-	time.Sleep(time.Second * 5)
-	sessionIsAlive()
+	terminal.Type("\aecho hi\n\r")
+
+	require.Eventually(t, func() bool {
+		// if the session didn't end, we should see the output of the last write
+		return strings.Contains(string(terminal.Output(1000)), "hi")
+	}, time.Second*15, time.Millisecond*100)
 
 	terminal.Type("\aexit 0\n\r")
 	select {
