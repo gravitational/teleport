@@ -95,6 +95,11 @@ type Config struct {
 	// misleading.
 	AuthServers []utils.NetAddr
 
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
+	ProxyServers []utils.NetAddr
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*auth.Identity

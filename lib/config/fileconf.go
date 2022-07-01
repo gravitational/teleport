@@ -155,6 +155,8 @@ type SampleFlags struct {
 	Roles string
 	// AuthServer is the address of the auth server
 	AuthServer string
+	// ProxyServer is the address of the proxy server
+	ProxyServer string
 	// AppName is the name of the application to start
 	AppName string
 	// AppURI is the internal address of the application to proxy
@@ -215,6 +217,10 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
+	}
+
+	if flags.ProxyServer != "" {
+		g.ProxyServers = []string{flags.ProxyServer}
 	}
 
 	g.CAPin = strings.Split(flags.CAPin, ",")
@@ -559,15 +565,16 @@ type Global struct {
 	// AuthToken is the old way of configuring the token to be used by the
 	// node to join the Teleport cluster. `JoinParams.TokenName` should be
 	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
-	AuthToken   string           `yaml:"auth_token,omitempty"`
-	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
-	AuthServers []string         `yaml:"auth_servers,omitempty"`
-	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
-	Logger      Log              `yaml:"log,omitempty"`
-	Storage     backend.Config   `yaml:"storage,omitempty"`
-	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
-	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
-	SeedConfig  *bool            `yaml:"seed_config,omitempty"`
+	AuthToken    string           `yaml:"auth_token,omitempty"`
+	JoinParams   JoinParams       `yaml:"join_params,omitempty"`
+	AuthServers  []string         `yaml:"auth_servers,omitempty"`
+	ProxyServers []string         `yaml:"proxy_servers,omitempty"`
+	Limits       ConnectionLimits `yaml:"connection_limits,omitempty"`
+	Logger       Log              `yaml:"log,omitempty"`
+	Storage      backend.Config   `yaml:"storage,omitempty"`
+	AdvertiseIP  string           `yaml:"advertise_ip,omitempty"`
+	CachePolicy  CachePolicy      `yaml:"cache,omitempty"`
+	SeedConfig   *bool            `yaml:"seed_config,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.

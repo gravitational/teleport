@@ -131,11 +131,15 @@ teleport:
     # Auth Server address and port to connect to. If you enable the Teleport
     # Auth Server to run in High Availability configuration, the address should
     # point to a Load Balancer.
-    # If adding a node located behind NAT, use the Proxy URL. e.g.
-    #  auth_servers:
-    #     - teleport-proxy.example.com:443
+    # If adding a node located behind NAT, specify `proxy_servers` instead
     auth_servers:
         - 10.1.0.5:3025
+
+    # Proxy Server address and port to connect to. If you enable the Teleport
+    # Proxy Server to run in High Availability configuration, the address should
+    # point to a Load Balancer.
+    proxy_servers:
+        - teleport-proxy.example.com:443
 
     # cache:
     #  # The cache is enabled by default, it can be disabled with this flag

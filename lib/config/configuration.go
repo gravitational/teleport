@@ -68,6 +68,8 @@ type CommandLineFlags struct {
 	NodeName string
 	// --auth-server flag
 	AuthServerAddr []string
+	// --proxy-server flag
+	ProxyServerAddr []string
 	// --token flag
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -265,6 +267,22 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 				return trace.Errorf("cannot parse auth server address: '%v'", as)
 			}
 			cfg.AuthServers = append(cfg.AuthServers, *addr)
+		}
+	}
+
+	// config file has auth servers in there?
+	if len(fc.ProxyServers) > 0 {
+		cfg.ProxyServers = make([]utils.NetAddr, 0, len(fc.ProxyServers))
+		for _, as := range fc.ProxyServers {
+			addr, err := utils.ParseHostPortAddr(as, defaults.AuthListenPort)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err != nil {
+				return trace.Errorf("cannot parse proxy server address: '%v'", as)
+			}
+			cfg.ProxyServers = append(cfg.ProxyServers, *addr)
 		}
 	}
 
