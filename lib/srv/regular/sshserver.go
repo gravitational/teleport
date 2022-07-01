@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -228,6 +230,7 @@ type Server struct {
 	awsMatchers []services.AWSMatcher
 	// clients is used to retrieve clients used for AWS EC2 discovery
 	clients cloud.Clients
+	auth    auth.ClientI
 
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
@@ -335,6 +338,10 @@ func (s *Server) close() {
 	if s.users != nil {
 		s.users.Shutdown()
 	}
+
+	if s.cloudWatcher != nil {
+		s.cloudWatcher.Stop()
+	}
 }
 
 // Close closes listening socket and stops accepting connections
@@ -391,6 +398,9 @@ func (s *Server) startPeriodicOperations() {
 	}
 	if s.heartbeat != nil {
 		go s.heartbeat.Run()
+	}
+	if s.cloudWatcher != nil {
+		go s.handleEC2Discovery()
 	}
 }
 
@@ -767,6 +777,8 @@ func New(addr utils.NetAddr,
 		component = teleport.ComponentNode
 	}
 
+	s.auth = auth
+
 	s.Entry = logrus.WithFields(logrus.Fields{
 		trace.Component:       component,
 		trace.ComponentFields: logrus.Fields{},
@@ -1035,6 +1047,60 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
+}
+
+func (s *Server) filterExistingNodes(instances server.EC2Instances) (server.EC2Instances, error) {
+	var filtered []*ec2.Instance
+	nodes, err := s.auth.GetNodes(s.ctx, s.getNamespace())
+	if err != nil {
+		return server.EC2Instances{}, err
+	}
+	for _, node := range nodes {
+		for _, inst := range instances.Instances {
+			result := types.MatchLabels(node, map[string]string{
+				types.AWSAccountIDLabel:  instances.AccountID,
+				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
+			})
+			if result {
+				filtered = append(filtered, inst)
+			}
+		}
+	}
+	instances.Instances = filtered
+	return instances, nil
+}
+
+func (s *Server) handleEC2Discovery() {
+	go s.cloudWatcher.Run()
+	for {
+		select {
+		case instances := <-s.cloudWatcher.InstancesC:
+			client, err := s.clients.GetAWSSSMClient(instances.Region)
+			if err != nil {
+				log.Error("error getting AWS SSM client: ", err)
+				return
+			}
+			filteredInstances, err := s.filterExistingNodes(instances)
+			if err != nil {
+				log.Errorf("Error filtering existing nodes: %s", err)
+			}
+			installer := server.NewSSMInstaller(
+				server.SSMInstallerConfig{
+					SSM:       client,
+					Instances: filteredInstances.Instances,
+					Params:    filteredInstances.Parameters,
+					Emitter:   s,
+					Ctx:       s.ctx,
+					Region:    filteredInstances.Region,
+					AccountID: filteredInstances.AccountID,
+				})
+			if err := installer.Run(filteredInstances.Document); err != nil {
+				log.Error("error executing install: ", err)
+				return
+			}
+		case <-s.ctx.Done():
+		}
+	}
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.

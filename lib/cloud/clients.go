@@ -45,6 +45,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"google.golang.org/grpc/credentials/insecure"
@@ -76,6 +78,8 @@ type Clients interface {
 	GetAWSSTSClient(region string) (stsiface.STSAPI, error)
 	// GetAWSEC2Client returns AWS EC2 client for the specified region.
 	GetAWSEC2Client(region string) (ec2iface.EC2API, error)
+	// GetAWSSSMClient returns AWS SSM client for the specified region.
+	GetAWSSSMClient(region string) (ssmiface.SSMAPI, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
@@ -218,6 +222,15 @@ func (c *cloudClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
 		return nil, trace.Wrap(err)
 	}
 	return ec2.New(session), nil
+}
+
+// GetAWSSSMClient returns AWS SSM client for the specified region.
+func (c *cloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ssm.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -455,6 +468,7 @@ type TestCloudClients struct {
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
 	AzureSubscriptionClient *azure.SubscriptionClient
+	SSM                     ssmiface.SSMAPI
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -541,6 +555,11 @@ func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DB
 // GetAzureSubscriptionClient returns an Azure SubscriptionClient
 func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
 	return c.AzureSubscriptionClient, nil
+}
+
+// GetAWSSSMClient returns an AWS SSM client
+func (c *TestCloudClients) GetAWSSSMClient(region string) (ssmiface.SSMAPI, error) {
+	return c.SSM, nil
 }
 
 // Close closes all initialized clients.
