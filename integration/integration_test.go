@@ -1069,7 +1069,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 	type testCase struct {
 		name                  string
-		f                     func(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error)
+		f                     func(ctx context.Context, t *testing.T, terminal *Terminal, sess <-chan error)
 		enableEscapeSequences bool
 	}
 
@@ -1123,12 +1123,12 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 			default:
 			}
 
-			testCase.f(t, ctx, terminal, sess)
+			testCase.f(ctx, t, terminal, sess)
 		})
 	}
 }
 
-func testEscapeSequenceYesTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
+func testEscapeSequenceYesTrigger(ctx context.Context, t *testing.T, terminal *Terminal, sess <-chan error) {
 	terminal.Type("\a~.\n\r")
 	select {
 	case err := <-sess:
@@ -1138,7 +1138,7 @@ func testEscapeSequenceYesTrigger(t *testing.T, ctx context.Context, terminal *T
 	}
 }
 
-func testEscapeSequenceNoTrigger(t *testing.T, ctx context.Context, terminal *Terminal, sess <-chan error) {
+func testEscapeSequenceNoTrigger(ctx context.Context, t *testing.T, terminal *Terminal, sess <-chan error) {
 	terminal.Type("\a~.\n\r")
 	terminal.Type("\aecho hi\n\r")
 
