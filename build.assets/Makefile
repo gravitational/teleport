@@ -396,7 +396,7 @@ release-fips: buildbox-fips
 .PHONY:release-centos7
 release-centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		 /usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) REPRODUCIBLE=no
+		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) REPRODUCIBLE=no
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
