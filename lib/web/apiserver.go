@@ -35,7 +35,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -43,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -62,11 +63,11 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -2557,6 +2558,7 @@ func makeTeleportClientConfig(ctx *SessionContext) (*client.Config, error) {
 		AuthMethods:      []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		DefaultPrincipal: cert.ValidPrincipals[0],
 		HostKeyCallback:  callback,
+		TracerProvider:   otel.GetTracerProvider(),
 	}
 
 	return config, nil

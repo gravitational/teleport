@@ -20,15 +20,15 @@ import (
 	"context"
 	"io"
 
-	"golang.org/x/crypto/ssh"
+	apievents "github.com/gravitational/teleport/api/types/events"
 
 	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/trace"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // remoteSubsystem is a subsystem that executes on a remote node.
@@ -59,7 +59,7 @@ func parseRemoteSubsystem(ctx context.Context, subsytemName string, serverContex
 }
 
 // Start will begin execution of the remote subsytem on the passed in channel.
-func (r *remoteSubsystem) Start(channel ssh.Channel) error {
+func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error {
 	session := r.serverContext.RemoteSession
 
 	stdout, err := session.StdoutPipe()
@@ -77,7 +77,7 @@ func (r *remoteSubsystem) Start(channel ssh.Channel) error {
 
 	// request the subsystem from the remote node. if successful, the user can
 	// interact with the remote subsystem with stdin, stdout, and stderr.
-	err = session.RequestSubsystem(r.subsytemName)
+	err = session.RequestSubsystem(ctx, r.subsytemName)
 	if err != nil {
 		// emit an event to the audit log with the reason remote execution failed
 		r.emitAuditEvent(err)

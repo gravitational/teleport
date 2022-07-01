@@ -1816,6 +1816,7 @@ func (process *TeleportProcess) initSSH() error {
 			}),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
+			regular.SetTracerProvider(process.TracingProvider),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2651,6 +2652,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:          lockWatcher,
 				NodeWatcher:          nodeWatcher,
 				CertAuthorityWatcher: caWatcher,
+				TracerProvider:       process.TracingProvider,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2882,6 +2884,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetNodeWatcher(nodeWatcher),
+		regular.SetTracerProvider(process.TracingProvider),
 	)
 	if err != nil {
 		return trace.Wrap(err)

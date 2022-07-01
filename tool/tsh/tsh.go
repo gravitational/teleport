@@ -33,14 +33,12 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -58,12 +56,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	gops "github.com/google/gops/agent"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-
-	gops "github.com/google/gops/agent"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -1536,7 +1535,7 @@ func onListClusters(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName()
+		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})

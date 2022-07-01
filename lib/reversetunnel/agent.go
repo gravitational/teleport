@@ -26,11 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -247,7 +248,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 	for _, authMethod := range a.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
-		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(context.TODO(), a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
 		if err != nil {
 			a.log.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
 			continue

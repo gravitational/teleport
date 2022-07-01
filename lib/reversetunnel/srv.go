@@ -43,6 +43,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -208,6 +210,10 @@ type Config struct {
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
+
+	// TracerProvider is used to create tracers capable
+	// of starting spans.
+	TracerProvider oteltrace.TracerProvider
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -264,6 +270,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.TracerProvider == nil {
+		cfg.TracerProvider = otel.GetTracerProvider()
 	}
 	return nil
 }
@@ -589,7 +598,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	conn := utils.ObeyIdleTimeout(ccx.NetConn,
 		s.offlineThreshold,
 		"reverse tunnel server")
-	sconn := ccx.ServerConn
+	sconn := ccx.ServerConn.ServerConn
 
 	channelType := nch.ChannelType()
 	switch channelType {

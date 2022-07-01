@@ -17,7 +17,11 @@ limitations under the License.
 package srv
 
 import (
+	"context"
+
 	"golang.org/x/crypto/ssh"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 // SubsystemResult is a result of execution of the subsystem.
@@ -33,7 +37,7 @@ type SubsystemResult struct {
 // in the context of the session.
 type Subsystem interface {
 	// Start starts subsystem
-	Start(*ssh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
+	Start(context.Context, *tracessh.ServerConn, ssh.Channel, *ssh.Request, *ServerContext) error
 
 	// Wait is returned by subystem when it's completed
 	Wait() error

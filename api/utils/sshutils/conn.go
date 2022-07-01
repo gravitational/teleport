@@ -19,19 +19,22 @@ package sshutils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	if config.Timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(config.Timeout))
 	}
@@ -42,7 +45,15 @@ func NewClientConnWithDeadline(conn net.Conn, addr string, config *ssh.ClientCon
 	if config.Timeout > 0 {
 		conn.SetReadDeadline(time.Time{})
 	}
-	return ssh.NewClient(c, chans, reqs), nil
+	return tracessh.NewClient(c, chans, reqs), nil
+}
+
+type Conn interface {
+	io.Closer
+	// RemoteAddr returns the remote address for this connection.
+	RemoteAddr() net.Addr
+	// LocalAddr returns the local address for this connection.
+	LocalAddr() net.Addr
 }
 
 // ConnectProxyTransport opens a channel over the remote tunnel and connects

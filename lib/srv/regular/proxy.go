@@ -18,6 +18,7 @@ package regular
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,10 +29,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -216,7 +219,7 @@ func (t *proxySubsys) String() string {
 
 // Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
-func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (t *proxySubsys) Start(ctx context.Context, sconn *tracessh.ServerConn, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
@@ -230,12 +233,12 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	var (
 		site       reversetunnel.RemoteSite
 		err        error
-		tunnel     = t.srv.tunnelWithRoles(ctx)
+		tunnel     = t.srv.tunnelWithRoles(scx)
 		clientAddr = sconn.RemoteAddr()
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
 	// (usually the web client would do that)
-	trueClientIP, ok := ctx.GetEnv(sshutils.TrueClientAddrVar)
+	trueClientIP, ok := scx.GetEnv(sshutils.TrueClientAddrVar)
 	if ok {
 		a, err := utils.ParseAddr(trueClientIP)
 		if err == nil {
@@ -266,10 +269,10 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 			t.clusterName = site.GetName()
 			t.log.Debugf("Cluster not specified. connecting to default='%s'", site.GetName())
 		}
-		return t.proxyToHost(ctx, site, clientAddr, ch)
+		return t.proxyToHost(scx, site, clientAddr, ch)
 	}
 	// connect to a site's auth server:
-	return t.proxyToSite(ctx, site, clientAddr, ch)
+	return t.proxyToSite(scx, site, clientAddr, ch)
 }
 
 // proxyToSite establishes a proxy connection from the connected SSH client to the

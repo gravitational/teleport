@@ -24,15 +24,16 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // RequestSender is an interface that implements SendRequest. It is used so
 // server and client connections can be passed to functions to send requests.
 type RequestSender interface {
 	// SendRequest is used to send a out-of-band request.
-	SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
 }
 
 // KeepAliveParams configures the keep-alive loop.
@@ -53,11 +54,18 @@ type KeepAliveParams struct {
 
 	// CloseCancel is used by the keep-alive loop to notify the server to stop.
 	CloseCancel context.CancelFunc
+
+	// Tracer is used to create spans for all keep alive sent
+	Tracer oteltrace.Tracer
 }
 
 // StartKeepAliveLoop starts the keep-alive loop.
 func StartKeepAliveLoop(p KeepAliveParams) {
 	var missedCount int64
+
+	if p.Tracer == nil {
+		p.Tracer = otel.GetTracerProvider().Tracer("KeepAliveLoop")
+	}
 
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentKeepAlive,
@@ -75,7 +83,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 			// Send a keep alive message on all connections and make sure a response
 			// was received on all.
 			for _, conn := range p.Conns {
-				ok := sendKeepAliveWithTimeout(p.CloseContext, conn, defaults.ReadHeadersTimeout)
+				ok := sendKeepAliveWithTimeout(p.CloseContext, p.Tracer, conn, defaults.ReadHeadersTimeout)
 				if ok {
 					sentCount++
 				}
@@ -104,12 +112,21 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 // sendKeepAliveWithTimeout sends a keepalive@openssh.com message to the remote
 // client. A manual timeout is needed here because SendRequest will wait for a
 // response forever.
-func sendKeepAliveWithTimeout(closeContext context.Context, conn RequestSender, timeout time.Duration) bool {
+func sendKeepAliveWithTimeout(ctx context.Context, tracer oteltrace.Tracer, conn RequestSender, timeout time.Duration) bool {
+	// create spans from a background context and link them to the original context
+	// so that they reference the original span but aren't in the original span.
+	ctx, span := tracer.Start(
+		context.Background(),
+		"sendKeepAliveWithTimeout",
+		oteltrace.WithLinks(oteltrace.LinkFromContext(ctx)),
+	)
+	span.End()
+
 	errorCh := make(chan error, 1)
 
 	go func() {
 		// SendRequest will unblock when connection or channel is closed.
-		_, _, err := conn.SendRequest(teleport.KeepAliveReqType, true, nil)
+		_, _, err := conn.SendRequest(ctx, teleport.KeepAliveReqType, true, nil)
 		errorCh <- err
 	}()
 
@@ -121,7 +138,7 @@ func sendKeepAliveWithTimeout(closeContext context.Context, conn RequestSender, 
 		return true
 	case <-time.After(timeout):
 		return false
-	case <-closeContext.Done():
+	case <-ctx.Done():
 		return false
 	}
 }

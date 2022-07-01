@@ -48,8 +48,8 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"github.com/gravitational/trace/trail"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (

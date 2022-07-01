@@ -28,6 +28,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -913,7 +914,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetLocalClusterName()
+	_, err = clt.GetDomainName()
 	if err != nil {
 		if err2 := clt.Close(); err != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")

@@ -127,7 +127,7 @@ type testRequestSender struct {
 	count int64
 }
 
-func (n *testRequestSender) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
+func (n *testRequestSender) SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
 	atomic.AddInt64(&n.count, 1)
 	if n.reply == false {
 		return false, nil, trace.BadParameter("no reply")

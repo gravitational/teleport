@@ -41,11 +41,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -55,6 +55,8 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,9 +71,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -323,6 +326,10 @@ type Config struct {
 
 	// HomePath is where tsh stores profiles
 	HomePath string
+
+	// TracerProvider is the provider that any child components
+	// should use to create tracers with.
+	TracerProvider oteltrace.TracerProvider
 }
 
 // CachePolicy defines cache policy for local clients
@@ -341,6 +348,7 @@ func MakeDefaultConfig() *Config {
 		Stdin:                 os.Stdin,
 		AddKeysToAgent:        AddKeysToAgentAuto,
 		EnableEscapeSequences: true,
+		TracerProvider:        otel.GetTracerProvider(),
 	}
 }
 
@@ -1016,7 +1024,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -1045,6 +1053,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		c.KeyTTL = apidefaults.CertDuration
 	}
 	c.Namespace = types.ProcessNamespace(c.Namespace)
+
+	if c.TracerProvider == nil {
+		c.TracerProvider = otel.GetTracerProvider()
+	}
 
 	tc = &TeleportClient{Config: *c}
 
@@ -1301,7 +1313,7 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	}
 	defer proxyClient.Close()
 
-	clt, err := proxyClient.ConnectToRootCluster(ctx, false)
+	clt, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1324,7 +1336,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	siteInfo, err := proxyClient.currentCluster()
+	siteInfo, err := proxyClient.currentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1340,8 +1352,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
-		tc.Config.HostLogin,
-		false)
+		tc.Config.HostLogin)
 	if err != nil {
 		tc.ExitStatus = 1
 		return trace.Wrap(err)
@@ -1387,7 +1398,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if len(nodeAddrs) > 1 {
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
-	return tc.runShell(nodeClient, nil)
+	return tc.runShell(ctx, nodeClient, nil)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
@@ -1435,7 +1446,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	site, err := proxyClient.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1487,7 +1498,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 		Addr:      target,
 		Namespace: tc.Namespace,
 		Cluster:   tc.SiteName,
-	}, tc.Config.HostLogin, false)
+	}, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1497,7 +1508,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	tc.startPortForwarding(ctx, nc)
 
 	// running shell with a given session means "join" it:
-	return tc.runShell(nc, session)
+	return tc.runShell(ctx, nc, session)
 }
 
 // Play replays the recorded session
@@ -1518,7 +1529,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	site, err := proxyClient.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1558,7 +1569,7 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
+	site, err := proxyClient.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1609,7 +1620,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clusterInfo, err := proxyClient.currentCluster()
+	clusterInfo, err := proxyClient.currentCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1626,8 +1637,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: clusterInfo.Name},
-		tc.Config.HostLogin,
-		false)
+		tc.Config.HostLogin)
 	if err != nil {
 		tc.ExitStatus = 1
 		return trace.Wrap(err)
@@ -1678,7 +1688,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 	// helper function connects to the src/target node:
 	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
-		siteInfo, err := proxyClient.currentCluster()
+		siteInfo, err := proxyClient.currentCluster(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1687,7 +1697,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return proxyClient.ConnectToNode(ctx,
 			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: siteInfo.Name},
-			hostLogin, false)
+			hostLogin)
 	}
 
 	// gets called to convert SSH error code to tc.ExitStatus
@@ -1890,7 +1900,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 			var nodeClient *NodeClient
 			nodeClient, err = proxyClient.ConnectToNode(ctx,
 				NodeAddr{Addr: address, Namespace: tc.Namespace, Cluster: siteName},
-				tc.Config.HostLogin, false)
+				tc.Config.HostLogin)
 			if err != nil {
 				// err is passed to resultsC in the defer above.
 				fmt.Fprintln(tc.Stderr, err)
@@ -1914,7 +1924,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
-	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1941,12 +1951,12 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(nodeClient *NodeClient, sessToJoin *session.Session) error {
-	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, sessToJoin *session.Session) error {
+	nodeSession, err := newSession(nodeClient, sessToJoin, tc.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = nodeSession.runShell(tc.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, tc.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			tc.ExitStatus = e.ExitStatus()
@@ -2081,7 +2091,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 	log.Infof("Connecting proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 
-	sshClient, err := ssh.Dial("tcp", sshProxyAddr, sshConfig)
+	sshClient, err := tracessh.Dial(ctx, "tcp", sshProxyAddr, sshConfig)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to authenticate with proxy %v.", sshProxyAddr)
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
@@ -2098,6 +2108,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		hostLogin:       tc.HostLogin,
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
+		Provider:        tc.TracerProvider,
 	}, nil
 }
 
@@ -2464,7 +2475,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName, true)
+	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2882,8 +2893,8 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 //
 // useLegacyID returns true if an old style (UUIDv1) session ID should be
 // generated because the client is talking with a older server.
-func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
-	_, err := tc.getServerVersion(nodeClient)
+func (tc *TeleportClient) useLegacyID(ctx context.Context, nodeClient *NodeClient) bool {
+	_, err := tc.getServerVersion(ctx, nodeClient)
 	return trace.IsNotFound(err)
 }
 
@@ -2894,11 +2905,11 @@ type serverResponse struct {
 
 // getServerVersion makes a SSH global request to the server to request the
 // version.
-func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
+func (tc *TeleportClient) getServerVersion(ctx context.Context, nodeClient *NodeClient) (string, error) {
 	responseCh := make(chan serverResponse)
 
 	go func() {
-		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
+		ok, payload, err := nodeClient.Client.SendRequest(ctx, teleport.VersionRequest, true, nil)
 		if err != nil {
 			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
 		} else if !ok {

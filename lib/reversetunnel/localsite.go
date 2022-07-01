@@ -17,15 +17,17 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -264,6 +266,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TracerProvider:  s.srv.TracerProvider,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -342,7 +345,7 @@ with the cluster.`, params.ConnType, dreq.Address, tunnelErr)
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxy.DialerFromEnvironment(params.To.String())
-	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	conn, directErr := dialer.DialTimeout(context.TODO(), params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)

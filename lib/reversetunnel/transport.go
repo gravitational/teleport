@@ -26,10 +26,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -82,7 +83,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	// Connect to the reverse tunnel server.
 	dialer := proxy.DialerFromEnvironment(addr.Addr)
-	sconn, err := dialer.Dial("tcp", addr.Addr, t.ClientConfig)
+	sconn, err := dialer.Dial(ctx, "tcp", addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -131,7 +132,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
+	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
