@@ -197,6 +197,14 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
+	eventCh := make(chan service.Event, 1)
+	nodeSvc.WaitForEvent(nodeSvc.ExitContext(), service.TeleportReadyEvent, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for node readiness")
+	}
+
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
 		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
