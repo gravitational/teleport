@@ -1179,9 +1179,7 @@ type ClientConfig struct {
 	Interactive bool
 	// Source IP to used in generated SSH cert
 	SourceIP string
-	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
-	// command/shell execution. This also requires Stdin to be an interactive
-	// terminal.
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
 	EnableEscapeSequences bool
 }
 
