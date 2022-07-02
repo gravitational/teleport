@@ -969,6 +969,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return handleUnimplementedError(ctx, err, cf)
 	}
 
+	if err := displayLicenseWarnings(&cf); err != nil {
+		log.WithError(err).Debug("failed to display license warnings")
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -1429,6 +1433,10 @@ func onLogin(cf *CLIConf) error {
 	// settings are picked up.
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
+
+	if err := recordLicenseStatus(cf); err != nil {
+		log.WithError(err).Debug("failed to record license status")
+	}
 
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
