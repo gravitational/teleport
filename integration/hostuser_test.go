@@ -195,7 +195,7 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		_, closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
-				Sudoers: []string{"root ALL=(ALL) ALL"},
+				Sudoers: []string{"ALL=(ALL) ALL"},
 			})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
