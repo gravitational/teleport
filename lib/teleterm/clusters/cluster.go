@@ -39,7 +39,7 @@ type Cluster struct {
 	Name string
 
 	// Log is a component logger
-	Log logrus.FieldLogger
+	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored
 	dir string
 	// Status is the cluster status

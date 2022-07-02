@@ -18,6 +18,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -1827,32 +1828,34 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins         []string
-		outLogins        []string
-		inWindowsLogins  []string
-		outWindowsLogins []string
-		inRoleARNs       []string
-		outRoleARNs      []string
-		inLabels         types.Labels
-		outLabels        types.Labels
-		inKubeLabels     types.Labels
-		outKubeLabels    types.Labels
-		inKubeGroups     []string
-		outKubeGroups    []string
-		inKubeUsers      []string
-		outKubeUsers     []string
-		inAppLabels      types.Labels
-		outAppLabels     types.Labels
-		inDBLabels       types.Labels
-		outDBLabels      types.Labels
-		inDBNames        []string
-		outDBNames       []string
-		inDBUsers        []string
-		outDBUsers       []string
-		inImpersonate    types.ImpersonateConditions
-		outImpersonate   types.ImpersonateConditions
-		inSudoers        []string
-		outSudoers       []string
+		inLogins                []string
+		outLogins               []string
+		inWindowsLogins         []string
+		outWindowsLogins        []string
+		inRoleARNs              []string
+		outRoleARNs             []string
+		inLabels                types.Labels
+		outLabels               types.Labels
+		inKubeLabels            types.Labels
+		outKubeLabels           types.Labels
+		inKubeGroups            []string
+		outKubeGroups           []string
+		inKubeUsers             []string
+		outKubeUsers            []string
+		inAppLabels             types.Labels
+		outAppLabels            types.Labels
+		inDBLabels              types.Labels
+		outDBLabels             types.Labels
+		inWindowsDesktopLabels  types.Labels
+		outWindowsDesktopLabels types.Labels
+		inDBNames               []string
+		outDBNames              []string
+		inDBUsers               []string
+		outDBUsers              []string
+		inImpersonate           types.ImpersonateConditions
+		outImpersonate          types.ImpersonateConditions
+		inSudoers               []string
+		outSudoers              []string
 	}
 	var tests = []struct {
 		comment  string
@@ -2239,6 +2242,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "values are expanded in windows desktop labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inWindowsDesktopLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outWindowsDesktopLabels: types.Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
 			comment: "impersonate roles",
 			inTraits: map[string][]string{
 				"teams":         {"devs"},
@@ -2322,6 +2335,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
+						WindowsDesktopLabels: tt.allow.inWindowsDesktopLabels,
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
 					},
@@ -2337,6 +2351,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
+						WindowsDesktopLabels: tt.deny.inWindowsDesktopLabels,
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
 					},
@@ -2363,6 +2378,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outWindowsDesktopLabels, outRole.GetWindowsDesktopLabels(rule.condition))
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 			}
@@ -4936,4 +4952,107 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			require.Equal(t, tc.canCreate, err == nil && info != nil)
 		})
 	}
+}
+
+type mockCurrentUserRoleGetter struct {
+	currentUser types.User
+	nameToRole  map[string]types.Role
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
+	if m.currentUser != nil {
+		return m.currentUser, nil
+	}
+	return nil, trace.NotFound("currentUser not set")
+}
+
+func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, ok := m.nameToRole[name]; ok {
+		return role, nil
+	}
+	return nil, trace.NotFound("role not found: %v", name)
+}
+
+type mockCurrentUser struct {
+	types.User
+	roles  []string
+	traits wrappers.Traits
+}
+
+func (u mockCurrentUser) GetRoles() []string {
+	return u.roles
+}
+
+func (u mockCurrentUser) GetTraits() map[string][]string {
+	return u.traits
+}
+
+func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	user := mockCurrentUser{
+		roles: []string{"dev", "admin"},
+		traits: map[string][]string{
+			"logins": {"currentUserTraitLogin"},
+		},
+	}
+
+	devRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	adminRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "admin"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev":   &devRole,
+			"admin": &adminRole,
+		},
+		currentUser: user,
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	require.Contains(t, roleSet, &devRole, "devRole not found in roleSet")
+	require.Contains(t, roleSet, &adminRole, "adminRole not found in roleSet")
+	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[0].GetLogins(types.Allow))
+}
+
+func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailable(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	accessRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "access"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	editorRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "editor"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"access": &accessRole,
+			"editor": &editorRole,
+		},
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	require.Contains(t, roleSet, &accessRole, "accessRole not found in roleSet")
+	require.Contains(t, roleSet, &editorRole, "editorRole not found in roleSet")
+	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
 }
