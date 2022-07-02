@@ -940,6 +940,9 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite
+
+	// AWS contains additional options for AWS applications.
+	AWS *AppAWS `yaml:"aws,omitempty"`
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1209,6 +1212,12 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 		headersOut = append(headersOut, *h)
 	}
 	return headersOut, nil
+}
+
+// AppAWS contains additional options for AWS applications.
+type AppAWS struct {
+	// ExternalIDMap is a map of External IDs by AWS role ARNs.
+	ExternalIDMap map[string]string `yaml:"external_id_map,omitempty"`
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

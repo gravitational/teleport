@@ -63,6 +63,8 @@ type Application interface {
 	IsAWSConsole() bool
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS external ID for the provided AWS role ARN.
+	GetAWSExternalID(roleARN string) string
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -237,6 +239,20 @@ func (a *AppV3) IsAWSConsole() bool {
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+// GetAWSExternalID returns the AWS external ID for the provided AWS role ARN.
+func (a *AppV3) GetAWSExternalID(roleARN string) string {
+	if len(a.Spec.AWS.ExternalIDMap) == 0 {
+		return ""
+	}
+	if externalID, found := a.Spec.AWS.ExternalIDMap[roleARN]; found {
+		return externalID
+	}
+	if externalID, found := a.Spec.AWS.ExternalIDMap[Wildcard]; found {
+		return externalID
+	}
+	return ""
 }
 
 // String returns the app string representation.
