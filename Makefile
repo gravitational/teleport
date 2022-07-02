@@ -46,8 +46,8 @@ endif
 
 ifeq ("$(OS)","linux")
 # Link static version of libgcc to reduce system dependencies.
-CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed -static-libgcc"
-CGOFLAG_TSH ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed -static-libgcc"
+CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
+CGOFLAG_TSH ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
 # ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
@@ -118,7 +118,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed -static-libgcc"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1
 endif
 endif
