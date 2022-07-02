@@ -828,32 +828,32 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 	dbUsers := roleSet.EnumerateDatabaseUsers(db)
 	// catch the cases where a user will be denied no matter what.
 	if dbUsers.WildcardDenied() {
-		return trace.AccessDenied("all db_user are denied for database %q (user has a role that denies db_user wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+		return trace.AccessDenied("all db_users are denied for database %q (user has a role that denies db_users wildcard %q)", dbRoute.ServiceName, types.Wildcard)
 	}
 	if !dbUsers.IsAnyAllowed() {
-		return trace.AccessDenied("user does not have any allowed db_user for database %q", dbRoute.ServiceName)
+		return trace.AccessDenied("user does not have any allowed db_users for database %q", dbRoute.ServiceName)
 	}
 
 	// if the user asked for a specific --db-user we can check it here
 	if dbRoute.Username != "" && !dbUsers.IsAllowed(dbRoute.Username) {
-		return trace.AccessDenied("user has no role that allows login as db_user %q for database %q", dbRoute.Username, dbRoute.ServiceName)
+		return trace.AccessDenied("user has no role that allows login as db_users %q for database %q", dbRoute.Username, dbRoute.ServiceName)
 	}
 
-	// we only enforce db_name access for postgres and mongo, so check access for those protocols
+	// we only enforce db_names access for postgres and mongo, so check access for those protocols
 	switch dbRoute.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolMongoDB:
 		dbNames := roleSet.EnumerateDatabaseNames(db)
 		// catch the cases where a user will be denied no matter what.
 		if dbNames.WildcardDenied() {
-			return trace.AccessDenied("all db_name are denied for database %q (user has a role that denies db_name wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+			return trace.AccessDenied("all db_names are denied for database %q (user has a role that denies db_names wildcard %q)", dbRoute.ServiceName, types.Wildcard)
 		}
 		if !dbNames.IsAnyAllowed() {
-			return trace.AccessDenied("user does not have any allowed db_name for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
+			return trace.AccessDenied("user does not have any allowed db_names for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
 		}
 
 		// if the user asked for a specific --db-name we can check it here
 		if dbRoute.Database != "" && !dbNames.IsAllowed(dbRoute.Database) {
-			return trace.AccessDenied("user has no role that allows login to db_name %q for database %q (required for %q protocol)", dbRoute.Database, dbRoute.ServiceName, dbRoute.Protocol)
+			return trace.AccessDenied("user has no role that allows login to db_names %q for database %q (required for %q protocol)", dbRoute.Database, dbRoute.ServiceName, dbRoute.Protocol)
 		}
 	}
 	return nil

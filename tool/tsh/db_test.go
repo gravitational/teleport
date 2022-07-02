@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -106,6 +107,203 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+// TestDatabaseRouteCheck verifies database route checking for "tsh db [login|connect]".
+func TestDatabaseRouteCheck(t *testing.T) {
+	pgSvcName := "postgres"
+	mySvcName := "mysql"
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector))
+	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
+		Name:     pgSvcName,
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	}, service.Database{
+		Name:     mySvcName,
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	})
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc         string
+		allowUsers   []string
+		allowDBNames []string
+		denyUsers    []string
+		denyDBNames  []string
+		svcName      string
+		dbUser       string
+		dbName       string
+		isOk         bool
+	}{
+		{
+			desc:       "denied wildcard db_users is not ok",
+			allowUsers: []string{"alice"},
+			denyUsers:  []string{"*"},
+			svcName:    mySvcName,
+			dbUser:     "alice",
+			isOk:       false,
+		},
+		{
+			desc:    "no allowed db_users is not ok",
+			svcName: mySvcName,
+			dbUser:  "alice",
+			isOk:    false,
+		},
+		{
+			desc:       "specific db user that is not allowed is not ok",
+			allowUsers: []string{"alice"},
+			svcName:    mySvcName,
+			dbUser:     "bob",
+			isOk:       false,
+		},
+		{
+			desc:       "blank db_user with any allowed db_users is ok",
+			allowUsers: []string{"foo"},
+			svcName:    mySvcName,
+			dbUser:     "",
+			isOk:       true,
+		},
+		{
+			desc:        "mysql denied wildcard db_names is ok",
+			allowUsers:  []string{"alice"},
+			denyDBNames: []string{"*"},
+			svcName:     mySvcName,
+			dbUser:      "alice",
+			isOk:        true,
+		},
+		{
+			desc:        "postgres denied wildcard db_names is not ok",
+			allowUsers:  []string{"alice"},
+			denyDBNames: []string{"*"},
+			svcName:     pgSvcName,
+			dbUser:      "alice",
+			dbName:      "postgres",
+			isOk:        false,
+		},
+		{
+			desc:         "mysql with no allowed db_names is ok",
+			allowUsers:   []string{"alice"},
+			allowDBNames: []string{""},
+			svcName:      mySvcName,
+			dbUser:       "alice",
+			isOk:         true,
+		},
+		{
+			desc:         "postgres with no allowed db_names is not ok",
+			allowUsers:   []string{"alice"},
+			allowDBNames: []string{""},
+			svcName:      pgSvcName,
+			dbUser:       "alice",
+			dbName:       "postgres",
+			isOk:         false,
+		},
+		{
+			desc:         "postgres specific db_name not allowed is not ok",
+			allowUsers:   []string{"alice"},
+			allowDBNames: []string{"foo"},
+			svcName:      pgSvcName,
+			dbUser:       "alice",
+			dbName:       "postgres",
+			isOk:         false,
+		},
+		{
+			desc:         "mysql specific db_name not allowed is ok",
+			allowUsers:   []string{"alice"},
+			allowDBNames: []string{"foo"},
+			svcName:      mySvcName,
+			dbUser:       "alice",
+			dbName:       "bar", // meaningless db name for mysql, but passing it shouldnt err
+			isOk:         true,
+		},
+		{
+			desc:         "postgres blank db_name with any allowed db_names is ok",
+			allowUsers:   []string{"alice"},
+			allowDBNames: []string{"foo"},
+			svcName:      pgSvcName,
+			dbUser:       "alice",
+			dbName:       "",
+			isOk:         true,
+		},
+	}
+
+	for i, tt := range tests {
+		// rebind variable scope for parallel subtests
+		i := i
+		tt := tt
+
+		// new home dir for each test so they dont race eachother
+		tmpHomePath := t.TempDir()
+
+		t.Run(tt.desc, func(t *testing.T) {
+			// run table tests in parallel
+			t.Parallel()
+			userName := fmt.Sprintf("user%v", i)
+			user, err := types.NewUser(userName)
+			require.NoError(t, err)
+
+			roleName := fmt.Sprintf("role%v", i)
+			denierRole, err := types.NewRole(roleName, types.RoleSpecV5{
+				Deny: types.RoleConditions{
+					Namespaces:    []string{apidefaults.Namespace},
+					DatabaseUsers: tt.denyUsers,
+					DatabaseNames: tt.denyDBNames,
+				},
+			})
+			require.NoError(t, err)
+
+			user.SetRoles([]string{"access", roleName})
+			user.SetTraits(map[string][]string{
+				"db_users": tt.allowUsers,
+				"db_names": tt.allowDBNames,
+			})
+
+			err = authServer.CreateUser(context.TODO(), user)
+			require.NoError(t, err)
+
+			err = authServer.UpsertRole(context.TODO(), denierRole)
+			require.NoError(t, err)
+
+			// Log into Teleport cluster.
+			loginCmd := []string{
+				"login",
+				"--insecure",
+				"--debug",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+			}
+			err = Run(context.Background(),
+				loginCmd,
+				setHomePath(tmpHomePath),
+				cliOption(func(cf *CLIConf) error {
+					cf.mockSSOLogin = mockSSOLogin(t, authServer, user)
+					return nil
+				}))
+			require.NoError(t, err)
+
+			// Log into test database.
+			dbLoginCmd := []string{
+				"db",
+				"login",
+				"--debug",
+				"--db-user", tt.dbUser,
+				"--db-name", tt.dbName,
+				tt.svcName,
+			}
+			err = Run(context.Background(), dbLoginCmd, setHomePath(tmpHomePath))
+			if tt.isOk {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
