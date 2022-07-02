@@ -267,10 +267,9 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 		// Copy the re-exec command's io and user environment fields.
 		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
-			cmd.Stdout = params.Stdout
-			cmd.Stdin = params.Stdin
-			cmd.Stderr = params.Stderr
-			cmd.SysProcAttr = params.SysProcAttr
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Setsid: true,
+			}
 			cmd.Env = params.Env
 			cmd.Dir = params.Dir
 		}
