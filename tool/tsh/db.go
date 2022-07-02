@@ -60,26 +60,15 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cluster.Close()
-
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
+	roleSet, err := fetchCurrentClusterRoleSet(tc, cf, profile)
 	if err != nil {
-		log.Debugf("Failed to fetch user roles: %v.", err)
+		return trace.Wrap(err)
 	}
 
 	sort.Slice(databases, func(i, j int) bool {
@@ -197,19 +186,19 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
+	err = databaseLogin(cf, tc, &tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
 		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
-	}, false)
+	}, database, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteToDatabase, quiet bool) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute *tlsca.RouteToDatabase, db types.Database, quiet bool) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", dbRoute, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
@@ -225,6 +214,10 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteTo
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkRoute(tc, cf, profile, dbRoute, db); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -259,14 +252,15 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteTo
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(cf.Context, tc, dbRoute, *profile)
+	err = dbprofile.Add(cf.Context, tc, *dbRoute, *profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Print after-connect message.
 	if !quiet {
-		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, dbRoute))
+		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, *dbRoute))
 		return nil
 	}
 	return nil
@@ -624,7 +618,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dbRoute, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+	dbRoute, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -633,8 +627,13 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if relogin {
-		if err := databaseLogin(cf, tc, *dbRoute, true); err != nil {
+		if err := databaseLogin(cf, tc, dbRoute, db, true); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := checkRoute(tc, cf, profile, dbRoute, db); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -648,7 +647,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, dbRoute, database, rootClusterName)
+	opts, err := maybeStartLocalProxy(cf, tc, profile, dbRoute, db, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -674,7 +673,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
 	dbRoute, err := pickActiveDatabase(cf)
 	if err == nil {
-		return dbRoute, nil, nil
+		db, err := getDatabase(cf, tc, dbRoute.ServiceName)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return dbRoute, db, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
@@ -810,6 +813,71 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 		return false, trace.Wrap(err)
 	}
 	return mfaResp.GetRequired(), nil
+}
+
+// checkRoute checks if a database route will be denied access.
+// Standard RBAC checks are still enforced
+// at connection time - this check just attempts to "fail fast" with
+// a user-friendly error.
+func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) error {
+	roleSet, err := fetchCurrentClusterRoleSet(tc, cf, profile)
+	if err != nil {
+		trace.Wrap(err)
+	}
+
+	dbUsers := roleSet.EnumerateDatabaseUsers(db)
+	// catch the cases where a user will be denied no matter what.
+	if dbUsers.WildcardDenied() {
+		return trace.AccessDenied("all db_user are denied for database %q (user has a role that denies db_user wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+	}
+	if !dbUsers.IsAnyAllowed() {
+		return trace.AccessDenied("user does not have any allowed db_user for database %q", dbRoute.ServiceName)
+	}
+
+	// if the user asked for a specific --db-user we can check it here
+	if dbRoute.Username != "" && !dbUsers.IsAllowed(dbRoute.Username) {
+		return trace.AccessDenied("user has no role that allows login as db_user %q for database %q", dbRoute.Username, dbRoute.ServiceName)
+	}
+
+	// we only enforce db_name access for postgres and mongo, so check access for those protocols
+	switch dbRoute.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolMongoDB:
+		dbNames := roleSet.EnumerateDatabaseNames(db)
+		// catch the cases where a user will be denied no matter what.
+		if dbNames.WildcardDenied() {
+			return trace.AccessDenied("all db_name are denied for database %q (user has a role that denies db_name wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+		}
+		if !dbNames.IsAnyAllowed() {
+			return trace.AccessDenied("user does not have any allowed db_name for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
+		}
+
+		// if the user asked for a specific --db-name we can check it here
+		if dbRoute.Database != "" && !dbNames.IsAllowed(dbRoute.Database) {
+			return trace.AccessDenied("user has no role that allows login to db_name %q for database %q (required for %q protocol)", dbRoute.Database, dbRoute.ServiceName, dbRoute.Protocol)
+		}
+	}
+	return nil
+}
+
+// fetchCurrentClusterRoleSet fetches a user's roles for the active cluster
+func fetchCurrentClusterRoleSet(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus) (services.RoleSet, error) {
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := proxy.ConnectToCurrentCluster(cf.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
+	if err != nil {
+		log.Debugf("Failed to fetch user roles: %v.", err)
+	}
+
+	return roleSet, nil
 }
 
 // fetchRoleSet fetches a user's roles for a specified cluster.

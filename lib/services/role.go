@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -930,45 +929,6 @@ func (set RoleSet) enumerateEntities(r AccessCheckable, getter EntityGetter, mat
 	}
 
 	return result
-}
-
-// Check if a roleset is allowed to access a database.
-// This check is not exhaustive - it is more permissive than a real authorization check.
-// If db_user/db_name are blank, then we do not know what db_user/db_name will be used by default - A full RBAC check would deny blank db_user/db_name unless there is a wildcard allow rule.
-func (set RoleSet) CheckAccessToDatabase(dbRoute tlsca.RouteToDatabase, database types.Database) error {
-	dbUsers := set.EnumerateDatabaseUsers(database)
-	if dbUsers.WildcardDenied() {
-		// TODO(review): is this giving away too much information? Is this minus the parentheses tip still too much info? Concern re: security implications. But a user can always get their own role spec from tctl.
-		return trace.AccessDenied("all db_users are denied (user has a role that denies the wildcard %q)", types.Wildcard)
-	}
-	if dbRoute.Username != "" {
-		// if the user asked for a specific --db-user we can check access
-		if !dbUsers.IsAllowed(dbRoute.Username) {
-			return trace.AccessDenied("user is not allowed to login as db_user %q", dbRoute.Username)
-		}
-	} else if !dbUsers.IsAnyAllowed() {
-		// catch the case where a user will be denied no matter what.
-		return trace.AccessDenied("user has no allowed db_users for database %q", dbRoute.ServiceName)
-	}
-
-	// we only enforce db_name access for postgres and mongo
-	if dbRoute.Protocol == defaults.ProtocolPostgres || dbRoute.Protocol == defaults.ProtocolMongoDB {
-		dbNames := set.EnumerateDatabaseNames(database)
-		if dbNames.WildcardDenied() {
-			// TODO(review): Same concern as above re: security. Keep?
-			return trace.AccessDenied("all db_names are denied (user has a role that denies the wildcard %q)", types.Wildcard)
-		}
-		if dbRoute.Database != "" {
-			// if the user asked for a specific --db-name we can check access
-			if !dbNames.IsAllowed(dbRoute.Database) {
-				return trace.AccessDenied("user is not allowed to login to db_name %q (required for %q protocol)", dbRoute.Database, dbRoute.Protocol)
-			}
-		} else if !dbNames.IsAnyAllowed() {
-			// catch the case where a user will be denied no matter what.
-			return trace.AccessDenied("user has no allowed db_names for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
-		}
-	}
-	return nil
 }
 
 // EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
