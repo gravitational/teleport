@@ -51,6 +51,7 @@ func TestDatabaseLogin(t *testing.T) {
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
+	alice.SetTraits(map[string][]string{"db_users": {"*"}, "db_names": {"*"}})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
 	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
