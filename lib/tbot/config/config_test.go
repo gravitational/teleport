@@ -94,7 +94,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 }
 
 func TestConfigFile(t *testing.T) {
-	cfg, err := ReadConfig(strings.NewReader(exampleConfigFile))
+	configData := fmt.Sprintf(exampleConfigFile, "foo")
+	cfg, err := ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
@@ -135,7 +136,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 	tokenFile := filepath.Join(tokenDir, "token")
 	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
 
-	configData := fmt.Sprintf(exampleConfigFileWithTokenInFile, tokenFile)
+	configData := fmt.Sprintf(exampleConfigFile, tokenFile)
 	cfg, err := ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
@@ -189,23 +190,6 @@ func TestParseSSHVersion(t *testing.T) {
 }
 
 const exampleConfigFile = `
-auth_server: auth.example.com
-renewal_interval: 5m
-onboarding:
-  token: foo
-  ca_pins:
-    - sha256:abc123
-storage:
-  memory: {}
-destinations:
-  - directory:
-      path: /tmp/foo
-    configs:
-      - ssh_client:
-          proxy_port: 1234
-`
-
-const exampleConfigFileWithTokenInFile = `
 auth_server: auth.example.com
 renewal_interval: 5m
 onboarding:
