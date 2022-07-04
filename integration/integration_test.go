@@ -3341,7 +3341,7 @@ func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName,
 			return false
 		}
 
-		conn.Close()
+		require.NoError(t, conn.Close())
 		return true
 	}, 10*time.Second, time.Second)
 }
