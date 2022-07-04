@@ -95,11 +95,9 @@ func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auditLog, err := NewAuditLog(AuditLogConfig{
-		Inner: config.Teleport.GetAuditLog(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	auditLog := config.Teleport.GetAuditLog()
+	if auditLog == nil {
+		return nil, trace.BadParameter("audit log config is missing inner")
 	}
 	config.Teleport.GetAuthServer().SetAuditLog(auditLog)
 	enforcer, err := enforcer.New(ctx, enforcer.Config{
