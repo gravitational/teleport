@@ -1488,6 +1488,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 
 	for _, appServer := range servers {
 		srv := appServer
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
@@ -1602,6 +1603,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 
 	for _, appServer := range servers {
 		srv := appServer
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
