@@ -1547,7 +1547,7 @@ These flags are available for all commands: `--debug, --config`. Run
   - members of `admin` group will receive `access`, `editor` and `auditor` roles.
   - members of `developer` group will receive `access` role.
 
-The values for `--secret`, `--id` and `--issuer-url` are provided by IdP.
+The values for `--secret`, `--id` and `--issuer-url` are provided by the IdP.
 
 ```code
 $ tctl sso configure oidc -n myauth -r groups,admin,access,editor,auditor -r group,developer,access \
@@ -1555,7 +1555,7 @@ $ tctl sso configure oidc -n myauth -r groups,admin,access,editor,auditor -r gro
       --issuer-url https://idp.example.com
 ```
 
-2. Generate an OIDC auth connector with Okta preset, enabled `groups` scope, mapping group `okta-admin` to roles `access`, `editor`, `auditor`.
+2. Generate an OIDC auth connector with the Okta preset, enabling the `groups` scope and mapping the `okta-admin` group to roles `access`, `editor`, `auditor`.
 Issuer URL is set to match a custom Okta domain.
 
 ```code
@@ -1564,7 +1564,7 @@ $ tctl sso configure oidc --preset okta --scope groups -r groups,okta-admin,acce
       --issuer-url dev-123456.oktapreview.com
 ```
 
-3. Generate an OIDC auth connector with the Google preset. Service account credentials are set to be loaded from /var/lib/teleport/gacc.json with --google-acc-uri.
+3. Generate an OIDC auth connector with the Google preset. Service account credentials are set to be loaded from `/var/lib/teleport/gacc.json` with `--google-acc-uri`.
 
 ```code
 $ tctl sso configure oidc --preset google -r groups,mygroup@mydomain.example.com,access \
@@ -1602,16 +1602,16 @@ Mandatory flags: `--name`, `--attributes-to-roles`, `--entity-descriptor`. These
 | Name                        | Required?                                                             | Description                                                                                                                                                      |
 |-----------------------------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `-p/--preset`               |                                                                       | Preset. One of: `okta`, `onelogin`, `ad`, `adfs`.                                                                                                                |
-| `-n/--name`                 | Yes, unless `--preset` given.                                         | Connector name.                                                                                                                                                  |
+| `-n/--name`                 | Yes, unless `--preset` is given.                                         | Connector name.                                                                                                                                                  |
 | `-e/--entity-descriptor`    | Yes, unless `--sso`, `--acs`, `--cert` and `--issuer` are also given. | Set the Entity Descriptor. Valid values: file path, URL, XML content. Supplies configuration parameters as a single XML document instead of individual elements. |
 | `-r/--attributes-to-roles`  | Yes, at least one occurrence must be present.                         | Sets attribute-to-role mapping using format `attr_name,attr_value,role1,role2,...`. Repeatable.                                                                  |
 | `--display`                 |                                                                       | Sets the connector display name.                                                                                                                                 |
 | `--issuer`                  |                                                                       | Sets identity provider issuer.                                                                                                                                   |
 | `--sso`                     |                                                                       | URL of the identity provider's SSO service.                                                                                                                      |
 | `--cert`                    |                                                                       | Path to your IdP's certificate PEM file. Your IdP signs responses using this certificate.                                                                        |
-| `--acs`                     |                                                                       | AssertionConsumerService is a URL for the assertion consumer service on the service provider (Teleport's side).                                                  |
-| `--audience`                |                                                                       | Audience uniquely identifies our service provider.                                                                                                               |
-| `--service-provider-issuer` |                                                                       | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                                          |
+| `--acs`                     |                                                                       | URL for the assertion consumer service on the service provider (Teleport's side).                                                  |
+| `--audience`                |                                                                       | Uniquely identifies our service provider.                                                                                                               |
+| `--service-provider-issuer` |                                                                       | Issuer of the service provider (Teleport).                                                                                          |
 | `--signing-key-file`        |                                                                       | A file with request signing key. Must be used together with `--signing-cert-file`.                                                                               |
 | `--signing-cert-file`       |                                                                       | A file with request certificate. Must be used together with `--signing-key-file`.                                                                                |
 | `--assertion-key-file`      |                                                                       | A file with key used for securing SAML assertions. Must be used together with `--assertion-cert-file`.                                                           |
