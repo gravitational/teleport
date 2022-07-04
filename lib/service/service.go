@@ -4195,6 +4195,13 @@ func (process *TeleportProcess) initApps() {
 				}
 			}
 
+			var aws *types.AppAWS
+			if app.AWS != nil {
+				aws = &types.AppAWS{
+					ExternalIDMap: app.AWS.ExternalIDMap,
+				}
+			}
+
 			a, err := types.NewAppV3(types.Metadata{
 				Name:        app.Name,
 				Description: app.Description,
@@ -4205,6 +4212,7 @@ func (process *TeleportProcess) initApps() {
 				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
 				InsecureSkipVerify: app.InsecureSkipVerify,
 				Rewrite:            rewrite,
+				AWS:                aws,
 			})
 			if err != nil {
 				return trace.Wrap(err)

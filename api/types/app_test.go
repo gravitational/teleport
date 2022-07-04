@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -163,4 +164,63 @@ func TestAppServerSorter(t *testing.T) {
 	sortBy := SortBy{Field: "unsupported"}
 	servers := makeServers(testValsUnordered, "does-not-matter")
 	require.True(t, trace.IsNotImplemented(AppServers(servers).SortByCustom(sortBy)))
+}
+
+func TestApplicationGetAWSExternalID(t *testing.T) {
+	roleARN := "arn:aws:iam::1234567890:role/test-role"
+
+	tests := []struct {
+		name               string
+		appAWS             *AppAWS
+		expectedExternalID string
+	}{
+		{
+			name: "no AWS config",
+		},
+		{
+			name:   "no external ID map",
+			appAWS: &AppAWS{},
+		},
+		{
+			name: "role ARN not found",
+			appAWS: &AppAWS{
+				ExternalIDMap: map[string]string{},
+			},
+		},
+		{
+			name: "role ARN found",
+			appAWS: &AppAWS{
+				ExternalIDMap: map[string]string{
+					roleARN: "external-id-for-role",
+				},
+			},
+			expectedExternalID: "external-id-for-role",
+		},
+		{
+			name: "wildcard found",
+			appAWS: &AppAWS{
+				ExternalIDMap: map[string]string{
+					Wildcard: "default-external-id",
+				},
+			},
+			expectedExternalID: "default-external-id",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				AWS: test.appAWS,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID(roleARN))
+		})
+	}
 }

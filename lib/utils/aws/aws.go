@@ -255,7 +255,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 
 // Role describes an AWS IAM role for AWS console access.
 type Role struct {
-	// Name is the full role name.
+	// Name is the full role name with the entire path.
 	Name string `json:"name"`
 	// Display is the role display name.
 	Display string `json:"display"`

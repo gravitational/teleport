@@ -243,7 +243,10 @@ func (a *AppV3) GetAWSAccountID() string {
 
 // GetAWSExternalID returns the AWS external ID for the provided AWS role ARN.
 func (a *AppV3) GetAWSExternalID(roleARN string) string {
-	if len(a.Spec.AWS.ExternalIDMap) == 0 {
+	if !a.IsAWSConsole() {
+		return ""
+	}
+	if a.Spec.AWS == nil || len(a.Spec.AWS.ExternalIDMap) == 0 {
 		return ""
 	}
 	if externalID, found := a.Spec.AWS.ExternalIDMap[roleARN]; found {

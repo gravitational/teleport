@@ -604,6 +604,7 @@ message CommandLabelV2 {
 // AppAWS contains additional options for AWS applications.
 message AppAWS {
     // ExternalIDMap is a map of External IDs by AWS role ARNs.
+    // Currently only used for local config.
     map<string, string> ExternalIDMap = 1 [ (gogoproto.jsontag) = "-" ];
 }
 

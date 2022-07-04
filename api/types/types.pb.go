@@ -2122,6 +2122,7 @@ var xxx_messageInfo_CommandLabelV2 proto.InternalMessageInfo
 // AppAWS contains additional options for AWS applications.
 type AppAWS struct {
 	// ExternalIDMap is a map of External IDs by AWS role ARNs.
+	// Currently only used for local config.
 	ExternalIDMap        map[string]string `protobuf:"bytes,1,rep,name=ExternalIDMap,proto3" json:"-" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
