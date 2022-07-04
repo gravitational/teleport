@@ -286,7 +286,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil, trace.Wrap(err, fmt.Sprintf("Could not load Teleport host UUID file at %s. "+
-					"Please make sure that Teleport is up and running prior to using tctl on this node.",
+					"Please make sure that Teleport is up and running prior to using tctl.",
 					filepath.Join(cfg.DataDir, utils.HostUUIDFile)))
 			}
 			return nil, trace.Wrap(err)
