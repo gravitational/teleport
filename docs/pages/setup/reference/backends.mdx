@@ -560,7 +560,14 @@ teleport:
 We recommend setting it up in `Dual-Region` mode with the `Standard` storage class to ensure cluster performance and high availability.
 Replace the following variables in the above example with your own values:
 - `$BUCKET_NAME` with the name of the desired GCS bucket. If the bucket does not exist it will be created.
-  Please ensure that Teleport has read/write permissions to the bucket and creation permissions if it does not exist.
+  Please ensure the following permissions are granted:
+  - `storage.buckets.get`
+  - `storage.objects.create`
+  - `storage.objects.get`
+  - `storage.objects.list`
+  - `storage.objects.update`
+
+  If the bucket does not exist, please also ensure that the `storage.buckets.create` permission is granted.
 - `$PROJECT_ID` with a GCS-enabled GCP project.
 - `$CREDENTIALS_PATH` with the path to a JSON-formatted GCP credentials file configured for a service account with the correct permissions.
 
