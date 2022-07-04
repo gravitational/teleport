@@ -35,6 +35,18 @@ import (
 	"gopkg.in/check.v1"
 )
 
+// TestPrecomputeMode verifies that package enters precompute mode when
+// PrecomputeKeys is called.
+func TestPrecomputeMode(t *testing.T) {
+	PrecomputeKeys()
+
+	select {
+	case <-precomputedKeys:
+	case <-time.After(time.Second * 10):
+		t.Fatal("Key precompute routine failed to start.")
+	}
+}
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())

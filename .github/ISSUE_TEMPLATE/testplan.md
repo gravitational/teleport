@@ -164,8 +164,12 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
-  - [ ] tsh ssh -J \<leaf-proxy\>
-  - [ ] ssh -J \<leaf-proxy\>
+  - [ ] tls routing disabled
+    - [ ] tsh ssh -J \<leaf.proxy.example.com:3023\>
+    - [ ] ssh -J \<leaf.proxy.example.com:3023\>
+  - [ ] tls routing enabled
+    - [ ] tsh ssh -J \<leaf.proxy.example.com:3080\>
+    - [ ] tsh proxy ssh -J \<leaf.proxy.example.com:3080\>
 
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node
@@ -305,6 +309,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 ### `tctl sso` family of commands
 
+For help with setting up sso connectors, check out the [Quick GitHub/SAML/OIDC Setup Tips]
+
 `tctl sso configure` helps to construct a valid connector definition:
 
 - [ ] `tctl sso configure github ...` creates valid connector definitions
@@ -434,6 +440,8 @@ For main, test with a role that has access to all resources.
 - [ ] Verify search by username, roles, and type works
 
 #### Auth Connectors
+For help with setting up auth connectors, check out the [Quick GitHub/SAML/OIDC Setup Tips]
+
 - [ ] Verify when there are no connectors, empty state renders
 - [ ] Verify that creating OIDC/SAML/GITHUB connectors works
 - [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
@@ -457,16 +465,15 @@ For main, test with a role that has access to all resources.
 
 ## Access Requests
 
-### Creating Access Requests
-1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see the Role screen and ssh into all nodes.
-1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
-1. Create another role with no permissions other than being able to create requests (defined below as `default`)
-1. Create a user with role `default` assigned
-1. Create a few requests under this user to test pending/approved/denied state.
+Access Request is a Enterprise feature and is not available for OSS.
+
+### Creating Access Requests (Role Based)
+Create a role with limited permissions `allow-roles-and-nodes`. This role allows you to see the Role screen and ssh into all nodes.
+
 ```
 kind: role
 metadata:
-  name: allow-roles
+  name: allow-roles-and-nodes
 spec:
   allow:
     logins:
@@ -481,12 +488,16 @@ spec:
       - read
   options:
     max_session_ttl: 8h0m0s
-version: v3
+version: v5
+
 ```
+
+Create another role with limited permissions `allow-users-with-short-ttl`. This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
+
 ```
 kind: role
 metadata:
-  name: allow-users-short-ttl
+  name: allow-users-with-short-ttl
 spec:
   allow:
     rules:
@@ -500,30 +511,78 @@ spec:
       '*': '*'
   options:
     max_session_ttl: 4m0s
-version: v3
+version: v5
 ```
+
+Create a user that has no access to anything but allows you to request roles:
 ```
 kind: role
 metadata:
-  name: default
+  name: test-role-based-requests
 spec:
   allow:
     request:
       roles:
-      - allow-roles
-      - allow-users
+      - allow-roles-and-nodes
+      - allow-users-with-short-ttl
       suggested_reviewers:
       - random-user-1
       - random-user-2
-  options:
-    max_session_ttl: 8h0m0s
-version: v3
+version: v5
 ```
-- [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
-- [ ] Verify input validation requires at least one role to be selected
+
+- [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and `allow-users-with-short-ttl` are listed
 - [ ] Verify you can select/input/modify reviewers
-- [ ] Verify after creating a request, requests are listed in pending states
+- [ ] Verify you can view the request you created from request list (should be in pending states)
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
 - [ ] Verify you can't review own requests
+
+### Creating Access Requests (Search Based)
+Create a role with access to searcheable resources (apps, db, kubes, nodes, desktops). The template `searcheable-resources` is below.
+
+```
+kind: role
+metadata:
+  name: searcheable-resources
+spec:
+  allow:
+    app_labels:  # just example labels
+      label1-key: label1-value
+      env: [dev, staging] 
+    db_labels:
+      '*': '*'   # asteriks gives user access to everything
+    kubernetes_labels:
+      '*': '*' 
+    node_labels:
+      '*': '*'
+    windows_desktop_labels:
+      '*': '*'
+version: v5
+```
+
+Create a user that has no access to resources, but allows you to search them:
+
+```
+kind: role
+metadata:
+  name: test-search-based-requests
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - searcheable resources
+      suggested_reviewers:
+      - random-user-1
+      - random-user-2
+version: v5
+```
+
+- [ ] Verify that a user can see resources based on the `searcheable-resources` rules
+- [ ] Verify you can select/input/modify reviewers
+- [ ] Verify you can view the request you created from request list (should be in pending states)
+- [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
+- [ ] Verify you can't review own requests
+- [ ] Verify that you can't mix adding resources from different clusters (there should be a warning dialogue that clears the selected list)
 
 ### Viewing & Approving/Denying Requests
 Create a user with the role `reviewer` that allows you to review all requests, and delete them.
@@ -538,21 +597,23 @@ spec:
       roles: ['*']
 ```
 - [ ] Verify you can view access request from request list
-- [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
-- [ ] Verify threshold name is there (it will be `default` if thresholds weren't defined in role, or blank if not named)
 - [ ] Verify you can approve a request with message, and immediately see updated state with your review stamp (green checkmark) and message box
 - [ ] Verify you can deny a request, and immediately see updated state with your review stamp (red cross)
 - [ ] Verify deleting the denied request is removed from list
 
-### Assuming Approved Requests
-- [ ] Verify assume buttons are only present for approved request and for logged in user
-- [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
-- [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
-- [ ] After assuming `allow-roles`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
+### Assuming Approved Requests (Role Based)
+- [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into nodes
+- [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
   - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
   - [ ] Verify `switching back` goes back to your default static role
   - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
-- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again
+
+### Assuming Approved Requests (Search Based)
+- [ ] Verify that assuming approved request, allows you to see the resources you've requested.
+### Assuming Approved Requests (Both)
+- [ ] Verify assume buttons are only present for approved request and for logged in user
+- [ ] Verify that after clicking on the assume button, it is disabled in both the list and in viewing
+- [ ] Verify that after re-login, requests that are not expired and are approved are assumable again
 
 ## Access Request Waiting Room
 #### Strategy Reason
@@ -1291,3 +1352,12 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Application access through curl with `tsh app login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
+
+## Resources
+
+[Quick GitHub/SAML/OIDC Setup Tips]
+
+<!---
+reference style links
+-->
+[Quick GitHub/SAML/OIDC Setup Tips]: https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a

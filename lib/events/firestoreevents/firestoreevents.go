@@ -17,32 +17,37 @@ package firestoreevents
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
-	"cloud.google.com/go/firestore"
-	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/genproto/googleapis/firestore/admin/v1"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"cloud.google.com/go/firestore"
+
+	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -396,51 +401,38 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
 }
 
-func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
-	var eventsArr []apievents.AuditEvent
-	var estimatedSize int
-	checkpoint := startKey
-	left := limit
+func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": lastKey})
 
-	for {
-		gotEvents, withSize, withCheckpoint, err := l.searchEventsOnce(fromUTC, toUTC, namespace, left, order, checkpoint, filter, events.MaxEventBytesInResponse-estimatedSize, sessionID)
-		if nil != err {
-			return nil, "", trace.Wrap(err)
-		}
-
-		eventsArr = append(eventsArr, gotEvents...)
-		estimatedSize += withSize
-		left -= len(gotEvents)
-		checkpoint = withCheckpoint
-
-		if len(checkpoint) == 0 || left <= 0 || estimatedSize >= events.MaxEventBytesInResponse {
-			break
-		}
-	}
-
-	return eventsArr, checkpoint, nil
-}
-
-func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, spaceRemaining int, sessionID string) ([]apievents.AuditEvent, int, string, error) {
-	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "Filter": filter, "Limit": limit, "StartKey": startKey})
-
-	var lastKey int64
 	var values []events.EventFields
-	var parsedStartKey int64
 	var err error
-	reachedEnd := false
 	totalSize := 0
+	var checkpointParts []string
+	var checkpointTime int
 
-	if startKey != "" {
-		parsedStartKey, err = strconv.ParseInt(startKey, 10, 64)
+	if lastKey != "" {
+		checkpointParts = strings.Split(lastKey, ":")
+		if len(checkpointParts) != 2 {
+			return nil, "", trace.BadParameter("invalid checkpoint key: %q", lastKey)
+		}
+
+		checkpointTime, err = strconv.Atoi(checkpointParts[0])
 		if err != nil {
-			return nil, 0, "", trace.WrapWithMessage(err, "failed to parse startKey, expected integer but found: %q", startKey)
+			return nil, "", trace.BadParameter("invalid checkpoint key: %q", lastKey)
 		}
 	}
 
 	modifyquery := func(query firestore.Query) firestore.Query {
-		if startKey != "" {
-			return query.StartAfter(parsedStartKey)
+		if len(filter.eventTypes) > 0 {
+			query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+		}
+
+		if lastKey != "" {
+			query = query.StartAfter(checkpointTime, checkpointParts[1])
+		}
+
+		if sessionID != "" {
+			query = query.Where(sessionIDDocProperty, "==", sessionID)
 		}
 
 		return query
@@ -453,7 +445,7 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 	case types.EventOrderDescending:
 		firestoreOrdering = firestore.Desc
 	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
 	query := modifyquery(l.svc.Collection(l.CollectionName).
@@ -461,29 +453,15 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix()).
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
+		OrderBy(firestore.DocumentID, firestore.Asc).
 		Limit(limit)
-	if len(filter.eventTypes) > 0 {
-		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
-	}
-	if sessionID != "" {
-		query = query.Where(sessionIDDocProperty, "==", sessionID)
-	}
 
 	start := time.Now()
 	docSnaps, err := query.Documents(l.svcContext).GetAll()
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
-		return nil, 0, "", firestorebk.ConvertGRPCError(err)
-	}
-
-	// Correctly detecting if you've reached the end of a query in firestore is
-	// tricky since it doesn't set any flag when it finds that there are no further events.
-	// This solution here seems to be the most common, but I haven't been able to find
-	// any documented hard guarantees on firestore not early returning for some reason like response
-	// size like DynamoDB does. In short, this should work in all cases for lack of a better solution.
-	if len(docSnaps) < limit {
-		reachedEnd = true
+		return nil, "", firestorebk.ConvertGRPCError(err)
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -491,30 +469,36 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 		var e event
 		err = docSnap.DataTo(&e)
 		if err != nil {
-			return nil, 0, "", firestorebk.ConvertGRPCError(err)
+			return nil, "", firestorebk.ConvertGRPCError(err)
 		}
 
 		data := []byte(e.Fields)
-		if totalSize+len(data) >= spaceRemaining {
+		if totalSize+len(data) >= events.MaxEventBytesInResponse {
 			break
 		}
 
 		var fields events.EventFields
 		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, 0, "", trace.Errorf("failed to unmarshal event %v", err)
+			return nil, "", trace.Errorf("failed to unmarshal event %v", err)
 		}
+
+		time := docSnap.Data()[createdAtDocProperty].(int64)
+		lastKey = strconv.Itoa(int(time)) + ":" + docSnap.Ref.ID
 
 		// Check that the filter condition is satisfied.
 		if filter.condition != nil && !filter.condition(utils.Fields(fields)) {
 			continue
 		}
 
-		lastKey = docSnap.Data()[createdAtDocProperty].(int64)
 		values = append(values, fields)
 		totalSize += len(data)
 		if limit > 0 && len(values) >= limit {
 			break
 		}
+	}
+
+	if len(docSnaps) < limit {
+		lastKey = ""
 	}
 
 	var toSort sort.Interface
@@ -524,25 +508,20 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, limit
 	case types.EventOrderDescending:
 		toSort = sort.Reverse(events.ByTimeAndIndex(values))
 	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
-	sort.Sort(toSort)
 
+	sort.Sort(toSort)
 	eventArr := make([]apievents.AuditEvent, 0, len(values))
 	for _, fields := range values {
 		event, err := events.FromEventFields(fields)
 		if err != nil {
-			return nil, 0, "", trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		eventArr = append(eventArr, event)
 	}
 
-	var lastKeyString string
-	if lastKey != 0 && !reachedEnd {
-		lastKeyString = fmt.Sprintf("%d", lastKey)
-	}
-
-	return eventArr, totalSize, lastKeyString, nil
+	return eventArr, lastKey, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
@@ -574,11 +553,15 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		FirstField:       eventNamespaceDocProperty,
 		SecondField:      createdAtDocProperty,
 		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
+		ThirdField:       firestore.DocumentID,
+		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:       eventNamespaceDocProperty,
 		SecondField:      createdAtDocProperty,
 		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
+		ThirdField:       firestore.DocumentID,
+		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
 	})
 	tuples = append(tuples, &firestorebk.IndexTuple{
 		FirstField:       eventTypeDocProperty,
