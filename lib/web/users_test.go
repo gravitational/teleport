@@ -243,6 +243,18 @@ func TestUpdateUser_setTraits(t *testing.T) {
 
 			// Other fields dont't change
 			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
+
+			// We can read back the user traits
+			uiUser, err := getUser(tt.name, m)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, uiUser.Logins, tt.expectedTraits[constants.TraitLogins])
+			require.ElementsMatch(t, uiUser.DBUsers, tt.expectedTraits[constants.TraitDBUsers])
+			require.ElementsMatch(t, uiUser.DBNames, tt.expectedTraits[constants.TraitDBNames])
+			require.ElementsMatch(t, uiUser.KubeUsers, tt.expectedTraits[constants.TraitKubeUsers])
+			require.ElementsMatch(t, uiUser.KubeGroups, tt.expectedTraits[constants.TraitKubeGroups])
+			require.ElementsMatch(t, uiUser.WindowsLogins, tt.expectedTraits[constants.TraitWindowsLogins])
+			require.ElementsMatch(t, uiUser.AWSRoleARNs, tt.expectedTraits[constants.TraitAWSRoleARNs])
 		})
 	}
 }

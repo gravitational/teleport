@@ -44,6 +44,20 @@ type User interface {
 	SetLocalAuth(auth *LocalAuthSecrets)
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
+	// GetLogins gets the list of server logins/principals for the user
+	GetLogins() []string
+	// GetDBUsers gets the list of DB Users for the user
+	GetDBUsers() []string
+	// GetDBNames gets the list of DB Names for the user
+	GetDBNames() []string
+	// GetKubeUsers gets the list of Kubernetes Users for the user
+	GetKubeUsers() []string
+	// GetKubeGroups gets the list of Kubernetes Groups for the user
+	GetKubeGroups() []string
+	// GetWindowsLogins gets the list of Windows Logins for the user
+	GetWindowsLogins() []string
+	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
+	GetAWSRoleARNs() []string
 	// String returns user
 	String() string
 	// GetStatus return user login status
@@ -307,6 +321,48 @@ func (u *UserV2) AddRole(name string) {
 		}
 	}
 	u.Spec.Roles = append(u.Spec.Roles, name)
+}
+
+func (u UserV2) getTrait(trait string) []string {
+	if u.Spec.Traits == nil {
+		return []string{}
+	}
+	return u.Spec.Traits[trait]
+}
+
+// GetLogins gets the list of server logins/principals for the user
+func (u UserV2) GetLogins() []string {
+	return u.getTrait(constants.TraitLogins)
+}
+
+// GetDBUsers gets the list of DB Users for the user
+func (u UserV2) GetDBUsers() []string {
+	return u.getTrait(constants.TraitDBUsers)
+}
+
+// GetDBNames gets the list of DB Names for the user
+func (u UserV2) GetDBNames() []string {
+	return u.getTrait(constants.TraitDBNames)
+}
+
+// GetKubeUsers gets the list of Kubernetes Users for the user
+func (u UserV2) GetKubeUsers() []string {
+	return u.getTrait(constants.TraitKubeUsers)
+}
+
+// GetKubeGroups gets the list of Kubernetes Groups for the user
+func (u UserV2) GetKubeGroups() []string {
+	return u.getTrait(constants.TraitKubeGroups)
+}
+
+// GetWindowsLogins gets the list of Windows Logins for the user
+func (u UserV2) GetWindowsLogins() []string {
+	return u.getTrait(constants.TraitWindowsLogins)
+}
+
+// GetAWSRoleARNs gets the list of AWS role ARNs for the user
+func (u UserV2) GetAWSRoleARNs() []string {
+	return u.getTrait(constants.TraitAWSRoleARNs)
 }
 
 func (u *UserV2) String() string {

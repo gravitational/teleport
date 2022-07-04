@@ -59,6 +59,19 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 	return getUsers(clt)
 }
 
+func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	username := params.ByName("username")
+	if username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	return getUser(username, clt)
+}
+
 func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -156,15 +169,15 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(user)
 }
 
-func getUsers(m userAPIGetter) ([]ui.User, error) {
+func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
 	users, err := m.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var uiUsers []ui.User
+	var uiUsers []ui.UserListEntry
 	for _, u := range users {
-		uiuser, err := ui.NewUser(u)
+		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -172,6 +185,20 @@ func getUsers(m userAPIGetter) ([]ui.User, error) {
 	}
 
 	return uiUsers, nil
+}
+
+func getUser(username string, m userAPIGetter) (*ui.User, error) {
+	user, err := m.GetUser(username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiUser, err := ui.NewUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiUser, nil
 }
 
 func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user string) error {
