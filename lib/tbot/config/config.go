@@ -145,12 +145,12 @@ type CLIConf struct {
 
 // OnboardingConfig contains values only required on first connect.
 type OnboardingConfig struct {
-	// token is either the token needed to join the auth server, or a path pointing to a file
+	// Token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
-	// This is private to avoid external packages reading the value - the value should be obtained
-	// using GetToken
-	token string `yaml:"token"`
+	// You should use GetToken instead - this has to be an accessible property for YAML unmarshalling
+	// to work correctly, but this could be a path instead of a token
+	Token string `yaml:"token"`
 
 	// CAPath is an optional path to a CA certificate.
 	CAPath string `yaml:"ca_path"`
@@ -167,7 +167,7 @@ type OnboardingConfig struct {
 // HasTokenValue gives the ability to check if there has been a token value stored
 // in the config
 func (conf *OnboardingConfig) HasTokenValue() bool {
-	return conf.token != ""
+	return conf.Token != ""
 }
 
 // StoreToken stores the value for --token or auth_token in the config
@@ -178,7 +178,7 @@ func (conf *OnboardingConfig) HasTokenValue() bool {
 // This means we can allow temporary token files that are removed after teleport has
 // successfully connected the first time.
 func (conf *OnboardingConfig) StoreToken(token string) {
-	conf.token = token
+	conf.Token = token
 }
 
 // GetToken returns token needed to join the auth server
@@ -187,9 +187,9 @@ func (conf *OnboardingConfig) StoreToken(token string) {
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
 func (conf *OnboardingConfig) GetToken() (string, error) {
-	fmt.Println("token", conf.token)
+	fmt.Println("token", conf.Token)
 
-	token, err := utils.TryReadValueAsFile(conf.token)
+	token, err := utils.TryReadValueAsFile(conf.Token)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
