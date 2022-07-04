@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
@@ -116,6 +117,186 @@ func TestCRUDs(t *testing.T) {
 
 	err = deleteUser(req, param, m, "self")
 	require.Nil(t, err)
+}
+
+func TestSetTrait(t *testing.T) {
+	defaultRoles := []string{"role1"}
+	tests := []struct {
+		name           string
+		updateReq      saveUserRequest
+		expectedTraits map[string][]string
+	}{
+		{
+			name: "Logins",
+			updateReq: saveUserRequest{
+				Name:   "setlogins",
+				Roles:  defaultRoles,
+				Logins: &[]string{"login1", "login2"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitLogins: {"login1", "login2"},
+			},
+		},
+		{
+			name: "DB",
+			updateReq: saveUserRequest{
+				Name:    "setdb",
+				Roles:   defaultRoles,
+				DBUsers: &[]string{"dbuser1", "dbuser2"},
+				DBNames: &[]string{"dbname1", "dbname2"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitDBUsers: {"dbuser1", "dbuser2"},
+				teleport.TraitDBNames: {"dbname1", "dbname2"},
+			},
+		},
+		{
+			name: "Kube",
+			updateReq: saveUserRequest{
+				Name:       "setkube",
+				Roles:      defaultRoles,
+				KubeUsers:  &[]string{"kubeuser1", "kubeuser2"},
+				KubeGroups: &[]string{"kubegroup1", "kubegroup2"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitKubeUsers:  {"kubeuser1", "kubeuser2"},
+				teleport.TraitKubeGroups: {"kubegroup1", "kubegroup2"},
+			},
+		},
+		{
+			name: "WindowsLogins",
+			updateReq: saveUserRequest{
+				Name:          "setwindowslogins",
+				Roles:         defaultRoles,
+				WindowsLogins: &[]string{"login1", "login2"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitWindowsLogins: {"login1", "login2"},
+			},
+		},
+		{
+			name: "AWSRoleARNs",
+			updateReq: saveUserRequest{
+				Name:        "setawsrolearns",
+				Roles:       defaultRoles,
+				AWSRolesARN: &[]string{"arn1", "arn2"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitAWSRoleARNs: {"arn1", "arn2"},
+			},
+		},
+		{
+			name: "Deduplicates",
+			updateReq: saveUserRequest{
+				Name:   "deduplicates",
+				Roles:  defaultRoles,
+				Logins: &[]string{"login1", "login2", "login1"},
+			},
+			expectedTraits: map[string][]string{
+				teleport.TraitLogins: {"login1", "login2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			user, err := types.NewUser(tt.name)
+			require.NoError(t, err)
+			user.SetRoles(defaultRoles)
+
+			m := &mockedUserAPIGetter{}
+			m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+				return user, nil
+			}
+			m.mockUpdateUser = func(ctx context.Context, user types.User) error {
+				user.SetTraits(user.GetTraits())
+				return nil
+			}
+
+			_, err = updateUser(newRequest(t, tt.updateReq), m, "")
+			require.NoError(t, err)
+
+			for traitName, traitList := range tt.expectedTraits {
+				require.ElementsMatch(t, traitList, user.GetTraits()[traitName])
+			}
+
+			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
+		})
+	}
+}
+
+func TestSetTraitDoesntRemoveOtherTraits(t *testing.T) {
+	username := "user1"
+	defaultRoles := []string{"role1"}
+
+	updateReq := saveUserRequest{
+		Name:      username,
+		Roles:     defaultRoles,
+		KubeUsers: &[]string{"kubeuser1", "kubeuser2"},
+	}
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetRoles(defaultRoles)
+	user.SetTraits(map[string][]string{
+		teleport.TraitLogins:  {"login1"},
+		teleport.TraitDBNames: {"dbname1", "dbname2"},
+	})
+
+	expectedTraits := map[string][]string{
+		teleport.TraitKubeUsers: {"kubeuser1", "kubeuser2"},
+		teleport.TraitLogins:    {"login1"},
+		teleport.TraitDBNames:   {"dbname1", "dbname2"},
+	}
+
+	m := &mockedUserAPIGetter{}
+	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+		return user, nil
+	}
+	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
+		user.SetTraits(user.GetTraits())
+		return nil
+	}
+
+	_, err = updateUser(newRequest(t, updateReq), m, "")
+	require.NoError(t, err)
+
+	for traitName, traitList := range expectedTraits {
+		require.ElementsMatch(t, traitList, user.GetTraits()[traitName])
+	}
+}
+
+func TestSetTraitCanRemoveTraits(t *testing.T) {
+	username := "user1"
+	defaultRoles := []string{"role1"}
+
+	updateReq := saveUserRequest{
+		Name:   username,
+		Roles:  defaultRoles,
+		Logins: &[]string{},
+	}
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetRoles(defaultRoles)
+	user.SetTraits(map[string][]string{
+		teleport.TraitLogins: {"login1"},
+	})
+
+	m := &mockedUserAPIGetter{}
+	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+		return user, nil
+	}
+	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
+		user.SetTraits(user.GetTraits())
+		return nil
+	}
+
+	_, err = updateUser(newRequest(t, updateReq), m, "")
+	require.NoError(t, err)
+
+	require.Empty(t, user.GetTraits()[teleport.TraitLogins])
 }
 
 func TestCRUDErrors(t *testing.T) {
