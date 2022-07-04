@@ -39,16 +39,9 @@ const (
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
-	// If empty, Login may either choose a credential or error due to ambiguity.
+	// If empty, Login may either choose a credential or prompt the user for input
+	// (via LoginPrompt).
 	User string
-	// OptimisticAssertion allows Login to skip credential listing and attempt
-	// to assert directly. The drawback of an optimistic assertion is that the
-	// authenticator chooses the login credential, so Login can't guarantee that
-	// the User field will be respected. The upside is that it saves a touch for
-	// some devices.
-	// Login may decide to forego optimistic assertions if it wouldn't save a
-	// touch.
-	OptimisticAssertion bool
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment AuthenticatorAttachment
 }
