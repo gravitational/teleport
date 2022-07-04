@@ -1,18 +1,26 @@
+---
+title: Teleport Instance Lifecycle
+description: How a Teleport node starts up and configures itself
+layout: tocless-doc
+---
+
 # The life cycle of a Teleport instance
 
 The top-level `teleport` application acts as a scheduler that manages the 
 execution of various registered "services", and an event bus that 
 communicates between them.
 
-The services can run briefly and exit, or live as long as the 
-process, depending on what they need to do. They can also be 
-tagged as "critical" services, meaning that if the service exits
-with error it will bring down the whole process. 
+Depending on what it needs to do, a service can either run briefly and exit, or 
+live as long as the process overal `teleport` process. A service can also be 
+tagged as "critical", meaning that if the service exits with error then it will
+bring down the whole process. 
 
 Most of this is encapsulated by the `./lib/service.TeleportProcess` type, and 
 services usually interact with it via the `./lib/service.Supervisor` interface.
 
-## TeleportProcess
+## Bootstrapping
+
+Starting from `main()`, 
 
 `main`
   - configure & parse command line (`/tool/teleport/common`)
@@ -23,8 +31,8 @@ services usually interact with it via the `./lib/service.Supervisor` interface.
     - sets up a bunch of services (see `initSSH()` below)
 `TeleportProcess.Start()` (starts supervisor)
     - kicks off all of the registered services
-wait for signals
-exit, potentially forking replacement depending on signal.
+    - wait for signals
+    - exit, potentially forking replacement depending on signal.
 
 ## Reverse Tunnel
 
@@ -40,6 +48,7 @@ means that the node will
     on to the auth server, and
  2. User sessions are multiplexed over this tunnel, rather than being 
     independent TCP connections.
+
 ## An SSH Node Lifecycle
 
 `initSSH()`: 
