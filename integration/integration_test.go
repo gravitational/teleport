@@ -1144,7 +1144,7 @@ func testEscapeSequenceNoTrigger(ctx context.Context, t *testing.T, terminal *Te
 
 	require.Eventually(t, func() bool {
 		// if the session didn't end, we should see the output of the last write
-		return strings.Contains(string(terminal.Output(1000)), "hi")
+		return strings.Contains(terminal.Output(1000), "hi")
 	}, time.Second*15, time.Millisecond*100)
 
 	terminal.Type("\aexit 0\n\r")
