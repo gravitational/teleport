@@ -26,11 +26,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
@@ -43,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -91,7 +92,7 @@ type Server struct {
 
 	// remoteClient exposes an API to SSH functionality like shells, port
 	// forwarding, subsystems.
-	remoteClient *ssh.Client
+	remoteClient *tracessh.Client
 
 	// connectionContext is used to construct ServerContext instances
 	// and supports registration of connection-scoped resource closers.
@@ -405,6 +406,18 @@ func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
+// GetCreateHostUser determines whether users should be created on the
+// host automatically
+func (s *Server) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUser returns the HostUsers instance being used to manage
+// host user provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostUsers() srv.HostUsers {
+	return nil
+}
+
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
@@ -503,7 +516,7 @@ func (s *Server) Serve() {
 
 	// Connect and authenticate to the remote node.
 	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
-	s.remoteClient, err = s.newRemoteClient(sconn.User())
+	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
 		// close the connection.
@@ -569,7 +582,7 @@ func (s *Server) Close() error {
 
 // newRemoteSession will create and return a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
 	// the proxy will use the agent that has been forwarded to it as the auth
 	// method when connecting to the remote host
 	if s.userAgent == nil {
@@ -596,7 +609,7 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := apisshutils.NewClientConnWithDeadline(s.targetConn, dstAddr, clientConfig)
+	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -810,7 +823,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession()
+	remoteSession, err := s.remoteClient.NewSession(ctx)
 	if err != nil {
 		s.log.Warnf("Remote session open failed: %v", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
@@ -896,7 +909,42 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	scx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
+	// Certs with a join-only principal can only use a
+	// subset of all the possible request types.
+	if scx.JoinOnly {
+		switch req.Type {
+		case tracessh.TracingRequest:
+			return s.handleTracingRequest(req, scx)
+		case sshutils.PTYRequest:
+			return s.termHandlers.HandlePTYReq(ch, req, scx)
+		case sshutils.ShellRequest:
+			return s.termHandlers.HandleShell(ch, req, scx)
+		case sshutils.WindowChangeRequest:
+			return s.termHandlers.HandleWinChange(ch, req, scx)
+		case teleport.ForceTerminateRequest:
+			return s.termHandlers.HandleForceTerminate(ch, req, scx)
+		case sshutils.EnvRequest:
+			// We ignore all SSH setenv requests for join-only principals.
+			// SSH will send them anyway but it seems fine to silently drop them.
+		case sshutils.SubsystemRequest:
+			return s.handleSubsystem(ctx, ch, req, scx)
+		case sshutils.AgentForwardRequest:
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, all errors should be logged and we should continue
+			// processing requests.
+			err := s.handleAgentForward(ch, req, scx)
+			if err != nil {
+				s.log.Debug(err)
+			}
+			return nil
+		default:
+			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
+		}
+	}
+
 	switch req.Type {
+	case tracessh.TracingRequest:
+		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ch, req, scx)
 	case sshutils.PTYRequest:
@@ -910,7 +958,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, scx)
 	case sshutils.SubsystemRequest:
-		return s.handleSubsystem(ch, req, scx)
+		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
 		return s.handleX11Forward(ctx, ch, req, scx)
 	case sshutils.AgentForwardRequest:
@@ -936,7 +984,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	err = agent.ForwardToAgent(ctx.RemoteClient, s.userAgent)
+	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1040,7 +1088,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.AccessDenied("X11 forwarding request denied by server")
 	}
 
-	err = x11.ServeChannelRequests(ctx, s.remoteClient, s.handleX11ChannelRequest)
+	err = x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1048,16 +1096,16 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	return nil
 }
 
-func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	subsystem, err := parseSubsystemRequest(req, ctx)
+func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	subsystem, err := parseSubsystemRequest(req, serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// start the requested subsystem, if it fails to start return result right away
-	err = subsystem.Start(ch)
+	err = subsystem.Start(ctx, ch)
 	if err != nil {
-		ctx.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(srv.SubsystemResult{
 			Name: subsystem.subsytemName,
 			Err:  trace.Wrap(err),
 		})
@@ -1067,11 +1115,19 @@ func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.Serv
 	// wait for the subsystem to finish and return that result
 	go func() {
 		err := subsystem.Wait()
-		ctx.SendSubsystemResult(srv.SubsystemResult{
+		serverContext.SendSubsystemResult(srv.SubsystemResult{
 			Name: subsystem.subsytemName,
 			Err:  trace.Wrap(err),
 		})
 	}()
+
+	return nil
+}
+
+func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
+	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
+		s.log.WithError(err).Debugf("Unable to set forward tracing context")
+	}
 
 	return nil
 }

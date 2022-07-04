@@ -31,8 +31,9 @@ import (
 
 // Changes describes the kind of changes found in the analysed workspace.
 type Changes struct {
-	Docs bool
-	Code bool
+	Docs       bool
+	Code       bool
+	Enterprise bool
 }
 
 // Analyze examines the workspace for specific changes using its git history,
@@ -57,15 +58,18 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 		case path == "":
 			continue
 
+		case path == "e":
+			report.Enterprise = true
+
 		case isDocChange(path):
-			report.Docs = report.Docs || true
+			report.Docs = true
 
 		default:
-			report.Code = report.Code || true
+			report.Code = true
 		}
 
-		if report.Docs && report.Code {
-			// There's no sense in exhaustively listing all of the changes if
+		if report.Docs && report.Code && report.Enterprise {
+			// There's no sense in exhaustively listing all the changes if
 			// the answer won't change, so bail early.
 			break
 		}

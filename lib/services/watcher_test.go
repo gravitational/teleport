@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -517,16 +518,6 @@ func resourceDiff(res1, res2 types.Resource) string {
 		cmpopts.EquateEmpty())
 }
 
-func caDiff(ca1, ca2 types.CertAuthority) string {
-	return cmp.Diff(ca1, ca2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		cmpopts.IgnoreFields(types.CertAuthoritySpecV2{}, "CheckingKeys", "TLSKeyPairs"),
-		cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
-		cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
-		cmpopts.EquateEmpty(),
-	)
-}
-
 // TestDatabaseWatcher tests that database resource watcher properly receives
 // and dispatches updates to database resources.
 func TestDatabaseWatcher(t *testing.T) {
@@ -723,10 +714,12 @@ func newApp(t *testing.T, name string) types.Application {
 func TestCertAuthorityWatcher(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
 	bk, err := lite.NewWithConfig(ctx, lite.Config{
 		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 
@@ -744,86 +737,82 @@ func TestCertAuthorityWatcher(t *testing.T) {
 				Trust:  caService,
 				Events: local.NewEventsService(bk),
 			},
+			Clock: clock,
 		},
-		CertAuthorityC: make(chan []types.CertAuthority, 10),
-		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
-	nothingWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:      "test",
-			MaxRetryPeriod: 200 * time.Millisecond,
-			Client: &client{
-				Trust:  caService,
-				Events: local.NewEventsService(bk),
-			},
-		},
-		CertAuthorityC: make(chan []types.CertAuthority, 10),
+	waitForEvent := func(t *testing.T, sub types.Watcher, caType types.CertAuthType, clusterName string, op types.OpType) {
+		select {
+		case event := <-sub.Events():
+			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
+			require.Equal(t, string(caType), event.Resource.GetSubKind())
+			require.Equal(t, clusterName, event.Resource.GetName())
+			require.Equal(t, op, event.Type)
+			require.Empty(t, sub.Events()) // no more events.
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for event")
+		}
+	}
+
+	ensureNoEvents := func(t *testing.T, sub types.Watcher) {
+		select {
+		case event := <-sub.Events():
+			t.Fatalf("Unexpected event: %v.", event)
+		case <-sub.Done():
+			t.Fatal("CA watcher subscription has unexpectedly exited.")
+		case <-time.After(time.Second):
+		}
+	}
+
+	t.Run("Subscribe all", func(t *testing.T) {
+		// Use nil CertAuthorityFilter to subscribe all events from the watcher.
+		sub, err := w.Subscribe(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+		// Create a CA and ensure we receive the event.
+		ca := newCertAuthority(t, "test", types.HostCA)
+		require.NoError(t, caService.UpsertCertAuthority(ca))
+		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
+
+		// Delete a CA and ensure we receive the event.
+		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
+		waitForEvent(t, sub, types.HostCA, "test", types.OpDelete)
+
+		// Create a CA with a type that the watcher is NOT receiving and ensure
+		// we DO NOT receive the event.
+		signer := newCertAuthority(t, "test", types.JWTSigner)
+		require.NoError(t, caService.UpsertCertAuthority(signer))
+		ensureNoEvents(t, sub)
 	})
-	require.NoError(t, err)
-	t.Cleanup(nothingWatcher.Close)
 
-	require.Empty(t, w.GetCurrent())
-	require.Empty(t, nothingWatcher.GetCurrent())
+	t.Run("Subscribe with filter", func(t *testing.T) {
+		sub, err := w.Subscribe(ctx,
+			types.CertAuthorityFilter{
+				types.HostCA: "test",
+				types.UserCA: types.Wildcard,
+			},
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
-	// Initially there are no cas so watcher should send an empty list.
-	select {
-	case changeset := <-w.CertAuthorityC:
-		require.Len(t, changeset, 0)
-		require.Empty(t, nothingWatcher.GetCurrent())
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the first event.")
-	}
+		// Receives one HostCA event, matched by type and specific cluster name.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
+		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
-	// Add an authority.
-	ca1 := newCertAuthority(t, "ca1", types.HostCA)
-	require.NoError(t, caService.CreateCertAuthority(ca1))
+		// Receives one UserCA event, matched by type and wildcard cluster name.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
+		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
 
-	// The first event is always the current list of apps.
-	select {
-	case changeset := <-w.CertAuthorityC:
-		require.Len(t, changeset, 1)
-		require.Empty(t, caDiff(changeset[0], ca1))
-		require.Empty(t, nothingWatcher.GetCurrent())
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the first event.")
-	}
-
-	// Add a second ca.
-	ca2 := newCertAuthority(t, "ca2", types.UserCA)
-	require.NoError(t, caService.CreateCertAuthority(ca2))
-
-	// Watcher should detect the ca list change.
-	select {
-	case changeset := <-w.CertAuthorityC:
-		require.Len(t, changeset, 2)
-		require.Empty(t, nothingWatcher.GetCurrent())
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the update event.")
-	}
-
-	// Delete the first ca.
-	require.NoError(t, caService.DeleteCertAuthority(ca1.GetID()))
-
-	// Watcher should detect the ca list change.
-	select {
-	case changeset := <-w.CertAuthorityC:
-		require.Len(t, changeset, 1)
-		require.Empty(t, caDiff(changeset[0], ca2))
-		require.Empty(t, nothingWatcher.GetCurrent())
-	case <-w.Done():
-		t.Fatal("Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the update event.")
-	}
+		// Should NOT receive any HostCA events from another cluster.
+		// Should NOT receive any DatabaseCA events.
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
+		ensureNoEvents(t, sub)
+	})
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
@@ -839,18 +828,26 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 		Type:        caType,
 		ClusterName: name,
 		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     priv,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      pub,
-			}},
-			TLS: []*types.TLSKeyPair{{
-				Cert: cert,
-				Key:  key,
-			}},
+			SSH: []*types.SSHKeyPair{
+				{
+					PrivateKey:     priv,
+					PrivateKeyType: types.PrivateKeyType_RAW,
+					PublicKey:      pub,
+				},
+			},
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: cert,
+					Key:  key,
+				},
+			},
+			JWT: []*types.JWTKeyPair{
+				{
+					PublicKey:  []byte(fixtures.JWTSignerPublicKey),
+					PrivateKey: []byte(fixtures.JWTSignerPrivateKey),
+				},
+			},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
 	})
 	require.NoError(t, err)
 	return ca

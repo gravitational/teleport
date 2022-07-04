@@ -18,6 +18,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 )
@@ -45,12 +46,32 @@ func (b *Bot) Check(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		docs, code, err := b.parseChanges(ctx)
+		files, err := b.c.GitHub.ListFiles(ctx,
+			b.c.Environment.Organization,
+			b.c.Environment.Repository,
+			b.c.Environment.Number)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code); err != nil {
+		docs, code, err := classifyChanges(files)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		large := isLargePR(files)
+		if large {
+			comment := fmt.Sprintf("@%v - this PR is large and will require admin approval to merge. "+
+				"Consider breaking it up into a series smaller changes.", b.c.Environment.Author)
+			b.c.GitHub.CreateComment(ctx,
+				b.c.Environment.Organization,
+				b.c.Environment.Repository,
+				b.c.Environment.Number,
+				comment,
+			)
+		}
+
+		if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code, large); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil

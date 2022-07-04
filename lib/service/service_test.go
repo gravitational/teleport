@@ -18,25 +18,31 @@ package service
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
@@ -92,24 +98,41 @@ func TestMonitor(t *testing.T) {
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
+	// this simulates events that happened to be broadcast before the
+	// readyz.monitor started listening for events
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
 	diagAddr, err := process.DiagnosticAddr()
 	require.NoError(t, err)
 	require.NotNil(t, diagAddr)
-	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
 
-	// Start Teleport and make sure the status is OK.
-	go func() {
-		require.NoError(t, process.Run())
-	}()
-	err = waitForStatus(endpoint, http.StatusOK)
-	require.NoError(t, err)
+	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
+	waitForStatus := func(statusCodes ...int) func() bool {
+		return func() bool {
+			resp, err := http.Get(endpoint)
+			require.NoError(t, err)
+			resp.Body.Close()
+			for _, c := range statusCodes {
+				if resp.StatusCode == c {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	require.Eventually(t, waitForStatus(http.StatusOK), 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {
 		desc         string
@@ -166,8 +189,7 @@ func TestMonitor(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			fakeClock.Advance(tt.advanceClock)
 			process.BroadcastEvent(tt.event)
-			err = waitForStatus(endpoint, tt.wantStatus...)
-			require.NoError(t, err)
+			require.Eventually(t, waitForStatus(tt.wantStatus...), 5*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -189,7 +211,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		ServerIdentity: tlsServer.Identity,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inPrincipals  []string
 		inDNS         []string
 		outRegenerate bool
@@ -268,7 +290,6 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-
 			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
 			if tt.isErr {
 				require.Error(t, err)
@@ -452,30 +473,6 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	require.Error(t, err)
 }
 
-func waitForStatus(diagAddr string, statusCodes ...int) error {
-	tickCh := time.Tick(100 * time.Millisecond)
-	timeoutCh := time.After(10 * time.Second)
-	var lastStatus int
-	for {
-		select {
-		case <-tickCh:
-			resp, err := http.Get(diagAddr)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			resp.Body.Close()
-			lastStatus = resp.StatusCode
-			for _, statusCode := range statusCodes {
-				if resp.StatusCode == statusCode {
-					return nil
-				}
-			}
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting for status: %v; last status: %v", statusCodes, lastStatus)
-		}
-	}
-}
-
 type mockAccessPoint struct {
 	auth.ProxyAccessPoint
 }
@@ -494,6 +491,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
+				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
 				"acme-tls/1",
@@ -502,6 +500,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
+				"teleport-snowflake",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -510,14 +509,27 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
-			// If server NextProtos list is empty server allows for connection with any protocol.
-			wantNextProtos: nil,
+			wantNextProtos: []string{
+				// Ensure h2 has precedence over http/1.1.
+				"h2",
+				"http/1.1",
+				"teleport-postgres",
+				"teleport-mysql",
+				"teleport-mongodb",
+				"teleport-redis",
+				"teleport-sqlserver",
+				"teleport-snowflake",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := MakeDefaultConfig()
+			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
@@ -557,6 +569,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.ConnectFailureC = make(chan time.Duration, 5)
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
@@ -595,4 +608,107 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.True(t, ok)
 	supervisor.signalExit()
 	wg.Wait()
+}
+
+func TestTeleportProcessAuthVersionCheck(t *testing.T) {
+	t.Parallel()
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	authAddr, err := getFreePort()
+	require.NoError(t, err)
+	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	token := "join-token"
+
+	// Create Node process.
+	nodeCfg := MakeDefaultConfig()
+	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.Token = token
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+
+	// Set the Node's major version to be greater than the Auth Service's,
+	// which should make the version check fail.
+	currentVersion, err := semver.NewVersion(teleport.Version)
+	require.NoError(t, err)
+	currentVersion.Major++
+	nodeCfg.TeleportVersion = currentVersion.String()
+
+	// Create Auth Service process.
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
+			{
+				Roles: []types.SystemRole{
+					types.RoleNode,
+				},
+				Token: token,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	authCfg := MakeDefaultConfig()
+	authCfg.AuthServers = []utils.NetAddr{listenAddr}
+	authCfg.DataDir = t.TempDir()
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.StaticTokens = staticTokens
+	authCfg.Auth.StorageConfig.Type = lite.GetName()
+	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
+	authCfg.Auth.ListenAddr = listenAddr
+	authCfg.Proxy.Enabled = false
+	authCfg.SSH.Enabled = false
+
+	authProc, err := NewTeleport(authCfg)
+	require.NoError(t, err)
+
+	err = authProc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		authProc.Close()
+	})
+
+	t.Run("with version check", func(t *testing.T) {
+		testVersionCheck(t, nodeCfg, false)
+	})
+
+	t.Run("without version check", func(t *testing.T) {
+		testVersionCheck(t, nodeCfg, true)
+	})
+}
+
+func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
+	nodeCfg.SkipVersionCheck = skipVersionCheck
+
+	nodeProc, err := NewTeleport(nodeCfg)
+	require.NoError(t, err)
+
+	c, err := nodeProc.reconnectToAuthService(types.RoleNode)
+	if skipVersionCheck {
+		require.NoError(t, err)
+		require.NotNil(t, c)
+	} else {
+		require.True(t, trace.IsNotImplemented(err))
+		require.Nil(t, c)
+	}
+
+	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
+	require.True(t, ok)
+	supervisor.signalExit()
+}
+
+func getFreePort() (string, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return "", err
+	}
+	defer l.Close()
+
+	return l.Addr().(*net.TCPAddr).String(), nil
 }

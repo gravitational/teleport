@@ -7,6 +7,20 @@
 
 #define SPECIAL_NO_RESPONSE 4294967295
 
+#define SCARD_DEVICE_ID 1
+
+#define VERSION_MAJOR 1
+
+#define VERSION_MINOR 12
+
+#define SMARTCARD_CAPABILITY_VERSION_01 1
+
+#define DRIVE_CAPABILITY_VERSION_02 2
+
+#define GENERAL_CAPABILITY_VERSION_01 1
+
+#define GENERAL_CAPABILITY_VERSION_02 2
+
 /**
  * The default maximum chunk size for virtual channel data.
  *
@@ -19,6 +33,11 @@
  * - https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a8593178-80c0-4b80-876c-cb77e62cecfc
  */
 #define CHANNEL_CHUNK_LEGNTH 1600
+
+typedef enum CGOErrCode {
+  ErrCodeSuccess = 0,
+  ErrCodeFailure = 1,
+} CGOErrCode;
 
 typedef enum CGOPointerButton {
   PointerButtonNone,
@@ -46,15 +65,28 @@ typedef enum CGOPointerWheel {
  */
 typedef struct Client Client;
 
-/**
- * CGOError is an alias for a C string pointer, for C API clarity.
- */
-typedef char *CGOError;
-
 typedef struct ClientOrError {
   struct Client *client;
-  CGOError err;
+  enum CGOErrCode err;
 } ClientOrError;
+
+typedef struct CGOSharedDirectoryAnnounce {
+  uint32_t directory_id;
+  const char *name;
+} CGOSharedDirectoryAnnounce;
+
+typedef struct CGOFileSystemObject {
+  uint64_t last_modified;
+  uint64_t size;
+  uint32_t file_type;
+  const char *path;
+} CGOFileSystemObject;
+
+typedef struct CGOSharedDirectoryInfoResponse {
+  uint32_t completion_id;
+  uint32_t err_code;
+  struct CGOFileSystemObject fso;
+} CGOSharedDirectoryInfoResponse;
 
 /**
  * CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -95,6 +127,17 @@ typedef struct CGOBitmap {
   uintptr_t data_cap;
 } CGOBitmap;
 
+typedef struct CGOSharedDirectoryAcknowledge {
+  uint32_t err_code;
+  uint32_t directory_id;
+} CGOSharedDirectoryAcknowledge;
+
+typedef struct CGOSharedDirectoryInfoRequest {
+  uint32_t completion_id;
+  uint32_t directory_id;
+  const char *path;
+} CGOSharedDirectoryInfoRequest;
+
 void init(void);
 
 /**
@@ -108,15 +151,16 @@ void init(void);
  * to their corresponding parameters.
  */
 struct ClientOrError connect_rdp(uintptr_t go_ref,
-                                 char *go_addr,
-                                 char *go_username,
+                                 const char *go_addr,
+                                 const char *go_username,
                                  uint32_t cert_der_len,
                                  uint8_t *cert_der,
                                  uint32_t key_der_len,
                                  uint8_t *key_der,
                                  uint16_t screen_width,
                                  uint16_t screen_height,
-                                 bool allow_clipboard);
+                                 bool allow_clipboard,
+                                 bool allow_directory_sharing);
 
 /**
  * `update_clipboard` is called from Go, and caches data that was copied
@@ -126,7 +170,29 @@ struct ClientOrError connect_rdp(uintptr_t go_ref,
  *
  * `client_ptr` must be a valid pointer to a Client.
  */
-CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+enum CGOErrCode update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len);
+
+/**
+ * handle_tdp_sd_announce announces a new drive that's ready to be
+ * redirected over RDP.
+ *
+ * # Safety
+ *
+ * The caller must ensure that sd_announce.name points to a valid buffer.
+ */
+enum CGOErrCode handle_tdp_sd_announce(struct Client *client_ptr,
+                                       struct CGOSharedDirectoryAnnounce sd_announce);
+
+/**
+ * handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+ * message
+ *
+ * # Safety
+ *
+ * The caller must ensure that res.fso.path points to a valid buffer.
+ */
+enum CGOErrCode handle_tdp_sd_info_response(struct Client *client_ptr,
+                                            struct CGOSharedDirectoryInfoResponse res);
 
 /**
  * `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
@@ -137,28 +203,28 @@ CGOError update_clipboard(struct Client *client_ptr, uint8_t *data, uint32_t len
  * `client_ptr` must be a valid pointer to a Client.
  * `handle_bitmap` *must not* free the memory of CGOBitmap.
  */
-CGOError read_rdp_output(struct Client *client_ptr);
+enum CGOErrCode read_rdp_output(struct Client *client_ptr);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
+enum CGOErrCode write_rdp_pointer(struct Client *client_ptr, struct CGOMousePointerEvent pointer);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
+enum CGOErrCode write_rdp_keyboard(struct Client *client_ptr, struct CGOKeyboardEvent key);
 
 /**
  * # Safety
  *
  * client_ptr must be a valid pointer to a Client.
  */
-CGOError close_rdp(struct Client *client_ptr);
+enum CGOErrCode close_rdp(struct Client *client_ptr);
 
 /**
  * free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
@@ -169,15 +235,12 @@ CGOError close_rdp(struct Client *client_ptr);
  */
 void free_rdp(struct Client *client_ptr);
 
-/**
- * # Safety
- *
- * The passed pointer must point to a C-style string allocated by Rust.
- */
-void free_rust_string(char *s);
+extern enum CGOErrCode handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
 
-extern void free_go_string(char *s);
+extern enum CGOErrCode handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
 
-extern CGOError handle_bitmap(uintptr_t client_ref, struct CGOBitmap *b);
+extern enum CGOErrCode tdp_sd_acknowledge(uintptr_t client_ref,
+                                          struct CGOSharedDirectoryAcknowledge *ack);
 
-extern CGOError handle_remote_copy(uintptr_t client_ref, uint8_t *data, uint32_t len);
+extern enum CGOErrCode tdp_sd_info_request(uintptr_t client_ref,
+                                           struct CGOSharedDirectoryInfoRequest *req);

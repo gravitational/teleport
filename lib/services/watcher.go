@@ -292,6 +292,9 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
+	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
+	// trigger a event.
+	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -402,10 +405,9 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		_, known := p.current[server.GetName()]
+		current, exists := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		// Broadcast only creation of new proxies (not known before).
-		if !known {
+		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
 			p.broadcastUpdate(ctx)
 		}
 	default:
@@ -616,9 +618,11 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // notifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
 func (p *lockCollector) notifyStale() {
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
@@ -919,10 +923,8 @@ type CertAuthorityWatcherConfig struct {
 	ResourceWatcherConfig
 	// AuthorityGetter is responsible for fetching cert authority resources.
 	AuthorityGetter
-	// CertAuthorityC receives up-to-date list of all cert authority resources.
-	CertAuthorityC chan []types.CertAuthority
-	// WatchCertTypes stores all certificate types that should be monitored.
-	WatchCertTypes []types.CertAuthType
+	// Types restricts which cert authority types are retrieved via the AuthorityGetter.
+	Types []types.CertAuthType
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -937,20 +939,7 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 		}
 		cfg.AuthorityGetter = getter
 	}
-	if cfg.CertAuthorityC == nil {
-		cfg.CertAuthorityC = make(chan []types.CertAuthority)
-	}
 	return nil
-}
-
-// IsWatched return true if the given certificate auth type is being observer by the watcher.
-func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
-	for _, observedType := range cfg.WatchCertTypes {
-		if observedType == certType {
-			return true
-		}
-	}
-	return false
 }
 
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
@@ -961,6 +950,12 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 
 	collector := &caCollector{
 		CertAuthorityWatcherConfig: cfg,
+		fanout:                     NewFanout(),
+		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+	}
+
+	for _, t := range cfg.Types {
+		collector.cas[t] = make(map[string]types.CertAuthority)
 	}
 
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
@@ -968,6 +963,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 		return nil, trace.Wrap(err)
 	}
 
+	collector.fanout.SetInit()
 	return &CertAuthorityWatcher{watcher, collector}, nil
 }
 
@@ -980,26 +976,37 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
+	fanout *Fanout
 
-	collectedCAs CertAuthorityTypeMap
-	lock         sync.RWMutex
+	// lock protects concurrent access to cas
+	lock sync.RWMutex
+	// cas maps ca type -> cluster -> ca
+	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
-// CertAuthorityMap maps clusterName -> types.CertAuthority
-type CertAuthorityMap map[string]types.CertAuthority
-
-// CertAuthorityTypeMap maps types.CertAuthType -> map(clusterName -> types.CertAuthority)
-type CertAuthorityTypeMap map[types.CertAuthType]CertAuthorityMap
-
-// ToSlice converts CertAuthorityTypeMap to a slice.
-func (cat *CertAuthorityTypeMap) ToSlice() []types.CertAuthority {
-	slice := make([]types.CertAuthority, 0)
-	for _, cert := range *cat {
-		for _, ca := range cert {
-			slice = append(slice, ca)
-		}
+// Subscribe is used to subscribe to the lock updates.
+func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	watch := types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind:   c.resourceKind(),
+				Filter: filter.IntoMap(),
+			},
+		},
 	}
-	return slice
+	sub, err := c.fanout.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	select {
+	case event := <-sub.Events():
+		if event.Type != types.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-sub.Done():
+		return nil, trace.Wrap(sub.Error())
+	}
+	return sub, nil
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -1009,28 +1016,27 @@ func (c *caCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (c *caCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	updatedCerts := make(CertAuthorityTypeMap)
+	var cas []types.CertAuthority
 
-	for _, caType := range c.WatchCertTypes {
-		cas, err := c.AuthorityGetter.GetCertAuthorities(ctx, caType, false)
+	for _, t := range c.Types {
+		authorities, err := c.AuthorityGetter.GetCertAuthorities(ctx, t, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		updatedCerts[caType] = make(CertAuthorityMap, len(cas))
-		for _, ca := range cas {
-			updatedCerts[caType][ca.GetName()] = ca
-		}
+		cas = append(cas, authorities...)
 	}
 
 	c.lock.Lock()
-	c.collectedCAs = updatedCerts
-	c.lock.Unlock()
+	defer c.lock.Unlock()
 
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	case c.CertAuthorityC <- updatedCerts.ToSlice():
+	for _, ca := range cas {
+		if !c.watchingType(ca.GetType()) {
+			continue
+		}
+
+		c.cas[ca.GetType()][ca.GetName()] = ca
+		c.fanout.Emit(types.Event{Type: types.OpPut, Resource: ca.Clone()})
 	}
 	return nil
 }
@@ -1046,17 +1052,12 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 	switch event.Type {
 	case types.OpDelete:
 		caType := types.CertAuthType(event.Resource.GetSubKind())
-
-		// Check if the certificate should be processed.
-		_, found := c.collectedCAs[caType]
-		if found {
-			delete(c.collectedCAs[caType], event.Resource.GetName())
+		if !c.watchingType(caType) {
+			return
 		}
 
-		select {
-		case <-ctx.Done():
-		case c.CertAuthorityC <- c.collectedCAs.ToSlice():
-		}
+		delete(c.cas[caType], event.Resource.GetName())
+		c.fanout.Emit(event)
 	case types.OpPut:
 		ca, ok := event.Resource.(types.CertAuthority)
 		if !ok {
@@ -1064,28 +1065,31 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 			return
 		}
 
-		caType := ca.GetType()
-		_, found := c.collectedCAs[caType]
-		// Check if the certificate should be processed.
-		if found {
-			c.collectedCAs[caType][ca.GetName()] = ca
+		if !c.watchingType(ca.GetType()) {
+			return
 		}
 
-		select {
-		case <-ctx.Done():
-		case c.CertAuthorityC <- c.collectedCAs.ToSlice():
+		authority, ok := c.cas[ca.GetType()][ca.GetName()]
+		if ok && CertAuthoritiesEquivalent(authority, ca) {
+			return
 		}
+
+		c.cas[ca.GetType()][ca.GetName()] = ca
+		c.fanout.Emit(event)
 	default:
 		c.Log.Warnf("Unsupported event type %s.", event.Type)
 		return
 	}
 }
 
-// GetCurrent returns the currently stored authorities.
-func (c *caCollector) GetCurrent() []types.CertAuthority {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return c.collectedCAs.ToSlice()
+func (c *caCollector) watchingType(t types.CertAuthType) bool {
+	for _, caType := range c.Types {
+		if caType == t {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (c *caCollector) notifyStale() {}
@@ -1157,8 +1161,6 @@ type Node interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetLabels returns server's static label key pairs
-	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.

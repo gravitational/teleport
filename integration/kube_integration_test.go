@@ -33,8 +33,10 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -96,8 +98,6 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 
 	var err error
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
-
 	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
@@ -163,20 +163,19 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
-	t.Run("ConnectionLimit", suite.bind(testKubeConnectionLimit))
 }
 
 // TestKubeExec tests kubernetes Exec command set
 func testKubeExec(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -339,13 +338,13 @@ loop:
 func testKubeDeny(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -391,13 +390,13 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -427,7 +426,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 
 	// forward local port to target port 80 of the nginx container
-	localPort := ports.Pop()
+	localPort := helpers.NewPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -463,7 +462,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	localPort = ports.Pop()
+	localPort = helpers.NewPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      testPod,
@@ -486,13 +485,13 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// Main cluster doesn't need a kubeconfig to forward requests to auxiliary
 	// cluster.
 	mainConf.Proxy.Kube.KubeconfigPath = ""
-	main := NewInstance(InstanceConfig{
+	main := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: clusterMain,
-		HostID:      HostID,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -509,13 +508,13 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	clusterAux := "cluster-aux"
 	auxConf := suite.teleKubeConfig(Host)
-	aux := NewInstance(InstanceConfig{
+	aux := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: clusterAux,
-		HostID:      HostID,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -687,7 +686,7 @@ loop:
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
 
 	// forward local port to target port 80 of the nginx container
-	localPort := ports.Pop()
+	localPort := helpers.NewPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -715,7 +714,7 @@ loop:
 	require.NoError(t, resp.Body.Close())
 
 	// impersonating client requests will be denied
-	localPort = ports.Pop()
+	localPort = helpers.NewPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -737,13 +736,13 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	clusterMain := "cluster-main"
 	mainConf := suite.teleKubeConfig(Host)
-	main := NewInstance(InstanceConfig{
+	main := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: clusterMain,
-		HostID:      HostID,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -760,13 +759,13 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	clusterAux := "cluster-aux"
 	auxConf := suite.teleKubeConfig(Host)
-	aux := NewInstance(InstanceConfig{
+	aux := helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: clusterAux,
-		HostID:      HostID,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -940,7 +939,7 @@ loop:
 	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
 
 	// forward local port to target port 80 of the nginx container
-	localPort := ports.Pop()
+	localPort := helpers.NewPortValue()
 
 	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
@@ -968,7 +967,7 @@ loop:
 	require.NoError(t, resp.Body.Close())
 
 	// impersonating client requests will be denied
-	localPort = ports.Pop()
+	localPort = helpers.NewPortValue()
 	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
 		ports:        []string{fmt.Sprintf("%v:80", localPort)},
 		podName:      pod.Name,
@@ -1012,13 +1011,13 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1098,13 +1097,13 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1198,9 +1197,10 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
-	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, ports.Pop())
+	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, helpers.NewPortStr())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return tconf
 }
@@ -1228,7 +1228,7 @@ func tlsClientConfig(cfg *rest.Config) (*tls.Config, error) {
 }
 
 type kubeProxyConfig struct {
-	t                   *TeleInstance
+	t                   *helpers.TeleInstance
 	username            string
 	kubeUsers           []string
 	kubeGroups          []string
@@ -1506,13 +1506,13 @@ func kubeJoin(kubeConfig kubeProxyConfig, tc *client.TeleportClient, sessionID s
 func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	tconf := suite.teleKubeConfig(Host)
 
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
+	teleport := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	hostUsername := suite.me.Username
@@ -1527,8 +1527,19 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		},
 	})
 	require.NoError(t, err)
+	joinRole, err := types.NewRoleV3("participant", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"kubemaster"},
+				Kinds: []string{string(types.KubernetesSessionKind)},
+				Modes: []string{string(types.SessionPeerMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
 	teleport.AddUserWithRole(hostUsername, role)
-	teleport.AddUserWithRole(participantUsername, role)
+	teleport.AddUserWithRole(participantUsername, joinRole)
 
 	err = teleport.CreateEx(t, nil, tconf)
 	require.NoError(t, err)
@@ -1578,7 +1589,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	participantStdinR, participantStdinW, err := os.Pipe()
 	participantStdoutR, participantStdoutW, err := os.Pipe()
 
-	tc, err := teleport.NewClient(ClientConfig{})
+	tc, err := teleport.NewClient(helpers.ClientConfig{})
 	require.NoError(t, err)
 
 	tc.Stdin = participantStdinR
@@ -1611,83 +1622,4 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	require.NoError(t, err)
 	require.Contains(t, participantOutput, []byte("echo hi"))
 	require.Contains(t, out.String(), []byte("echo hi2"))
-}
-
-// testKubeConnectionLimit checks that the `max_kubernetes_connections` role option is enforced.
-func testKubeConnectionLimit(t *testing.T, suite *KubeSuite) {
-	teleport := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		log:         suite.log,
-	})
-
-	const maxConnections = 10
-	hostUsername := suite.me.Username
-	kubeGroups := []string{testImpersonationGroup}
-	kubeUsers := []string{"alice@example.com"}
-	role, err := types.NewRoleV3("kubemaster", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Logins:     []string{hostUsername},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
-		},
-		Options: types.RoleOptions{
-			MaxKubernetesConnections: maxConnections,
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(hostUsername, role)
-
-	err = teleport.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
-
-	// set up kube configuration using proxy
-	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
-		t:          teleport,
-		username:   hostUsername,
-		kubeUsers:  kubeUsers,
-		kubeGroups: kubeGroups,
-	})
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	// try get request to fetch available pods
-	pod, err := proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
-	require.NoError(t, err)
-
-	openExec := func() error {
-		// interactive command, allocate pty
-		term := NewTerminal(250)
-		out := &bytes.Buffer{}
-
-		return kubeExec(proxyClientConfig, kubeExecArgs{
-			podName:      pod.Name,
-			podNamespace: pod.Namespace,
-			container:    pod.Spec.Containers[0].Name,
-			command:      []string{"/bin/sh", "-c", "sleep 300"},
-			stdout:       out,
-			tty:          true,
-			stdin:        term,
-		})
-	}
-
-	// Create and maintain the maximum amount of open connections
-	for i := 0; i < maxConnections; i++ {
-		go openExec()
-	}
-
-	// Wait for the connections to open and check for any errors
-	require.Eventually(t, func() bool {
-		trackers, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-		return len(trackers) == maxConnections
-	}, time.Second*30, time.Second)
-
-	// Open one more connection. It should fail due to the limit.
-	err = openExec()
-	require.Error(t, err)
 }

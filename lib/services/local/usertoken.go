@@ -68,13 +68,13 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 		return trace.Wrap(err)
 	}
 
-	startKey := backend.Key(userTokenPrefix, tokenID)
+	startKey := backend.ExactKey(userTokenPrefix, tokenID)
 	if err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// DELETE IN 9.0.0 also delete any tokens with old prefix.
-	startKey = backend.Key(LegacyPasswordTokensPrefix, tokenID)
+	startKey = backend.ExactKey(LegacyPasswordTokensPrefix, tokenID)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 

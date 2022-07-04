@@ -31,34 +31,48 @@ func Test_remoteSite_getLocalWatchedCerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		clusterVersion string
-		want           []types.CertAuthType
-		wantErr        bool
+		want           types.CertAuthorityFilter
+		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:           "pre Database CA, only Host and User CA",
 			clusterVersion: "9.0.0",
-			want:           []types.CertAuthType{types.HostCA, types.UserCA},
+			want: types.CertAuthorityFilter{
+				types.HostCA: "test",
+				types.UserCA: "test",
+			},
+			errorAssertion: require.NoError,
 		},
 		{
 			name:           "all certs should be returned",
 			clusterVersion: "10.0.0",
-			want:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+			want: types.CertAuthorityFilter{
+				types.DatabaseCA: "test",
+				types.HostCA:     "test",
+				types.UserCA:     "test",
+			},
+			errorAssertion: require.NoError,
 		},
 		{
 			name:           "invalid version",
 			clusterVersion: "foo",
-			wantErr:        true,
+			errorAssertion: require.Error,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &remoteSite{
+				srv: &server{
+					Config: Config{
+						ClusterName: "test",
+					},
+				},
 				Entry: log.NewEntry(utils.NewLoggerForTests()),
 			}
 			got, err := s.getLocalWatchedCerts(tt.clusterVersion)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("getLocalWatchedCerts() error = %v, wantErr %v", err, tt.wantErr)
+			tt.errorAssertion(t, err)
+			if err != nil {
 				return
 			}
 

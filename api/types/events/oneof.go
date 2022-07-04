@@ -383,6 +383,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MySQLRefresh{
 			MySQLRefresh: e,
 		}
+	case *SQLServerRPCRequest:
+		out.Event = &OneOf_SQLServerRPCRequest{
+			SQLServerRPCRequest: e,
+		}
+	case *DatabaseSessionMalformedPacket:
+		out.Event = &OneOf_DatabaseSessionMalformedPacket{
+			DatabaseSessionMalformedPacket: e,
+		}
 	case *RenewableCertificateGenerationMismatch:
 		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
 			RenewableCertificateGenerationMismatch: e,

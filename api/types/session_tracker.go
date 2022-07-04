@@ -19,15 +19,20 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
+
 	"github.com/gravitational/trace"
 )
 
 const (
-	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "k8s"
-	SessionObserverMode   SessionParticipantMode = "observer"
-	SessionModeratorMode  SessionParticipantMode = "moderator"
-	SessionPeerMode       SessionParticipantMode = "peer"
+	SSHSessionKind            SessionKind            = "ssh"
+	KubernetesSessionKind     SessionKind            = "k8s"
+	DatabaseSessionKind       SessionKind            = "db"
+	AppSessionKind            SessionKind            = "app"
+	WindowsDesktopSessionKind SessionKind            = "desktop"
+	SessionObserverMode       SessionParticipantMode = "observer"
+	SessionModeratorMode      SessionParticipantMode = "moderator"
+	SessionPeerMode           SessionParticipantMode = "peer"
 )
 
 // SessionKind is a type of session.
@@ -52,6 +57,9 @@ type SessionTracker interface {
 	// SetState sets the state of the session.
 	SetState(SessionState) error
 
+	// SetCreated sets the time at which the session was created.
+	SetCreated(time.Time)
+
 	// GetCreated returns the time at which the session was created.
 	GetCreated() time.Time
 
@@ -70,8 +78,8 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClustername returns the name of the cluster.
-	GetClustername() string
+	// GetClusterName returns the name of the cluster.
+	GetClusterName() string
 
 	// GetLogin returns the target machine username used for this session.
 	GetLogin() string
@@ -98,6 +106,9 @@ type SessionTracker interface {
 	// GetHostPolicySets returns a list of policy sets held by the host user at the time of session creation.
 	// This a subset of a role that contains some versioning and naming information in addition to the require policies
 	GetHostPolicySets() []*SessionTrackerPolicySet
+
+	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
+	GetLastActive() time.Time
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -186,6 +197,19 @@ func (s *SessionTrackerV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if s.GetCreated().IsZero() {
+		s.SetCreated(time.Now())
+	}
+
+	if s.Expiry().IsZero() {
+		// By default, resource expiration should match session expiration.
+		expiry := s.GetExpires()
+		if expiry.IsZero() {
+			expiry = s.GetCreated().Add(defaults.SessionTrackerTTL)
+		}
+		s.SetExpiry(expiry)
+	}
+
 	return nil
 }
 
@@ -220,6 +244,11 @@ func (s *SessionTrackerV1) GetCreated() time.Time {
 	return s.Spec.Created
 }
 
+// SetCreated returns the time at which the session was created.
+func (s *SessionTrackerV1) SetCreated(created time.Time) {
+	s.Spec.Created = created
+}
+
 // GetExpires return the time at which the session expires.
 func (s *SessionTrackerV1) GetExpires() time.Time {
 	return s.Spec.Expires
@@ -246,7 +275,7 @@ func (s *SessionTrackerV1) GetAddress() string {
 }
 
 // GetClustername returns the name of the cluster the session is running in.
-func (s *SessionTrackerV1) GetClustername() string {
+func (s *SessionTrackerV1) GetClusterName() string {
 	return s.Spec.ClusterName
 }
 
@@ -306,4 +335,17 @@ func (s *SessionTrackerV1) UpdatePresence(user string) error {
 // This a subset of a role that contains some versioning and naming information in addition to the require policies
 func (s *SessionTrackerV1) GetHostPolicySets() []*SessionTrackerPolicySet {
 	return s.Spec.HostPolicies
+}
+
+// GetLastActive returns the time at which the session was last active (i.e used by any participant).
+func (s *SessionTrackerV1) GetLastActive() time.Time {
+	var last time.Time
+
+	for _, participant := range s.Spec.Participants {
+		if participant.LastActive.After(last) {
+			last = participant.LastActive
+		}
+	}
+
+	return last
 }

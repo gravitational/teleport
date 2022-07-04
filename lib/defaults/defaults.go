@@ -30,8 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -78,6 +76,10 @@ const (
 	// TODO(awly): update to match HTTPListenPort once SNI routing is
 	// implemented.
 	WindowsDesktopListenPort = 3028
+
+	// ProxyPeeringListenPort is the default port proxies will listen on when
+	// proxy peering is enabled.
+	ProxyPeeringListenPort = 3021
 
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
@@ -282,25 +284,19 @@ const (
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
 
-	// SessionTrackerTTL defines the default base ttl of a session tracker.
-	SessionTrackerTTL = time.Hour
-
-	// SessionTrackerExpirationUpdateInterval is the default interval on which an active
-	// session's expiration will be extended.
-	SessionTrackerExpirationUpdateInterval = SessionTrackerTTL / 6
-
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
-	AbandonedUploadPollingRate = SessionTrackerTTL / 6
+	AbandonedUploadPollingRate = defaults.SessionTrackerTTL / 6
+
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	// DELETE IN 11.0.0
+	UploadGracePeriod = 24 * time.Hour
 )
 
 var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
-
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
 
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
@@ -376,10 +372,6 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
-	// CASignatureAlgorithm is the default signing algorithm to use when
-	// creating new SSH CAs.
-	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
-
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
@@ -387,18 +379,6 @@ var (
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
-
-	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
-	// to be considered when deciding to restart the process. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	ConnectionErrorMeasurementPeriod = 2 * time.Minute
-
-	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
-	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	MaxConnectionErrorsBeforeRestart = 5
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
@@ -442,9 +422,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -492,6 +469,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -501,6 +480,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -583,6 +563,11 @@ const (
 	SelfSignedCertPath = "webproxy_cert.pem"
 )
 
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
+)
+
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
@@ -629,6 +614,10 @@ func ReverseTunnelListenAddr() *utils.NetAddr {
 // MetricsServiceListenAddr returns the default listening address for the metrics service
 func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
+}
+
+func ProxyPeeringListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, ProxyPeeringListenPort)
 }
 
 func makeAddr(host string, port int16) *utils.NetAddr {
