@@ -13,7 +13,8 @@ db_service:
     # 'rds' - discovers and registers AWS RDS and Aurora databases.
     # 'redshift' - discovers and registers AWS Redshift databases.
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-  - types: ["rds", "redshift", "elasticache"]
+    # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+  - types: ["rds", "redshift", "elasticache", "memorydb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.
