@@ -380,6 +380,8 @@ func printAWSRoles(roles awsutils.Roles) {
 }
 
 func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Application) (string, error) {
+	// Filter AWS roles by AWS acccount ID. If AWS account ID is empty, all
+	// roles are returned.
 	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
 
 	if cf.AWSRole == "" {
