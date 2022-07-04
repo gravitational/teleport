@@ -228,7 +228,7 @@ app_service:
       env: 3rdparty
     aws:
       external_id_map:
-        "*": "external-id-abc"
+        "arn:aws:iam::1234554321:role/ExampleUser": "external-id-for-ExampleUser"
 ```
 
 When showing available IAM roles, Teleport will display only role ARNs that
@@ -236,7 +236,7 @@ belong to the specific account.
 
 If the account requires External IDs when assuming its AWS roles,
 `aws.external_id_map` can be used to map the External IDs by the corresponding
-AWS role ARN. A special key wildcard `*` can also be used to default an
+AWS role ARN. A special key wildcard `"*"` can also be used to default an
 External ID for all AWS roles for this application.
 
 ## Step 6. Connect to AWS console with assumed IAM role

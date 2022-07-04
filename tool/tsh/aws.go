@@ -414,14 +414,6 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	}
 }
 
-func mapKeysToSlice(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
-}
-
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
