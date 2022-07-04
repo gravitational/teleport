@@ -54,6 +54,27 @@ $ make init-submodules-e
 
 This will populate `e` and `webassets` directories with enterprise submodules.
 
+To compile enterprise versions of binaries:
+
+```
+$ cd teleport
+$ make full-ent
+```
+
+The compiled binaries can be found in `teleport/e/build`.
+
+If you wish to run a local enterprise Teleport cluster, you need to copy
+one of the licenses from the `fixtures` directory of this repo to
+the data directory of your Teleport cluster as `license.pem`. See
+[fixtures/README.md](fixtures/README.md) for more info. However, due to
+[#481](https://github.com/gravitational/teleport.e/issues/481) you still
+need to update your Teleport config and point to that license file:
+
+```yaml
+auth_service:
+  license_file: license.pem
+```
+
 ## Submodules
 
 Read these two articles and you'll be fine:
