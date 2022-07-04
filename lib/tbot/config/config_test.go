@@ -61,7 +61,9 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.AuthServer, cfg.AuthServer)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, cf.Token, cfg.Onboarding.Token)
+
+	token, _ := cfg.Onboarding.GetToken()
+	require.Equal(t, cf.Token, token)
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
@@ -96,7 +98,9 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, "foo", cfg.Onboarding.Token)
+
+	token, _ := cfg.Onboarding.GetToken()
+	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
 	storage, err := cfg.Storage.GetDestination()

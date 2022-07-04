@@ -143,40 +143,49 @@ func (b *Bot) initialize(ctx context.Context) error {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	configTokenHashBytes := []byte{}
-	if b.cfg.Onboarding != nil && b.cfg.Onboarding.Token != "" {
-		sha := sha256.Sum256([]byte(b.cfg.Onboarding.Token))
-		configTokenHashBytes = []byte(hex.EncodeToString(sha[:]))
-	}
-
 	var authClient auth.ClientI
 
+	fetchNewIdentity := true
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil && !hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes) {
-		identStr, err := describeTLSIdentity(ident)
-		if err != nil {
-			return trace.Wrap(err)
+	if err == nil {
+		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasTokenValue() {
+			// try to grab the token to see if it's changed, as we'll need to fetch a new identity if it has
+			if token, err := b.cfg.Onboarding.GetToken(); err == nil {
+				sha := sha256.Sum256([]byte(token))
+				configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
+
+				fetchNewIdentity = hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes)
+			} else {
+				// we failed to get the token, we'll continue on trying to use the existing identity
+				fetchNewIdentity = false
+			}
 		}
 
-		b.log.Infof("Successfully loaded bot identity, %s", identStr)
+		if !fetchNewIdentity {
+			identStr, err := describeTLSIdentity(ident)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		if err := b.checkIdentity(ident); err != nil {
-			return trace.Wrap(err)
+			b.log.Infof("Successfully loaded bot identity, %s", identStr)
+
+			if err := b.checkIdentity(ident); err != nil {
+				return trace.Wrap(err)
+			}
+
+			if b.cfg.Onboarding != nil {
+				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
+			}
+
+			authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
+	}
 
-		if b.cfg.Onboarding != nil {
-			b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
-		}
-
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		// If the identity can't be loaded, assume we're starting fresh and
-		// need to generate our initial identity from a token
-
+	if fetchNewIdentity {
 		if ident != nil {
 			// If ident is set here, we detected a token change above.
 			b.log.Warnf("Detected a token change, will attempt to fetch a new identity.")

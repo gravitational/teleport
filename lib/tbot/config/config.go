@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -144,8 +145,12 @@ type CLIConf struct {
 
 // OnboardingConfig contains values only required on first connect.
 type OnboardingConfig struct {
-	// Token is a bot join token.
-	Token string `yaml:"token"`
+	// token is either the token needed to join the auth server, or a path pointing to a file
+	// that contains the token
+	//
+	// This is private to avoid external packages reading the value - the value should be obtained
+	// using GetToken
+	token string `yaml:"token"`
 
 	// CAPath is an optional path to a CA certificate.
 	CAPath string `yaml:"ca_path"`
@@ -157,6 +162,39 @@ type OnboardingConfig struct {
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod types.JoinMethod `yaml:"join_method"`
+}
+
+// HasTokenValue gives the ability to check if there has been a token value stored
+// in the config
+func (conf *OnboardingConfig) HasTokenValue() bool {
+	return conf.token != ""
+}
+
+// StoreToken stores the value for --token or auth_token in the config
+//
+// In the case of the token value pointing to a file, this allows us to
+// fetch the value of the token when it's needed (when connecting for the first time)
+// instead of trying to read the file every time that teleport is launched.
+// This means we can allow temporary token files that are removed after teleport has
+// successfully connected the first time.
+func (conf *OnboardingConfig) StoreToken(token string) {
+	conf.token = token
+}
+
+// GetToken returns token needed to join the auth server
+//
+// If the value stored points to a file, it will attempt to read the token value from the file
+// and return an error if it wasn't successful
+// If the value stored doesn't point to a file, it'll return the value stored
+func (conf *OnboardingConfig) GetToken() (string, error) {
+	fmt.Println("token", conf.token)
+
+	token, err := utils.TryReadValueAsFile(conf.token)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // BotConfig is the bot's root config object.
@@ -330,16 +368,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// merging)
 	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.Token != "" || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
+		if onboarding != nil && (onboarding.HasTokenValue() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
 		config.Onboarding = &OnboardingConfig{
-			Token:      cf.Token,
 			CAPins:     cf.CAPins,
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
+
+		config.Onboarding.StoreToken(cf.Token)
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {
