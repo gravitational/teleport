@@ -651,6 +651,9 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 
 // handlePeerControls streams the terminal input to the remote shell's standard input.
 // Escape sequences for stopping the stream on the client side are supported via `escape.NewReader`.
+//
+// If the `forceDisconnect` boolean is true upon return, the session must be instantly terminated without
+// waiting for any remote task to finish.
 func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, remoteStdin io.Writer) (forceDisconnect bool) {
 	stdin := term.Stdin()
 	if enableEscapeSequences {
