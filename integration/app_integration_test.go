@@ -1501,7 +1501,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
-		raConf.Token = "static-token-value"
+		raConf.StoreToken("static-token-value")
 		raConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -1635,7 +1635,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
-		laConf.Token = "static-token-value"
+		laConf.StoreToken("static-token-value")
 		laConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",

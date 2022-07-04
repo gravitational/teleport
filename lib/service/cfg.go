@@ -87,9 +87,6 @@ type Config struct {
 	// Hostname is a node host name
 	Hostname string
 
-	// Token is used to register this Teleport instance with the auth server
-	Token string
-
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
@@ -262,25 +259,44 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// token is either the token needed to join the auth server, or a path pointing to a file
+	// that contains the token
+	//
+	// This is private to avoid external packages reading the value - the value should be obtained
+	// using GetToken
+	token string
 }
 
-// ApplyToken assigns a given token to all internal services but only if token
-// is not an empty string.
+// GetToken returns token needed to join the auth server
 //
-// returns:
-// true, nil if the token has been modified
-// false, nil if the token has not been modified
-// false, err if there was an error
-func (cfg *Config) ApplyToken(token string) (bool, error) {
-	if token != "" {
-		var err error
-		cfg.Token, err = utils.TryReadValueAsFile(token)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return true, nil
+// If the value stored points to a file, it will attempt to read the token value from the file
+// and return an error if it wasn't successful
+// If the value stored doesn't point to a file, it'll return the value stored
+func (cfg *Config) GetToken() (string, error) {
+	token, err := utils.TryReadValueAsFile(cfg.token)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return false, nil
+
+	return token, nil
+}
+
+// StoreToken stores the value for --token or auth_token in the config
+//
+// In the case of the token value pointing to a file, this allows us to
+// fetch the value of the token when it's needed (when connecting for the first time)
+// instead of trying to read the file every time that teleport is launched.
+// This means we can allow temporary token files that are removed after teleport has
+// successfully connected the first time.
+func (cfg *Config) StoreToken(token string) {
+	cfg.token = token
+}
+
+// HasTokenValue gives the ability to check if there has been a token value stored
+// in the config
+func (cfg *Config) HasTokenValue() bool {
+	return cfg.token != ""
 }
 
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
