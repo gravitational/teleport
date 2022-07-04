@@ -550,12 +550,18 @@ sessions. GCS cannot store the audit log or the cluster state. Below is an
 example of how to configure a Teleport auth server to store the recorded
 sessions in a GCS bucket.
 
+We recommend setting it up in `Dual-Region` mode with the `Standard` storage class to ensure cluster performance and high availability.
+Replace the following variables in the below example with your own values:
+- `$BUCKET_NAME` with a name of the desired GCS bucket. If the bucket does not exist it will be created.
+  Please ensure that Teleport has read/write permissions to the bucket and creation permissions if it does not exist.
+- `$PROJECT_ID` with a GCS-enabled GCP project.
+- `$CREDENTIALS_PATH` with a path to a JSON-formatted GCP credentials file configured for a service account with the correct permissions.
+
 ```yaml
 teleport:
   storage:
       # Path to GCS to store the recorded sessions in.
-      audit_sessions_uri: "gs://Example_TELEPORT_STORAGE/records"
-      credentials_path: /var/lib/teleport/gcs_creds
+      audit_sessions_uri: 'gs://$BUCKET_NAME?projectID=$PROJECT_ID&credentialsPath=$CREDENTIALS_PATH'
 ```
 
 ## Firestore
