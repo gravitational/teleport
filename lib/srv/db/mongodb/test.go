@@ -19,6 +19,7 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
@@ -43,6 +44,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	fmt.Printf("--> MakeTestClient: mongo.Connect\n")
 	client, err := mongo.Connect(ctx, append(
 		[]*options.ClientOptions{
 			options.Client().
@@ -60,10 +62,13 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	}
 	// Mongo client connects in background so do a ping to make sure it
 	// can connect successfully.
+	fmt.Printf("--> MakeTestClient: Sending ping...\n")
 	err = client.Ping(ctx, nil)
 	if err != nil {
+		fmt.Printf("--> MakeTestClient: Ping failed: %v\n", err)
 		return client, trace.Wrap(err)
 	}
+	fmt.Printf("--> MakeTestClient: Ping success!\n")
 	return client, nil
 }
 
@@ -136,6 +141,7 @@ func (s *TestServer) Serve() error {
 			s.log.WithError(err).Error("Failed to accept connection.")
 			continue
 		}
+		//fmt.Printf("--> TestServer: Accept\n")
 		s.log.Debug("Accepted connection.")
 		go func() {
 			defer s.log.Debug("Connection done.")
@@ -155,6 +161,9 @@ func (s *TestServer) Serve() error {
 // handleConnection receives Mongo wire messages from the client connection
 // and sends back the response messages.
 func (s *TestServer) handleConnection(conn net.Conn) error {
+	//uu := uuid.NewString()
+	//fmt.Printf("--> [%v] TestServer: handleConnection\n", uu[0:5])
+
 	// Read client messages and reply to them - test server supports a very
 	// basic set of commands: "isMaster", "authenticate", "ping" and "find".
 	for {
@@ -162,14 +171,20 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		//fmt.Printf("--> [%v] TestServer: Reading: %v\n", uu[0:5], message.String())
+
 		reply, err := s.handleMessage(message)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		//fmt.Printf("--> [%v] TestServer: Writing: %v\n", uu[0:5], reply.String())
 		_, err = conn.Write(reply.ToWire(message.GetHeader().RequestID))
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		//fmt.Printf("--> [%v] TestServer: Done\n", uu[0:5])
 	}
 }
 

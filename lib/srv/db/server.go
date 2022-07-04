@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -683,6 +684,8 @@ func (s *Server) ForceHeartbeat() error {
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
 func (s *Server) HandleConnection(conn net.Conn) {
+	fmt.Printf("--> HandleConnection 0...\n")
+
 	log := s.log.WithField("addr", conn.RemoteAddr())
 	log.Debug("Accepted connection.")
 	// Upgrade the connection to TLS since the other side of the reverse
@@ -694,28 +697,37 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// Perform the handshake explicitly, normally it should be performed
 	// on the first read/write but when the connection is passed over
 	// reverse tunnel it doesn't happen for some reason.
+	fmt.Printf("--> HandleConnection: 1: enter\n")
 	err := tlsConn.Handshake()
 	if err != nil {
+		fmt.Printf("--> HandleConnection: 1\n")
 		log.WithError(err).Error("Failed to perform TLS handshake.")
 		return
 	}
 	// Now that the handshake has completed and the client has sent us a
 	// certificate, extract identity information from it.
+	fmt.Printf("--> HandleConnection: 2: enter\n")
 	ctx, err := s.middleware.WrapContextWithUser(s.closeContext, tlsConn)
 	if err != nil {
+		fmt.Printf("--> HandleConnection: 2\n")
 		log.WithError(err).Error("Failed to extract identity from connection.")
 		return
 	}
 	// Dispatch the connection for processing by an appropriate database
 	// service.
+	fmt.Printf("--> HandleConnection: 3: enter\n")
 	err = s.handleConnection(ctx, tlsConn)
 	if err != nil && !utils.IsOKNetworkError(err) && !trace.IsAccessDenied(err) {
+		fmt.Printf("--> HandleConnection: 3\n")
 		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
+	fmt.Printf("--> HandleConnection: 4\n")
 }
 
 func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) error {
+	//uu := uuid.New().String()
+
 	sessionCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -798,10 +810,12 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
+	//fmt.Printf("--> [%v] engine(%T).HandleConnection\n", uu[0:5], engine)
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	//fmt.Printf("--> [%v] engine(%T).HandleConnection: Done\n", uu[0:5], engine)
 	return nil
 }
 

@@ -18,8 +18,10 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
 	"net"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -74,7 +76,9 @@ func (e *Engine) SendError(err error) {
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	//fmt.Printf("--> [%v] e.HandleConnection\n", uu[0:5])
 	// Check that the user has access to the database.
+	//uu := uuid.NewString()
 	err := e.authorizeConnection(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "error authorizing database access")
@@ -93,11 +97,16 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		//	fmt.Printf("--> [%v] engine.HandleConnection: clientMessage: %v\n", uu[0:5], clientMessage.String())
 		err = e.handleClientMessage(ctx, sessionCtx, clientMessage, e.clientConn, serverConn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		//fmt.Printf("--> [%v] e.HandleConnection: Exit: %v.\n", uu[0:5], err)
 	}
+
+	//fmt.Printf("--> [%v] e.HandleConnection: Exiting\n", uu[0:5])
+	return nil
 }
 
 // handleClientMessage implements the client message's roundtrip which can go
@@ -111,32 +120,43 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // 4. Server can also send multiple messages in a row in which case we exhaust
 //    them before returning to listen for next client message.
 func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
+	uu := uuid.NewString()
 	e.Log.Debugf("===> %v", clientMessage)
+	fmt.Printf("--> [%v] clientMessage: %v\n", uu[0:5], clientMessage.String())
 	// First check the client command against user's role and log in the audit.
 	err := e.authorizeClientMessage(sessionCtx, clientMessage)
 	if err != nil {
 		return protocol.ReplyError(clientConn, clientMessage, err)
 	}
+	//fmt.Printf("--> [%v] handleClientMessage: WriteWireMessage\n", uu)
 	// If RBAC is ok, pass the message to the server.
 	err = serverConn.WriteWireMessage(ctx, clientMessage.GetBytes())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Some client messages will not receive a reply.
+	//fmt.Printf("--> [%v] handleClientMessage: MoreToCome\n", uu)
 	if clientMessage.MoreToCome(nil) {
 		return nil
 	}
 	// Otherwise read the server's reply...
+	//fmt.Printf("--> [%v] handleClientMessage: ReadServerMessage\n", uu)
 	serverMessage, err := protocol.ReadServerMessage(ctx, serverConn)
 	if err != nil {
+		//fmt.Printf("--> [%v] handleClientMessage: ReadServerMessage: %v\n", uu, err)
 		return trace.Wrap(err)
 	}
 	e.Log.Debugf("<=== %v", serverMessage)
+	fmt.Printf("--> [%v] serverMessage: %v\n", uu[0:5], serverMessage.String())
 	// ... and pass it back to the client.
+
+	//fmt.Printf("--> [%v] Read server response.\n", uu, serverMessage.String())
 	_, err = clientConn.Write(serverMessage.GetBytes())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	//fmt.Printf("--> [%v] More to come? %v\n", uu, serverMessage.MoreToCome(clientMessage))
 	// Keep reading if server indicated it has more to send.
 	for serverMessage.MoreToCome(clientMessage) {
 		serverMessage, err = protocol.ReadServerMessage(ctx, serverConn)
@@ -149,6 +169,8 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 			return trace.Wrap(err)
 		}
 	}
+
+	//fmt.Printf("--> handleClientMessage: Done\n")
 	return nil
 }
 
