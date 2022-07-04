@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -105,17 +106,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 }
 
 func validateVersion(cfg *Config) error {
-	has := false
-
-	for _, version := range defaults.TeleportVersions {
-		if cfg.Version == version {
-			has = true
-
-			break
-		}
-	}
-
-	if !has {
+	hasVersion := utils.SliceContainsStr(defaults.TeleportVersions, cfg.Version)
+	if !hasVersion {
 		return trace.BadParameter("config: version must be one of %s", strings.Join(defaults.TeleportVersions, ", "))
 	}
 
