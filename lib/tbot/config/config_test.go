@@ -17,6 +17,9 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +130,20 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
 }
 
+func TestLoadTokenFromFile(t *testing.T) {
+	tokenDir := t.TempDir()
+	tokenFile := filepath.Join(tokenDir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
+
+	configData := fmt.Sprintf(exampleConfigFileWithTokenInFile, tokenFile)
+	cfg, err := ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	token, err := cfg.Onboarding.GetToken()
+	require.NoError(t, err)
+	require.Equal(t, token, "xxxyyy")
+}
+
 func TestParseSSHVersion(t *testing.T) {
 	tests := []struct {
 		str     string
@@ -176,6 +193,23 @@ auth_server: auth.example.com
 renewal_interval: 5m
 onboarding:
   token: foo
+  ca_pins:
+    - sha256:abc123
+storage:
+  memory: {}
+destinations:
+  - directory:
+      path: /tmp/foo
+    configs:
+      - ssh_client:
+          proxy_port: 1234
+`
+
+const exampleConfigFileWithTokenInFile = `
+auth_server: auth.example.com
+renewal_interval: 5m
+onboarding:
+  token: %s
   ca_pins:
     - sha256:abc123
 storage:
