@@ -1086,7 +1086,6 @@ func (process *TeleportProcess) newClient(authServers, proxyServers []utils.NetA
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
 
-	// TODO: Remove tunneling to a proxy here by v14
 	logger.Debug("Attempting to connect to Proxy Server through tunnel.")
 
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
