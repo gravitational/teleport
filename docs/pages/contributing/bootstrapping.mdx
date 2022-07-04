@@ -1,0 +1,184 @@
+---
+title: Bootstrapping a Teleport instance
+description: How a Teleport node starts up and configures itself
+layout: tocless-doc
+---
+
+# Bootstrapping a Teleport instance
+
+## Internal Architecture
+
+The top-level `teleport` application is basically a scheduler and event bus,
+that manages the execution of various registered _services_ and provides
+communication mechanisms between them. It's these services that provide the
+actual Teleport functionality.
+
+Depending on what is required of it, a service can either run briefly and exit
+or live as long as the process overall `teleport` process. A service can also be
+tagged as "critical", meaning that if the service exits with error then it will
+bring down the whole process.
+
+Most of this is encapsulated by the `./lib/service.TeleportProcess` type, and
+services usually interact with it via the `./lib/service.Supervisor` interface.
+
+## Flow of Control
+
+Starting from `main()`, there are several layers of initialisation that happen
+before an instance is ready to start serving.
+
+### 1. `main()`, `common.Run()`
+
+The main entry point simply forwards control to `./tool/teleport/common.Run()`.
+
+The `/tool/teleport/common` package performs some basic command-line parsing,
+and routing control depending on the command-line args. In many cases, a
+`teleport` process does not go on to become a full-fledged teleport instance,
+as it may be re-`exec`ed to provide various isolated services to a parent
+`teleport` process.
+
+If it looks like this particular process is going to become a fully-fledged
+Teleport instance, the `common` module handles setting process defaults,
+loading config files and merging this data with the supplied a command-line
+to generate a final a proocess config (see `./lib/config`), before handing
+control off to the `./lib/service` package.
+
+### 2. `service.Run()`
+
+The `service` wraps the process in a `TeleportProcess` instance. The
+`TeleportProcess` acts as a centralised hub for communication between internal
+services. It also handles external events like POSIX signals, injecting them
+into the internal event bus.
+
+For the most part, this layer consists of configuring a `TeleportProcess`,
+starting it and then waiting for it to exit.
+
+Setting up the  the `TeleportProcess` entails things like:
+
+- configuring the main supervisor, the root service that
+  starts all other services and acts as an event pump events between
+  services. (see `./lib/service.NewSupervisor()`)
+- configuring (but not yet _starting_) application services
+
+Once all of the services are configured, they are kicked off by a call to
+`TeleportProcess.Start()`.
+
+### 3. `TeleportProcess.Start()`
+
+`TeleportProcess.Start()`
+
+- Starts the supervisor, and by extension all of the registered services
+- Wait for signals
+- Exit, potentially forking replacement depending on signal.
+
+## A concrete example: An SSH Node
+
+### A Note: The Reverse Tunnel
+
+The "normal" mode of operation for a node is to
+
+ 1. Connect to the cluster auth server directly, and
+ 2. Proxies make direct connections to the node as and when they're
+    needed to provide user sessions.
+
+In some cases (e.g. the node being on the wrong side of a NAT boundary)
+the node will have to use a "reverse tunnel" connection instead. This
+means that the node will
+
+ 1. Connect to a proxy using SSH, and the proxy will forward requests
+    on to the auth server, and
+ 2. User sessions are multiplexed over this tunnel, rather than being
+    independent TCP connections.
+
+### Bootstrapping an SSH node
+
+During the `TeleportProcess` setup, `initSSH()` will register the node
+registration process service via `registerWithAuthServer()`. This creates
+and registers the `register.node` critical service that will:
+
+- (re)connect to auth server & creates `auth.Client`
+- register a process-exit handler that closes the client gracefully
+- Broadcast the `SSHIdentity` event once the connection is established,
+  with the new client in the payload
+
+Next, `initSSH()` calls `WaitForEvent`, blocking the setup until until
+`SSHIdentity` event is broadcast. Once the node knows who it is, `initSSH()`
+registers a new `ssh.node` service with the supervisor:
+
+This service will (asynchronously and not until it's started)
+
+- Inits BPF, if necessary
+- Configures a `regular.Server` SSH server
+- If _not_ using a tunnel to talk to the auth server:
+  - Creates (or imports an existing, if present) a listener for the configured SSH port
+  - Asynchronously starts serving SSH on the configured listener
+- Else (i.e. _is_ using a tunnel)
+  - Starts the SSH server
+  - Creates an agent pool to supply new connections to the SSH server
+- Broadcasts the `NodeSSHReady` event
+- Waits for ssh service to exit
+
+Registers a process exit handler `ssh.shutdown` that will close the SSH
+server on process shutdown.
+
+All this happens _before_ the `Supervisor` is started. Once the supervisor
+kicks off, the actual process loos something like this:
+
+```text
+        ┌────┐                                                                       
+        │main│                                                                       
+        └────┘                                                                       
+  ╔═══════╧══════════╗                                                               
+  ║ Start supervisor ║
+  ╚═══════╤══════════╝
+          │    start    ┌─────────────┐
+          │ ───────────>│register.node│
+          │             └─────────────┘
+╔═════════╧════════════╗       |
+║ Wait for SSHIdentity ║       |
+║        Event         ║       |
+╚═════════╤════════════╝       |
+          │         ╔══════════╧═══════════╗ 
+          │         ║ Establish connection ║ 
+          │         ║ to auth              ║ 
+          │         ╚══════════╤═══════════╝ 
+          |    SSHIdentity     |
+          | <──────────────────|
+          │            ┌───────────────┐
+          │            | register.node |
+          │            |     exits     |
+          │            └───────────────┘
+          |                          start            ┌────────┐
+          │ ─────────────────────────────────────────>│node.ssh│
+          │                                           └────────┘
+          │                                               │                                    
+          │                      ╔══════╤═════════════════╪═════════════════════════╗
+          │                      ║ ALT  │  direct connection to auth                ║
+          │                      ╟──────┘                 │                         ║
+          │                      ║            ╔═══════════╧═════════════╗           ║
+          │                      ║            ║ Create listener for SSH ║           ║
+          │                      ║            ╚═══════════╤═════════════╝           ║
+          │                      ║      ╔═════════════════╧═════════════════╗       ║
+          │                      ║      ║ Create SSH server around listener ║       ║
+          │                      ║      ╚═════════════════╧═════════════════╝       ║
+          │                      ╠══════════════════════════════════════════════════╣
+          │                      ║ [using tunnel]         │                         ║
+          │                      ║          ╔═════════════╧═══════════════╗         ║
+          │                      ║          ║ Create AgentPool for        ║         ║
+          │                      ║          ║ managing tunnel connections ║         ║
+          │                      ║          ╚═════════════╤═══════════════╝         ║
+          │                      ║      ╔═════════════════╧═══════════════════╗     ║
+          │                      ║      ║ Create SSH server around agent pool ║     ║
+          │                      ║      ╚═════════════════════════════════════╝     ║
+          │                      ╚══════════════════════════════════════════════════╝          
+          │                                               │                          
+          │                                      ╔════════╧═════════╗                
+          │                                      ║ Start SSH server ║                
+          │                                      ╚════════╤═════════╝                
+          │                                 ╔═════════════╧═══════════════╗          
+          │                                 ║ Wait for SSH server to exit ║          
+          │                                 ╚═════════════════════════════╝
+          │                                               |
+        ┌────┐                                        ┌────────┐  
+        │main│                                        │node.ssh│                     
+        └────┘                                        └────────┘                     
+```

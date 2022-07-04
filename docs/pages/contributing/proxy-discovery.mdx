@@ -1,0 +1,133 @@
+# The Agent Pool and Proxy Discovery
+
+### The proxy discovery protocol
+
+When a node uses a proxied tunnel to connect to a cluster's auth server, it is only visible
+to the proxy that provides the tunnel. If there are any other proxies in the cluster, by
+default they cannot reach the node. Teleport uses a discovery protocol to let nodes and
+proxies find each other.
+
+Imagine the following cluster:
+
+- 3 Internet-facing proxies (`Huey`, `Dewey` and `Louie`) behind a load balancer.
+- A single auth server (`auth`)
+- An SSH node (`node`) that connects to `auth` server via a tunnel
+
+Say that node `ssh` starts up and tries to connect to the cluster. It's initial attempts to find
+the tunnel addresses are routed to `Dewey` by the load balancer. `Dewey` responds with a tunnel
+address, and after the requisite amount of handshaking, `ssh` has connection to `auth`, tunnelled through `Dewey`.
+
+```text
+                     ┌───────┐
+                     │       │
+                     │  Huey │
+                     │       │
+                     └───────┘
+ ┌────────┐          ┌───────┐           ┌──────┐
+ │        ├──────────┼───────┼───────────►      │
+ │  node  │          │ Dewey │           │ auth │
+ │        │          │       │           │      │
+ └────────┘          └───────┘           └──────┘
+                     ┌───────┐
+                     │       │
+                     │ Louie │
+                     │       │
+                     └───────┘
+```
+
+So far, so good. Except that if a client tries to connect to `node`
+via `Huey`, the connection will fail, because `Huey` has no knowledge
+of `node`'s existence. In order to get around this problem, `auth` will
+issue a discovery message to `node`, telling it about the other proxies
+in the cluster.
+
+The `AgentPool` on `node` will then attempt to establish tunnelled
+connections via each proxy in the cluster until they all know that
+`node` exists.
+
+```text
+                     ┌───────┐
+                     │       │
+                     │  Huey │
+         ┌───────────┼───────┼─────────────┐
+         │           └───────┘             │
+ ┌───────┴┐          ┌───────┐           ┌─▼────┐
+ │        ├──────────┼───────┼───────────►      │
+ │  node  │          │ Dewey │           │ auth │
+ │        │          │       │           │      │
+ └───────┬┘          └───────┘           └─▲────┘
+         │           ┌───────┐             │
+         └───────────┼───────┼─────────────┘
+                     │ Louie │
+                     │       │
+                     └───────┘
+```
+
+## The AgentPool
+
+The `AgentPool` exists to manage the node-side execution of the discovery protocol.
+Discovery is initiated by the auth server, which sends a discovery message to an
+`Agent` once the `Agent` has established a tunnel (and intermittently thereafter).
+This discovery message contains a list of all known proxies in the cluster.
+
+Once a new proxy is discovered, the `AgentPool` spawns a new agent to create and
+manage a new tunnel to the auth server via the new proxy. The Agent handles things
+like reconnection of dropouts, backoff during connection attempts and so on.
+
+The agent pool has a work throttling mechanism (see `WorkPool`) built in to stop
+an `Agent` from hammering to hard on an unresponisve proxy.
+
+Very roughly, the process looks like this:
+
+```text
+                        ┌─────────┐          ┌─────┐               ┌────┐   
+                        │AgentPool│          │Dewey│               │auth│   
+                        └────┬────┘          └──┬──┘               └─┬──┘   
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        Tunnel address found for Dewey                    │
+└──────────────────────────────────────────────────────────────────────────┘
+                              |                  |                    |
+                              |                  |                    |
+┌────────────┐ NewAgent(Dewey)│                  │                    │      
+│Agent(Dewey)│ <───────────────                  │                    │      
+└────────────┘                │                  │                    │      
+      │                  connect                 │                    │      
+      │ ─────────────────────────────────────────>                    │      
+      │                       │                  │                    │      
+      │                       │                  │ authentication, etc│      
+      │                       │                  │ ───────────────────>      
+      │                       │                  │                    │      
+┌──────────────────────────────────────────────────────────────────────────┐
+│                       Tunnel established via Dewey                       │
+└──────────────────────────────────────────────────────────────────────────┘
+      │                     OpenChannel(Discovery)                    │      
+      │ <──────────────────────────────────────────────────────────────      
+      │                       │                  │                    │      
+      │                  Discover(Huey, Dewey, Louie)                 │      
+      │ <──────────────────────────────────────────────────────────────      
+      │                       │                  │                    │      
+      │      Track(Huey)      │                  │                    │      
+      │ ──────────────────────>                  │                    │      
+      │                       │                  │                    │      
+      │              ┌───────────────────┐       │                    │      
+      │              │ New proxy "Huey", │       │                    │      
+      │              │  Spawn new agent  │       │                    │      
+      │              └───────────────────┘       │                    │      
+      │      Track(Louie)     │                  │                    │      
+      │ ──────────────────────>                  │                    │      
+      │                       │                  │                    │      
+      │             ┌────────────────────┐       │                    │      
+      │             │ New proxy "Louie", │       │                    │      
+      │             │  Spawn new agent   │       │                    │      
+      │             └────────────────────┘       │                    │      
+      │      Track(Dewey)     │                  │                    │      
+      │ ──────────────────────>                  │                    │      
+      │                       │                  │                    │      
+      │               ┌─────────────────┐        │                    │      
+      │               │  Dewey already  │        │                    │      
+      │               │ tracked, ignore │        │                    │      
+      |               └─────────────────┘        |                    |
+┌────────────┐           ┌────┴────┐          ┌──┴──┐               ┌─┴──┐
+│Agent(Dewey)│           │AgentPool│          │Dewey│               │auth│   
+└────────────┘           └─────────┘          └─────┘               └────┘   
+```
