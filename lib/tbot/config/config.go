@@ -145,7 +145,7 @@ type CLIConf struct {
 
 // OnboardingConfig contains values only required on first connect.
 type OnboardingConfig struct {
-	// Token is either the token needed to join the auth server, or a path pointing to a file
+	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
 	// You should use GetToken instead - this has to be an accessible property for YAML unmarshalling
