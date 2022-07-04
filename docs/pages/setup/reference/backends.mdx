@@ -557,7 +557,7 @@ teleport:
       audit_sessions_uri: 'gs://$BUCKET_NAME/records?projectID=$PROJECT_ID&credentialsPath=$CREDENTIALS_PATH'
 ```
 
-We recommend setting it up in `Dual-Region` mode with the `Standard` storage class to ensure cluster performance and high availability.
+We recommend creating a bucket in `Dual-Region` mode with the `Standard` storage class to ensure cluster performance and high availability.
 Replace the following variables in the above example with your own values:
 - `$BUCKET_NAME` with the name of the desired GCS bucket. If the bucket does not exist it will be created.
   Please ensure the following permissions are granted:
