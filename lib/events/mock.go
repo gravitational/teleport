@@ -20,32 +20,28 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // MockEmitter is emitter that stores last audit event
 type MockEmitter struct {
 	mtx    sync.RWMutex
-	events []apievents.AuditEvent
+	events []events.AuditEvent
 }
 
 // CreateAuditStream creates a stream that discards all events
-func (e *MockEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+func (e *MockEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return e, nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
 	return e, nil
 }
 
 // EmitAuditEvent emits audit event
-func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	e.events = append(e.events, event)
@@ -53,7 +49,7 @@ func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 }
 
 // LastEvent returns last emitted event
-func (e *MockEmitter) LastEvent() apievents.AuditEvent {
+func (e *MockEmitter) LastEvent() events.AuditEvent {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 	if len(e.events) == 0 {
@@ -63,7 +59,7 @@ func (e *MockEmitter) LastEvent() apievents.AuditEvent {
 }
 
 // Events returns all the emitted events
-func (e *MockEmitter) Events() []apievents.AuditEvent {
+func (e *MockEmitter) Events() []events.AuditEvent {
 	e.mtx.RLock()
 	defer e.mtx.RUnlock()
 	return e.events
@@ -77,7 +73,7 @@ func (e *MockEmitter) Reset() {
 }
 
 // Status returns a channel that always blocks
-func (e *MockEmitter) Status() <-chan apievents.StreamStatus {
+func (e *MockEmitter) Status() <-chan events.StreamStatus {
 	return nil
 }
 
@@ -95,47 +91,5 @@ func (e *MockEmitter) Close(ctx context.Context) error {
 
 // Complete does nothing
 func (e *MockEmitter) Complete(ctx context.Context) error {
-	return nil
-}
-
-type MockSessionTrackerService struct {
-	Clock        clockwork.Clock
-	MockTrackers []types.SessionTracker
-}
-
-func (m *MockSessionTrackerService) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	var trackers []types.SessionTracker
-	for _, tracker := range m.MockTrackers {
-		// mock session tracker expiration
-		if tracker.Expiry().After(m.Clock.Now()) {
-			trackers = append(trackers, tracker)
-		}
-	}
-	return trackers, nil
-}
-
-func (m *MockSessionTrackerService) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
-	for _, tracker := range m.MockTrackers {
-		// mock session tracker expiration
-		if tracker.GetSessionID() == sessionID && tracker.Expiry().After(m.Clock.Now()) {
-			return tracker, nil
-		}
-	}
-	return nil, trace.NotFound("tracker not found")
-}
-
-func (m *MockSessionTrackerService) CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error) {
-	return nil, nil
-}
-
-func (m *MockSessionTrackerService) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	return nil
-}
-
-func (m *MockSessionTrackerService) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return nil
-}
-
-func (m *MockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return nil
 }

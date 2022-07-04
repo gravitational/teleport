@@ -8,7 +8,8 @@ description: CLI reference for Teleport Machine ID.
 Starts the Machine ID client `tbot`, fetching and writing certificates to disk
 at a set interval.
 
-<Details scope={["cloud"]} scopeOnly={true}>
+<ScopedBlock scope={["cloud"]}>
+
 ```code
 $ tbot start \
    --data-dir=/var/lib/teleport/bot \
@@ -18,8 +19,11 @@ $ tbot start \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
    --auth-server=example.teleport.sh:443
 ```
-</Details>
-<Details scope={["oss","enterprise"]} scopeOnly={true}>
+
+</ScopedBlock>
+
+<ScopedBlock scope={["oss","enterprise"]}>
+
 ```code
 $ tbot start \
    --data-dir=/var/lib/teleport/bot \
@@ -29,7 +33,8 @@ $ tbot start \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
    --auth-server=auth.example.com:3025
 ```
-</Details>
+
+</ScopedBlock>
 
 | Flag                 | Description                                                                                    |
 |----------------------|------------------------------------------------------------------------------------------------|

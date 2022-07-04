@@ -404,6 +404,14 @@ func Key(parts ...string) []byte {
 	return internalKey("", parts...)
 }
 
+// ExactKey is like Key, except a Separator is appended to the result
+// path of Key. This is to ensure range matching of a path will only
+// math child paths and not other paths that have the resulting path
+// as a prefix.
+func ExactKey(parts ...string) []byte {
+	return append(Key(parts...), Separator)
+}
+
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }

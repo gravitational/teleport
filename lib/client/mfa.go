@@ -49,19 +49,45 @@ type PromptMFAChallengeOpts struct {
 	PromptDevicePrefix string
 	// Quiet suppresses users prompts.
 	Quiet bool
-	// UseStrongestAuth prompts the user to solve only the strongest challenge
-	// available.
-	// If set it also avoids stdin hijacking, as only one prompt is necessary.
-	UseStrongestAuth bool
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Stdin hijack provides a better login UX, but it can be difficult to reason
+	// about and is often a source of bugs.
+	// Do not set this options unless you deeply understand what you are doing.
+	// If false then only the strongest auth method is prompted.
+	AllowStdinHijack bool
+	// PreferOTP favors OTP challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferOTP bool
+}
+
+// promptMFAStandalone is used to mock PromptMFAChallenge for tests.
+var promptMFAStandalone = PromptMFAChallenge
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+// If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
+	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	addr := proxyAddr
+	if addr == "" {
+		addr = tc.WebProxyAddr
+	}
+
+	opts := &PromptMFAChallengeOpts{
+		AllowStdinHijack: tc.AllowStdinHijack,
+		PreferOTP:        tc.PreferOTP,
+	}
+	if applyOpts != nil {
+		applyOpts(opts)
+	}
+
+	return promptMFAStandalone(ctx, c, addr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-//
-// PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
-// abandons the read if the user chooses WebAuthn instead. For this reason
-// callers must use prompt.Stdin exclusively after calling this function.
-// Set opts.UseStrongestAuth to avoid stdin hijacking.
 func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
@@ -87,8 +113,12 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 		hasNonTOTP = false
 	}
 
-	// Prompt only for the strongest auth method available?
-	if opts.UseStrongestAuth && hasNonTOTP {
+	// Tweak enabled/disabled methods according to opts.
+	switch {
+	case hasTOTP && opts.PreferOTP:
+		hasNonTOTP = false
+	case hasNonTOTP && !opts.AllowStdinHijack:
+		// Use strongest auth if hijack is not allowed.
 		hasTOTP = false
 	}
 
@@ -137,23 +167,25 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 
 	// Fire Webauthn or U2F goroutine.
-	origin := proxyAddr
-	if !strings.HasPrefix(origin, "https://") {
-		origin = "https://" + origin
-	}
-	switch {
-	case c.WebauthnChallenge != nil:
-		go func() {
-			log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
-			resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-		}()
-	case len(c.U2F) > 0:
-		go func() {
-			log.Debugf("prompting U2F devices with facet %q", origin)
-			resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
-			respC <- response{kind: "U2F", resp: resp, err: err}
-		}()
+	if hasNonTOTP {
+		origin := proxyAddr
+		if !strings.HasPrefix(origin, "https://") {
+			origin = "https://" + origin
+		}
+		switch {
+		case c.WebauthnChallenge != nil:
+			go func() {
+				log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+				resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+				respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+			}()
+		case len(c.U2F) > 0:
+			go func() {
+				log.Debugf("prompting U2F devices with facet %q", origin)
+				resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+				respC <- response{kind: "U2F", resp: resp, err: err}
+			}()
+		}
 	}
 
 	for i := 0; i < numGoroutines; i++ {

@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -32,6 +33,8 @@ import (
 	"github.com/vulcand/predicate"
 )
 
+const maxAccessRequestReasonSize = 4096
+
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
@@ -40,6 +43,12 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
+	}
+	if len(ar.GetRequestReason()) > maxAccessRequestReasonSize {
+		return trace.BadParameter("access request reason is too long, max %v bytes", maxAccessRequestReasonSize)
+	}
+	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
+		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
 	return nil
 }
@@ -271,6 +280,11 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 	tids, err := collectReviewThresholdIndexes(req, rev, author)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// set a review created time if not already set
+	if rev.Created.IsZero() {
+		rev.Created = time.Now()
 	}
 
 	// set threshold indexes and store the review

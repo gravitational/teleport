@@ -196,6 +196,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			uploads = append(uploads, events.StreamUpload{
 				ID:        *upload.UploadId,
 				SessionID: h.fromPath(*upload.Key),
+				Initiated: *upload.Initiated,
 			})
 		}
 		if !*re.IsTruncated {
@@ -204,6 +205,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		keyMarker = re.KeyMarker
 		uploadIDMarker = re.UploadIdMarker
 	}
+
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].Initiated.Before(uploads[j].Initiated)
+	})
+
 	return uploads, nil
 }
 

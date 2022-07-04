@@ -243,7 +243,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			log.WithError(err).Errorf("Faield to accept client connection.")
+			log.WithError(err).Errorf("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
 		go func() {

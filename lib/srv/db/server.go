@@ -85,6 +85,9 @@ type Config struct {
 	AWSMatchers []services.AWSMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
+	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
+	// between all databases.
+	CloudLabels labels.Importer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 	// OnReconcile is called after each database resource reconciliation.
@@ -170,8 +173,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			Clients: c.CloudClients,
-			HostID:  c.HostID,
+			AccessPoint: c.AccessPoint,
+			Clients:     c.CloudClients,
+			HostID:      c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -526,6 +530,9 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
 	}
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	return types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -553,6 +560,11 @@ func (s *Server) getRotationState() types.Rotation {
 
 // Start starts proxying all server's registered databases.
 func (s *Server) Start(ctx context.Context) (err error) {
+	// Start IAM service that will be configuring IAM auth for databases.
+	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -672,15 +684,24 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Create a session tracker so that other services, such as
+	// the session upload completer, can track the session's lifetime.
+	if err := s.trackSession(cancelCtx, sessionCtx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		// Closing the stream writer is needed to flush all recorded data
-		// and trigger upload. Do it in a goroutine since depending on
-		// session size it can take a while, and we don't want to block
-		// the client.
+		// Close session stream in a goroutine since depending on session size
+		// it can take a while, and we don't want to block the client.
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
@@ -855,6 +876,55 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	database.SetMySQLServerVersion(version)
+
+	return nil
+}
+
+// trackSession creates a new session tracker for the database session.
+// While ctx is open, the session tracker's expiration will be extended
+// on an interval. Once the ctx is closed, the session tracker's state
+// will be updated to terminated.
+func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:    sessionCtx.ID,
+		Kind:         string(types.DatabaseSessionKind),
+		State:        types.SessionState_SessionStateRunning,
+		Hostname:     sessionCtx.HostID,
+		DatabaseName: sessionCtx.DatabaseName,
+		ClusterName:  sessionCtx.ClusterName,
+		Login:        sessionCtx.Identity.GetUserMetadata().Login,
+		Participants: []types.Participant{{
+			User: sessionCtx.Identity.Username,
+		}},
+		HostUser: sessionCtx.Identity.Username,
+		Created:  s.cfg.Clock.Now(),
+	}
+
+	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
+	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
+	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		if trace.IsAccessDenied(err) {
+			s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
+			s.log.WithError(err).Debugf("Failed to update session tracker expiration for session %v", sessionCtx.ID)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeContext); err != nil {
+			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
+		}
+	}()
 
 	return nil
 }

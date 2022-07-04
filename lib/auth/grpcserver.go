@@ -475,6 +475,23 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*t
 	return v2, nil
 }
 
+func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*types.UserV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err := auth.ServerWithRoles.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := user.(*types.UserV2)
+	if !ok {
+		log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
+		return nil, trace.Errorf("encountered unexpected user type")
+	}
+	return v2, nil
+}
+
 func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -497,6 +514,7 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 	return nil
 }
 
+// DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
 func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -522,6 +540,34 @@ func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *types.AccessReque
 	return &proto.AccessRequests{
 		AccessRequests: collector,
 	}, nil
+}
+
+func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var filter types.AccessRequestFilter
+	if f != nil {
+		filter = *f
+	}
+	reqs, err := auth.ServerWithRoles.GetAccessRequests(ctx, filter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, req := range reqs {
+		r, ok := req.(*types.AccessRequestV3)
+		if !ok {
+			err = trace.BadParameter("unexpected access request type %T", req)
+			return trace.Wrap(err)
+		}
+
+		if err := stream.Send(r); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*empty.Empty, error) {
@@ -2269,9 +2315,6 @@ func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateOIDCConnector(oidcConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3653,17 +3696,43 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *proto.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req)
+
+	var createTracker types.SessionTracker = req.SessionTracker
+	// DELETE IN 11.0.0
+	// Early v9 versions use a flattened out types.SessionTrackerV1
+	if req.SessionTracker == nil {
+		spec := types.SessionTrackerSpecV1{
+			SessionID:         req.ID,
+			Kind:              req.Type,
+			State:             types.SessionState_SessionStatePending,
+			Reason:            req.Reason,
+			Invited:           req.Invited,
+			Hostname:          req.Hostname,
+			Address:           req.Address,
+			ClusterName:       req.ClusterName,
+			Login:             req.Login,
+			Participants:      []types.Participant{*req.Initiator},
+			Expires:           req.Expires,
+			KubernetesCluster: req.KubernetesCluster,
+			HostUser:          req.HostUser,
+		}
+		createTracker, err = types.NewSessionTracker(spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, createTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	defined, ok := session.(*types.SessionTrackerV1)
+	v1, ok := tracker.(*types.SessionTrackerV1)
 	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+		return nil, trace.BadParameter("unexpected session type %T", tracker)
 	}
 
-	return defined, nil
+	return v1, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

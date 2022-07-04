@@ -25,3 +25,5 @@ var PromptU2F = &promptU2F
 
 // PromptWebauthn exports promptWebauthn for tests.
 var PromptWebauthn = &promptWebauthn
+
+var PromptMFAStandalone = &promptMFAStandalone

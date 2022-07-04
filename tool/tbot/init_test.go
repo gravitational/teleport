@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/tool/tbot/botfs"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -136,7 +136,7 @@ func validateFileDestination(t *testing.T, dest *config.DestinationConfig) *conf
 	require.True(t, ok)
 
 	for _, art := range identity.GetArtifacts() {
-		if !art.Matches(dest.Kinds...) {
+		if !art.Matches(identity.DestinationKinds()...) {
 			continue
 		}
 
@@ -214,7 +214,7 @@ func TestInitMaybeACLs(t *testing.T) {
 
 	// If we expect ACLs, verify them.
 	if expectACLs {
-		require.NoError(t, destDir.Verify(identity.ListKeys(cfg.Destinations[0].Kinds...)))
+		require.NoError(t, destDir.Verify(identity.ListKeys(identity.DestinationKinds()...)))
 	} else {
 		t.Logf("Skipping ACL check on %q as they should not be supported.", dir)
 	}

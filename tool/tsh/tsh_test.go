@@ -430,7 +430,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	conf.ExtraProxyHeaders = []ExtraProxyHeaders{
+	conf.TshConfig.ExtraHeaders = []ExtraProxyHeaders{
 		{Proxy: "proxy:3080", Headers: map[string]string{"A": "B"}},
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
@@ -908,6 +908,20 @@ func TestEnvFlags(t *testing.T) {
 			},
 			outCLIConf: CLIConf{
 				HomePath: "teleport-data",
+			},
+		}))
+	})
+
+	t.Run("tsh global config path", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("TELEPORT_GLOBAL_TSH_CONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				globalTshConfigEnvVar: "/opt/teleport/tsh.yaml",
+			},
+			outCLIConf: CLIConf{
+				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
 			},
 		}))
 	})
@@ -1421,9 +1435,16 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 	// Connector need not be functional since we are going to mock the actual
 	// login operation.
 	connector, err := types.NewOIDCConnector("auth.example.com", types.OIDCConnectorSpecV3{
-		IssuerURL:   "https://auth.example.com",
-		RedirectURL: "https://cluster.example.com",
-		ClientID:    "fake-client",
+		IssuerURL:    "https://auth.example.com",
+		RedirectURLs: []string{"https://cluster.example.com"},
+		ClientID:     "fake-client",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
+		},
 	})
 	require.NoError(t, err)
 	return connector
@@ -2008,7 +2029,8 @@ func TestSerializeKubeSessions(t *testing.T) {
     "kind": "session_tracker",
     "version": "v1",
     "metadata": {
-      "name": "id"
+      "name": "id",
+      "expires": "1970-01-01T00:00:00Z"
     },
     "spec": {
       "session_id": "id",

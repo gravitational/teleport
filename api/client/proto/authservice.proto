@@ -261,6 +261,10 @@ message UserCertsRequest {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
+
+    // UseRoleRequests is used to ensure a certificate request is intended to
+    // use role impersonation, even if the list of role requests is empty.
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -1484,6 +1488,14 @@ message PaginatedResource {
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
+//
+// NOTE: There are two paths this request can take:
+//  1. ListResources: the more efficient path that retrieves resources by subset
+//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//  2. listResourcesWithSort: the less efficient path that retrieves all resources
+//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//  is requested. Matches are de-duplicated.
 message ListResourcesRequest {
     // ResourceType is the resource that is going to be retrieved.
     string ResourceType = 1 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
@@ -1529,35 +1541,45 @@ message ListResourcesResponse {
 // This is not specific to any session type. Relevant fields should be set for a given session type.
 message CreateSessionTrackerRequest {
     // Namespace is a session namespace, separating sessions from each other.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace,omitempty" ];
 
     // Type describes what type of session this is.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Type = 2 [ (gogoproto.jsontag) = "type,omitempty" ];
 
     // Reason is an arbitrary string that may be used to describe the session and/or it's
     // purpose.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Reason = 3 [ (gogoproto.jsontag) = "reason,omitempty" ];
 
     // Invited is a list of invited users, this field is interpreted by different
     // clients on a best-effort basis and used for delivering notifications to invited users.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     repeated string Invited = 4 [ (gogoproto.jsontag) = "invited,omitempty" ];
 
     // Hostname is the address of the target this session is connected to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Hostname = 5 [ (gogoproto.jsontag) = "target_hostname,omitempty" ];
 
     // Address is the address of the target this session is connected to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Address = 6 [ (gogoproto.jsontag) = "target_address,omitempty" ];
 
     // ClusterName is the name of cluster that this session belongs to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string ClusterName = 7 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
 
     // Login is the local login/user on the target used by the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string Login = 8 [ (gogoproto.jsontag) = "login,omitempty" ];
 
     // Initiator is the participant that initiated the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     types.Participant Initiator = 9 [ (gogoproto.jsontag) = "initiator,omitempty" ];
 
     // Expires encodes the time at which this session expires and becomes invalid.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     google.protobuf.Timestamp Expires = 10 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
@@ -1565,19 +1587,27 @@ message CreateSessionTrackerRequest {
     ];
 
     // The Kubernetes cluster this session belongs to.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string KubernetesCluster = 11 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 
     // HostUser is the user regarded as the owner of this session, RBAC checks are performed
     // against the require policies of this user.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string HostUser = 12 [ (gogoproto.jsontag) = "host_user,omitempty" ];
 
     // ID is the ID of the session.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     string ID = 13 [ (gogoproto.jsontag) = "id,omitempty" ];
 
     // HostPolicies is a list of RBAC policy sets held by the host user at the time of session
     // creation.
+    // DELETE IN V11 - deprecated/reserve in favor of SessionTracker field.
     repeated types.SessionTrackerPolicySet HostPolicies = 14
         [ (gogoproto.jsontag) = "host_policies,omitempty" ];
+
+    // SessionTracker is the session tracker to be created.
+    types.SessionTrackerV1 SessionTracker = 15
+        [ (gogoproto.jsontag) = "session_tracker,omitempty" ];
 }
 
 // GetSessionTrackerRequest is a request to fetch a session resource.
@@ -1700,7 +1730,10 @@ service AuthService {
     rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
     // GetAccessRequests gets all pending access requests.
+    // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
+    // GetAccessRequestsV2 gets all pending access requests.
+    rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
     // CreateAccessRequest creates a new access request.
     rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
     // DeleteAccessRequest deletes an access request.
@@ -1740,6 +1773,9 @@ service AuthService {
 
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (types.UserV2);
+    // GetCurrentUser returns current user as seen by the server.
+    // Useful especially in the context of remote clusters which perform role and trait mapping.
+    rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.

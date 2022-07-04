@@ -347,8 +347,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Read in how nodes will validate the CA. A single empty string in the file
 	// conf should indicate no pins.
-	if len(fc.CAPin) > 1 || (len(fc.CAPin) == 1 && fc.CAPin[0] != "") {
-		cfg.CAPins = fc.CAPin
+	if err = cfg.ApplyCAPins(fc.CAPin); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Set diagnostic address
@@ -809,7 +809,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, cfg.Proxy.WebAddr.Port(defaults.HTTPListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1322,6 +1322,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1826,8 +1833,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
-	if len(clf.CAPins) != 0 {
-		cfg.CAPins = clf.CAPins
+	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --listen-ip flag:

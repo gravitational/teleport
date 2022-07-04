@@ -309,6 +309,37 @@ func TestAuthenticationSection(t *testing.T) {
 	}
 }
 
+func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc  string
+		token string
+	}{
+		{desc: "file path on windows", token: `C:\path\to\some\file`},
+		{desc: "literal string", token: "some-literal-token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			provisionTokens, err := staticToken.Parse()
+			require.NoError(t, err)
+
+			require.Len(t, provisionTokens, 1)
+			provisionToken := provisionTokens[0]
+
+			want := types.ProvisionTokenV1{
+				Roles: []types.SystemRole{
+					types.RoleAuth, types.RoleNode, types.RoleProxy,
+				},
+				Token:   tt.token,
+				Expires: provisionToken.Expires,
+			}
+			require.Equal(t, provisionToken, want)
+		})
+	}
+}
+
 func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 	// An absent U2F section should be reflected as a nil U2F object.
 	// The config below is a valid config without U2F, but other than that we

@@ -445,7 +445,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		case teleport.TraitLogins, teleport.TraitWindowsLogins,
 			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
 			teleport.TraitDBNames, teleport.TraitDBUsers,
-			teleport.TraitAWSRoleARNs:
+			teleport.TraitAWSRoleARNs, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -626,6 +626,9 @@ type AccessChecker interface {
 	// RoleNames returns a list of role names
 	RoleNames() []string
 
+	// Roles returns the list underlying roles this AccessChecker is based on.
+	Roles() []types.Role
+
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
@@ -718,6 +721,9 @@ type AccessChecker interface {
 
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
+
+	// GetAllLogins returns all valid unix logins for the AccessChecker.
+	GetAllLogins() []string
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -957,6 +963,30 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
+// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
+// The wildcard selector is ignored, since it is now allowed for server logins
+func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
+	result := NewEnumerationResult()
+
+	// gather logins for checking from the roles
+	// no need to check for wildcards
+	var logins []string
+	for _, role := range set {
+		logins = append(logins, role.GetLogins(types.Allow)...)
+		logins = append(logins, role.GetLogins(types.Deny)...)
+	}
+
+	logins = apiutils.Deduplicate(logins)
+
+	// check each individual user against the server.
+	for _, user := range logins {
+		err := set.CheckAccess(server, AccessMFAParams{Verified: true}, NewLoginMatcher(user))
+		result.allowedDeniedMap[user] = err == nil
+	}
+
+	return result
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {
@@ -1044,6 +1074,11 @@ func (set RoleSet) RoleNames() []string {
 		out = append(out, r.GetName())
 	}
 	return out
+}
+
+// Roles returns the list underlying roles this RoleSet is based on.
+func (set RoleSet) Roles() []types.Role {
+	return append([]types.Role{}, set...)
 }
 
 // HasRole checks if the role set has the role
@@ -1288,6 +1323,12 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	}
 
 	return logins, nil
+}
+
+// GetAllLogins returns all valid unix logins for the RoleSet.
+func (set RoleSet) GetAllLogins() []string {
+	logins, _ := set.GetLoginsForTTL(0)
+	return logins
 }
 
 // GetLoginsForTTL collects all logins that are valid for the given TTL.  The matchedTTL

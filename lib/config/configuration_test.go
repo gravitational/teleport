@@ -626,11 +626,28 @@ teleport:
 
 func TestApplyConfig(t *testing.T) {
 	tempDir := t.TempDir()
-	tokenPath := filepath.Join(tempDir, "small-config-token")
-	err := os.WriteFile(tokenPath, []byte("join-token"), 0644)
+	authTokenPath := filepath.Join(tempDir, "small-config-token")
+	err := os.WriteFile(authTokenPath, []byte("join-token"), 0o644)
 	require.NoError(t, err)
 
-	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(SmallConfigString, tokenPath)))
+	caPinPath := filepath.Join(tempDir, "small-config-ca-pin")
+	err = os.WriteFile(caPinPath, []byte("ca-pin-from-file1\nca-pin-from-file2"), 0o644)
+	require.NoError(t, err)
+
+	staticTokenPath := filepath.Join(tempDir, "small-config-static-tokens")
+	err = os.WriteFile(staticTokenPath, []byte("token-from-file1\ntoken-from-file2"), 0o644)
+	require.NoError(t, err)
+
+	pkcs11LibPath := filepath.Join(tempDir, "fake-pkcs11-lib.so")
+	err = os.WriteFile(pkcs11LibPath, []byte("fake-pkcs11-lib"), 0o644)
+	require.NoError(t, err)
+
+	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(
+		SmallConfigString,
+		authTokenPath,
+		caPinPath,
+		staticTokenPath,
+	)))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 	require.Equal(t, apiutils.Strings{"web3:443"}, conf.Proxy.PublicAddr)
@@ -644,6 +661,16 @@ func TestApplyConfig(t *testing.T) {
 		{
 			Token:   "xxx",
 			Roles:   types.SystemRoles([]types.SystemRole{"Proxy", "Node"}),
+			Expires: time.Unix(0, 0).UTC(),
+		},
+		{
+			Token:   "token-from-file1",
+			Roles:   types.SystemRoles([]types.SystemRole{"Node"}),
+			Expires: time.Unix(0, 0).UTC(),
+		},
+		{
+			Token:   "token-from-file2",
+			Roles:   types.SystemRoles([]types.SystemRole{"Node"}),
 			Expires: time.Unix(0, 0).UTC(),
 		},
 		{
@@ -720,7 +747,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
-	require.Empty(t, cfg.CAPins)
+	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1560,6 +1587,13 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
 				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label key for LDAP attribute",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
 		{

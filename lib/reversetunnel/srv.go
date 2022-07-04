@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -115,14 +116,6 @@ type server struct {
 	offlineThreshold time.Duration
 }
 
-// DirectCluster is used to access cluster directly
-type DirectCluster struct {
-	// Name is a cluster name
-	Name string
-	// Client is a client to the cluster
-	Client auth.ClientI
-}
-
 // Config is a reverse tunnel server configuration
 type Config struct {
 	// ID is the ID of this server proxy
@@ -145,11 +138,12 @@ type Config struct {
 	// AccessPoint caches values and can still return results during connection
 	// problems.
 	LocalAccessPoint auth.ProxyAccessPoint
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
-	// DirectClusters is a list of clusters accessed directly
-	DirectClusters []DirectCluster
 	// Context is a signalling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
@@ -201,6 +195,12 @@ type Config struct {
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+
+	// NodeWatcher is a node watcher.
+	NodeWatcher *services.NodeWatcher
+
+	// CertAuthorityWatcher is a cert authority watcher.
+	CertAuthorityWatcher *services.CertAuthorityWatcher
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -252,6 +252,12 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
 	}
+	if cfg.NodeWatcher == nil {
+		return trace.BadParameter("missing parameter NodeWatcher")
+	}
+	if cfg.CertAuthorityWatcher == nil {
+		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
 	return nil
 }
 
@@ -290,8 +296,6 @@ func NewServer(cfg Config) (Server, error) {
 
 	srv := &server{
 		Config:           cfg,
-		localSites:       []*localSite{},
-		remoteSites:      []*remoteSite{},
 		localAuthClient:  cfg.LocalAuthClient,
 		localAccessPoint: cfg.LocalAccessPoint,
 		newAccessPoint:   cfg.NewCachingAccessPoint,
@@ -304,14 +308,12 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	for _, clusterInfo := range cfg.DirectClusters {
-		cluster, err := newlocalSite(srv, clusterInfo.Name, clusterInfo.Client)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		srv.localSites = append(srv.localSites, cluster)
+	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses, cfg.LocalAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	srv.localSites = append(srv.localSites, localSite)
 
 	s, err := sshutils.NewServer(
 		teleport.ComponentReverseTunnelServer,
@@ -616,6 +618,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
+		authServers:      s.LocalAuthAddresses,
 		channel:          channel,
 		requestCh:        requestCh,
 		component:        teleport.ComponentReverseTunnelServer,
@@ -891,7 +894,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	// treat first connection as a registered heartbeat,
 	// otherwise the connection information will appear after initial
 	// heartbeat delay
-	go site.registerHeartbeat(time.Now())
+	go site.registerHeartbeat(s.Clock.Now())
 	return site, remoteConn, nil
 }
 
@@ -1024,7 +1027,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		types.TunnelConnectionSpecV2{
 			ClusterName:   domainName,
 			ProxyName:     srv.ID,
-			LastHeartbeat: time.Now().UTC(),
+			LastHeartbeat: srv.Clock.Now().UTC(),
 		},
 	)
 	if err != nil {
@@ -1033,6 +1036,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
 	remoteSite := &remoteSite{
 		srv:        srv,
 		domainName: domainName,
@@ -1070,7 +1078,17 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.remoteAccessPoint = accessPoint
-
+	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Client:    accessPoint,
+			Log:       srv.Log,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.nodeWatcher = nodeWatcher
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
@@ -1089,10 +1107,25 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	go remoteSite.updateCertAuthorities(caRetry)
+	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Log:       srv.log,
+			Clock:     srv.Clock,
+			Client:    remoteSite.remoteAccessPoint,
+		},
+		Types: []types.CertAuthType{types.HostCA},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		remoteSite.updateCertAuthorities(caRetry, remoteWatcher, remoteVersion)
+	}()
 
 	lockRetry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(srv.Config.PollingPeriod),
@@ -1102,7 +1135,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		Clock:  srv.Clock,
 	})
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	go remoteSite.updateLocks(lockRetry)

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,21 +73,6 @@ type NodeClient struct {
 	Proxy     *ProxyClient
 	TC        *TeleportClient
 	OnMFA     func()
-}
-
-// GetActiveSessions returns a list of active session trackers.
-func (proxy *ProxyClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	auth, err := proxy.ConnectToCurrentCluster(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer auth.Close()
-	sessions, err := auth.GetActiveSessionTrackers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sessions, nil
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -393,7 +379,19 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	if params.RouteToCluster != rootClusterName {
 		clt.Close()
-		clt, err = proxy.ConnectToCluster(ctx, rootClusterName, true)
+		rootClusterProxy := proxy
+		if jumpHost := proxy.teleportClient.JumpHosts; jumpHost != nil {
+			// In case of MFA connect to root teleport proxy instead of JumpHost to request
+			// MFA certificates.
+			proxy.teleportClient.JumpHosts = nil
+			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
+			proxy.teleportClient.JumpHosts = jumpHost
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer rootClusterProxy.Close()
+		}
+		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -611,11 +609,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
-// FindServersByFilters returns list of the nodes which have filters matched.
+// FindNodesByFilters returns list of the nodes which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
+func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
 	req.ResourceType = types.KindNode
 
-	site, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	site, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -645,10 +653,20 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	return servers, nil
 }
 
-// FindAppServersByFilters returns a list of application servers which have filters matched.
+// FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindAppServersByFiltersForCluster returns a list of application servers for a given cluster which have filters matched.
+func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.AppServer, error) {
 	req.ResourceType = types.KindAppServer
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -732,8 +750,18 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 
 // FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster.Name)
+	return servers, trace.Wrap(err)
+}
+
+// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
+func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -850,14 +878,19 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 // ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remove/local auth
 // service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
 // cluster name with ALPN values set to teleport-auth protocol.
-func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName string) (auth.ClientI, error) {
+func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (auth.ClientI, error) {
 	tlsConfig, err := proxy.loadTLS(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if proxyAddr == "" {
+		proxyAddr = proxy.teleportClient.WebProxyAddr
+	}
+
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
-		Addrs: []string{proxy.teleportClient.WebProxyAddr},
+		Addrs: []string{proxyAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
@@ -869,20 +902,41 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 	return clt, nil
 }
 
+func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string, bool) {
+	if len(proxy.teleportClient.JumpHosts) > 0 {
+		// Check if the provided JumpHost address is a Teleport Proxy.
+		// This is needed to distinguish if the JumpHost address from Teleport Proxy Web address
+		// or Teleport Proxy SSH address.
+		jumpHostAddr := proxy.teleportClient.JumpHosts[0].Addr.String()
+		resp, err := webclient.Find(
+			&webclient.Config{
+				Context:   ctx,
+				ProxyAddr: jumpHostAddr,
+				Insecure:  proxy.teleportClient.InsecureSkipVerify,
+			},
+		)
+		if err != nil {
+			// HTTP ping call failed. The JumpHost address is not a Teleport proxy address
+			return "", false
+		}
+		return jumpHostAddr, resp.Proxy.TLSRoutingEnabled
+	}
+	return proxy.teleportClient.WebProxyAddr, proxy.teleportClient.TLSRoutingEnabled
+}
+
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
-//
-// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
-// any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string, quiet bool) (auth.ClientI, error) {
-	// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
-	// directly without using SSH tunnels.
-	if proxy.teleportClient.TLSRoutingEnabled {
-		clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if proxyAddr, ok := proxy.shouldDialWithTLSRouting(ctx); ok {
+		if proxy.teleportClient.TLSRoutingEnabled {
+			// If proxy supports multiplex listener mode dial root/leaf cluster auth service via ALPN Proxy
+			// directly without using SSH tunnels.
+			clt, err := proxy.ConnectToAuthServiceThroughALPNSNIProxy(ctx, clusterName, proxyAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return clt, nil
 		}
-		return clt, nil
 	}
 
 	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -1653,7 +1707,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			RouteToCluster: nodeAddr.Cluster,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return PromptMFAChallenge(ctx, c, proxyAddr, nil /* opts */)
+			return proxy.teleportClient.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
 		},
 	)
 	if err != nil {

@@ -159,6 +159,7 @@ func (k *Key) Sign(p SignParams) (string, error) {
 			Issuer:    k.config.ClusterName,
 			Audience:  josejwt.Audience{p.URI},
 			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now()),
 			Expiry:    josejwt.NewNumericDate(p.Expires),
 		},
 		Username: p.Username,

@@ -363,6 +363,7 @@ func TestListResources(t *testing.T) {
 				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+				NeedTotalCount:      true,
 			},
 		},
 		{

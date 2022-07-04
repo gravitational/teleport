@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -30,12 +31,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+func (process *TeleportProcess) shouldInitDatabases() bool {
+	databasesCfg := len(process.Config.Databases.Databases) > 0
+	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
+	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+
+	return process.Config.Databases.Enabled && anyCfg
+}
+
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 &&
-		len(process.Config.Databases.ResourceMatchers) == 0 &&
-		len(process.Config.Databases.AWSMatchers) == 0 {
-		return
-	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -76,7 +81,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
-	err = process.initUploaderService(accessPoint, conn.Client, conn.Client)
+	uploaderCfg := filesessions.UploaderConfig{
+		Streamer: accessPoint,
+		AuditLog: conn.Client,
+	}
+	completerCfg := events.UploadCompleterConfig{
+		SessionTracker: conn.Client,
+	}
+	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -193,6 +205,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Hostname:         process.Config.Hostname,
 		HostID:           process.Config.HostUUID,
 		Databases:        databases,
+		CloudLabels:      process.cloudLabels,
 		ResourceMatchers: process.Config.Databases.ResourceMatchers,
 		AWSMatchers:      process.Config.Databases.AWSMatchers,
 		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),

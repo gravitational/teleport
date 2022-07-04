@@ -91,7 +91,7 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetLabels(), b.GetLabels()) {
+	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
 	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {

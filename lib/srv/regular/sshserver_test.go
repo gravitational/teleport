@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -156,6 +157,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeClient.Close()) })
 
 	nodeDir := t.TempDir()
 	serverOptions := []ServerOption{
@@ -172,7 +174,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"},
 				},
-			},
+			}, nil,
 		),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
@@ -196,7 +198,10 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
-	t.Cleanup(func() { require.NoError(t, sshSrv.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, sshSrv.Close())
+		sshSrv.Wait()
+	})
 
 	require.NoError(t, sshSrv.heartbeat.ForceSend(time.Second))
 
@@ -245,7 +250,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client, keyring))
-
 	return f
 }
 
@@ -488,7 +492,9 @@ func TestAdvertiseAddr(t *testing.T) {
 func TestAgentForwardPermission(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 	ctx := context.Background()
 
 	// make sure the role does not allow agent forwarding
@@ -500,6 +506,13 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
 	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -592,7 +605,9 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
@@ -604,9 +619,16 @@ func TestAgentForward(t *testing.T) {
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
+
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
-	defer se.Close()
+	t.Cleanup(func() { se.Close() })
 
 	err = agent.RequestAgentForwarding(se)
 	require.NoError(t, err)
@@ -614,19 +636,19 @@ func TestAgentForward(t *testing.T) {
 	// prepare to send virtual "keyboard input" into the shell:
 	keyboard, err := se.StdinPipe()
 	require.NoError(t, err)
+	t.Cleanup(func() { keyboard.Close() })
 
 	// start interactive SSH session (new shell):
 	err = se.Shell()
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "teleport-agent-forward-test")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "teleport-agent-forward-test")
 	require.NoError(t, err)
 	tmpFile.Close()
-	defer os.Remove(tmpFile.Name())
 
 	// type 'printenv SSH_AUTH_SOCK > /path/to/tmp/file' into the session (dumping the value of SSH_AUTH_STOCK into the temp file)
-	_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())))
+	_, err = fmt.Fprintf(keyboard, "printenv %v >> %s\n\r", teleport.SSHAuthSock, tmpFile.Name())
 	require.NoError(t, err)
 
 	// wait for the output
@@ -643,8 +665,8 @@ func TestAgentForward(t *testing.T) {
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
 	require.NoError(t, err)
-	clientAgent := agent.NewClient(file)
 
+	clientAgent := agent.NewClient(file)
 	signers, err := clientAgent.Signers()
 	require.NoError(t, err)
 
@@ -664,6 +686,7 @@ func TestAgentForward(t *testing.T) {
 	// sessions on the connection).
 	err = se.Close()
 	require.NoError(t, err)
+
 	// Pause to allow closure to propagate.
 	time.Sleep(150 * time.Millisecond)
 	_, err = net.Dial("unix", socketPath)
@@ -677,14 +700,12 @@ func TestAgentForward(t *testing.T) {
 
 	// clt must be nullified to prevent double-close during test cleanup
 	f.ssh.clt = nil
-	for i := 0; i < 4; i++ {
-		_, err = net.Dial("unix", socketPath)
-		if err != nil {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	require.FailNow(t, "expected socket to be closed, still could dial after 150 ms")
+	require.Eventually(t, func() bool {
+		_, err := net.Dial("unix", socketPath)
+		return err != nil
+	},
+		150*time.Millisecond, 50*time.Millisecond,
+		"expected socket to be closed, still could dial")
 }
 
 // TestX11Forward tests x11 forwarding via unix sockets
@@ -694,7 +715,9 @@ func TestX11Forward(t *testing.T) {
 	}
 
 	t.Parallel()
-	f := newFixture(t)
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
@@ -709,6 +732,13 @@ func TestX11Forward(t *testing.T) {
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Open two x11 sessions, the server should handle multiple
@@ -1125,6 +1155,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:                   f.testSrv.ClusterName(),
@@ -1136,11 +1168,12 @@ func TestProxyRoundRobin(t *testing.T) {
 		LocalAccessPoint:              proxyClient,
 		NewCachingAccessPoint:         noCache,
 		NewCachingAccessPointOldProxy: noCache,
-		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
@@ -1166,6 +1199,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1248,6 +1282,8 @@ func TestProxyDirectAccess(t *testing.T) {
 	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:                     proxyClient.TLSConfig(),
@@ -1259,11 +1295,12 @@ func TestProxyDirectAccess(t *testing.T) {
 		LocalAccessPoint:              proxyClient,
 		NewCachingAccessPoint:         noCache,
 		NewCachingAccessPointOldProxy: noCache,
-		DirectClusters:                []reversetunnel.DirectCluster{{Name: f.testSrv.ClusterName(), Client: proxyClient}},
 		DataDir:                       t.TempDir(),
 		Emitter:                       proxyClient,
 		Log:                           logger,
 		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
 	})
 	require.NoError(t, err)
 
@@ -1290,6 +1327,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1844,6 +1882,142 @@ func TestX11ProxySupport(t *testing.T) {
 	require.Equal(t, string(msg), string(rsp))
 }
 
+// TestIgnorePuTTYSimpleChannel verifies that any request from the PuTTY SSH client for
+// its "simple" mode is ignored and connections remain open.
+func TestIgnorePuTTYSimpleChannel(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	ctx := context.Background()
+
+	listener, _ := mustListen(t)
+	logger := logrus.WithField("test", "TestIgnorePuTTYSimpleChannel")
+	proxyClient, _ := newProxyClient(t, f.testSrv)
+	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
+
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ClientTLS:                     proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   f.testSrv.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{f.signer},
+		LocalAuthClient:               proxyClient,
+		LocalAccessPoint:              proxyClient,
+		NewCachingAccessPoint:         noCache,
+		NewCachingAccessPointOldProxy: noCache,
+		DataDir:                       t.TempDir(),
+		Emitter:                       proxyClient,
+		Log:                           logger,
+		LockWatcher:                   lockWatcher,
+		NodeWatcher:                   nodeWatcher,
+		CertAuthorityWatcher:          caWatcher,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, reverseTunnelServer.Start())
+	defer reverseTunnelServer.Close()
+
+	nodeClient, _ := newNodeClient(t, f.testSrv)
+
+	proxy, err := New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		f.testSrv.ClusterName(),
+		[]ssh.Signer{f.signer},
+		proxyClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		proxyClient,
+		SetProxyMode(reverseTunnelServer, proxyClient),
+		SetSessionServer(proxyClient),
+		SetEmitter(nodeClient),
+		SetNamespace(apidefaults.Namespace),
+		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
+		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetClock(f.clock),
+		SetLockWatcher(lockWatcher),
+		SetNodeWatcher(nodeWatcher),
+	)
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start())
+	defer proxy.Close()
+
+	// set up SSH client using the user private key for signing
+	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
+	require.NoError(t, err)
+
+	sshConfig := &ssh.ClientConfig{
+		User:            f.user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+	}
+
+	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
+	require.NoError(t, err)
+
+	// Connect SSH client to proxy
+	client, err := ssh.Dial("tcp", proxy.Addr(), sshConfig)
+
+	require.NoError(t, err)
+	defer client.Close()
+
+	se, err := client.NewSession()
+	require.NoError(t, err)
+	defer se.Close()
+
+	writer, err := se.StdinPipe()
+	require.NoError(t, err)
+
+	reader, err := se.StdoutPipe()
+	require.NoError(t, err)
+
+	// Request the PuTTY-specific "simple@putty.projects.tartarus.org" channel type
+	// This request should be ignored, and the connection should remain open.
+	_, err = se.SendRequest(sshutils.PuTTYSimpleRequest, false, []byte{})
+	require.NoError(t, err)
+
+	// Request proxy subsystem routing TCP connection to the remote host
+	require.NoError(t, se.RequestSubsystem(fmt.Sprintf("proxy:%v", f.ssh.srvAddress)))
+
+	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
+	require.NoError(t, err)
+	remote, err := utils.ParseAddr("tcp://" + f.ssh.srv.Addr())
+	require.NoError(t, err)
+
+	pipeNetConn := utils.NewPipeNetConn(
+		reader,
+		writer,
+		se,
+		local,
+		remote,
+	)
+
+	defer pipeNetConn.Close()
+
+	// Open SSH connection via proxy subsystem's TCP tunnel
+	conn, chans, reqs, err := ssh.NewClientConn(pipeNetConn,
+		f.ssh.srv.Addr(), sshConfig)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Run commands over this connection like regular SSH
+	client2 := ssh.NewClient(conn, chans, reqs)
+	require.NoError(t, err)
+	defer client2.Close()
+
+	se2, err := client2.NewSession()
+	require.NoError(t, err)
+	defer se2.Close()
+
+	out, err := se2.Output("echo hello again")
+	require.NoError(t, err)
+
+	require.Equal(t, "hello again\n", string(out))
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -1943,6 +2117,31 @@ func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *ser
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 	return lockWatcher
+}
+
+func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(nodeWatcher.Close)
+	return nodeWatcher
+}
+
+func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
+	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+		Types: []types.CertAuthType{types.HostCA, types.UserCA},
+	})
+	require.NoError(t, err)
+	t.Cleanup(caWatcher.Close)
+	return caWatcher
 }
 
 // maxPipeSize is one larger than the maximum pipe size for most operating

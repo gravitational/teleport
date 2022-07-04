@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -313,6 +314,11 @@ func TestAppAccessJWT(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
+	// Verify JWT token.
+	verifyJWT(t, pack, token, pack.jwtAppURI)
+}
+
+func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
 	// Get and unmarshal JWKs
 	status, body, err := pack.makeRequest("", http.MethodGet, "/.well-known/jwks.json")
 	require.NoError(t, err)
@@ -334,7 +340,7 @@ func TestAppAccessJWT(t *testing.T) {
 	claims, err := key.Verify(jwt.VerifyParams{
 		Username: pack.username,
 		RawToken: token,
-		URI:      pack.jwtAppURI,
+		URI:      appURI,
 	})
 	require.NoError(t, err)
 	require.Equal(t, pack.username, claims.Username)
@@ -444,6 +450,11 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 							Name:  forward.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
+						// Make sure we can insert JWT token in custom header.
+						{
+							Name:  "X-JWT",
+							Value: teleport.TraitInternalJWTVariable,
+						},
 					},
 				},
 			},
@@ -461,17 +472,25 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, resp, "X-Teleport-Cluster: root")
-	require.Contains(t, resp, "X-External-Env: production")
-	require.Contains(t, resp, "Host: example.com")
-	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
-	require.NotContains(t, resp, "X-Existing: existing")
-	require.NotContains(t, resp, "rewritten-app-jwt-header")
-	require.NotContains(t, resp, "rewritten-app-cf-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+
+	// Dumper app just dumps HTTP request so we should be able to read it back.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
+	require.Equal(t, req.Host, "example.com")
+	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
+	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+
+	// Verify JWT tokens.
+	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
+		verifyJWT(t, pack, req.Header.Get(header), dumperServer.URL)
+	}
 }
 
 // TestAppAccessRewriteHeadersLeaf validates that http headers from application
@@ -1269,6 +1288,7 @@ func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 		Value: p.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", p.webToken))
+	req.Header.Add("Content-Type", "application/json")
 
 	statusCode, body, err := p.sendRequest(req, nil)
 	return statusCode, []byte(body), trace.Wrap(err)

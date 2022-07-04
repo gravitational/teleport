@@ -22,8 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -34,14 +32,15 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
-func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,6 +66,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		accessPoint:      accessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
+		authServers:      authServers,
 		remoteConns:      make(map[connKey][]*remoteConn),
 		clock:            srv.Clock,
 		log: log.WithFields(log.Fields{
@@ -89,9 +89,10 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 //
 // it implements RemoteSite interface
 type localSite struct {
-	log        log.FieldLogger
-	domainName string
-	srv        *server
+	log         log.FieldLogger
+	domainName  string
+	authServers []string
+	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
 	client auth.ClientI
@@ -129,6 +130,11 @@ func (s *localSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.accessPoint, nil
 }
 
+// NodeWatcher returns a services.NodeWatcher for this cluster.
+func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
+	return s.srv.NodeWatcher, nil
+}
+
 // GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (auth.ClientI, error) {
 	return s.client, nil
@@ -155,27 +161,18 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
-	// get list of local auth servers
-	authServers, err := s.client.GetAuthServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(authServers) < 1 {
+func (s *localSite) DialAuthServer() (net.Conn, error) {
+	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
 
-	// try and dial to one of them, as soon as we are successful, return the net.Conn
-	for _, authServer := range authServers {
-		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), apidefaults.DefaultDialTimeout)
-		if err == nil {
-			return conn, nil
-		}
+	addr := utils.ChooseRandomString(s.authServers)
+	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultDialTimeout)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
 
-	// return the last error
-	return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
+	return conn, nil
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
@@ -522,14 +519,7 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	servers, err := s.accessPoint.GetNodes(s.srv.ctx, apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var missing []string
-
-	for _, server := range servers {
+	missing := s.srv.NodeWatcher.GetNodes(func(server services.Node) bool {
 		// Skip over any servers that that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
@@ -538,10 +528,10 @@ func (s *localSite) sshTunnelStats() error {
 		// their TTL value.
 		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
 		if server.Expiry().Before(ttl) {
-			continue
+			return false
 		}
 		if !server.GetUseTunnel() {
-			continue
+			return false
 		}
 
 		// Check if the tunnel actually exists.
@@ -549,12 +539,9 @@ func (s *localSite) sshTunnelStats() error {
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
 			ConnType: types.NodeTunnel,
 		})
-		if err == nil {
-			continue
-		}
 
-		missing = append(missing, server.GetName())
-	}
+		return err != nil
+	})
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))

@@ -309,7 +309,7 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
-	// OriginConfigFile is an origin value indicating that the resource was
+	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = "defaults"
 
@@ -325,6 +325,9 @@ const (
 	// imported from a cloud provider.
 	OriginCloud = "cloud"
 )
+
+// EC2HostnameTag is the name of the EC2 tag used to override a node's hostname.
+const EC2HostnameTag = "TeleportHostname"
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud}

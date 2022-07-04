@@ -4,8 +4,7 @@ Using an existing Teleport cluster, create the following `user` and `role` resou
 $ tctl create -f YAML_PATH.yaml
 ```
 
-<Details opened={true} 
-  scopeOnly={true}
+<ScopedBlock
   scope={["cloud"]}
 >
 Teleport Cloud requires authenticating with a role that has [`impersonation`](https://goteleport.com/docs/access-controls/guides/impersonation/) rights and can create the `access-plugin` role and user. Log in with `tsh` with a user that has this role or has a role with these `allow` rules.
@@ -29,7 +28,7 @@ spec:
         verbs: ['create','update','read','list','delete']
 
 ```
-</Details>
+</ScopedBlock>
 
 
 Create a non-interactive bot user and role called `access-plugin`.

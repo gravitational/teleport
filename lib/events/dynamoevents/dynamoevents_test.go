@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
@@ -38,13 +39,12 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
-
-	"github.com/gravitational/trace"
 )
 
 const dynamoDBLargeQueryRetries int = 10
@@ -123,12 +123,15 @@ func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
 
 	const eventCount int = 10
 	for i := 0; i < eventCount; i++ {
-		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: true,
-			events.EventUser:          "bob",
-			events.EventTime:          s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
-			"test.data":               blob,
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: "bob"},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
+			},
+			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
 		c.Assert(err, check.IsNil)
 	}
@@ -309,11 +312,13 @@ var _ = check.Suite(&DynamoeventsLargeTableSuite{})
 func (s *DynamoeventsLargeTableSuite) TestLargeTableRetrieve(c *check.C) {
 	const eventCount = 4000
 	for i := 0; i < eventCount; i++ {
-		err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: true,
-			events.EventUser:          "bob",
-			events.EventTime:          s.Clock.Now().UTC(),
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: "bob"},
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Time: s.Clock.Now().UTC()},
 		})
 		c.Assert(err, check.IsNil)
 	}
@@ -358,4 +363,66 @@ func TestFromWhereExpr(t *testing.T) {
 		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
 		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
 	}, params)
+}
+
+func TestConfig_SetFromURL(t *testing.T) {
+	useFipsCfg := Config{
+		UseFIPSEndpoint: types.ClusterAuditConfigSpecV2_FIPS_ENABLED,
+	}
+	cases := []struct {
+		name         string
+		url          string
+		cfg          Config
+		cfgAssertion func(*testing.T, Config)
+	}{
+		{
+			name: "fips enabled via url",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_ENABLED, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips disabled via url",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=false&endpoint=dynamo.example.com",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
+				require.Equal(t, "dynamo.example.com", config.Endpoint)
+			},
+		},
+		{
+			name: "fips mode not set",
+			url:  "dynamodb://event_table_name",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_UNSET, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips mode enabled by default",
+			url:  "dynamodb://event_table_name",
+			cfg:  useFipsCfg,
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_ENABLED, config.UseFIPSEndpoint)
+			},
+		},
+		{
+			name: "fips mode can be overridden",
+			url:  "dynamodb://event_table_name?use_fips_endpoint=false",
+			cfg:  useFipsCfg,
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+
+			uri, err := url.Parse(tt.url)
+			require.NoError(t, err)
+			require.NoError(t, tt.cfg.SetFromURL(uri))
+
+			tt.cfgAssertion(t, tt.cfg)
+		})
+	}
 }

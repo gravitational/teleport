@@ -5,12 +5,15 @@ Proxy Service.
 You can configure the Teleport Proxy Service to complete the Let's Encrypt
 verification process when it starts up.
 
-Run the following `teleport configure` command, where `tele.example.com` is the
+On the host where you will start the Teleport Auth Service and Proxy Service,
+run the following `teleport configure` command, where `tele.example.com` is the
 domain name of your Teleport cluster and `user@example.com` is an email address
 used for notifications (you can use any domain):
 
 ```code
-teleport configure --acme --acme-email=user@example.com --cluster-name=tele.example.com | \
+$ DOMAIN=tele.example.com
+$ EMAIL=user@example.com
+$ teleport configure --acme --acme-email=${EMAIL?} --cluster-name=${DOMAIN?} | \
  sudo tee /etc/teleport.yaml > /dev/null
 ```
 

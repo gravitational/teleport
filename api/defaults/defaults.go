@@ -48,6 +48,9 @@ const (
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
 	ServerAnnounceTTL = 600 * time.Second
+
+	// SessionTrackerTTL defines the default base ttl of a session tracker.
+	SessionTrackerTTL = time.Hour
 )
 
 var (
@@ -102,6 +105,9 @@ const (
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
+
+	// SSHProxyListenPort is the default Teleport SSH proxy listen port.
+	SSHProxyListenPort = 3023
 
 	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
 	ProxyWebListenPort = 3080
