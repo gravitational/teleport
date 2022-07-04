@@ -90,14 +90,13 @@ type Config struct {
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
-	// AuthServers is a list of auth servers, proxies and peer auth servers to
-	// connect to. Yes, this is not just auth servers, the field name is
-	// misleading.
+	// AuthServers is a list of auth servers and peer auth servers to
+	// connect to.
+	// Previously, proxy servers could be passed here, but going foward this
+	//should only be auth servers
 	AuthServers []utils.NetAddr
 
-	// AuthServers is a list of auth servers, proxies and peer auth servers to
-	// connect to. Yes, this is not just auth servers, the field name is
-	// misleading.
+	// ProxyServers is a list of proxies to tunnel to
 	ProxyServers []utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
