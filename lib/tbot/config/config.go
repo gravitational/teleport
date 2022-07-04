@@ -187,8 +187,6 @@ func (conf *OnboardingConfig) StoreToken(token string) {
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
 func (conf *OnboardingConfig) GetToken() (string, error) {
-	fmt.Println("token", conf.Token)
-
 	token, err := utils.TryReadValueAsFile(conf.Token)
 	if err != nil {
 		return "", trace.Wrap(err)
