@@ -121,22 +121,22 @@ func TestFilterAWSRoles(t *testing.T) {
 	tests := []struct {
 		name      string
 		accountID string
-		outARNs   []Role
+		outARNs   Roles
 	}{
 		{
 			name:      "first account roles",
 			accountID: "1234567890",
-			outARNs:   []Role{acc1ARN1, acc1ARN2, acc1ARN3},
+			outARNs:   Roles{acc1ARN1, acc1ARN2, acc1ARN3},
 		},
 		{
 			name:      "second account roles",
 			accountID: "0987654321",
-			outARNs:   []Role{acc2ARN1},
+			outARNs:   Roles{acc2ARN1},
 		},
 		{
 			name:      "all roles",
 			accountID: "",
-			outARNs:   []Role{acc1ARN1, acc1ARN2, acc1ARN3, acc2ARN1},
+			outARNs:   Roles{acc1ARN1, acc1ARN2, acc1ARN3, acc2ARN1},
 		},
 	}
 	for _, test := range tests {
