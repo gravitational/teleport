@@ -718,6 +718,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	var err error
 
+	// auth and proxy benefit from precomputing keys since they can experience spikes in key
+	// generation due to web session creation and recorded session creation respectively.
+	// for all other agents precomputing keys consumes excess resources.
+	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
+		native.PrecomputeKeys()
+	}
+
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
@@ -907,12 +914,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if process.Config.Auth.Enabled && len(process.Config.AuthServers) == 0 {
-		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.SSHAddr}
+		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.ListenAddr}
 	}
 
 	if len(process.Config.AuthServers) != 0 && process.Config.AuthServers[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
-		listener, err := process.importOrCreateListener(listenerAuthSSH, process.Config.Auth.SSHAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
 			process.Config.AuthServers = []utils.NetAddr{utils.FromAddr(listener.Addr())}
 		}
@@ -1254,10 +1261,12 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{}
+		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
+
 		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		handler, err := s3sessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1306,6 +1315,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 			loggers = append(loggers, logger)
 		case dynamo.GetName():
 			hasNonFileLog = true
+
 			cfg := dynamoevents.Config{
 				Tablename:               uri.Host,
 				Region:                  auditConfig.Region(),
@@ -1318,7 +1328,9 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
 				WriteTargetValue:        auditConfig.WriteTargetValue(),
 				RetentionPeriod:         auditConfig.RetentionPeriod(),
+				UseFIPSEndpoint:         auditConfig.GetUseFIPSEndpoint(),
 			}
+
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1409,9 +1421,12 @@ func (process *TeleportProcess) initAuthService() error {
 			process.log.Warn(warningMessage)
 		}
 
-		auditConfig := cfg.Auth.AuditConfig
+		if cfg.FIPS {
+			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
+		}
+
 		uploadHandler, err = initUploadHandler(
-			process.ExitContext(), auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1425,7 +1440,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
+		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1597,14 +1612,13 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// auth server listens on SSH and TLS, reusing the same socket
-	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerAuth, cfg.Auth.ListenAddr.Addr)
 	if err != nil {
-		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
+		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.ListenAddr.Addr, err)
 		return trace.Wrap(err)
 	}
 
-	// use listener addr instead of cfg.Auth.SSHAddr in order to support
+	// use listener addr instead of cfg.Auth.ListenAddr in order to support
 	// binding to a random port (e.g. `127.0.0.1:0`).
 	authAddr := listener.Addr().String()
 
@@ -1613,6 +1627,8 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.EnableProxyProtocol {
 		log.Infof("Starting Auth service with PROXY protocol support.")
 	}
+
+	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:            listener,

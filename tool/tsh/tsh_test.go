@@ -91,6 +91,8 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
 	}
+
+	modules.SetModules(&cliModules{})
 }
 
 func TestMain(m *testing.M) {
@@ -118,6 +120,7 @@ func (p *cliModules) Features() modules.Features {
 		App:                     true,
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
+		ResourceAccessRequests:  true,
 	}
 }
 
@@ -157,8 +160,6 @@ func TestFailedLogin(t *testing.T) {
 
 func TestOIDCLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
-
-	modules.SetModules(&cliModules{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -563,13 +564,13 @@ func TestSSHAccessRequest(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 	traits := map[string][]string{
-		teleport.TraitLogins: []string{user.Username},
+		teleport.TraitLogins: {user.Username},
 	}
 	alice.SetTraits(traits)
 
 	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, nodeAccessRole, connector, alice))
 
-	authAddr, err := rootAuth.AuthSSHAddr()
+	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
@@ -615,11 +616,22 @@ func TestSSHAccessRequest(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// won't request access unless possible
+	// won't request if can't list node
 	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostnameNoAccess),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// won't request if can't login with username
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", "not-a-username", sshHostname),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
@@ -1670,7 +1682,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, err)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
@@ -1698,7 +1710,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		t.Fatal("auth server didn't start after 30s")
 	}
 
-	authAddr, err := auth.AuthSSHAddr()
+	authAddr, err := auth.AuthAddr()
 	require.NoError(t, err)
 
 	// Set up a test proxy service.
@@ -2172,7 +2184,8 @@ func TestSerializeProfiles(t *testing.T) {
 	}
 
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(activeProfile, []*client.ProfileStatus{otherProfile}, f)
+		activeInfo, othersInfo := makeAllProfileInfo(activeProfile, []*client.ProfileStatus{otherProfile}, nil)
+		return serializeProfiles(activeInfo, othersInfo, nil, f)
 	})
 }
 
@@ -2199,7 +2212,8 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 		ValidUntil: aTime,
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(profile, nil, f)
+		active, _ := makeAllProfileInfo(profile, nil, nil)
+		return serializeProfiles(active, nil, nil, f)
 	})
 }
 
@@ -2210,7 +2224,40 @@ func TestSerializeProfilesNoActive(t *testing.T) {
 	}
 	`
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(nil, nil, f)
+		return serializeProfiles(nil, nil, nil, f)
+	})
+}
+
+func TestSerializeProfilesWithEnvVars(t *testing.T) {
+	cluster := "someCluster"
+	siteName := "someSiteName"
+	proxy := "example.com"
+	kubeCluster := "someKubeCluster"
+	kubeConfig := "someKubeConfigPath"
+	t.Setenv(proxyEnvVar, proxy)
+	t.Setenv(clusterEnvVar, cluster)
+	t.Setenv(siteEnvVar, siteName)
+	t.Setenv(kubeClusterEnvVar, kubeCluster)
+	t.Setenv(teleport.EnvKubeConfig, kubeConfig)
+	expected := fmt.Sprintf(`
+{
+  "profiles": [],
+  "environment": {
+    %q: %q,
+    %q: %q,
+    %q: %q,
+    %q: %q,
+    %q: %q
+  }
+}
+`, teleport.EnvKubeConfig, kubeConfig,
+		clusterEnvVar, cluster,
+		kubeClusterEnvVar, kubeCluster,
+		proxyEnvVar, proxy,
+		siteEnvVar, siteName)
+	testSerialization(t, expected, func(f string) (string, error) {
+		env := getTshEnv()
+		return serializeProfiles(nil, nil, env, f)
 	})
 }
 
