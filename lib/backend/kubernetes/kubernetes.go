@@ -18,9 +18,7 @@ package kubernetes
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -53,6 +51,25 @@ func InKubeCluster() bool {
 		len(os.Getenv(teleportReplicaNameEnv)) > 0
 }
 
+// Config structure represents configuration section
+type Config struct {
+	// Namespace is the Agent's namespace
+	// Field is required
+	Namespace string
+	// SecretName is unique secret per agent where state and identity will be stored.
+	// Field is required
+	SecretName string
+	// ReplicaName is the Agent's pod name
+	// Field is required
+	ReplicaName string
+	// ReleaseName is the HELM release name
+	// Field is optional
+	ReleaseName string
+	// KubeClient is the Kubernetes rest client
+	// Field is required
+	KubeClient kubernetes.Interface
+}
+
 // Backend uses Kubernetes Secrets to store identities.
 type Backend struct {
 	// kubernetes client
@@ -60,6 +77,7 @@ type Backend struct {
 	namespace    string
 	secretName   string
 	replicaName  string
+	releaseName  string
 
 	// Mutex is used to limit the number of concurrent operations per agent to 1 so we do not need
 	// to handle retries locally.
@@ -69,28 +87,50 @@ type Backend struct {
 
 // New returns a new instance of Kubernetes Secret identity backend storage.
 func New() (*Backend, error) {
-
 	restClient, _, err := kubeutils.GetKubeClient("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return NewWithClient(restClient)
-
 }
 
 // NewWithClient returns a new instance of Kubernetes Secret identity backend storage with the provided client.
 func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
+	for _, env := range []string{teleportReplicaNameEnv, namespaceEnv} {
+		if len(os.Getenv(env)) == 0 {
+			return nil, trace.BadParameter("environment variable \"%s\" not set or empty", env)
+		}
+	}
+
+	return NewWithConfig(
+		Config{
+			Namespace: os.Getenv(namespaceEnv),
+			SecretName: fmt.Sprintf(
+				"%s-%s",
+				os.Getenv(teleportReplicaNameEnv),
+				secretIdentifierName,
+			),
+			ReplicaName: os.Getenv(teleportReplicaNameEnv),
+			ReleaseName: os.Getenv(releaseNameEnv),
+			KubeClient:  restClient,
+		},
+	)
+}
+
+// NewWithConfig returns a new instance of Kubernetes Secret identity backend storage with the provided config.
+func NewWithConfig(conf Config) (*Backend, error) {
+	if err := validateConfig(conf); err != nil {
+		return nil, err
+	}
+
 	return &Backend{
-		k8sClientSet: restClient,
-		namespace:    os.Getenv(namespaceEnv),
-		replicaName:  os.Getenv(teleportReplicaNameEnv),
-		secretName: fmt.Sprintf(
-			"%s-%s",
-			os.Getenv(teleportReplicaNameEnv),
-			secretIdentifierName,
-		),
-		mu: &sync.Mutex{},
+		k8sClientSet: conf.KubeClient,
+		namespace:    conf.Namespace,
+		replicaName:  conf.ReplicaName,
+		secretName:   conf.SecretName,
+		releaseName:  conf.ReleaseName,
+		mu:           &sync.Mutex{},
 	}, nil
 }
 
@@ -152,14 +192,11 @@ func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 		Secrets(b.namespace).
 		Get(ctx, b.secretName, metav1.GetOptions{})
 
-	if err == nil {
-		return secret, nil
-	}
-	var kubeErr *kubeerrors.StatusError
-	if errors.As(err, &kubeErr) && kubeErr.ErrStatus.Code == http.StatusNotFound {
+	if kubeerrors.IsNotFound(err) {
 		return nil, trace.NotFound("secret %v not found", b.secretName)
 	}
-	return nil, trace.Wrap(err)
+
+	return secret, trace.Wrap(err)
 }
 
 // readSecretData reads the secret content and extracts the content for key.
@@ -186,12 +223,8 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 	// for now, the agent is the owner of the secret so it's safe to replace changes
 
 	secret, err := b.getSecret(ctx)
-	if err != nil && trace.IsNotFound(err) {
-		_, err = b.createSecret(ctx, items...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &backend.Lease{}, nil
+	if trace.IsNotFound(err) {
+		secret = b.genSecretObject()
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,19 +235,23 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 
 	updateDataMap(secret.Data, items...)
 
-	if err := b.updateSecret(ctx, secret); err != nil {
+	if err := b.upsertSecret(ctx, secret); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &backend.Lease{}, nil
 }
 
-func (b *Backend) updateSecret(ctx context.Context, secret *corev1.Secret) error {
+func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error {
 	secretApply := applyconfigv1.Secret(b.secretName, b.namespace).
-		WithResourceVersion(secret.ResourceVersion).
 		WithData(secret.Data).
 		WithLabels(secret.GetLabels()).
 		WithAnnotations(secret.GetAnnotations())
+
+	// apply resource lock if it's not a creation
+	if len(secret.ResourceVersion) > 0 {
+		secretApply = secretApply.WithResourceVersion(secret.ResourceVersion)
+	}
 
 	_, err := b.k8sClientSet.
 		CoreV1().
@@ -224,24 +261,16 @@ func (b *Backend) updateSecret(ctx context.Context, secret *corev1.Secret) error
 	return trace.Wrap(err)
 }
 
-func (b *Backend) createSecret(ctx context.Context, items ...backend.Item) (*corev1.Secret, error) {
-
-	data := map[string][]byte{}
-	updateDataMap(data, items...)
-
-	secretApply := applyconfigv1.Secret(b.secretName, b.namespace).
-		WithData(data).
-		WithLabels(generateSecretLabels()).
-		WithAnnotations(generateSecretAnnotations(b.namespace, os.Getenv(releaseNameEnv)))
-
-	return b.k8sClientSet.
-		CoreV1().
-		Secrets(b.namespace).
-		Apply(
-			ctx,
-			secretApply,
-			metav1.ApplyOptions{FieldManager: b.replicaName},
-		)
+func (b *Backend) genSecretObject() *corev1.Secret {
+	return &corev1.Secret{
+		Type: corev1.SecretTypeOpaque,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        b.secretName,
+			Namespace:   b.namespace,
+			Annotations: generateSecretAnnotations(b.namespace, b.releaseName),
+		},
+		Data: map[string][]byte{},
+	}
 
 }
 
@@ -251,20 +280,16 @@ func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]stri
 		helmReleaseNamesaceAnnotation = "meta.helm.sh/release-namespace"
 		helmResourcePolicy            = "helm.sh/resource-policy"
 	)
-	return map[string]string{
-		helmReleaseNameAnnotation:     releaseNameEnv,
-		helmReleaseNamesaceAnnotation: namespace,
-		helmResourcePolicy:            "keep",
-	}
-}
 
-func generateSecretLabels() map[string]string {
-	const (
-		helmK8SManaged = "app.kubernetes.io/managed-by"
-	)
-	return map[string]string{
-		helmK8SManaged: "Helm",
+	if len(releaseNameEnv) > 0 {
+		return map[string]string{
+			helmReleaseNameAnnotation:     releaseNameEnv,
+			helmReleaseNamesaceAnnotation: namespace,
+			helmResourcePolicy:            "keep",
+		}
 	}
+
+	return map[string]string{}
 }
 
 // backendKeyToSecret replaces the "/" with "."
@@ -277,4 +302,24 @@ func updateDataMap(data map[string][]byte, items ...backend.Item) {
 	for _, item := range items {
 		data[backendKeyToSecret(item.Key)] = item.Value
 	}
+}
+
+func validateConfig(c Config) error {
+	if len(c.Namespace) == 0 {
+		return trace.BadParameter("missing namespace")
+	}
+
+	if len(c.SecretName) == 0 {
+		return trace.BadParameter("missing secret name")
+	}
+
+	if len(c.ReplicaName) == 0 {
+		return trace.BadParameter("missing replica name")
+	}
+
+	if c.KubeClient == nil {
+		return trace.BadParameter("missing Kubernetes client")
+	}
+
+	return nil
 }

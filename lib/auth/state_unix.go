@@ -44,8 +44,8 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		return nil, trace.Wrap(err)
 	}
 
-	// identityStorage is the
-	// if in Kubernetes it's replaced by kubernetes secret storage
+	// identityStorage holds the storage backend for identity and state.
+	// if the agent is running in Kubernetes it's replaced by kubernetes secret storage
 	var identityStorage stateBackend = litebk
 
 	// if running in a K8S cluster and required env vars are available
@@ -86,7 +86,7 @@ func copyLocalStorageIntoKubernetes(ctx context.Context, k8sStorage stateBackend
 	// read keys starting with `/states` `/states/{role}/state`
 	stateStorage := readPrefixedKeysFromLocalStorage(ctx, litebk, statesPrefix)
 
-	// if no keys where found, this is a fresh start.
+	// if no keys were found, this is a fresh start.
 	if len(idsStorage) == 0 && len(stateStorage) == 0 {
 		return nil
 	}

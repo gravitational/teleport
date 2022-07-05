@@ -18,7 +18,6 @@ package kubernetes
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -94,20 +93,21 @@ func TestBackend_Exists(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
-				os.Setenv(namespaceEnv, tt.fields.namespace)
-				defer os.Unsetenv(namespaceEnv)
+				t.Setenv(namespaceEnv, tt.fields.namespace)
 			}
 
 			// set replicaName env variable
 			if len(tt.fields.replicaName) > 0 {
-				os.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
-				defer os.Unsetenv(teleportReplicaNameEnv)
+				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
 			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
 			b, err := NewWithClient(k8sClient)
 			if err != nil && !tt.wantErr {
 				require.NoError(t, err)
+
+			} else if err != nil && tt.wantErr {
+				return
 			}
 
 			require.Equal(t, tt.want, b.Exists(context.TODO()))
@@ -123,7 +123,6 @@ func newSecret(name, namespace string, data map[string][]byte) *corev1.Secret {
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: generateSecretAnnotations(namespace, ""),
-			Labels:      generateSecretLabels(),
 		},
 		Data: data,
 	}
@@ -232,13 +231,11 @@ func TestBackend_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if len(tt.fields.namespace) > 0 {
-				os.Setenv(namespaceEnv, tt.fields.namespace)
-				defer os.Unsetenv(namespaceEnv)
+				t.Setenv(namespaceEnv, tt.fields.namespace)
 			}
 
 			if len(tt.fields.replicaName) > 0 {
-				os.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
-				defer os.Unsetenv(teleportReplicaNameEnv)
+				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
 			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
@@ -334,14 +331,12 @@ func TestBackend_Put(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// set namespace env var
 			if len(tt.fields.namespace) > 0 {
-				os.Setenv(namespaceEnv, tt.fields.namespace)
-				defer os.Unsetenv(namespaceEnv)
+				t.Setenv(namespaceEnv, tt.fields.namespace)
 			}
 
 			// set replicaName env var
 			if len(tt.fields.replicaName) > 0 {
-				os.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
-				defer os.Unsetenv(teleportReplicaNameEnv)
+				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
 			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
