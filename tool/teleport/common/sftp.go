@@ -21,7 +21,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -270,8 +269,14 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 		return nil, false
 	}
 
-	event.Path = makePathAbs(reqPacket.Path)
-	event.TargetPath = makePathAbs(reqPacket.TargetPath)
+	wd, err := os.Getwd()
+	if err != nil {
+		log.WithError(err).Warn("Failed to get working dir.")
+	}
+
+	event.WorkingDirectory = wd
+	event.Path = reqPacket.Path
+	event.TargetPath = reqPacket.TargetPath
 	event.Flags = reqPacket.Flags
 	if reqPacket.Attributes != nil {
 		event.Attributes = &apievents.SFTPAttributes{
@@ -279,36 +284,26 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 			ModificationTime: reqPacket.Attributes.ModificationTime,
 		}
 		if reqPacket.Attributes.Size != nil {
-			event.Attributes.OptionalSize = &apievents.SFTPAttributes_Size_{
-				Size_: *reqPacket.Attributes.Size,
+			event.Attributes.FileSize = &apievents.SFTPAttributes_OptionalFileSize{
+				OptionalFileSize: *reqPacket.Attributes.Size,
 			}
 		}
 		if reqPacket.Attributes.UID != nil {
-			event.Attributes.OptionalUID = &apievents.SFTPAttributes_UID{
-				UID: *reqPacket.Attributes.UID,
+			event.Attributes.UID = &apievents.SFTPAttributes_OptionalUID{
+				OptionalUID: *reqPacket.Attributes.UID,
 			}
 		}
 		if reqPacket.Attributes.GID != nil {
-			event.Attributes.OptionalGID = &apievents.SFTPAttributes_GID{
-				GID: *reqPacket.Attributes.GID,
+			event.Attributes.GID = &apievents.SFTPAttributes_OptionalGID{
+				OptionalGID: *reqPacket.Attributes.GID,
 			}
 		}
 		if reqPacket.Attributes.Permissions != nil {
-			event.Attributes.OptionalPermissions = &apievents.SFTPAttributes_Permissions{
-				Permissions: uint32(*reqPacket.Attributes.Permissions),
+			event.Attributes.Permissions = &apievents.SFTPAttributes_OptionalPermissions{
+				OptionalPermissions: uint32(*reqPacket.Attributes.Permissions),
 			}
 		}
 	}
 
 	return event, true
-}
-
-func makePathAbs(path string) string {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		log.WithError(err).Warn("Failed to make filepath in SFTP request absolute.")
-		return path
-	}
-
-	return absPath
 }
