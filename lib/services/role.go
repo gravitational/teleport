@@ -749,25 +749,37 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	return NewRoleSet(roles...), nil
 }
 
-// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchClusterRoles.
+// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchAllClusterRoles.
 type CurrentUserRoleGetter interface {
 	GetCurrentUser(context.Context) (types.User, error)
+	GetCurrentUserRoles(context.Context) ([]types.Role, error)
 	RoleGetter
 }
 
 // FetchAllClusterRoles fetches all roles available to the user on the specified cluster.
-func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoles []string, defaultTraits wrappers.Traits) (RoleSet, error) {
-	roles := defaultRoles
+func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defautlRoleNames []string, defaultTraits wrappers.Traits) (RoleSet, error) {
+	roleNames := defautlRoleNames
 	traits := defaultTraits
 
 	// Typically, auth.ClientI is passed as currentUserRoleGetter. Older versions of the auth client
 	// may not implement GetCurrentUser() so we fail gracefully and use default roles and traits instead.
 	user, err := access.GetCurrentUser(ctx)
 	if err == nil {
-		roles = user.GetRoles()
+		roleNames = user.GetRoles()
 		traits = user.GetTraits()
 	} else {
 		log.Debugf("Failed to fetch current user information: %v.", err)
+	}
+
+	// Try to get all roles of the current user in one call.
+	roles, err := access.GetCurrentUserRoles(ctx)
+	if err == nil {
+		for i := range roles {
+			roles[i] = ApplyTraits(roles[i], traits)
+		}
+		return NewRoleSet(roles...), nil
+	} else {
+		log.Debugf("Failed to fetch current user roles: %v.", err)
 	}
 
 	// get the role definition for all roles of user.
@@ -777,7 +789,7 @@ func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, def
 	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
 	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
 	// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(roleNames, access, traits)
 	return roleSet, trace.Wrap(err)
 }
 
