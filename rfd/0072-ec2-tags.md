@@ -9,7 +9,7 @@ state: implemented
 
 Teleport nodes running on EC2 instances automatically add instance tags as labels.
 
-Implemented in Teleport 10. See the [documentation](https://goteleport.com/docs/setup/guides/ec2-tags/#enable-tags-in-instance-metadata).
+Implemented in Teleport 10. See the [documentation](https://goteleport.com/docs/setup/guides/ec2-tags/#enable-tags-in-instance-metadata) for details.
 
 ### Related issues
 
