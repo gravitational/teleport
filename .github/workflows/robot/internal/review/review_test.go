@@ -478,6 +478,7 @@ func TestCheckInternal(t *testing.T) {
 		reviews []github.Review
 		docs    bool
 		code    bool
+		large   bool
 		result  bool
 	}{
 		{
@@ -553,6 +554,31 @@ func TestCheckInternal(t *testing.T) {
 			docs:   false,
 			code:   true,
 			result: false,
+		},
+		{
+			desc:   "code-only-large-pr-requires-admin-fails",
+			author: "6",
+			reviews: []github.Review{
+				{Author: "3", State: approved},
+				{Author: "4", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			large:  true,
+			result: false,
+		},
+		{
+			desc:   "code-only-large-pr-has-admin-succeeds",
+			author: "6",
+			reviews: []github.Review{
+				{Author: "1", State: approved},
+				{Author: "3", State: approved},
+				{Author: "4", State: approved},
+			},
+			docs:   false,
+			code:   true,
+			large:  true,
+			result: true,
 		},
 		{
 			desc:   "code-only-two-approvals-success",
@@ -679,7 +705,7 @@ func TestCheckInternal(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			err := r.CheckInternal(test.author, test.reviews, test.docs, test.code)
+			err := r.CheckInternal(test.author, test.reviews, test.docs, test.code, test.large)
 			if test.result {
 				require.NoError(t, err)
 			} else {
@@ -750,7 +776,7 @@ const reviewers = `
 			"team": "Core",
 			"owner": false
 		}
-	},	
+	},
 	"docsReviewersOmit": {
 		"6": true
     },
