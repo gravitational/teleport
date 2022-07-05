@@ -125,7 +125,7 @@ func TestTeleportMain(t *testing.T) {
 		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
-		token, _ := conf.GetToken()
+		token, _ := conf.Token()
 		require.Equal(t, "xxxyyy", token)
 		require.Equal(t, "10.5.5.5", conf.AdvertiseIP)
 		require.Equal(t, map[string]string{"a": "a1", "b": "b1"}, conf.SSH.Labels)

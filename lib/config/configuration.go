@@ -1957,7 +1957,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
-		cfg.StoreToken(clf.AuthToken)
+		cfg.SetToken(clf.AuthToken)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
@@ -2145,17 +2145,17 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
-		cfg.StoreToken(fc.AuthToken)
+		cfg.SetToken(fc.AuthToken)
 
 		return nil
 	}
 
 	if fc.JoinParams != (JoinParams{}) {
-		if !cfg.HasTokenValue() {
+		if !cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
-		cfg.StoreToken(fc.JoinParams.TokenName)
+		cfg.SetToken(fc.JoinParams.TokenName)
 
 		switch fc.JoinParams.Method {
 		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:

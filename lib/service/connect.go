@@ -571,7 +571,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if !process.Config.HasTokenValue() {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -582,7 +582,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		token, err := process.Config.GetToken()
+		token, err := process.Config.Token()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

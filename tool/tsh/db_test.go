@@ -313,8 +313,8 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 
 	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
 
-	token, _ := proxy.Config.GetToken()
-	cfg.StoreToken(token)
+	token, _ := proxy.Config.Token()
+	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Databases.Enabled = true

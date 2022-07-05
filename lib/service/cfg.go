@@ -273,7 +273,7 @@ type Config struct {
 // If the value stored points to a file, it will attempt to read the token value from the file
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
-func (cfg *Config) GetToken() (string, error) {
+func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -289,13 +289,13 @@ func (cfg *Config) GetToken() (string, error) {
 // instead of trying to read the file every time that teleport is launched.
 // This means we can allow temporary token files that are removed after teleport has
 // successfully connected the first time.
-func (cfg *Config) StoreToken(token string) {
+func (cfg *Config) SetToken(token string) {
 	cfg.token = token
 }
 
 // HasTokenValue gives the ability to check if there has been a token value stored
 // in the config
-func (cfg *Config) HasTokenValue() bool {
+func (cfg *Config) HasToken() bool {
 	return cfg.token != ""
 }
 
