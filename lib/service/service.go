@@ -3073,7 +3073,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		if !cfg.Proxy.DisableWebService {
 			listeners.web = listeners.mux.TLS()
 		}
-		process.setPostgresListener(cfg, &listeners)
+		process.muxPostgresOnWebPort(cfg, &listeners)
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
@@ -3095,7 +3095,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		process.setPostgresListener(cfg, &listeners)
+		process.muxPostgresOnWebPort(cfg, &listeners)
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -3137,7 +3137,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					return nil, trace.Wrap(err)
 				}
 				listeners.web = listeners.mux.TLS()
-				process.setPostgresListener(cfg, &listeners)
+				process.muxPostgresOnWebPort(cfg, &listeners)
 				go listeners.mux.Serve()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
@@ -3156,11 +3156,10 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 }
 
-// setPostgresListener starts Postgres proxy listener multiplexed on Teleport Proxy web port,
-// unless postgres_listen_addr flag was provided, then Postgres service runs on a separate port taken from it.
-func (process *TeleportProcess) setPostgresListener(cfg *Config, listeners *proxyListeners) {
+// muxPostgresOnWebPort starts Postgres proxy listener multiplexed on Teleport Proxy web port,
+// unless postgres_listen_addr was specified.
+func (process *TeleportProcess) muxPostgresOnWebPort(cfg *Config, listeners *proxyListeners) {
 	if !cfg.Proxy.DisableDatabaseProxy && cfg.Proxy.PostgresAddr.IsEmpty() {
-		// Postgres service is multiplexed on Proxy Web port.
 		listeners.db.postgres = listeners.mux.DB()
 	}
 }
