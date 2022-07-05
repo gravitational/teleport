@@ -17,7 +17,6 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/url"
 	"time"
@@ -26,16 +25,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 )
@@ -74,6 +68,8 @@ type Config struct {
 	// Logger is the logger to use.
 	Logger logrus.FieldLogger
 
+	// exporterURL is the parsed value of ExporterURL that is populated
+	// by CheckAndSetDefaults
 	exporterURL *url.URL
 }
 
@@ -89,19 +85,28 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	// first check if a network address is specified, if it was, default
 	// to using grpc. If provided a URL, ensure that it is valid
-	_, _, err := net.SplitHostPort(c.ExporterURL)
-	if err == nil {
-		c.exporterURL = &url.URL{
-			Scheme: "grpc",
-			Host:   c.ExporterURL,
-		}
-	} else {
+	h, _, err := net.SplitHostPort(c.ExporterURL)
+	if err != nil {
 		exporterURL, err := url.Parse(c.ExporterURL)
 		if err != nil {
 			return trace.BadParameter("failed to parse exporter URL: %v", err)
 		}
 		c.exporterURL = exporterURL
+		return nil
+	}
 
+	if h == "file" {
+		exporterURL, err := url.Parse(c.ExporterURL)
+		if err != nil {
+			return trace.BadParameter("failed to parse exporter URL: %v", err)
+		}
+		c.exporterURL = exporterURL
+		return nil
+	}
+
+	c.exporterURL = &url.URL{
+		Scheme: "grpc",
+		Host:   c.ExporterURL,
 	}
 
 	if c.DialTimeout <= 0 {
@@ -113,48 +118,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// NewExporter returns a new exporter that is configured per the provided Config.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var httpOptions []otlptracehttp.Option
-	grpcOptions := []otlptracegrpc.Option{otlptracegrpc.WithDialOption(grpc.WithBlock())}
-
-	if cfg.TLSConfig != nil {
-		httpOptions = append(httpOptions, otlptracehttp.WithTLSClientConfig(cfg.TLSConfig.Clone()))
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(cfg.TLSConfig.Clone())))
-	} else {
-		httpOptions = append(httpOptions, otlptracehttp.WithInsecure())
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithInsecure())
-	}
-
-	var traceClient otlptrace.Client
-	switch cfg.exporterURL.Scheme {
-	case "http", "https":
-		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
-		traceClient = otlptracehttp.NewClient(httpOptions...)
-	case "grpc":
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
-		traceClient = otlptracegrpc.NewClient(grpcOptions...)
-	default:
-		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
-	defer cancel()
-	exporter, err := otlptrace.New(ctx, traceClient)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %s: %v", cfg.ExporterURL, err)
-	case err != nil:
-		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
-	}
-
-	return exporter, nil
 }
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.

@@ -720,6 +720,9 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
 # go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.7.0
 ## explicit
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
+# go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.7.0
+## explicit
+go.opentelemetry.io/otel/exporters/stdout/stdouttrace
 # go.opentelemetry.io/otel/metric v0.28.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/global
@@ -737,6 +740,7 @@ go.opentelemetry.io/otel/sdk/internal
 go.opentelemetry.io/otel/sdk/internal/env
 go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
+go.opentelemetry.io/otel/sdk/trace/tracetest
 # go.opentelemetry.io/otel/trace v1.7.0
 ## explicit
 go.opentelemetry.io/otel/trace
