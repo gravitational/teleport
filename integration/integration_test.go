@@ -3327,6 +3327,7 @@ func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 
 // waitAppServerTunnel waits for application server tunnel connections.
 func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
+	t.Helper()
 	cluster, err := tunnel.GetSite(clusterName)
 	require.NoError(t, err)
 
