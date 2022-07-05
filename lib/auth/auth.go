@@ -155,6 +155,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
@@ -1089,7 +1090,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
-	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {

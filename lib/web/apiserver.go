@@ -1970,8 +1970,6 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 //
 // {"server_id": "uuid", "login": "admin", "term": {"h": 120, "w": 100}, "sid": "123"}
 //
-// Session id can be empty
-//
 // Successful response is a websocket stream that allows read write to the server
 //
 func (h *Handler) siteNodeConnect(
@@ -2130,7 +2128,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		if tracker.GetSessionKind() == types.SSHSessionKind {
+		if tracker.GetSessionKind() == types.SSHSessionKind && tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
@@ -2163,7 +2161,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	if tracker.GetSessionKind() != types.SSHSessionKind {
+	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
 
@@ -2229,7 +2227,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //               If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil)
+		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil, "")
 	}
 	return clusterEventsList(ctx, site, r.URL.Query(), searchSessionEvents)
 }

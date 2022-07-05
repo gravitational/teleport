@@ -507,7 +507,12 @@ func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryCo
 		return trail.ToGRPC(err)
 	}
 
-	ics := client.NewUpstreamInventoryControlStream(stream)
+	p, ok := peer.FromContext(stream.Context())
+	if !ok {
+		return trace.BadParameter("unable to find peer")
+	}
+
+	ics := client.NewUpstreamInventoryControlStream(stream, p.Addr.String())
 
 	if err := auth.RegisterInventoryControlStream(ics); err != nil {
 		return trail.ToGRPC(err)
@@ -3203,7 +3208,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

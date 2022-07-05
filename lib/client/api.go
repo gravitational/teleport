@@ -1659,8 +1659,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	return proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
-		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
 		})
 }
 
@@ -1951,7 +1951,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	notFoundErrorMessage := fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -1967,13 +1966,23 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
+		return trace.Wrap(err)
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return trace.BadParameter("session joining is not supported in proxy recording mode")
+	}
+
 	session, err := site.GetSessionTracker(ctx, string(sessionID))
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("session %q not found or it has ended", sessionID)
+		}
 		return trace.Wrap(err)
 	}
 
-	if session == nil {
-		return trace.NotFound(notFoundErrorMessage)
+	if session.GetSessionKind() != types.SSHSessionKind {
+		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
 
 	// connect to server:
@@ -3190,7 +3199,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	var response *auth.SSHLoginResponse
-
+	var username string
 	switch authType := pr.Auth.Type; {
 	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
 		// Sanity check settings.
@@ -3201,7 +3210,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.Username = response.Username
+		username = response.Username
 	case authType == constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
@@ -3212,33 +3221,28 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.SAML:
 		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.Github:
 		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
+	// Use proxy identity?
+	if username != "" {
+		tc.Username = username
+		if tc.localAgent != nil {
+			tc.localAgent.username = username
+		}
 	}
 
 	// Check that a host certificate for at least one cluster was returned.
@@ -3294,10 +3298,16 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
-		User:                    tc.Username,
-		OptimisticAssertion:     !tc.ExplicitUsername,
+		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 	})
 	if err != nil {
