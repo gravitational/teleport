@@ -1,6 +1,6 @@
 ---
-title: Database Access with AWS ElastiCache for Redis and AWS MemoryDB
-description: How to configure Teleport Database Access with AWS ElastiCache for Redis and AWS MemoryDB.
+title: Database Access with AWS ElastiCache and AWS MemoryDB for Redis
+description: How to configure Teleport Database Access with AWS ElastiCache and AWS MemoryDB for Redis.
 ---
 
 This guide will help you to:
@@ -19,7 +19,7 @@ This guide will help you to:
 
 ## Prerequisites
 
-- AWS account with at least one ElastiCache for Redis or MemoryDB clusters
+- AWS account with at least one ElastiCache or MemoryDB for Redis clusters
   **In-transit encryption via (TLS) must be enabled**.
 - Permissions to create and attach IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
@@ -100,7 +100,7 @@ at the `/etc/teleport.yaml` location.
 
 Teleport needs AWS IAM permissions to be able to:
 
-- Discover and register ElastiCache for Redis and MemoryDB clusters.
+- Discover and register ElastiCache and MemoryDB for Redis clusters.
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
 
@@ -114,8 +114,8 @@ Start the Database Service:
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The Database Service will discover and register all ElastiCache for Redis
-and MemoryDB clusters according to the configuration.
+The Database Service will discover and register all ElastiCache and MemoryDB
+for Redis clusters according to the configuration.
 
 ## Step 6/7. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
 
