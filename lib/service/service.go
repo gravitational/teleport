@@ -718,6 +718,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	var err error
 
+	// auth and proxy benefit from precomputing keys since they can experience spikes in key
+	// generation due to web session creation and recorded session creation respectively.
+	// for all other agents precomputing keys consumes excess resources.
+	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
+		native.PrecomputeKeys()
+	}
+
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
