@@ -164,6 +164,11 @@ spec:
     request:
       # the `roles` list can be a mixture of literals and wildcard matchers
       roles: ['common', 'dev-*']
+
+      # `search_as_roles` allows users to search for and request access to
+      # resources accessible by the listed roles
+      search_as_roles: ['access']
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both
       thresholds:
