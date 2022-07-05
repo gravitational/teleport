@@ -43,6 +43,11 @@ spec:
             - name: server-certs
               mountPath: /etc/etcd/certs/
               readOnly: true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           command:
             - /bin/sh
             - -c

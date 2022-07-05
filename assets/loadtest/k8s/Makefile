@@ -3,7 +3,7 @@ CERT_MANAGER_VERSION ?= v1.7.1
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:10.0.0-alpha.2
+TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:10.0.0
 NAMESPACE ?= loadtest
 NODE ?=
 
