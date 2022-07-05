@@ -113,7 +113,18 @@ Run `generate-grpc-shared` script from `teleterm/package.json`.
 It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
 Resulting files can be found in `sharedProcess/api/protogen`.
 
-## Architecture diagram
+## Architecture
+
+### Resource lifecycle
+
+The general approach is that a resource can become unavailable at any time due to a variety of
+reasons: the resource going offline, the cluster going offline, the device running Connect going
+offline, the cluster user losing access to the resource, just to name a few.
+
+Connect must gracefully handle a resource becoming unavailable and make as few assumptions about
+resource availability as possible.
+
+### Diagram
 ```pro
                                                   +------------+
                                                   |            |
