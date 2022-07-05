@@ -337,7 +337,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	if b.cfg.Onboarding == nil {
 		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
 	}
-	if !b.cfg.Onboarding.HasTokenValue() {
+	if !b.cfg.Onboarding.HasToken() {
 		return nil, trace.BadParameter("unable to start: no token present")
 	}
 	addr, err := utils.ParseAddr(b.cfg.AuthServer)
@@ -352,7 +352,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 
 	b.log.Info("Attempting to generate new identity from token")
 
-	token, err := b.cfg.Onboarding.GetToken()
+	token, err := b.cfg.Onboarding.Token()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

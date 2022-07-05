@@ -149,9 +149,9 @@ func (b *Bot) initialize(ctx context.Context) error {
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
 	if err == nil {
-		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasTokenValue() {
+		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasToken() {
 			// try to grab the token to see if it's changed, as we'll need to fetch a new identity if it has
-			if token, err := b.cfg.Onboarding.GetToken(); err == nil {
+			if token, err := b.cfg.Onboarding.Token(); err == nil {
 				sha := sha256.Sum256([]byte(token))
 				configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
 

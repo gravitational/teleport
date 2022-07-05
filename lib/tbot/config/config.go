@@ -148,7 +148,7 @@ type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
-	// You should use GetToken instead - this has to be an accessible property for YAML unmarshalling
+	// You should use Token() instead - this has to be an accessible property for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
 	TokenValue string `yaml:"token"`
 
@@ -164,29 +164,29 @@ type OnboardingConfig struct {
 	JoinMethod types.JoinMethod `yaml:"join_method"`
 }
 
-// HasTokenValue gives the ability to check if there has been a token value stored
+// HasToken gives the ability to check if there has been a token value stored
 // in the config
-func (conf *OnboardingConfig) HasTokenValue() bool {
+func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
 }
 
-// StoreToken stores the value for --token or auth_token in the config
+// SetToken stores the value for --token or auth_token in the config
 //
 // In the case of the token value pointing to a file, this allows us to
 // fetch the value of the token when it's needed (when connecting for the first time)
 // instead of trying to read the file every time that teleport is launched.
 // This means we can allow temporary token files that are removed after teleport has
 // successfully connected the first time.
-func (conf *OnboardingConfig) StoreToken(token string) {
+func (conf *OnboardingConfig) SetToken(token string) {
 	conf.TokenValue = token
 }
 
-// GetToken returns token needed to join the auth server
+// Token returns token needed to join the auth server
 //
 // If the value stored points to a file, it will attempt to read the token value from the file
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
-func (conf *OnboardingConfig) GetToken() (string, error) {
+func (conf *OnboardingConfig) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(conf.TokenValue)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -366,7 +366,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// merging)
 	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
 		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.HasTokenValue() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
+		if onboarding != nil && (onboarding.HasToken() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
@@ -376,7 +376,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
 
-		config.Onboarding.StoreToken(cf.Token)
+		config.Onboarding.SetToken(cf.Token)
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

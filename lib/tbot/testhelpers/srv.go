@@ -259,7 +259,7 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 		},
 	}
 
-	cfg.Onboarding.StoreToken(botParams.TokenID)
+	cfg.Onboarding.SetToken(botParams.TokenID)
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
