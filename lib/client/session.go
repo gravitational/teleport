@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -79,7 +80,8 @@ type NodeSession struct {
 	terminal *terminal.Terminal
 
 	// forceDisconnect if we should immediately disconnect upon finish instead of waiting for the remote status.
-	forceDisconnect bool
+	// This value must always be accessed atomically.
+	forceDisconnect int32
 
 	// shouldClearOnExit marks whether or not the terminal should be cleared
 	// when the session ends.
@@ -316,7 +318,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 	// Wait for any cleanup tasks (particularly terminal reset on Windows).
 	ns.closeWait.Wait()
 
-	if ns.forceDisconnect {
+	if atomic.LoadInt32(&ns.forceDisconnect) == 1 {
 		return nil
 	}
 
@@ -711,7 +713,10 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser, mode types.SessionPar
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
-			ns.forceDisconnect = handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell)
+			if handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell) {
+				atomic.StoreInt32(&ns.forceDisconnect, 1)
+			}
+
 			ns.closer.Close()
 		}()
 	}
