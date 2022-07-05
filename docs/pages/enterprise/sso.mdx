@@ -8,27 +8,6 @@ Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
 clusters, databases, web applications, and Windows desktops through their
 organization's Single Sign-On (SSO) provider.
 
-<ScopedBlock scope="oss">
-<TileSet>
-    <Tile
-    icon="bolt"
-    title="Use SSO with Teleport Cloud"
-    href="./sso.mdx/?scope=cloud"
-  >
-    Learn how to use Teleport's SSO integrations in Teleport Cloud.
-    </Tile>
-    <Tile
-    icon="bolt"
-    title="Use SSO with Teleport Enterprise"
-    href="./sso.mdx/?scope=enterprise"
-  >
-    Learn how to use Teleport's SSO integrations in Teleport Enterprise.
-    </Tile>
-  </TileSet>
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
-
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
     Configure Azure Active Directory SSO for SSH, Kubernetes, databases, desktops and web apps.
@@ -402,4 +381,3 @@ spec:
       'env': 'dev'
 version: v5
 ```
-</ScopedBlock>
