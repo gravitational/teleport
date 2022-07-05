@@ -264,11 +264,11 @@ type Config struct {
 	// that contains the token
 	//
 	// This is private to avoid external packages reading the value - the value should be obtained
-	// using GetToken
+	// using Token()
 	token string
 }
 
-// GetToken returns token needed to join the auth server
+// Token returns token needed to join the auth server
 //
 // If the value stored points to a file, it will attempt to read the token value from the file
 // and return an error if it wasn't successful
@@ -282,7 +282,7 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
-// StoreToken stores the value for --token or auth_token in the config
+// SetToken stores the value for --token or auth_token in the config
 //
 // In the case of the token value pointing to a file, this allows us to
 // fetch the value of the token when it's needed (when connecting for the first time)
@@ -293,7 +293,7 @@ func (cfg *Config) SetToken(token string) {
 	cfg.token = token
 }
 
-// HasTokenValue gives the ability to check if there has been a token value stored
+// HasToken gives the ability to check if there has been a token value stored
 // in the config
 func (cfg *Config) HasToken() bool {
 	return cfg.token != ""
