@@ -19,18 +19,7 @@ of two team members for a privileged role `dbadmin`.
   edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
   an SSO provider.
 
-  View this guide as a user of another Teleport edition:
-
-  <TileSet>
-  <Tile href="./dual-authz.mdx/?scope=cloud" title="Teleport Cloud" icon="cloud">
-  </Tile>
-  <Tile href="./dual-authz.mdx/?scope=enterprise" title="Teleport Enterprise" icon="building">
-  </Tile>
-  </TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
 
 <Admonition title="Note" type="tip">
   The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../../enterprise/workflow/index.mdx).
@@ -255,7 +244,5 @@ To fix the problem, update the Auth Service with a public address, and restart T
 auth_service:
   public_addr: ['localhost:3025', 'example.com:3025']
 ```
-
-</ScopedBlock>
 
 </ScopedBlock>
