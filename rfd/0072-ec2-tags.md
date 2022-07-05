@@ -1,6 +1,6 @@
 ---
 authors: Andrew Burke (andrew.burke@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 72 - Import EC2 Instance Tags
@@ -8,6 +8,8 @@ state: draft
 ## What
 
 Teleport nodes running on EC2 instances automatically add instance tags as labels.
+
+Implemented in Teleport 10. See the [documentation](https://goteleport.com/docs/setup/guides/ec2-tags/#enable-tags-in-instance-metadata).
 
 ### Related issues
 
