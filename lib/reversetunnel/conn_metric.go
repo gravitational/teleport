@@ -51,10 +51,12 @@ type metricConn struct {
 }
 
 // newMetricConn returns a new metricConn
-func newMetricConn(clock clockwork.Clock) *metricConn {
+func newMetricConn(conn net.Conn, dt dialType, start time.Time, clock clockwork.Clock) *metricConn {
 	return &metricConn{
-		clock: clock,
-		start: clock.Now(),
+		Conn:     conn,
+		dialType: dt,
+		start:    start,
+		clock:    clock,
 	}
 }
 
@@ -66,20 +68,12 @@ func (c *metricConn) duration() time.Duration {
 	return d
 }
 
-// addConn updates the connection and dial type. It also reports the time
-// it took to establish the connection.
-func (c *metricConn) addConn(conn net.Conn, dt dialType) {
-	c.dialType = dt
-	c.Conn = conn
-	connLatency.WithLabelValues(string(c.dialType), "established").Observe(c.duration().Seconds())
-}
-
 // Read wraps a net.Conn.Read to report the time between the connection being established
 // and the connection being used.
 func (c *metricConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	c.firstUse.Do(func() {
-		connLatency.WithLabelValues(string(c.dialType), "first_use").Observe(c.duration().Seconds())
+		connLatency.WithLabelValues(string(c.dialType), "first_read").Observe(c.duration().Seconds())
 	})
 	return n, err
 }
