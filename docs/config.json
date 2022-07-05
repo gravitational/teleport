@@ -822,7 +822,23 @@
           "slug": "/enterprise/workflow/",
           "hideInScopes": [
             "oss"
-          ]
+          ],
+		  "entries": [
+			{
+			  "title": "Resource Access Requests",
+			  "slug": "/enterprise/workflow/resource-requests/",
+			  "hideInScopes": [
+				"oss"
+			  ]
+			},
+			{
+			  "title": "Role Access Requests",
+			  "slug": "/enterprise/workflow/role-requests/",
+			  "hideInScopes": [
+				"oss"
+			  ]
+			}
+		  ]
         },
         {
           "title": "FedRAMP",
