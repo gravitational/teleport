@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sirupsen/logrus"
 )
@@ -92,5 +92,5 @@ func TestInvalidCommand(t *testing.T) {
 	val, ok := l.Get()["foo"]
 	require.True(t, ok)
 	require.Contains(t, val.GetResult(), "output:")
-	require.Contains(t,val.GetResult(), l.c.Labels["foo"].GetCommand()[0] )
+	require.Contains(t, val.GetResult(), l.c.Labels["foo"].GetCommand()[0])
 }
