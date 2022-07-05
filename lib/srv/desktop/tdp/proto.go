@@ -1131,7 +1131,6 @@ func (s SharedDirectoryReadRequest) Encode() ([]byte, error) {
 	buf.WriteByte(byte(TypeSharedDirectoryReadRequest))
 	binary.Write(buf, binary.BigEndian, s.CompletionID)
 	binary.Write(buf, binary.BigEndian, s.DirectoryID)
-	// binary.Write(buf, binary.BigEndian, s.PathLength)
 	if err := encodeString(buf, s.Path); err != nil {
 		return nil, trace.Wrap(err)
 	}
