@@ -19,12 +19,12 @@ package regular
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv"
@@ -148,7 +148,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		for {
 			// Read up to a NULL byte, the child process uses this to
 			// delimit audit events
-			eventBytes, err := r.ReadBytes(0x0)
+			eventStr, err := r.ReadString(0x0)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
 					s.log.WithError(err).Warn("Failed to read SFTP event.")
@@ -156,8 +156,8 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 				return
 			}
 
-			var sftpEvent *apievents.SFTP
-			err = json.Unmarshal(eventBytes[:len(eventBytes)-1], &sftpEvent)
+			var sftpEvent apievents.SFTP
+			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &sftpEvent)
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
 				continue
@@ -169,7 +169,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 			sftpEvent.UserMetadata = userMeta
 			sftpEvent.ConnectionMetadata = connectionMeta
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, sftpEvent); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, &sftpEvent); err != nil {
 				log.WithError(err).Warn("Failed to emit SFTP event.")
 			}
 		}

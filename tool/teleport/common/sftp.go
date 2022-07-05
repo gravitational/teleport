@@ -18,14 +18,13 @@ package common
 
 import (
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,8 +80,8 @@ func onSFTP() error {
 	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
-	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket, path string, opErr error) {
-		event, ok := handleSFTPEvent(reqPacket, path, opErr)
+	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket) {
+		event, ok := handleSFTPEvent(reqPacket)
 		if !ok {
 			// We don't care about this type of SFTP request, move on
 			return
@@ -98,13 +97,15 @@ func onSFTP() error {
 	// process to avoid blocking the SFTP connection on event handling
 	done := make(chan struct{})
 	go func() {
+		var m jsonpb.Marshaler
 		for event := range sftpEvents {
-			eventBytes, err := json.Marshal(event)
+			eventStr, err := m.MarshalToString(event)
 			if err != nil {
 				log.WithError(err).Warn("Failed to marshal SFTP event.")
 			} else {
 				// Append a NULL byte so the parent process will know where
 				// this event ends
+				eventBytes := []byte(eventStr)
 				eventBytes = append(eventBytes, 0x0)
 				_, err = io.Copy(auditFile, bytes.NewReader(eventBytes))
 				if err != nil {
@@ -130,7 +131,7 @@ func onSFTP() error {
 	return trace.NewAggregate(serveErr, sftpSrv.Close())
 }
 
-func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*apievents.SFTP, bool) {
+func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPEvent,
@@ -138,159 +139,165 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket, path string, opErr error) (*a
 		},
 	}
 
-	switch p := reqPacket.(type) {
-	case *sftp.OpenPacket:
-		if opErr == nil {
+	switch reqPacket.Type {
+	case sftp.Open:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPOpenCode
 		} else {
 			event.Code = events.SFTPOpenFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPEN
-		event.Path = makePathAbs(p.Path)
-		event.Flags = p.Pflags
-	case *sftp.ClosePacket:
-		if opErr == nil {
+	case sftp.Close:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPCloseCode
 		} else {
 			event.Code = events.SFTPCloseFailureCode
 		}
 		event.Action = apievents.SFTPAction_CLOSE
-		event.Path = makePathAbs(path)
-	case *sftp.ReadPacket:
-		if opErr == nil {
+	case sftp.Read:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPReadCode
 		} else {
 			event.Code = events.SFTPReadFailureCode
 		}
 		event.Action = apievents.SFTPAction_READ
-		event.Path = makePathAbs(path)
-	case *sftp.WritePacket:
-		if opErr == nil {
+	case sftp.Write:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPWriteCode
 		} else {
 			event.Code = events.SFTPWriteFailureCode
 		}
 		event.Action = apievents.SFTPAction_WRITE
-		event.Path = makePathAbs(path)
-	case *sftp.LstatPacket:
-		if opErr == nil {
+	case sftp.Lstat:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPLstatCode
 		} else {
 			event.Code = events.SFTPLstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_LSTAT
-		event.Path = makePathAbs(p.Path)
-	case *sftp.FstatPacket:
-		if opErr == nil {
+	case sftp.Fstat:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPFstatCode
 		} else {
 			event.Code = events.SFTPFstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_FSTAT
-		event.Path = makePathAbs(path)
-	case *sftp.SetstatPacket:
-		if opErr == nil {
+	case sftp.Setstat:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPSetstatCode
 		} else {
 			event.Code = events.SFTPSetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_SETSTAT
-		event.Path = makePathAbs(p.Path)
-		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
-	case *sftp.FsetstatPacket:
-		if opErr == nil {
+	case sftp.Fsetstat:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPFsetstatCode
 		} else {
 			event.Code = events.SFTPFsetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_FSETSTAT
-		event.Path = makePathAbs(path)
-		event.Attributes = unmarshalSFTPAttrs(p.Flags, p.Attrs.([]byte))
-	case *sftp.OpendirPacket:
-		if opErr == nil {
+	case sftp.Opendir:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPOpendirCode
 		} else {
 			event.Code = events.SFTPOpendirFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPENDIR
-		event.Path = makePathAbs(p.Path)
-	case *sftp.ReaddirPacket:
-		if opErr == nil {
+	case sftp.Readdir:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPReaddirCode
 		} else {
 			event.Code = events.SFTPReaddirFailureCode
 		}
 		event.Action = apievents.SFTPAction_READDIR
-		event.Path = makePathAbs(path)
-	case *sftp.RemovePacket:
-		if opErr == nil {
+	case sftp.Remove:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPRemoveCode
 		} else {
 			event.Code = events.SFTPRemoveFailureCode
 		}
 		event.Action = apievents.SFTPAction_REMOVE
-		event.Path = makePathAbs(p.Filename)
-	case *sftp.MkdirPacket:
-		if opErr == nil {
+	case sftp.Mkdir:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPMkdirCode
 		} else {
 			event.Code = events.SFTPMkdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_MKDIR
-		event.Path = makePathAbs(p.Path)
-		event.Flags = p.Flags
-	case *sftp.RmdirPacket:
-		if opErr == nil {
+	case sftp.Rmdir:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPRmdirCode
 		} else {
 			event.Code = events.SFTPRmdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_RMDIR
-		event.Path = makePathAbs(p.Path)
-	case *sftp.RealpathPacket:
-		if opErr == nil {
+	case sftp.Realpath:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPRealpathCode
 		} else {
 			event.Code = events.SFTPRealpathFailureCode
 		}
 		event.Action = apievents.SFTPAction_REALPATH
-		event.Path = makePathAbs(p.Path)
-	case *sftp.StatPacket:
-		if opErr == nil {
+	case sftp.Stat:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPStatCode
 		} else {
 			event.Code = events.SFTPStatFailureCode
 		}
 		event.Action = apievents.SFTPAction_STAT
-		event.Path = makePathAbs(p.Path)
-	case *sftp.RenamePacket:
-		if opErr == nil {
+	case sftp.Rename:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPRenameCode
 		} else {
 			event.Code = events.SFTPRenameFailureCode
 		}
 		event.Action = apievents.SFTPAction_RENAME
-		event.Path = makePathAbs(p.Oldpath)
-		event.TargetPath = makePathAbs(p.Newpath)
-	case *sftp.ReadlinkPacket:
-		if opErr == nil {
+	case sftp.Readlink:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPReadlinkCode
 		} else {
 			event.Code = events.SFTPReadlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_READLINK
-		event.Path = makePathAbs(p.Path)
-	case *sftp.SymlinkPacket:
-		if opErr == nil {
+	case sftp.Symlink:
+		if reqPacket.Err == nil {
 			event.Code = events.SFTPSymlinkCode
 		} else {
 			event.Code = events.SFTPSymlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_SYMLINK
-		event.Path = makePathAbs(p.Targetpath)
-		event.TargetPath = makePathAbs(p.Linkpath)
 	default:
 		return nil, false
+	}
+
+	event.Path = makePathAbs(reqPacket.Path)
+	event.TargetPath = makePathAbs(reqPacket.TargetPath)
+	event.Flags = reqPacket.Flags
+	if reqPacket.Attributes != nil {
+		event.Attributes = &apievents.SFTPAttributes{
+			AccessTime:       reqPacket.Attributes.AccessTime,
+			ModificationTime: reqPacket.Attributes.ModificationTime,
+		}
+		if reqPacket.Attributes.Size != nil {
+			event.Attributes.OptionalSize = &apievents.SFTPAttributes_Size_{
+				Size_: *reqPacket.Attributes.Size,
+			}
+		}
+		if reqPacket.Attributes.UID != nil {
+			event.Attributes.OptionalUID = &apievents.SFTPAttributes_UID{
+				UID: *reqPacket.Attributes.UID,
+			}
+		}
+		if reqPacket.Attributes.GID != nil {
+			event.Attributes.OptionalGID = &apievents.SFTPAttributes_GID{
+				GID: *reqPacket.Attributes.GID,
+			}
+		}
+		if reqPacket.Attributes.Permissions != nil {
+			event.Attributes.OptionalPermissions = &apievents.SFTPAttributes_Permissions{
+				Permissions: uint32(*reqPacket.Attributes.Permissions),
+			}
+		}
 	}
 
 	return event, true
@@ -300,60 +307,8 @@ func makePathAbs(path string) string {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		log.WithError(err).Warn("Failed to make filepath in SFTP request absolute.")
+		return path
 	}
 
 	return absPath
-}
-
-const (
-	sftpSizeAttr      uint32 = 1
-	sftpUIDGIDAttr    uint32 = 2
-	sftpPermsAttr     uint32 = 4
-	sftpACMODTimeAttr uint32 = 8
-)
-
-func unmarshalSFTPAttrs(flags uint32, b []byte) *apievents.SFTPAttributes {
-	var attrs apievents.SFTPAttributes
-	if flags&sftpSizeAttr != 0 {
-		if len(b) < 8 {
-			return nil
-		}
-
-		attrs.Size_ = binary.BigEndian.Uint64(b)
-		b = b[8:]
-	}
-	if flags&sftpPermsAttr != 0 {
-		if len(b) < 4 {
-			return nil
-		}
-
-		attrs.Permissions = binary.BigEndian.Uint32(b)
-		b = b[4:]
-	}
-	if flags&sftpACMODTimeAttr != 0 {
-		if len(b) < 8 {
-			return nil
-		}
-
-		atime := binary.BigEndian.Uint32(b)
-		b = b[4:]
-		mtime := binary.BigEndian.Uint32(b)
-		b = b[4:]
-
-		atimeT := time.Unix(int64(atime), 0)
-		mtimeT := time.Unix(int64(mtime), 0)
-		attrs.AccessTime = &atimeT
-		attrs.ModificationTime = &mtimeT
-	}
-	if flags&sftpUIDGIDAttr != 0 {
-		if len(b) < 8 {
-			return nil
-		}
-
-		attrs.UID = binary.BigEndian.Uint32(b)
-		b = b[4:]
-		attrs.GID = binary.BigEndian.Uint32(b)
-	}
-
-	return &attrs
 }

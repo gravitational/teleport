@@ -934,16 +934,16 @@ message SCP {
 // SFTPAttributes are file metadata sent over SFTP
 message SFTPAttributes {
     // Size is file size
-    uint64 Size = 1 [ (gogoproto.jsontag) = "size" ];
+    oneof OptionalSize { uint64 Size = 1 [ (gogoproto.jsontag) = "size" ]; }
 
     // UID is the user owner of a file
-    uint32 UID = 2 [ (gogoproto.jsontag) = "uid" ];
+    oneof OptionalUID { uint32 UID = 2 [ (gogoproto.jsontag) = "uid" ]; }
 
     // GID is the group owner of the file
-    uint32 GID = 3 [ (gogoproto.jsontag) = "gid" ];
+    oneof OptionalGID { uint32 GID = 3 [ (gogoproto.jsontag) = "gid" ]; }
 
     // Permissions is the file permissions
-    uint32 Permissions = 4 [ (gogoproto.jsontag) = "permissions" ];
+    oneof OptionalPermissions { uint32 Permissions = 4 [ (gogoproto.jsontag) = "permissions" ]; }
 
     // AccessTime is when the file was last read
     google.protobuf.Timestamp AccessTime = 5
