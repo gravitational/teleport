@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/mailgun/timetools"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -1411,13 +1412,55 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
+func testHelperGetWaitForServerStart(t *testing.T, s *Server, config *ssh.ClientConfig) func() bool {
+	return func() bool {
+		clt, _ := ssh.Dial("tcp", s.Addr(), config)
+		if clt != nil {
+			require.NoError(t, clt.Close())
+			require.ErrorIs(t, clt.Wait(), net.ErrClosed)
+			return true
+		}
+		return false
+	}
+}
+
+func testHelperGetWaitForNumberOfConns(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+	return func() bool {
+		connNumber, err := limiter.GetNumConnection(token)
+		require.NoError(t, err)
+		return connNumber == num
+	}
+}
+
+type fakeClock struct {
+	clock clockwork.FakeClock
+}
+
+func (fc fakeClock) UtcNow() time.Time {
+	return fc.clock.Now().UTC()
+}
+
+func (fc fakeClock) Sleep(d time.Duration) {
+	fc.clock.Advance(d)
+}
+
+func (fc fakeClock) After(d time.Duration) <-chan time.Time {
+	return fc.clock.After(d)
+}
+
+var _ timetools.TimeProvider = (*fakeClock)(nil)
+
 func TestLimiter(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
 
+	fClock := &fakeClock{
+		clock: f.clock,
+	}
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
+			Clock:          fClock,
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
 				{
@@ -1463,13 +1506,15 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, auth.CreateUploaderDir(nodeStateDir))
 	defer srv.Close()
 
-	// maxConnection = 3
-	// current connections = 1 (one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
 		User:            f.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(f.up.certSigner)},
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
 	}
+
+	require.Eventually(t, testHelperGetWaitForServerStart(t, srv, config), time.Second*10, time.Millisecond*100)
+	// Advancing clock here so it wont interfere with the rate limit testing bellow
+	fClock.Sleep(time.Second * 100)
 
 	clt0, err := ssh.Dial("tcp", srv.Addr(), config)
 	require.NoError(t, err)
@@ -1479,43 +1524,49 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, se0.Shell())
 
-	// current connections = 2
+	// current connections = 1
 	clt, err := ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	se, err := clt.NewSession()
 	require.NoError(t, err)
 	require.NoError(t, se.Shell())
 
-	// current connections = 3
+	// current connections = 2
 	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	require.Error(t, err)
 
 	require.NoError(t, se.Close())
+	se.Wait()
 	require.NoError(t, clt.Close())
-	time.Sleep(50 * time.Millisecond)
+	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	// current connections = 2
+	require.Eventually(t, testHelperGetWaitForNumberOfConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+
+	// current connections = 1
 	clt, err = ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	se, err = clt.NewSession()
 	require.NoError(t, err)
 	require.NoError(t, se.Shell())
 
-	// current connections = 3
+	// current connections = 2
 	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	require.Error(t, err)
 
 	require.NoError(t, se.Close())
+	se.Wait()
 	require.NoError(t, clt.Close())
-	time.Sleep(50 * time.Millisecond)
+	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	// current connections = 2
+	require.Eventually(t, testHelperGetWaitForNumberOfConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+
+	// current connections = 1
 	// requests rate should exceed now
 	clt, err = ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	_, err = clt.NewSession()
 	require.Error(t, err)
 
