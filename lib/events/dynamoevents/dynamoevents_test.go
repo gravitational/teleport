@@ -280,7 +280,11 @@ func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.
 		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
-	c.Check(trace.Unwrap(err), check.FitsTypeOf, errAWSValidation)
+	c.Assert(err, check.NotNil)
+}
+
+func (s *DynamoeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
