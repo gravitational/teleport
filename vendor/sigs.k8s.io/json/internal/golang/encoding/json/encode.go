@@ -1246,13 +1246,13 @@ func typeFields(t reflect.Type) structFields {
 					if t.Kind() == reflect.Ptr {
 						t = t.Elem()
 					}
-					if !sf.IsExported() && t.Kind() != reflect.Struct {
+					if sf.PkgPath != "" && t.Kind() != reflect.Struct {
 						// Ignore embedded fields of unexported non-struct types.
 						continue
 					}
 					// Do not ignore embedded fields of unexported struct types
 					// since they may have exported fields.
-				} else if !sf.IsExported() {
+				} else if sf.PkgPath != "" {
 					// Ignore unexported non-embedded fields.
 					continue
 				}
