@@ -630,10 +630,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 		if err := databaseLogin(cf, tc, dbRoute, db, true); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		if err := checkRoute(tc, cf, profile, dbRoute, db); err != nil {
-			return trace.Wrap(err)
-		}
+	} else if err := checkRoute(tc, cf, profile, dbRoute, db); err != nil {
+		return trace.Wrap(err)
 	}
 
 	key, err := tc.LocalAgent().GetCoreKey()
@@ -817,24 +815,24 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // Standard RBAC checks are still enforced
 // at connection time - this check just attempts to "fail fast" with
 // a user-friendly error.
-func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) error {
+func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) (err error) {
 	roleSet, err := fetchCurrentClusterRoleSet(tc, cf, profile)
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	dbUsers := roleSet.EnumerateDatabaseUsers(db)
 	// catch the cases where a user will be denied no matter what.
 	if dbUsers.WildcardDenied() {
-		return trace.AccessDenied("all db_users are denied for database %q (user has a role that denies db_users wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+		return trace.AccessDenied("Your Teleport role(s) deny login as any db user (db_users wildcard %q is denied). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", types.Wildcard)
 	}
 	if !dbUsers.IsAnyAllowed() {
-		return trace.AccessDenied("user does not have any allowed db_users for database %q", dbRoute.ServiceName)
+		return trace.AccessDenied("Your Teleport role(s) do not allow login as any db user for database %q. Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName)
 	}
 
 	// if the user asked for a specific --db-user we can check it here
 	if dbRoute.Username != "" && !dbUsers.IsAllowed(dbRoute.Username) {
-		return trace.AccessDenied("user has no role that allows login as db_users %q for database %q", dbRoute.Username, dbRoute.ServiceName)
+		return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q as db user %q. Use `tsh db ls` to see available logins or ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Username)
 	}
 
 	// we only enforce db_names access for postgres and mongo, so check access for those protocols
@@ -843,15 +841,15 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 		dbNames := roleSet.EnumerateDatabaseNames(db)
 		// catch the cases where a user will be denied no matter what.
 		if dbNames.WildcardDenied() {
-			return trace.AccessDenied("all db_names are denied for database %q (user has a role that denies db_names wildcard %q)", dbRoute.ServiceName, types.Wildcard)
+			return trace.AccessDenied("Your Teleport role(s) deny db_names wildcard %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", types.Wildcard, dbRoute.Protocol)
 		}
 		if !dbNames.IsAnyAllowed() {
-			return trace.AccessDenied("user does not have any allowed db_names for database %q (required for %q protocol)", dbRoute.ServiceName, dbRoute.Protocol)
+			return trace.AccessDenied("Your Teleport role(s) do not allow login to any db name for database %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Protocol)
 		}
 
 		// if the user asked for a specific --db-name we can check it here
 		if dbRoute.Database != "" && !dbNames.IsAllowed(dbRoute.Database) {
-			return trace.AccessDenied("user has no role that allows login to db_names %q for database %q (required for %q protocol)", dbRoute.Database, dbRoute.ServiceName, dbRoute.Protocol)
+			return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q with db name %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Database, dbRoute.Protocol)
 		}
 	}
 	return nil

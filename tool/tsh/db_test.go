@@ -264,10 +264,10 @@ func TestDatabaseRouteCheck(t *testing.T) {
 				"db_names": tt.allowDBNames,
 			})
 
-			err = authServer.CreateUser(context.TODO(), user)
+			err = authServer.CreateUser(context.Background(), user)
 			require.NoError(t, err)
 
-			err = authServer.UpsertRole(context.TODO(), denierRole)
+			err = authServer.UpsertRole(context.Background(), denierRole)
 			require.NoError(t, err)
 
 			// Log into Teleport cluster.
