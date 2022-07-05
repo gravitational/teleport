@@ -352,7 +352,10 @@ In this example, we're creating a certificate with a TTL of one hour for the
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# To be executed on a Teleport Auth Server
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
