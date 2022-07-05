@@ -27,7 +27,7 @@ This RFD was spawned by https://github.com/gravitational/teleport/issues/2967. T
 
 ## Why
 
-This is a useful feature to reduce friction and make it easier for users to access Teleport via WebUI. Currently, one has to navigate to the Teleport WebUI and click the "Login" button. This isn't always optimal and we can reduce friction by allowing users to access Teleport WebUI directly from their SSO provider's landing page, such as the Okta dashboard.
+This is a useful feature to reduce friction and make it easier for users to access Teleport via WebUI. Currently, one has to navigate to the Teleport WebUI and click the "Login" button (which in turn directs the user to their SSO provider). This isn't always optimal and we can reduce friction by allowing users to access Teleport WebUI directly from their SSO providers' landing page, such as the Okta dashboard.
 
 ## Details
 
