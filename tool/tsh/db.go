@@ -61,7 +61,6 @@ func onListDatabases(cf *CLIConf) error {
 	var databases []types.Database
 	var roleSet services.RoleSet
 
-	log.Errorf("---STeve cluster name %v", profile.Cluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		errors := syncErrors{}
 		waitGroup := sync.WaitGroup{}
@@ -218,7 +217,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			errorsPerProfile := syncErrors{}
 			waitPerProfile := sync.WaitGroup{}
 			waitPerProfile.Add(2)
-			var databasesByClusterNames map[string][]types.Database
+			var databasesByCluster map[string][]types.Database
 			var proxyClient *client.ProxyClient
 
 			go func() {
@@ -230,7 +229,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					return
 				}
 
-				databasesByClusterNames = result
+				databasesByCluster = result
 			}()
 
 			go func() {
@@ -252,7 +251,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			}
 
 			// Add fetch roles for each cluster to waitAll.
-			for clusterName, databases := range databasesByClusterNames {
+			for clusterName, databases := range databasesByCluster {
 				waitAll.Add(1)
 				go func() {
 					defer waitAll.Done()
