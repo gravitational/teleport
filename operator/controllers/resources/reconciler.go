@@ -18,15 +18,12 @@ package resources
 
 import (
 	"context"
-	"fmt"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -123,59 +120,4 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
-// value is kubernetes.
-func isResourceOriginKubernetes(resource types.Resource) bool {
-	metadata := resource.GetMetadata()
-	if label, ok := metadata.Labels[types.OriginLabel]; ok {
-		return label == types.OriginKubernetes
-	}
-	return false
-}
-
-func checkOwnership(exists bool, existingResource types.Resource, setCondition func(condition metav1.Condition) error) error {
-	if exists {
-		if !isResourceOriginKubernetes(existingResource) {
-			// Existing Teleport resource does not belong to us, bailing out
-
-			condition := metav1.Condition{
-				Type:    "TeleportResourceOwned",
-				Status:  metav1.ConditionFalse,
-				Reason:  "OriginLabelNotMatching",
-				Message: "A resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
-			}
-			err := setCondition(condition)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.AlreadyExists("unowned resource already exists", existingResource)
-		}
-		fmt.Println("Existing resource owned")
-
-		condition := metav1.Condition{
-			Type:    "TeleportResourceOwned",
-			Status:  metav1.ConditionTrue,
-			Reason:  "OriginLabelMatching",
-			Message: "Teleport resource has the Kubernetes origin label.",
-		}
-		err := setCondition(condition)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-
-	condition := metav1.Condition{
-		Type:    "TeleportResourceOwned",
-		Status:  metav1.ConditionTrue,
-		Reason:  "NewResource",
-		Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
-	}
-	err := setCondition(condition)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }

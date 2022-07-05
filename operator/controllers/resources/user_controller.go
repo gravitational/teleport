@@ -83,7 +83,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(err)
 	}
 
-	exists := trace.IsNotFound(err)
+	exists := !trace.IsNotFound(err)
 
 	updateCondition := func(condition metav1.Condition) error {
 		meta.SetStatusCondition(&k8sResource.Status.Conditions, condition)
@@ -94,7 +94,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return nil
 	}
 
-	err = checkOwnership(exists, existingResource, updateCondition)
+	err = checkOwnership(existingResource, updateCondition)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,6 +109,9 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 func (r *UserReconciler) addTeleportResourceOrigin(resource *types.User) {
 	metadata := (*resource).GetMetadata()
+	if metadata.Labels == nil {
+		metadata.Labels = make(map[string]string)
+	}
 	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
 	(*resource).SetMetadata(metadata)
 }
