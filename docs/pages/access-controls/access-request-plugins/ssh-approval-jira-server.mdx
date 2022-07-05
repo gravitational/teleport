@@ -176,7 +176,7 @@ By default, the Jira Teleport plugin will use a config in `/etc/teleport-jira.to
   </Tabs>
 
 Use the following command to create a Kubernetes secret from the identity file
-generated in the [export identity](#step-37-export-the-access-plugin-identity) section:
+generated in the [export identity](#export-access-plugin-certificate) section:
 
 ```console
 kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
