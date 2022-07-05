@@ -27,6 +27,9 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -220,6 +223,9 @@ func (t *proxySubsys) String() string {
 // Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(ctx context.Context, sconn *tracessh.ServerConn, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+	ctx, span := otel.GetTracerProvider().Tracer(teleport.ComponentProxy).Start(ctx, "proxySubsystem.Start")
+	defer span.End()
+
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
@@ -269,7 +275,7 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *tracessh.ServerConn, ch 
 			t.clusterName = site.GetName()
 			t.log.Debugf("Cluster not specified. connecting to default='%s'", site.GetName())
 		}
-		return t.proxyToHost(scx, site, clientAddr, ch)
+		return t.proxyToHost(ctx, scx, site, clientAddr, ch)
 	}
 	// connect to a site's auth server:
 	return t.proxyToSite(scx, site, clientAddr, ch)
@@ -309,7 +315,15 @@ func (t *proxySubsys) proxyToSite(
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
 func (t *proxySubsys) proxyToHost(
-	ctx *srv.ServerContext, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	ctx context.Context,
+	scx *srv.ServerContext,
+	site reversetunnel.RemoteSite,
+	remoteAddr net.Addr,
+	ch ssh.Channel,
+) error {
+	ctx, span := otel.GetTracerProvider().Tracer(teleport.ComponentProxy).Start(ctx, "proxySubsystem.proxyToHost")
+	defer span.End()
+
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -328,7 +342,7 @@ func (t *proxySubsys) proxyToHost(
 	if site.GetName() == localCluster.GetName() {
 		nodeWatcher = t.srv.nodeWatcher
 
-		cfg, err := t.srv.authService.GetClusterNetworkingConfig(ctx.CancelContext())
+		cfg, err := t.srv.authService.GetClusterNetworkingConfig(scx.CancelContext())
 		if err != nil {
 			t.log.Warn(err)
 		} else {
@@ -347,7 +361,7 @@ func (t *proxySubsys) proxyToHost(
 				nodeWatcher = watcher
 			}
 
-			cfg, err := siteClient.GetClusterNetworkingConfig(ctx.CancelContext())
+			cfg, err := siteClient.GetClusterNetworkingConfig(scx.CancelContext())
 			if err != nil {
 				t.log.Warn(err)
 			} else {
@@ -361,10 +375,22 @@ func (t *proxySubsys) proxyToHost(
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v, strategy=%s", t.host, t.port, t.SpecifiedPort(), strategy)
 
 	// determine which server to connect to
+	span.AddEvent("determining server",
+		oteltrace.WithAttributes(
+			attribute.String("host", t.host),
+			attribute.String("port", t.port),
+		),
+	)
 	server, err := t.getMatchingServer(nodeWatcher, strategy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	span.AddEvent("found server",
+		oteltrace.WithAttributes(
+			attribute.String("server", server.GetName()),
+			attribute.Bool("tunnel", server.GetUseTunnel()),
+		),
+	)
 
 	// Create a slice of principals that will be added into the host certificate.
 	// Here t.host is either an IP address or a DNS name as the user requested.
@@ -408,6 +434,8 @@ func (t *proxySubsys) proxyToHost(
 		AddrNetwork: "tcp",
 		Addr:        serverAddr,
 	}
+
+	span.AddEvent("dialing server")
 	conn, err := site.Dial(reversetunnel.DialParams{
 		From:         remoteAddr,
 		To:           toAddr,
@@ -421,10 +449,13 @@ func (t *proxySubsys) proxyToHost(
 		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
+	span.AddEvent("dialed server")
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
+	span.AddEvent("performing handshake")
 	t.doHandshake(remoteAddr, ch, conn)
+	span.AddEvent("connected to server")
 
 	proxiedSessions.Inc()
 	go func() {

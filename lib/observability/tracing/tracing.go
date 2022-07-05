@@ -83,6 +83,14 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("exporter URL cannot be empty")
 	}
 
+	if c.DialTimeout <= 0 {
+		c.DialTimeout = DefaultExporterDialTimeout
+	}
+
+	if c.Logger == nil {
+		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
+	}
+
 	// first check if a network address is specified, if it was, default
 	// to using grpc. If provided a URL, ensure that it is valid
 	h, _, err := net.SplitHostPort(c.ExporterURL)
@@ -107,14 +115,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	c.exporterURL = &url.URL{
 		Scheme: "grpc",
 		Host:   c.ExporterURL,
-	}
-
-	if c.DialTimeout <= 0 {
-		c.DialTimeout = DefaultExporterDialTimeout
-	}
-
-	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
 	}
 
 	return nil
