@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -231,37 +231,37 @@ func (u *UserV2) setTrait(trait string, list []string) {
 
 // SetLogins sets the Logins trait for the user
 func (u *UserV2) SetLogins(logins []string) {
-	u.setTrait(teleport.TraitLogins, logins)
+	u.setTrait(constants.TraitLogins, logins)
 }
 
 // SetDBUsers sets the DBUsers trait for the user
 func (u *UserV2) SetDBUsers(dbUsers []string) {
-	u.setTrait(teleport.TraitDBUsers, dbUsers)
+	u.setTrait(constants.TraitDBUsers, dbUsers)
 }
 
 // SetDBNames sets the DBNames trait for the user
 func (u *UserV2) SetDBNames(dbNames []string) {
-	u.setTrait(teleport.TraitDBNames, dbNames)
+	u.setTrait(constants.TraitDBNames, dbNames)
 }
 
 // SetKubeUsers sets the KubeUsers trait for the user
 func (u *UserV2) SetKubeUsers(kubeUsers []string) {
-	u.setTrait(teleport.TraitKubeUsers, kubeUsers)
+	u.setTrait(constants.TraitKubeUsers, kubeUsers)
 }
 
 // SetKubeGroups sets the KubeGroups trait for the user
 func (u *UserV2) SetKubeGroups(kubeGroups []string) {
-	u.setTrait(teleport.TraitKubeGroups, kubeGroups)
+	u.setTrait(constants.TraitKubeGroups, kubeGroups)
 }
 
 // SetWindowsLogins sets the WindowsLogins trait for the user
 func (u *UserV2) SetWindowsLogins(logins []string) {
-	u.setTrait(teleport.TraitWindowsLogins, logins)
+	u.setTrait(constants.TraitWindowsLogins, logins)
 }
 
 // SetAWSRoleARNs sets the AWSRoleARNs trait for the user
 func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
-	u.setTrait(teleport.TraitAWSRoleARNs, awsRoleARNs)
+	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
 }
 
 // GetStatus returns login status of the user

@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
@@ -135,7 +135,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				Logins: &[]string{"login1", "login2"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitLogins: {"login1", "login2"},
+				constants.TraitLogins: {"login1", "login2"},
 			},
 		},
 		{
@@ -148,9 +148,9 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				DBNames: &[]string{"dbname1", "dbname2"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitDBUsers: {"dbuser1", "dbuser2"},
-				teleport.TraitDBNames: {"dbname1", "dbname2"},
-				teleport.TraitLogins:  defaultLogins,
+				constants.TraitDBUsers: {"dbuser1", "dbuser2"},
+				constants.TraitDBNames: {"dbname1", "dbname2"},
+				constants.TraitLogins:  defaultLogins,
 			},
 		},
 		{
@@ -163,9 +163,9 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				KubeGroups: &[]string{"kubegroup1", "kubegroup2"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitKubeUsers:  {"kubeuser1", "kubeuser2"},
-				teleport.TraitKubeGroups: {"kubegroup1", "kubegroup2"},
-				teleport.TraitLogins:     defaultLogins,
+				constants.TraitKubeUsers:  {"kubeuser1", "kubeuser2"},
+				constants.TraitKubeGroups: {"kubegroup1", "kubegroup2"},
+				constants.TraitLogins:     defaultLogins,
 			},
 		},
 		{
@@ -177,8 +177,8 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				WindowsLogins: &[]string{"login1", "login2"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitWindowsLogins: {"login1", "login2"},
-				teleport.TraitLogins:        defaultLogins,
+				constants.TraitWindowsLogins: {"login1", "login2"},
+				constants.TraitLogins:        defaultLogins,
 			},
 		},
 		{
@@ -190,8 +190,8 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				AWSRolesARN: &[]string{"arn1", "arn2"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitAWSRoleARNs: {"arn1", "arn2"},
-				teleport.TraitLogins:      defaultLogins,
+				constants.TraitAWSRoleARNs: {"arn1", "arn2"},
+				constants.TraitLogins:      defaultLogins,
 			},
 		},
 		{
@@ -202,7 +202,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				Logins: &[]string{"login1", "login2", "login1"},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitLogins: {"login1", "login2"},
+				constants.TraitLogins: {"login1", "login2"},
 			},
 		},
 		{
@@ -213,7 +213,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 				Logins: &[]string{},
 			},
 			expectedTraits: map[string][]string{
-				teleport.TraitLogins: {},
+				constants.TraitLogins: {},
 			},
 		},
 	}
