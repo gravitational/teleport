@@ -150,6 +150,9 @@ func TestRoleUpdate(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	metadata := tRole.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tRole.SetMetadata(metadata)
 
 	err = tClient.UpsertRole(ctx, tRole)
 	require.NoError(t, err)
@@ -177,9 +180,6 @@ func TestRoleUpdate(t *testing.T) {
 		if !assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z"}) {
 			return false
 		}
-
-		// Role does not have the Origin Label
-		require.NotEqual(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
 		return true
 	})
 
@@ -234,4 +234,55 @@ func k8sDeleteRole(ctx context.Context, t *testing.T, kc kclient.Client, roleNam
 func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *resourcesv5.Role) {
 	err := kc.Create(ctx, role)
 	require.NoError(t, err)
+}
+func TestAddTeleportResourceOriginRole(t *testing.T) {
+	r := RoleReconciler{}
+	tests := []struct {
+		name     string
+		resource types.Role
+	}{
+		{
+			name: "origin already set correctly",
+			resource: &types.RoleV5{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{types.OriginLabel: types.OriginKubernetes},
+				},
+			},
+		},
+		{
+			name: "origin already set incorrectly",
+			resource: &types.RoleV5{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+			},
+		},
+		{
+			name: "origin not set",
+			resource: &types.RoleV5{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{"foo": "bar"},
+				},
+			},
+		},
+		{
+			name: "no labels",
+			resource: &types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "user with no labels",
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r.addTeleportResourceOrigin(&tc.resource)
+			metadata := tc.resource.GetMetadata()
+			require.Contains(t, metadata.Labels, types.OriginLabel)
+			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
+		})
+	}
 }

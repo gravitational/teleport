@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -40,7 +39,6 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	resourcescontrollers "github.com/gravitational/teleport/operator/controllers/resources"
 	"github.com/gravitational/teleport/operator/sidecar"
-	"github.com/gravitational/trace"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -58,11 +56,6 @@ func init() {
 
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
 }
-
-const (
-	namespacePath   = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	namespaceEnvVar = "POD_NAMESPACE"
-)
 
 func main() {
 	ctx := ctrl.SetupSignalHandler()
@@ -167,18 +160,4 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-func GetKubernetesNamespace() (string, error) {
-	namespace := os.Getenv(namespaceEnvVar)
-	if namespace != "" {
-		return namespace, nil
-	}
-
-	bs, err := os.ReadFile(namespacePath)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return strings.TrimSpace(string(bs)), nil
 }

@@ -104,6 +104,9 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 func (r *RoleReconciler) addTeleportResourceOrigin(resource *types.Role) {
 	metadata := (*resource).GetMetadata()
+	if metadata.Labels == nil {
+		metadata.Labels = make(map[string]string)
+	}
 	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
 	(*resource).SetMetadata(metadata)
 }
