@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/profile"
@@ -227,6 +228,8 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 
 	args := []string{
 		"-A",
+		// TODO: remove once we finish deprecating SHA1
+		"-o", fmt.Sprintf("PubkeyAcceptedKeyTypes=+%s", ssh.CertAlgoRSAv01),
 		"-o", fmt.Sprintf("UserKnownHostsFile=%s", profile.KnownHostsPath()),
 		"-o", fmt.Sprintf("CertificateFile=%s", profile.SSHCertPath()),
 		"-o", fmt.Sprintf("IdentityFile=%s", profile.UserKeyPath()),
