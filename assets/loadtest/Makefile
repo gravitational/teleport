@@ -1,6 +1,6 @@
 SOAK_TEST_DURATION ?= 30m
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:10.0.0-alpha.2
+TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:10.0.0
 NAMESPACE ?= loadtest
 
 .PHONY: reserve-ips
