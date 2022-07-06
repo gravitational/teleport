@@ -525,6 +525,10 @@ ssh_service:
     # command-line flag.
     permit_user_env: false
 
+    # Disables automatic creation of host users on this SSH node.
+    # Set to false by default.
+    disable_create_host_users: true
+
     # Enhanced Session Recording
     # see https://goteleport.com/docs/features/enhanced-session-recording/
     enhanced_recording:
