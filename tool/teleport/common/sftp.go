@@ -284,23 +284,23 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 			ModificationTime: reqPacket.Attributes.ModificationTime,
 		}
 		if reqPacket.Attributes.Size != nil {
-			event.Attributes.FileSize = &apievents.SFTPAttributes_OptionalFileSize{
-				OptionalFileSize: *reqPacket.Attributes.Size,
+			event.Attributes.FileSize = &apievents.UInt64Value{
+				Value: *reqPacket.Attributes.Size,
 			}
 		}
 		if reqPacket.Attributes.UID != nil {
-			event.Attributes.UID = &apievents.SFTPAttributes_OptionalUID{
-				OptionalUID: *reqPacket.Attributes.UID,
+			event.Attributes.UID = &apievents.UInt32Value{
+				Value: *reqPacket.Attributes.UID,
 			}
 		}
 		if reqPacket.Attributes.GID != nil {
-			event.Attributes.GID = &apievents.SFTPAttributes_OptionalGID{
-				OptionalGID: *reqPacket.Attributes.GID,
+			event.Attributes.GID = &apievents.UInt32Value{
+				Value: *reqPacket.Attributes.GID,
 			}
 		}
 		if reqPacket.Attributes.Permissions != nil {
-			event.Attributes.Permissions = &apievents.SFTPAttributes_OptionalPermissions{
-				OptionalPermissions: uint32(*reqPacket.Attributes.Permissions),
+			event.Attributes.Permissions = &apievents.UInt32Value{
+				Value: uint32(*reqPacket.Attributes.Permissions),
 			}
 		}
 	}
