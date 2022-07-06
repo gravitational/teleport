@@ -53,7 +53,12 @@ const props: State = {
   onWsClose: () => {},
   wsConnection: 'closed',
   disconnected: false,
-  setDisconnected: () => null,
+  setDisconnected: () => {},
+  setClipboardState: () => {},
+  setIsRecording: () => {},
+  canShareDirectory: true,
+  isSharingDirectory: false,
+  setIsSharingDirectory: () => {},
   onPngFrame: () => {},
   onTdpError: () => {},
   onKeyDown: () => {},
@@ -136,6 +141,7 @@ export const ConnectedSettingsTrue = () => {
         errorText: '',
       }}
       isRecording={true}
+      isSharingDirectory={true}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}

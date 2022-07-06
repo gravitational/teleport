@@ -46,6 +46,9 @@ export default function useDesktopSession() {
   // recording tracks whether or not a recording is in progress
   const [isRecording, setIsRecording] = useState(false);
 
+  const [canShareDirectory, setCanShareDirectory] = useState(false);
+  const [isSharingDirectory, setIsSharingDirectory] = useState(false);
+
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
   const [hostname, setHostname] = useState<string>('');
@@ -125,6 +128,7 @@ export default function useDesktopSession() {
         userService.fetchUserContext().then(user => {
           setHasClipboardSharingEnabled(user.acl.clipboardSharingEnabled);
           setIsRecording(user.acl.desktopSessionRecordingEnabled);
+          setCanShareDirectory(user.acl.directorySharingEnabled);
         }),
       ])
     );
@@ -148,7 +152,12 @@ export default function useDesktopSession() {
     hostname,
     username,
     clipboardState,
+    setClipboardState,
     isRecording,
+    setIsRecording,
+    canShareDirectory,
+    isSharingDirectory,
+    setIsSharingDirectory,
     fetchAttempt,
     tdpConnection,
     wsConnection,

@@ -107,7 +107,12 @@ function Session(props: PropsWithChildren<State>) {
     username,
     hostname,
     clipboardState,
+    setClipboardState,
     isRecording,
+    setIsRecording,
+    canShareDirectory,
+    isSharingDirectory,
+    setIsSharingDirectory,
     onPngFrame,
     onClipboardData,
     onTdpError,
@@ -144,11 +149,22 @@ function Session(props: PropsWithChildren<State>) {
       <TopBar
         onDisconnect={() => {
           setDisconnected(true);
+          setClipboardState(prevState => ({
+            ...prevState,
+            enabled: false,
+          }));
+          setIsRecording(false);
+          setIsSharingDirectory(false);
           tdpClient.nuke();
         }}
         userHost={`${username}@${hostname}`}
-        clipboard={clipboardSharingActive}
-        recording={isRecording}
+        clipboardSharingEnabled={clipboardSharingActive}
+        isRecording={isRecording}
+        canShareDirectory={canShareDirectory}
+        isSharingDirectory={isSharingDirectory}
+        onShareDirectory={() => {
+          setIsSharingDirectory(true);
+        }}
       />
 
       {props.children}

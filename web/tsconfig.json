@@ -28,7 +28,9 @@
     // Import non-ES modules as default imports.
     "esModuleInterop": true,
     // Skip type checking of libraries' declaration files.
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // TODO: https://github.com/gravitational/webapps/issues/957
+    "strictNullChecks": false,
   },
   "exclude": [
     "node_modules",

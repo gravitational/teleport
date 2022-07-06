@@ -39,11 +39,10 @@ export enum TdpClientEvent {
 // calling Client.nuke() (typically after Client emits a TdpClientEvent.DISCONNECT or TdpClientEvent.ERROR event) in order to clean
 // up its websocket listeners.
 export default class Client extends EventEmitterWebAuthnSender {
-  codec: Codec;
-  socket: WebSocket;
-  socketAddr: string;
-  username: string;
-  logger = Logger.create('TDPClient');
+  protected codec: Codec;
+  protected socket: WebSocket | undefined;
+  private socketAddr: string;
+  private logger = Logger.create('TDPClient');
 
   constructor(socketAddr: string) {
     super();
@@ -179,30 +178,41 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
+  protected send(
+    data: string | ArrayBufferLike | Blob | ArrayBufferView
+  ): void {
+    if (this.socket && this.socket.readyState === 1) {
+      this.socket.send(data);
+      return;
+    }
+
+    this.handleError(new Error('websocket unavailable'));
+  }
+
   sendUsername(username: string) {
-    this.socket?.send(this.codec.encodeUsername(username));
+    this.send(this.codec.encodeUsername(username));
   }
 
   sendMouseMove(x: number, y: number) {
-    this.socket.send(this.codec.encodeMouseMove(x, y));
+    this.send(this.codec.encodeMouseMove(x, y));
   }
 
   sendMouseButton(button: MouseButton, state: ButtonState) {
-    this.socket.send(this.codec.encodeMouseButton(button, state));
+    this.send(this.codec.encodeMouseButton(button, state));
   }
 
   sendMouseWheelScroll(axis: ScrollAxis, delta: number) {
-    this.socket.send(this.codec.encodeMouseWheelScroll(axis, delta));
+    this.send(this.codec.encodeMouseWheelScroll(axis, delta));
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
-    if (msg) this.socket.send(msg);
+    if (msg) this.send(msg);
   }
 
   sendClipboardData(clipboardData: ClipboardData) {
-    this.socket.send(this.codec.encodeClipboardData(clipboardData));
+    this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
@@ -210,16 +220,16 @@ export default class Client extends EventEmitterWebAuthnSender {
       mfaType: 'n',
       jsonString: JSON.stringify(data),
     });
-    this.socket.send(msg);
+    this.send(msg);
   }
 
   resize(spec: ClientScreenSpec) {
-    this.socket?.send(this.codec.encodeClientScreenSpec(spec));
+    this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
   // Emits an TdpClientEvent.ERROR event. Sets this.errored to true to alert the socket.onclose handler that
   // it needn't emit a generic unknown error event.
-  handleError(err: Error) {
+  private handleError(err: Error) {
     this.logger.error(err);
     this.emit(TdpClientEvent.TDP_ERROR, err);
     this.socket?.close();
