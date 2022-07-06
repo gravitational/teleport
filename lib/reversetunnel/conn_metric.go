@@ -52,12 +52,15 @@ type metricConn struct {
 
 // newMetricConn returns a new metricConn
 func newMetricConn(conn net.Conn, dt dialType, start time.Time, clock clockwork.Clock) *metricConn {
-	return &metricConn{
+	c := &metricConn{
 		Conn:     conn,
 		dialType: dt,
 		start:    start,
 		clock:    clock,
 	}
+
+	connLatency.WithLabelValues(string(c.dialType), "established").Observe(c.duration().Seconds())
+	return c
 }
 
 // duration returns the duration since c.start and updates c.start to now.
