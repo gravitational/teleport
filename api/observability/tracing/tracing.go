@@ -19,6 +19,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // PropagationContext contains tracing information to be passed across service boundaries
@@ -26,14 +27,19 @@ type PropagationContext map[string]string
 
 // PropagationContextFromContext creates a PropagationContext from the given context.Context. If the context
 // does not contain any tracing information, the PropagationContext will be empty.
-func PropagationContextFromContext(ctx context.Context) PropagationContext {
+func PropagationContextFromContext(ctx context.Context, opts ...Option) PropagationContext {
 	carrier := propagation.MapCarrier{}
-	otel.GetTextMapPropagator().Inject(ctx, &carrier)
+	NewConfig(opts).TextMapPropagator.Inject(ctx, &carrier)
 	return PropagationContext(carrier)
 }
 
 // WithPropagationContext injects any tracing information from the given PropagationContext into the
 // given context.Context.
-func WithPropagationContext(ctx context.Context, pc PropagationContext) context.Context {
-	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(pc))
+func WithPropagationContext(ctx context.Context, pc PropagationContext, opts ...Option) context.Context {
+	return NewConfig(opts).TextMapPropagator.Extract(ctx, propagation.MapCarrier(pc))
+}
+
+// DefaultProvider returns the global default TracerProvider.
+func DefaultProvider() oteltrace.TracerProvider {
+	return otel.GetTracerProvider()
 }
