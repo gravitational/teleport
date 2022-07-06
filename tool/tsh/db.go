@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sort"
@@ -657,12 +658,19 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	log.Debug(cmd.String())
+
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
+	// Use io.MultiWriter to duplicate stderr to the capture writer. The
+	// captured stderr can be used for diagnosing command failures. The capture
+	// writer captures up to a fixed number to limit memory usage.
+	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
+	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
+
 	err = cmd.Run()
 	if err != nil {
-		return trace.Wrap(err)
+		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
 	return nil
 }
