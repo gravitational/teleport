@@ -16,9 +16,13 @@ package gateway
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,4 +48,43 @@ func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "foo/bar", command)
+}
+
+func TestGatewayStart(t *testing.T) {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	t.Cleanup(func() {
+		hs.Close()
+	})
+
+	gateway, err := New(
+		Config{
+			TargetName:   "foo",
+			TargetURI:    uri.NewClusterURI("bar").AppendDB("foo").String(),
+			TargetUser:   "alice",
+			Protocol:     defaults.ProtocolPostgres,
+			CertPath:     "../../../fixtures/certs/proxy1.pem",
+			KeyPath:      "../../../fixtures/certs/proxy1-key.pem",
+			Insecure:     true,
+			WebProxyAddr: hs.Listener.Addr().String(),
+		},
+		mockCLICommandProvider{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, gateway, gateway)
+
+	wait := make(chan error)
+
+	go func() {
+		err := gateway.Open()
+		wait <- err
+	}()
+
+	defer func() {
+		// Make sure Open() is called.
+		time.Sleep(time.Millisecond * 200)
+
+		err := gateway.Close()
+		require.NoError(t, err)
+		require.NoError(t, <-wait)
+	}()
 }
