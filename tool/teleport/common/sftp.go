@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
@@ -285,24 +284,16 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 			ModificationTime: reqPacket.Attributes.ModificationTime,
 		}
 		if reqPacket.Attributes.Size != nil {
-			event.Attributes.FileSize = &types.UInt64Value{
-				Value: *reqPacket.Attributes.Size,
-			}
+			event.Attributes.FileSize = reqPacket.Attributes.Size
 		}
 		if reqPacket.Attributes.UID != nil {
-			event.Attributes.UID = &types.UInt32Value{
-				Value: *reqPacket.Attributes.UID,
-			}
+			event.Attributes.UID = reqPacket.Attributes.UID
 		}
 		if reqPacket.Attributes.GID != nil {
-			event.Attributes.GID = &types.UInt32Value{
-				Value: *reqPacket.Attributes.GID,
-			}
+			event.Attributes.GID = reqPacket.Attributes.GID
 		}
 		if reqPacket.Attributes.Permissions != nil {
-			event.Attributes.Permissions = &types.UInt32Value{
-				Value: uint32(*reqPacket.Attributes.Permissions),
-			}
+			event.Attributes.Permissions = (*uint32)(reqPacket.Attributes.Permissions)
 		}
 	}
 
