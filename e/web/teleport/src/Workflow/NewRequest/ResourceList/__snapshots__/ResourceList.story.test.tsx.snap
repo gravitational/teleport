@@ -52,7 +52,7 @@ exports[`render Apps 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -293,7 +293,7 @@ exports[`render Databases 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -537,7 +537,7 @@ exports[`render Desktops 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -765,7 +765,7 @@ exports[`render Kubes 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -985,7 +985,7 @@ exports[`render Nodes 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -1213,7 +1213,7 @@ exports[`render Roles 1`] = `
 
 .c4 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 

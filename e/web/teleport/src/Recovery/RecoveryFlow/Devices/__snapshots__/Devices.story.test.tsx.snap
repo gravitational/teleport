@@ -106,7 +106,7 @@ exports[`render device list 1`] = `
 
 .c9 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 

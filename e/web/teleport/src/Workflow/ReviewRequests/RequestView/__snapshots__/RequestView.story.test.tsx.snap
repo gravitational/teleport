@@ -163,14 +163,14 @@ exports[`loaded approved role based request state 1`] = `
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
 
 .c22 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 26px;
 }
@@ -867,14 +867,14 @@ exports[`loaded denied role based request state 1`] = `
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
 
 .c26 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 26px;
 }
@@ -1601,7 +1601,7 @@ exports[`loaded pending role based request state 1`] = `
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
@@ -2439,7 +2439,7 @@ exports[`loaded pending search based request state 1`] = `
 
 .c19 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }

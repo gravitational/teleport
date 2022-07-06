@@ -134,7 +134,7 @@ exports[`failed state 1`] = `
 
 .c5 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-right: 16px;
   color: #FFFFFF;
   font-size: 25px;
@@ -142,7 +142,7 @@ exports[`failed state 1`] = `
 
 .c11 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   padding: 8px;
   color: #FFFFFF;
   font-size: 13px;
@@ -914,7 +914,7 @@ exports[`loaded state 1`] = `
 
 .c5 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-right: 16px;
   color: #FFFFFF;
   font-size: 25px;
@@ -922,7 +922,7 @@ exports[`loaded state 1`] = `
 
 .c10 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   padding: 8px;
   color: #FFFFFF;
   font-size: 13px;

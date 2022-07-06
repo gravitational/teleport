@@ -141,7 +141,7 @@ function getResourcesMonthlyItemCount(cycles: BillingCycle[]) {
     }
   );
 
-  return (sortedByKind as unknown) as MonthlyItem[];
+  return sortedByKind as unknown as MonthlyItem[];
 }
 
 const shortMonths = [

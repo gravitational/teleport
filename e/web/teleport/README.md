@@ -5,6 +5,7 @@ This package contains the proprietary code of Teleport Web UI.
 ## How it works
 
 It references the open source Teleport code via npm dependency.
+
 ```
   "dependencies": {
     "@gravitational/teleport": "^1.0.0",
@@ -25,8 +26,4 @@ ReactDOM.render(
   </Teleport>,
   document.getElementById('app')
 );
-
 ```
-
-
-
