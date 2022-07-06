@@ -105,7 +105,6 @@ const defaultFile = {
   location: '~test',
   id: '1547581437406~/test',
   url: '/v1/webapi/sites/one/nodes/',
-  name:
-    '~/test~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf',
+  name: '~/test~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf~/mamaffsdfsdfdssdf',
   blob: [],
 };

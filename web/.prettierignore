@@ -1,2 +1,7 @@
 # assets contains pre-generated files like iconmoon, fonts, svgs.
 packages/design/src/assets/*
+
+# Ignore file types:
+packages/**/*.css
+packages/**/*.json
+packages/**/*.yaml

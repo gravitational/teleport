@@ -19,7 +19,7 @@ import { useEffect } from 'react';
 function useEscape(handler) {
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         handler(e);
       }
     };

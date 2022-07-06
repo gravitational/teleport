@@ -41,9 +41,8 @@ export default function ResourceEditor(props) {
     isNew,
   } = props;
 
-  const { attempt, attemptActions, content, isDirty, setContent } = useEditor(
-    text
-  );
+  const { attempt, attemptActions, content, isDirty, setContent } =
+    useEditor(text);
 
   const onSave = () => {
     attemptActions.do(() => props.onSave(content)).then(() => onClose());

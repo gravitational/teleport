@@ -14,27 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {useEffect} from "react";
+import { useEffect } from 'react';
 
 function useClickOutside(ref, handler) {
-
-  useEffect(
-    () => {
-      const listener = (e: MouseEvent) => {
-        if (!ref.current || ref.current.contains(e.target)) {
-          return;
-        }
-        handler(e);
-      };
-      document.addEventListener("mousedown", listener);
-      document.addEventListener("touchstart", listener);
-      return () => {
-        document.removeEventListener("mousedown", listener);
-        document.removeEventListener("touchstart", listener);
-      };
-    },
-    [ref, handler]
-  );
+  useEffect(() => {
+    const listener = (e: MouseEvent) => {
+      if (!ref.current || ref.current.contains(e.target)) {
+        return;
+      }
+      handler(e);
+    };
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
 }
 
-export {useClickOutside};
+export { useClickOutside };
