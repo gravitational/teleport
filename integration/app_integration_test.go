@@ -1491,6 +1491,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers
@@ -1605,6 +1606,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers
