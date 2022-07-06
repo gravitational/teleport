@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/teleterm"
 
@@ -41,7 +42,11 @@ func TestStart(t *testing.T) {
 	}()
 
 	defer func() {
-		cancel() // Stop the server.
+		// Make sure Start() is called.
+		time.Sleep(time.Millisecond * 500)
+
+		// Stop the server.
+		cancel()
 		require.NoError(t, <-wait)
 	}()
 

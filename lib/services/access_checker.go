@@ -19,7 +19,6 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -336,7 +335,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	//
 	// Keep backwards-compatible behavior and set it in addition to the
 	// traits extracted from the certificate.
-	traits[teleport.TraitLogins] = cert.ValidPrincipals
+	traits[constants.TraitLogins] = cert.ValidPrincipals
 
 	unmappedRoles, err := ExtractRolesFromCert(cert)
 	if err != nil {
@@ -423,11 +422,11 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 	// passing exact logins, Kubernetes users/groups and database users/names
 	// to the remote cluster.
 	traits := map[string][]string{
-		teleport.TraitLogins:     identity.Principals,
-		teleport.TraitKubeGroups: identity.KubernetesGroups,
-		teleport.TraitKubeUsers:  identity.KubernetesUsers,
-		teleport.TraitDBNames:    identity.DatabaseNames,
-		teleport.TraitDBUsers:    identity.DatabaseUsers,
+		constants.TraitLogins:     identity.Principals,
+		constants.TraitKubeGroups: identity.KubernetesGroups,
+		constants.TraitKubeUsers:  identity.KubernetesUsers,
+		constants.TraitDBNames:    identity.DatabaseNames,
+		constants.TraitDBUsers:    identity.DatabaseUsers,
 	}
 	// Prior to Teleport 6.2 no user traits were passed to remote clusters
 	// except for the internal ones specified above.
