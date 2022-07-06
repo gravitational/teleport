@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -206,13 +207,13 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	}
 
 	traits := map[string][]string{
-		teleport.TraitLogins:        u.allowedLogins,
-		teleport.TraitWindowsLogins: u.allowedWindowsLogins,
-		teleport.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
-		teleport.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
-		teleport.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
-		teleport.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
-		teleport.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitLogins:        u.allowedLogins,
+		constants.TraitWindowsLogins: u.allowedWindowsLogins,
+		constants.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
+		constants.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
 	}
 
 	user, err := types.NewUser(u.login)
