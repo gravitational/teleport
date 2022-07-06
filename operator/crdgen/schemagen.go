@@ -19,11 +19,16 @@ package main
 import (
 	"fmt"
 	"regexp"
+	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
+	"sigs.k8s.io/controller-tools/pkg/loader"
+	"sigs.k8s.io/controller-tools/pkg/markers"
 	"strings"
 
 	"github.com/gobuffalo/flect"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
 
 	"github.com/gravitational/trace"
 )
@@ -239,7 +244,46 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 			Scope: apiextv1.NamespaceScoped,
 		},
 	}
+
+	// This part parses the types not coming from the protobuf (the status)
+	// We instantiate a parser, load the relevant packages in it and look for
+	// the package we need. The package is then loaded to the parser, a schema is
+	// generated and used in the CRD
+
+	registry := &markers.Registry{}
+	// CRD markers contain special markers used by the parser to discover properties
+	// e.g. `+kubebuilder:validation:Minimum=0`
+	crdmarkers.Register(registry)
+	parser := &crdtools.Parser{
+		Collector: &markers.Collector{Registry: registry},
+		Checker:   &loader.TypeChecker{},
+	}
+
+	// Some types are special and require manual overrides, like metav1.Time.
+	crdtools.AddKnownTypes(parser)
+
+	// hack, we should be able to retrieve the path instead
+	pkgs, err := loader.LoadRoots("../...")
+	if err != nil {
+		fmt.Printf("parser error: %s", err)
+	}
+
 	for versionName, schema := range root.versions {
+		var statusType crdtools.TypeIdent
+
+		for _, pkg := range pkgs {
+			// This if is a bit janky, condition checking should be stronger
+			if pkg.Name == versionName {
+				parser.NeedPackage(pkg)
+				statusType = crdtools.TypeIdent{
+					Package: pkg,
+					Name:    fmt.Sprintf("%sStatus", root.kind),
+				}
+				// Kubernetes CRDs don't support $ref in openapi schemas, we need a flattened schema
+				parser.NeedFlattenedSchemaFor(statusType)
+			}
+		}
+
 		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
 			Name:    versionName,
 			Served:  true,
@@ -262,6 +306,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 						},
 						"metadata": {Type: "object"},
 						"spec":     schema.JSONSchemaProps,
+						"status":   parser.FlattenedSchemata[statusType],
 					},
 				},
 			},

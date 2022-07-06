@@ -35,8 +35,11 @@ type RoleSpec types.RoleSpecV5
 
 // RoleStatus defines the observed state of Role
 type RoleStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions"`
+	// +optional
+	TeleportResourceID int64 `json:"teleportResourceID"`
 }
 
 //+kubebuilder:object:root=true

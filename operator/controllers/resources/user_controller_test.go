@@ -147,6 +147,9 @@ func TestUserUpdate(t *testing.T) {
 	tUser, err := types.NewUser(userName)
 	require.NoError(t, err)
 	tUser.SetRoles([]string{"a", "b"})
+	metadata := tUser.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tUser.SetMetadata(metadata)
 
 	err = tClient.CreateUser(ctx, tUser)
 	require.NoError(t, err)
@@ -172,9 +175,6 @@ func TestUserUpdate(t *testing.T) {
 		if !assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z"}) {
 			return false
 		}
-
-		// User does not have the Origin Label
-		require.NotEqual(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
 		return true
 	})
 
@@ -227,4 +227,56 @@ func k8sDeleteUser(ctx context.Context, t *testing.T, kc kclient.Client, userNam
 func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *resourcesv2.User) {
 	err := kc.Create(ctx, user)
 	require.NoError(t, err)
+}
+
+func TestAddTeleportResourceOriginUser(t *testing.T) {
+	r := UserReconciler{}
+	tests := []struct {
+		name     string
+		resource types.User
+	}{
+		{
+			name: "origin already set correctly",
+			resource: &types.UserV2{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{types.OriginLabel: types.OriginKubernetes},
+				},
+			},
+		},
+		{
+			name: "origin already set incorrectly",
+			resource: &types.UserV2{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+			},
+		},
+		{
+			name: "origin not set",
+			resource: &types.UserV2{
+				Metadata: types.Metadata{
+					Name:   "user with correct origin",
+					Labels: map[string]string{"foo": "bar"},
+				},
+			},
+		},
+		{
+			name: "no labels",
+			resource: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "user with no labels",
+				},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r.addTeleportResourceOrigin(&tc.resource)
+			metadata := tc.resource.GetMetadata()
+			require.Contains(t, metadata.Labels, types.OriginLabel)
+			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
+		})
+	}
 }

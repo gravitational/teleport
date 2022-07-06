@@ -18,14 +18,12 @@ package resources
 
 import (
 	"context"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -122,25 +120,4 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func hasOriginLabel(obj kclient.Object) bool {
-	if obj.GetLabels() == nil {
-		return false
-	}
-
-	_, ok := obj.GetLabels()[types.OriginLabel]
-	return ok
-}
-
-func addOriginLabelToK8SObject(ctx context.Context, k8sClient kclient.Client, obj kclient.Object) error {
-	k8sObjLabels := obj.GetLabels()
-	if k8sObjLabels == nil {
-		k8sObjLabels = make(map[string]string)
-	}
-
-	k8sObjLabels[types.OriginLabel] = types.OriginKubernetes
-	obj.SetLabels(k8sObjLabels)
-
-	return trace.Wrap(k8sClient.Update(ctx, obj))
 }
