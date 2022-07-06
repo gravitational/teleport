@@ -52,6 +52,8 @@ APP_INSTALL_MODE="{{.appInstallMode}}"
 APP_NAME="{{.appName}}"
 APP_URI="{{.appURI}}"
 NODE_LABELS="{{.nodeLabels}}"
+LABELS_COMMAND=""
+[ ! -z "$NODE_LABELS" ] && LABELS_COMMAND="--labels ${NODE_LABELS}"
 
 # usage message
 # shellcheck disable=SC2086
@@ -440,7 +442,7 @@ install_teleport_node_config() {
       ${JOIN_METHOD_COMMAND} \
       --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
-      --labels ${NODE_LABELS} \
+      ${LABELS_COMMAND} \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS
