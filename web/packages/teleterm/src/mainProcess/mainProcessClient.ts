@@ -13,6 +13,6 @@ export default function createMainProcessClient(): MainProcessClient {
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
-    fileStorage: createFileStorageClient()
+    fileStorage: createFileStorageClient(),
   };
 }

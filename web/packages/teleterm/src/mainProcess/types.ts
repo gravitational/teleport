@@ -18,7 +18,7 @@ export type RuntimeSettings = {
   };
   sharedProcess: {
     networkAddr: string;
-  }
+  };
 };
 
 export type MainProcessClient = {

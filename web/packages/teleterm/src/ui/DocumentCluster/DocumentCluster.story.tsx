@@ -36,7 +36,7 @@ export const Online = () => {
     name: 'localhost',
     connected: true,
     actualName: 'localhost',
-    proxyHost: 'localhost:3080'
+    proxyHost: 'localhost:3080',
   });
 
   return renderState(state);
@@ -50,7 +50,7 @@ export const Offline = () => {
     name: 'localhost',
     connected: false,
     actualName: 'localhost',
-    proxyHost: 'localhost:3080'
+    proxyHost: 'localhost:3080',
   });
 
   return renderState(state);

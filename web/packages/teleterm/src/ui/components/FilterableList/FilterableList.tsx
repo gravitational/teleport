@@ -70,7 +70,7 @@ const DarkInput = styled(Input)`
   margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
-  transition : border 300ms ease-out;
+  transition: border 300ms ease-out;
 
   ::placeholder {
     opacity: 1;
@@ -80,7 +80,7 @@ const DarkInput = styled(Input)`
   &:hover {
     border-color: ${props => props.theme.colors.text.secondary};
   }
-  
+
   &:focus {
     border-color: ${props => props.theme.colors.secondary.main};
   }

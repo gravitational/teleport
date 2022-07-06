@@ -18,8 +18,8 @@ export class MockMainProcessClient implements MainProcessClient {
         flags: [],
       },
       sharedProcess: {
-        networkAddr: ''
-      }
+        networkAddr: '',
+      },
     };
   }
 

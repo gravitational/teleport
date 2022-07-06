@@ -6,4 +6,4 @@ export interface NotificationItem {
 
 export type NotificationItemContent =
   | string
-  | { title: string; description: string }
+  | { title: string; description: string };

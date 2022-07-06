@@ -28,8 +28,8 @@ function getRuntimeSettings(): RuntimeSettings {
     flags: ['daemon', 'start', `--addr=${tshNetworkAddr}`],
   };
   const sharedProcess = {
-    networkAddr: getSharedProcessNetworkAddress()
-  }
+    networkAddr: getSharedProcessNetworkAddress(),
+  };
 
   if (isInsecure) {
     tshd.flags.unshift('--debug');

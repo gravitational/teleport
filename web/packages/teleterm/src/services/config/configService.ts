@@ -29,10 +29,7 @@ export class ConfigServiceImpl implements ConfigService {
   private createDefaultConfig(): void {
     this.config = Object.entries(this.configProviders).reduce<Partial<Config>>(
       (partialConfig, [name, provider]) => {
-        partialConfig[name] = merge(
-          {},
-          provider.getDefaults(process.platform),
-        );
+        partialConfig[name] = merge({}, provider.getDefaults(process.platform));
         return partialConfig;
       },
       {}

@@ -26,7 +26,6 @@ scripts assume that the `webapps` repo and the `teleport` repo are in the same f
 
 To get started, first we need to build `tsh` that resides in the `teleport` repo.
 
-
 Prepare Teleport repo:
 
 ```bash
@@ -41,8 +40,10 @@ The build output can be found in the `/teleport/build` directory. The tsh binary
 together with the Electron app.
 
 Prepare Webapps repo
+
 1. Make sure that your node version is v16 (current tls) https://nodejs.org/en/about/releases/
 2. Clone and build `webapps` repository
+
 ```bash
 $ git clone https://github.com/gravitational/webapps.git
 $ cd webapps
@@ -109,6 +110,7 @@ $ rm -rf ./packages/teleterm/src/services/tshd/v1/ && cp -R ../teleport/lib/tele
 ```
 
 ### Generating shared process gRPC protobuf files
+
 Run `generate-grpc-shared` script from `teleterm/package.json`.
 It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
 Resulting files can be found in `sharedProcess/api/protogen`.
@@ -125,6 +127,7 @@ Connect must gracefully handle a resource becoming unavailable and make as few a
 resource availability as possible.
 
 ### Diagram
+
 ```pro
                                                   +------------+
                                                   |            |
@@ -160,13 +163,13 @@ resource availability as possible.
                                           +-------------+--------------+        +-------------------------------+
  +--------+-----------------+                           ^                                       ^
  |         Terminal         |                           |                                       |
- |    Electron Main Process |                           |    GRPC API                           |   GRPC API   
+ |    Electron Main Process |                           |    GRPC API                           |   GRPC API
  +-----------+--------------+                           | (domain socket)                       |   (domain socket)
              ^                                          |                                       |
-             |                                          |                                       |  
-    IPC      |                                          |        +------------------------------+ 
- named pipes |                                          |        |                              
-             v  Terminal UI (Electron Renderer Process) |        |                              
+             |                                          |                                       |
+    IPC      |                                          |        +------------------------------+
+ named pipes |                                          |        |
+             v  Terminal UI (Electron Renderer Process) |        |
  +-----------+------------+---------------------------------------------+
  | -gateways              | root@node1 × | k8s_c  × | rdp_win2 ×  |     |
  |   https://localhost:22 +---------------------------------------------+
@@ -184,6 +187,7 @@ resource availability as possible.
  |  +cluster3             |                                             |
  +------------------------+---------------------------------------------+
 ```
-### PTY communication overview (Renderer Process <=> Shared Process)
-![PTY communication](docs/ptyCommunication.png)
 
+### PTY communication overview (Renderer Process <=> Shared Process)
+
+![PTY communication](docs/ptyCommunication.png)
