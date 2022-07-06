@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -89,9 +88,8 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	}
 
 	user.SetRoles(req.Roles)
-	user.SetTraits(map[string][]string{
-		teleport.TraitLogins: req.Logins,
-	})
+
+	updateUserTraits(req, user)
 
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: createdBy},
@@ -103,6 +101,33 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	}
 
 	return ui.NewUser(user)
+}
+
+// updateUserTraits receives a saveUserRequest and updates the user traits accordingly
+// It only updates the traits that have a non-nil value in saveUserRequest
+// This allows the partial update of the properties
+func updateUserTraits(req *saveUserRequest, user types.User) {
+	if req.Logins != nil {
+		user.SetLogins(*req.Logins)
+	}
+	if req.DBUsers != nil {
+		user.SetDBUsers(*req.DBUsers)
+	}
+	if req.DBNames != nil {
+		user.SetDBNames(*req.DBNames)
+	}
+	if req.KubeUsers != nil {
+		user.SetKubeUsers(*req.KubeUsers)
+	}
+	if req.KubeGroups != nil {
+		user.SetKubeGroups(*req.KubeGroups)
+	}
+	if req.WindowsLogins != nil {
+		user.SetWindowsLogins(*req.WindowsLogins)
+	}
+	if req.AWSRolesARN != nil {
+		user.SetAWSRoleARNs(*req.AWSRolesARN)
+	}
 }
 
 func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
@@ -119,7 +144,10 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	user.SetRoles(req.Roles)
+
+	updateUserTraits(req, user)
 
 	if err := m.UpdateUser(r.Context(), user); err != nil {
 		return nil, trace.Wrap(err)
@@ -218,10 +246,23 @@ type userAPIGetter interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
+// saveUserRequest represents a create/update request for a user
+// Name and Roles are always required
+// The remaining fields are part of the Trait map
+// They are optional and respect the following logic:
+// - if the value is nil, we ignore it
+// - if the value is an empty array we remove every element from the trait
+// - otherwise, we replace the list for that trait
 type saveUserRequest struct {
-	Name   string   `json:"name"`
-	Roles  []string `json:"roles"`
-	Logins []string `json:"logins,omitempty"`
+	Name          string    `json:"name"`
+	Roles         []string  `json:"roles"`
+	Logins        *[]string `json:"logins,omitempty"`
+	DBUsers       *[]string `json:"db_users,omitempty"`
+	DBNames       *[]string `json:"db_names,omitempty"`
+	KubeUsers     *[]string `json:"kube_users,omitempty"`
+	KubeGroups    *[]string `json:"kube_groups,omitempty"`
+	WindowsLogins *[]string `json:"windows_logins,omitempty"`
+	AWSRolesARN   *[]string `json:"aws_roles_arn,omitempty"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {
