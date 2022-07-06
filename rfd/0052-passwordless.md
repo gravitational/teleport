@@ -24,6 +24,8 @@ documents for client-side aspects of the design:
 * [Passwordless for FIDO2 clients][passwordless fido2]
 * [Passwordless for macOS CLI][passwordless macos] (aka Touch ID)
 
+Passwordless is available as a preview in Teleport 10.
+
 ## Why
 
 Passwords are a pain for users and a liability for both users and service

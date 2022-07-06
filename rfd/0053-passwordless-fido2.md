@@ -14,6 +14,8 @@ covered by accompanying designs.
 
 This is a part of the [Passwordless RFD][passwordless rfd].
 
+Passwordless is available as a preview in Teleport 10.
+
 ## Why
 
 See the [Passwordless RFD][passwordless rfd].
