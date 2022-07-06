@@ -3268,6 +3268,28 @@ func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 	require.Len(t, conns, expectedCount)
 }
 
+// waitAppServerTunnel waits for application server tunnel connections.
+func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
+	t.Helper()
+	cluster, err := tunnel.GetSite(clusterName)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		conn, err := cluster.Dial(reversetunnel.DialParams{
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
+			ConnType: types.AppTunnel,
+		})
+		if err != nil {
+			return false
+		}
+
+		require.NoError(t, conn.Close())
+		return true
+	}, 10*time.Second, time.Second)
+}
+
 // TestExternalClient tests if we can connect to a node in a Teleport
 // cluster. Both normal and recording proxies are tested.
 func testExternalClient(t *testing.T, suite *integrationTestSuite) {
