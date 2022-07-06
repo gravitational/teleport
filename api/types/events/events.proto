@@ -18,6 +18,7 @@ package events;
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
 
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 
@@ -931,31 +932,19 @@ message SCP {
     string Action = 8 [ (gogoproto.jsontag) = "action" ];
 }
 
-// The following two types were copied from
-// https://github.com/protocolbuffers/protobuf/blob/dfab275eca9481b5de31122db6fc91b31db3382a/src/google/protobuf/wrappers.proto.
-// The messages have generated Go code at google.golang.org/protobuf/types/known/wrapperspb,
-// but it is generated with a protoc version that is incompatible with github.com/gogo/protobuf
-// which causes build errors when trying to use them.
-
-// Uint32Value adds nullability to the uint32 type.
-message UInt32Value { uint32 Value = 1; }
-
-// UInt64Value adds nullability to the uint64 type.
-message UInt64Value { uint64 Value = 1; }
-
 // SFTPAttributes are file metadata sent over SFTP
 message SFTPAttributes {
     // FileSize is file size
-    UInt64Value FileSize = 1 [ (gogoproto.jsontag) = "file_size" ];
+    google.protobuf.UInt64Value FileSize = 1 [ (gogoproto.jsontag) = "file_size" ];
 
     // UID is the user owner of a file
-    UInt32Value UID = 2 [ (gogoproto.jsontag) = "uid" ];
+    google.protobuf.UInt32Value UID = 2 [ (gogoproto.jsontag) = "uid" ];
 
     // GID is the group owner of the file
-    UInt32Value GID = 3 [ (gogoproto.jsontag) = "gid" ];
+    google.protobuf.UInt32Value GID = 3 [ (gogoproto.jsontag) = "gid" ];
 
     // Permissions is the file permissions
-    UInt32Value Permissions = 4 [ (gogoproto.jsontag) = "permissions" ];
+    google.protobuf.UInt32Value Permissions = 4 [ (gogoproto.jsontag) = "permissions" ];
 
     // AccessTime is when the file was last read
     google.protobuf.Timestamp AccessTime = 5
