@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -38,18 +37,16 @@ const mfaChallengeInterval = time.Second * 30
 
 // KubeSession a joined kubernetes session from the client side.
 type KubeSession struct {
-	stream     *streamproto.SessionStream
-	term       *terminal.Terminal
-	ctx        context.Context
-	cancelFunc context.CancelFunc
-	cancelOnce sync.Once
-	closeWait  *sync.WaitGroup
-	meta       types.SessionTracker
+	stream *streamproto.SessionStream
+	term   *terminal.Terminal
+	ctx    context.Context
+	cancel context.CancelFunc
+	meta   types.SessionTracker
 }
 
 // NewKubeSession joins a live kubernetes session.
 func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (*KubeSession, error) {
-	closeWait := &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(ctx)
 	joinEndpoint := "wss://" + kubeAddr + "/api/v1/teleport/join/" + meta.GetSessionID()
 
 	if tlsServer != "" {
@@ -65,26 +62,21 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	if err != nil {
 		body, _ := io.ReadAll(resp.Body)
 		fmt.Printf("Handshake failed with status %d\nand body: %v\n", resp.StatusCode, string(body))
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: mode})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
 	term, err := terminal.New(tc.Stdin, tc.Stdout, tc.Stderr)
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	closeWait.Add(1)
-	go func() {
-		<-ctx.Done()
-		term.Close()
-		closeWait.Done()
-	}()
 
 	if term.IsAttached() {
 		// Put the terminal into raw mode. Note that this must be done before
@@ -94,17 +86,10 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	stdout := utils.NewSyncWriter(term.Stdout())
 
-	go func() {
-		handleOutgoingResizeEvents(ctx, stream, term)
-	}()
+	go handleOutgoingResizeEvents(ctx, stream, term)
+	go handleIncomingResizeEvents(stream, term)
 
-	closeWait.Add(1)
-	go func() {
-		handleIncomingResizeEvents(stream, term)
-		closeWait.Done()
-	}()
-
-	s := &KubeSession{stream: stream, term: term, ctx: ctx, cancelFunc: cancel, closeWait: closeWait, meta: meta}
+	s := &KubeSession{stream, term, ctx, cancel, meta}
 	err = s.handleMFA(ctx, tc, mode, stdout)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,12 +97,6 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	s.pipeInOut(stdout, tc.EnableEscapeSequences, mode)
 	return s, nil
-}
-
-func (s *KubeSession) cancel() {
-	s.cancelOnce.Do(func() {
-		s.cancelFunc()
-	})
 }
 
 func handleOutgoingResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
@@ -172,13 +151,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		subCtx, cancel := context.WithCancel(ctx)
-		go func() {
-			<-ctx.Done()
-			cancel()
-		}()
-
-		go runPresenceTask(subCtx, stdout, auth, tc, s.meta.GetSessionID())
+		go runPresenceTask(ctx, stdout, auth, tc, s.meta.GetSessionID())
 	}
 
 	return nil
@@ -199,9 +172,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 		switch mode {
 		case types.SessionPeerMode:
-			if handlePeerControls(s.term, enableEscapeSequences, s.stream) {
-				s.cancel()
-			}
+			handlePeerControls(s.term, enableEscapeSequences, s.stream)
 		default:
 			handleNonPeerControls(mode, s.term, func() {
 				err := s.stream.ForceTerminate()
@@ -216,11 +187,12 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 // Wait waits for the session to finish.
 func (s *KubeSession) Wait() {
-	s.closeWait.Wait()
+	<-s.ctx.Done()
 }
 
 // Close sends a close request to the other end and waits it to gracefully terminate the connection.
-func (s *KubeSession) Close() {
-	s.cancel()
-	s.closeWait.Wait()
+func (s *KubeSession) Close() error {
+	err := s.stream.Close()
+	<-s.ctx.Done()
+	return trace.Wrap(err)
 }
