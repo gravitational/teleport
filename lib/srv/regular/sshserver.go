@@ -20,7 +20,6 @@ package regular
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -61,6 +60,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -216,6 +217,10 @@ type Server struct {
 	users srv.HostUsers
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
+
+	// tracerProvider is used to create tracers capable
+	// of starting spans.
+	tracerProvider oteltrace.TracerProvider
 }
 
 // GetClock returns server clock implementation
@@ -660,6 +665,14 @@ func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
 	}
 }
 
+// SetTracerProvider sets the tracer provider.
+func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
+	return func(s *Server) error {
+		s.tracerProvider = provider
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -727,6 +740,10 @@ func New(addr utils.NetAddr,
 
 	if s.connectedProxyGetter == nil {
 		s.connectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+
+	if s.tracerProvider == nil {
+		s.tracerProvider = tracing.DefaultProvider()
 	}
 
 	var component string
@@ -1168,6 +1185,21 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	channelType := nch.ChannelType()
 	if s.proxyMode {
 		switch channelType {
+		// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
+		// are supported. Accepting the channel indicates to clients that they may wrap their
+		// ssh payload with tracing context.
+		case tracessh.TracingChannel:
+			ch, _, err := nch.Accept()
+			if err != nil {
+				if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
+					log.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
+				}
+				return
+			}
+			if err := ch.Close(); err != nil {
+				log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
+			}
+			return
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
 		case teleport.ChanDirectTCPIP:
@@ -1204,6 +1236,22 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	switch channelType {
+	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
+	// are supported. Accepting the channel indicates to clients that they may wrap their
+	// ssh payload with tracing context.
+	case tracessh.TracingChannel:
+		ch, _, err := nch.Accept()
+		if err != nil {
+			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
+				log.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
+			}
+			return
+		}
+
+		if err := ch.Close(); err != nil {
+			log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
+		}
+		return
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1502,21 +1550,21 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				return
 			}
 
-			// handle the tracing request inline here to update the context for this session.
-			// this should only be requested once, right after the session has been created.
-			if req.Type == tracessh.TracingRequest {
-				var traceCtx tracing.PropagationContext
-				if err := json.Unmarshal(req.Payload, &traceCtx); err != nil {
-					scx.WithError(err).Error("Failed to unmarshal tracing request.")
-					continue
-				}
-
-				ctx = tracing.WithPropagationContext(ctx, traceCtx)
-				continue
-			}
+			reqCtx := tracessh.ContextFromRequest(req)
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
+				fmt.Sprintf("ssh.Regular.SessionRequest/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.RegularServer"),
+					semconv.RPCMethodKey.String("SessionRequest"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
 
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
+				span.End()
 				return
 			}
 			if req.WantReply {
@@ -1524,6 +1572,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 					log.Warnf("Failed to reply to %q request: %v", req.Type, err)
 				}
 			}
+			span.End()
 		case result := <-scx.ExecResultCh:
 			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
 
@@ -1551,6 +1600,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
+		case tracessh.TracingRequest:
+			return nil
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1581,6 +1632,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if serverContext.JoinOnly {
 		switch req.Type {
+		case tracessh.TracingRequest:
+			return nil
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 		case sshutils.ShellRequest:
@@ -1616,6 +1669,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 
 	switch req.Type {
+	case tracessh.TracingRequest:
+		return nil
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
