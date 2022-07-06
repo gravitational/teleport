@@ -1995,7 +1995,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchLabels {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
+			return trace.AccessDenied("access to %v denied. If you believe this is an error, ask your Teleport administrator to check the audit log.", r.GetKind())
 		}
 
 		// Deny rules are greedy on purpose. They will always match if
@@ -2007,7 +2007,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchMatchers {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
+			return trace.AccessDenied("access to %v denied. If you believe this is an error, ask your Teleport administrator to check the audit log.", r.GetKind())
 		}
 	}
 
@@ -2075,7 +2075,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v %q denied, check audit log.", r.GetKind(), r.GetName())
+	return trace.AccessDenied("access to %v denied. If you believe this is an error, ask your Teleport administrator to check the audit log.", r.GetKind())
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
