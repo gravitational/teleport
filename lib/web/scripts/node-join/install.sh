@@ -40,6 +40,8 @@ TARGET_HOSTNAME="{{.hostname}}"
 TARGET_PORT="{{.port}}"
 JOIN_TOKEN="{{.token}}"
 JOIN_METHOD="{{.joinMethod}}"
+JOIN_METHOD_COMMAND=""
+[ ! -z "$JOIN_METHOD" ] && JOIN_METHOD_COMMAND="--join-method ${JOIN_METHOD}"
 # When all stanza generators have been updated to use the new 
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
 # with the script passing it in in `join_tokens.go`.
@@ -435,7 +437,7 @@ install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
     teleport node configure \
       --token ${JOIN_TOKEN} \
-      --join-method ${JOIN_METHOD} \
+      ${JOIN_METHOD_COMMAND} \
       --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
       --labels ${NODE_LABELS} \
