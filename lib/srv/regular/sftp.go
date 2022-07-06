@@ -137,14 +137,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 			LocalAddr:  serverConn.LocalAddr().String(),
 		}
 
-		// Skip the first byte, the child will write a single NULL byte
-		// to start to test that the audit file was inherited correctly.
 		r := bufio.NewReader(auditPipeOut)
-		_, err := r.Discard(1)
-		if err != nil {
-			s.log.WithError(err).Warn("Failed to read from audit file.")
-		}
-
 		for {
 			// Read up to a NULL byte, the child process uses this to
 			// delimit audit events

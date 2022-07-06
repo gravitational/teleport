@@ -23,14 +23,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 type compositeCh struct {
@@ -51,29 +52,22 @@ func (c compositeCh) Close() error {
 }
 
 func onSFTP() error {
-	chr := os.NewFile(3, "chr")
-	if chr == nil {
-		return trace.NotFound("channel read file not found")
+	chr, err := openFD(3, "chr")
+	if err != nil {
+		return err
 	}
 	defer chr.Close()
-	chw := os.NewFile(4, "chw")
-	if chw == nil {
-		return trace.NotFound("channel write file not found")
+	chw, err := openFD(4, "chw")
+	if err != nil {
+		return err
 	}
 	defer chw.Close()
 	ch := compositeCh{chr, chw}
-	auditFile := os.NewFile(5, "audit")
-	if auditFile == nil {
-		return trace.NotFound("audit write file not found")
+	auditFile, err := openFD(5, "audit")
+	if err != nil {
+		return err
 	}
 	defer auditFile.Close()
-
-	// Write to the audit file to ensure it was inherited correctly. If
-	// this write errors, we most likely aren't a re-exec.
-	_, err := auditFile.Write([]byte{0x00})
-	if err != nil {
-		return trace.BadParameter("'%s sftp' should not be run directly. It will be executed by Teleport when SFTP connections are received.", os.Args[0])
-	}
 
 	// Ensure the parent process will receive log messages from us
 	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
@@ -128,6 +122,22 @@ func onSFTP() error {
 	<-done
 
 	return trace.NewAggregate(serveErr, sftpSrv.Close())
+}
+
+func openFD(fd uintptr, name string) (*os.File, error) {
+	ret, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ret != 0 {
+		return nil, trace.BadParameter("'%s sftp' should not be run directly. It will be executed by Teleport when SFTP connections are received.", os.Args[0])
+	}
+	file := os.NewFile(fd, name)
+	if file == nil {
+		return nil, trace.NotFound("inherited file %s not found", name)
+	}
+
+	return file, nil
 }
 
 func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
