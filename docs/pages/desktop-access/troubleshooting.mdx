@@ -175,7 +175,7 @@ so take care to generate your certificates correctly.
 
 ### LDAP not yet initialized
 
-Teleport is running, but desktops do not show up in the web UI. The logs contain
+Teleport is running, but desktops do not show up in the Web UI. The logs contain
 errors similar to:
 
 ```
@@ -184,11 +184,12 @@ skipping desktop discovery: LDAP not yet initialized
 
 **Solution:** Confirm Teleport certificate is installed
 
-Teleport uses a Teleport-issued certificate to authenticate with the LDAP
-server. This error occurs when Teleport unable to authenticate, which is
-often due to its certificate authority not being trusted by Active Directory.
+The Teleport Desktop Service uses a Teleport-issued certificate to authenticate
+with the LDAP server. This error occurs when Teleport is unable to authenticate,
+which is often due to its certificate authority not being trusted by Active
+Directory.
 
-First, verify that the Teleport CA is present in the LDAP NTAuthStore. Run the
+First, verify that the Teleport CA is present in the LDAP NTAuth store. Run the
 following command, modifying the DN for your domain (in this command we use a
 domain of example.com)
 
