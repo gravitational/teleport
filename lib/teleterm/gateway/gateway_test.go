@@ -16,6 +16,7 @@ package gateway
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -71,19 +72,19 @@ func TestGatewayStart(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	wait := make(chan error)
+	openErr := make(chan error)
 
 	go func() {
 		err := gateway.Open()
-		wait <- err
+		openErr <- err
 	}()
 
-	defer func() {
-		// Make sure Open() is called.
-		time.Sleep(time.Millisecond * 200)
+	// Dial to make sure gateway is open.
+	gatewayAddress := net.JoinHostPort(gateway.LocalAddress, gateway.LocalPort)
+	_, err = net.DialTimeout("tcp", gatewayAddress, time.Second*1)
+	require.NoError(t, err)
 
-		err := gateway.Close()
-		require.NoError(t, err)
-		require.NoError(t, <-wait)
-	}()
+	err = gateway.Close()
+	require.NoError(t, err)
+	require.NoError(t, <-openErr)
 }
