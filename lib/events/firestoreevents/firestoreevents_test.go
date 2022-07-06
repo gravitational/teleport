@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,6 +60,8 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 
 	config.Clock = fakeClock
 	config.UIDGenerator = utils.NewFakeUID()
+	config.RetryPeriod = defaults.HighResPollingPeriod
+	config.PurgeExpiredDocumentsPollInterval = time.Second
 
 	log, err := New(config)
 
@@ -106,4 +109,8 @@ func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 func (s *FirestoreeventsSuite) TestPagination(c *check.C) {
 	s.EventPagination(c)
+}
+
+func (s *FirestoreeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
 }

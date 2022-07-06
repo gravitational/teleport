@@ -13,26 +13,15 @@ like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
 
-<ScopedBlock
-  scope={["oss"]}
->
+## Prerequisites
 
-  This guide requires Teleport Cloud or Teleport Enterprise.
+- ADFS installation with Admin access and users assigned to at least two groups.
+- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
 
-  View this guide as the user of another Teleport edition:
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./adfs.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./adfs.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
+(!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -158,7 +147,7 @@ to the *"admin"* role. Groups with the value *"users"* is being mapped to the
 
 For the last step, you'll need to export the signing key:
 
-```bsh
+```code
 $ tctl saml export adfs
 ```
 
@@ -171,7 +160,7 @@ certificates.
 The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
 
-```bsh
+```code
 $ tsh --proxy=proxy.example.com login
 ```
 
@@ -198,5 +187,3 @@ automatically in a browser.
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
-
-</ScopedBlock>

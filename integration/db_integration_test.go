@@ -38,6 +38,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -281,9 +282,8 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 		return trace.Wrap(err)
 	}
 
-	sub, err := watcher.Subscribe(ctx, services.CertAuthorityTarget{
-		ClusterName: p.clusterRootName,
-		Type:        p.certType,
+	sub, err := watcher.Subscribe(ctx, types.CertAuthorityFilter{
+		p.certType: p.clusterRootName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -610,36 +610,51 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 
 // TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
 func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
-	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separatePostgresPortSetup),
-	)
+	tests := []struct {
+		desc       string
+		disableTLS bool
+	}{
+		{desc: "With TLS enabled", disableTLS: false},
+		{desc: "With TLS disabled", disableTLS: true},
+	}
 
-	// Connect to the database service in root cluster.
-	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
-		Cluster:    pack.root.cluster.Secrets.SiteName,
-		Username:   pack.root.user.GetName(),
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: pack.root.postgresService.Name,
-			Protocol:    pack.root.postgresService.Protocol,
-			Username:    "postgres",
-			Database:    "test",
-		},
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			pack := setupDatabaseTest(t,
+				withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
+				withRootConfig(func(config *service.Config) {
+					config.Proxy.DisableTLS = tt.disableTLS
+				}),
+			)
 
-	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
-	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+			// Connect to the database service in root cluster.
+			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.postgresService.Name,
+					Protocol:    pack.root.postgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			require.NoError(t, err)
 
-	// Disconnect.
-	err = client.Close(context.Background())
-	require.NoError(t, err)
+			// Execute a query.
+			result, err := client.Exec(context.Background(), "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+			require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+			require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+			// Disconnect.
+			err = client.Close(context.Background())
+			require.NoError(t, err)
+		})
+	}
 }
 
 func init() {
@@ -760,7 +775,7 @@ func TestDatabaseAccessHALeafCluster(t *testing.T) {
 // TestDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
 func TestDatabaseAccessMongoSeparateListener(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separateMongoPortSetup),
+		withPortSetupDatabaseTest(helpers.SeparateMongoPortSetup),
 	)
 
 	// Connect to the database service in root cluster.
@@ -872,7 +887,7 @@ type databasePack struct {
 }
 
 type databaseClusterPack struct {
-	cluster         *TeleInstance
+	cluster         *helpers.TeleInstance
 	user            types.User
 	role            types.Role
 	dbProcess       *service.TeleportProcess
@@ -890,7 +905,7 @@ type databaseClusterPack struct {
 
 type testOptions struct {
 	clock             clockwork.Clock
-	instancePortsFunc func() *InstancePorts
+	instancePortsFunc func() *helpers.InstancePorts
 	rootConfig        func(config *service.Config)
 	leafConfig        func(config *service.Config)
 	nodeName          string
@@ -903,7 +918,7 @@ func (o *testOptions) setDefaultIfNotSet() {
 		o.clock = clockwork.NewRealClock()
 	}
 	if o.instancePortsFunc == nil {
-		o.instancePortsFunc = standardPortSetup
+		o.instancePortsFunc = helpers.StandardPortSetup
 	}
 	if o.nodeName == "" {
 		o.nodeName = Host
@@ -922,7 +937,7 @@ func withNodeName(nodeName string) testOptionFunc {
 	}
 }
 
-func withPortSetupDatabaseTest(portFn func() *InstancePorts) testOptionFunc {
+func withPortSetupDatabaseTest(portFn func() *helpers.InstancePorts) testOptionFunc {
 	return func(o *testOptions) {
 		o.instancePortsFunc = portFn
 	}
@@ -960,37 +975,37 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", ports.Pop()),
-			mysqlAddr:    net.JoinHostPort("localhost", ports.Pop()),
-			mongoAddr:    net.JoinHostPort("localhost", ports.Pop()),
+			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 	}
 
 	// Create root cluster.
-	p.root.cluster = NewInstance(InstanceConfig{
+	p.root.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.instancePortsFunc(),
 	})
 
 	// Create leaf cluster.
-	p.leaf.cluster = NewInstance(InstanceConfig{
+	p.leaf.cluster = helpers.NewInstance(helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.
@@ -1242,15 +1257,15 @@ func (p *databasePack) waitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.root.cluster.log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
+				p.root.cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.leaf.mysqlService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.mysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.leaf.postgresService.Name) {
-				p.root.cluster.log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
+				p.root.cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.leaf.postgresService.Name)
 				continue
 			}
 			return
@@ -1272,7 +1287,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.Token = "static-token-value"
-	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
+	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", helpers.NewPortStr())}
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",

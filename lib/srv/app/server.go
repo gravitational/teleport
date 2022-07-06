@@ -645,6 +645,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer session.release()
 
 	// Forward request to the target application.
 	session.fwd.ServeHTTP(w, r)
@@ -706,10 +707,12 @@ func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identit
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
+// The in-flight request count is automatically incremented on the session.
+// The caller must call session.release() after finishing its use
 func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
-	// If a cached forwarder exists, return it right away.
 	session, err := s.cache.get(identity.RouteToApp.SessionID)
-	if err == nil {
+	// If a cached forwarder exists, return it right away.
+	if err == nil && session.acquire() == nil {
 		return session, nil
 	}
 

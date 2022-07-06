@@ -197,15 +197,23 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos7 {
+	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
+	if b.centos7 || b.arch == "amd64" {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-	if b.os == "windows" && b.windowsUnsigned {
-		makefileTarget = "release-windows-unsigned"
+
+	// Override Windows targets.
+	if b.os == "windows" {
+		if b.windowsUnsigned {
+			makefileTarget = "release-windows-unsigned"
+		} else {
+			makefileTarget = "release-windows"
+		}
 	}
+
 	return makefileTarget
 }
 
