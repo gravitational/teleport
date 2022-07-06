@@ -197,5 +197,10 @@ func (s *KubeSession) Close() error {
 	}
 
 	<-s.ctx.Done()
-	return nil
+	return trace.Wrap(s.Detach())
+}
+
+// Detach detaches the terminal from the session. Must be called if Close is not called.
+func (s *KubeSession) Detach() error {
+	return s.term.Close()
 }
