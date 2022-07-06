@@ -1931,8 +1931,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			allow: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
@@ -1942,8 +1942,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			deny: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
