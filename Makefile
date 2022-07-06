@@ -885,7 +885,6 @@ buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
 	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
 	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
 	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types,$\
 	Mignoreme=ignoreme
 buildbox-grpc:
 	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
