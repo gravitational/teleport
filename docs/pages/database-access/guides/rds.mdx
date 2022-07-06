@@ -65,17 +65,6 @@ $ teleport db configure create \
 ```
 
 </ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --proxy=mytenant.teleport.sh \
-   --token=/tmp/token \
-   --rds-discovery=us-west-1
-```
-
-</ScopedBlock>
 
 The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the `us-west-1` region and place it at the
