@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -31,10 +32,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -86,6 +90,10 @@ type Server struct {
 	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	fips bool
+
+	// tracerProvider is used to create tracers capable
+	// of starting spans.
+	tracerProvider oteltrace.TracerProvider
 }
 
 const (
@@ -139,6 +147,14 @@ func SetInsecureSkipHostValidation() ServerOption {
 	}
 }
 
+// SetTracerProvider sets the tracer provider for the server.
+func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
+	return func(s *Server) error {
+		s.tracerProvider = provider
+		return nil
+	}
+}
+
 func NewServer(
 	component string,
 	a utils.NetAddr,
@@ -176,6 +192,11 @@ func NewServer(
 	if s.shutdownPollPeriod == 0 {
 		s.shutdownPollPeriod = defaults.ShutdownPollPeriod
 	}
+
+	if s.tracerProvider == nil {
+		s.tracerProvider = tracing.DefaultProvider()
+	}
+
 	err = s.checkArguments(a, h, hostSigners, ah)
 	if err != nil {
 		return nil, err
@@ -497,8 +518,26 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				return
 			}
 			s.log.Debugf("Received out-of-band request: %+v.", req)
+
+			reqCtx := tracessh.ContextFromRequest(req)
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
+				fmt.Sprintf("ssh.GlobalRequest/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.Server"),
+					semconv.RPCMethodKey.String("GlobalRequest"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
 			if s.reqHandler != nil {
-				go s.reqHandler.HandleRequest(ctx, req)
+				go func(span oteltrace.Span) {
+					defer span.End()
+					s.reqHandler.HandleRequest(ctx, req)
+				}(span)
+			} else {
+				span.End()
 			}
 			// handle channels:
 		case nch := <-chans:
@@ -506,7 +545,40 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			go s.newChanHandler.HandleNewChan(ctx, ccx, nch)
+
+			// This is a request from clients to determine if tracing is enabled.
+			// Handle here so that we always alert clients that we can handle tracing envelopes.
+			if nch.ChannelType() == tracessh.TracingChannel {
+				ch, _, err := nch.Accept()
+				if err != nil {
+					if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
+						s.log.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
+					}
+					continue
+				}
+
+				if err := ch.Close(); err != nil {
+					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
+				}
+				continue
+			}
+
+			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
+				fmt.Sprintf("ssh.OpenChannel/%s", nch.ChannelType()),
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+				oteltrace.WithAttributes(
+					semconv.RPCServiceKey.String("ssh.Server"),
+					semconv.RPCMethodKey.String("OpenChannel"),
+					semconv.RPCSystemKey.String("ssh"),
+				),
+			)
+
+			go func(span oteltrace.Span) {
+				defer span.End()
+				s.newChanHandler.HandleNewChan(ctx, ccx, nch)
+			}(span)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
