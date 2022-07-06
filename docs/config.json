@@ -375,6 +375,10 @@
             {
               "title": "Visual Studio Code",
               "slug": "/server-access/guides/vscode/"
+            },
+            {
+              "title": "Host User Creation",
+              "slug": "/server-access/guides/host-user-creation/"
             }
           ]
         }
