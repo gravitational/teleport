@@ -338,38 +338,6 @@ publish-ci:
 publish-fips-ci:
 	docker push $(DOCKER_IMAGE_ENT_CI):$(VERSION)-fips
 
-# Build chart
-.PHONY: chart
-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
-chart:
-	rm -f teleport-$(VERSION).tgz
-	helm package ../examples/chart/teleport --version=$(VERSION)
-
-# install-chart
-.PHONY:
-install-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
-install-chart: chart
-	helm init
-	helm install teleport-$(VERSION).tgz -n teleport
-
-# debug-chart
-.PHONY:
-debug-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
-debug-chart:
-	helm init
-	helm install --dry-run --debug teleport-$(VERSION).tgz -n teleport
-
-# uninstall-chart
-.PHONY:
-uninstall-chart:
-	helm del --purge teleport
-
-# upgrade chart
-.PHONY:
-upgrade-chart: VERSION := $(shell $(MAKE) -s -C .. print-version)
-upgrade-chart: chart
-	helm upgrade teleport teleport-$(VERSION).tgz
-
 RUNTIME_SECTION ?=
 TARBALL_PATH_SECTION ?=
 
