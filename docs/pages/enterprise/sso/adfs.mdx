@@ -13,26 +13,6 @@ like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
-
-<ScopedBlock
-  scope={["oss"]}
->
-
-  This guide requires Teleport Cloud or Teleport Enterprise.
-
-  View this guide as the user of another Teleport edition:
-
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./adfs.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./adfs.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -210,4 +190,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to the `teleport start` command.
-</ScopedBlock>
