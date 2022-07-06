@@ -154,7 +154,8 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
+| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
@@ -695,11 +696,14 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
+### tsh environment variables
+
 Environment variables configure your tsh client and can help you avoid using flags repetitively.
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or Github auth connector | okta |
+| TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
