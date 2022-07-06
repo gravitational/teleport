@@ -782,7 +782,7 @@ func TestAccessMongoDB(t *testing.T) {
 			name: "client without compression",
 			opts: options.Client().
 				// Add extra time so the test won't time out when running in parallel.
-				SetServerSelectionTimeout(10 * time.Second),
+				SetServerSelectionTimeout(2 * time.Second),
 		},
 		//{
 		//	name: "client with compression",
