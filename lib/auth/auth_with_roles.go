@@ -3227,6 +3227,15 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		}
 	}
 
+	tst, err := newNetConfig.GetTunnelStrategyType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return trace.AccessDenied("proxy peering is an enterprise-only feature")
+	}
+
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
 }
 
