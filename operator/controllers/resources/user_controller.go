@@ -19,7 +19,8 @@ package resources
 import (
 	"context"
 	"fmt"
-
+	"github.com/gravitational/teleport/api/types"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,17 +76,37 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	}
 	teleportResource := k8sResource.ToTeleport()
 
-	_, err := r.TeleportClient.GetUser(teleportResource.GetName(), false)
+	existingResource, err := r.TeleportClient.GetUser(teleportResource.GetName(), false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if trace.IsNotFound(err) {
-		if !hasOriginLabel(obj) {
-			return addOriginLabelToK8SObject(ctx, r.Client, obj)
-		}
 
-		return trace.Wrap(r.TeleportClient.CreateUser(ctx, teleportResource))
+	exists := !trace.IsNotFound(err)
+
+	newCondition, ownershipErr := checkOwnership(existingResource)
+	// Setting the condition before returning a potential ownership error
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
+	if err := r.Status().Update(ctx, k8sResource); err != nil {
+		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(r.TeleportClient.UpdateUser(ctx, teleportResource))
+	if ownershipErr != nil {
+		return trace.Wrap(ownershipErr)
+	}
+
+	r.addTeleportResourceOrigin(&teleportResource)
+
+	if !exists {
+		return r.TeleportClient.CreateUser(ctx, teleportResource)
+	}
+	return r.TeleportClient.UpdateUser(ctx, teleportResource)
+}
+
+func (r *UserReconciler) addTeleportResourceOrigin(resource *types.User) {
+	metadata := (*resource).GetMetadata()
+	if metadata.Labels == nil {
+		metadata.Labels = make(map[string]string)
+	}
+	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
+	(*resource).SetMetadata(metadata)
 }
