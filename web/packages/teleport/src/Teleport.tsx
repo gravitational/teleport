@@ -27,6 +27,7 @@ import Login, { LoginSuccess, LoginFailed } from './Login';
 import AppLauncher from './AppLauncher';
 import Console from './Console';
 import DesktopSession from './DesktopSession';
+import Discover from './Discover';
 import Player from './Player';
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -104,6 +105,9 @@ export function renderPublicRoutes(children = []) {
 export function renderPrivateRoutes(CustomMain = Main) {
   return (
     <Switch>
+      {cfg.enabledDiscoverWizard && (
+        <Route path={cfg.routes.discover} component={Discover} />
+      )}
       <Route path={cfg.routes.desktop} component={DesktopSession} />
       <Route path={cfg.routes.console} component={Console} />
       <Route path={cfg.routes.player} component={Player} />

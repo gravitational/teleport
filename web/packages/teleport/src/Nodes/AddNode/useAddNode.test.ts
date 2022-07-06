@@ -1,4 +1,4 @@
-import { JoinToken } from 'teleport/services/joinToken';
+import type { JoinToken } from 'teleport/services/joinToken';
 import { createBashCommand } from './useAddNode';
 
 describe('correct bash command', () => {

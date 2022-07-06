@@ -17,13 +17,17 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import makeJoinToken from './makeJoinToken';
-import { JoinToken, Method, Roles, Rule } from './types';
+import { JoinToken, JoinMethod, JoinRole, JoinRule } from './types';
 
 class JoinTokenService {
   fetchJoinToken(
-    roles: Roles[],
-    joinMethod: Method = 'token',
-    rules: Rule[] = []
+    // roles is a list of join roles, since there can be more than
+    // one role associated with a token.
+    roles: JoinRole[],
+    joinMethod: JoinMethod = 'token',
+    // rules is a list of allow rules associated with the join token
+    // and the node using this token must match one of the rules.
+    rules: JoinRule[] = []
   ): Promise<JoinToken> {
     return api
       .post(cfg.getJoinTokenUrl(), {
@@ -35,7 +39,7 @@ class JoinTokenService {
   }
 }
 
-function makeAllowField(rules: Rule[]) {
+function makeAllowField(rules: JoinRule[]) {
   return rules.map(rule => ({
     aws_account: rule.awsAccountId,
     aws_arn: rule.awsArn,

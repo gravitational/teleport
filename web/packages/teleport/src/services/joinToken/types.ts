@@ -20,11 +20,28 @@ export type JoinToken = {
   expiryText?: string;
 };
 
-export type Roles = 'App' | 'Node' | 'Db' | 'Kube';
+// JoinRole defines built-in system roles and are roles associated with
+// a join token and will be granted to the user of the join token.
+// Same hard-coded value as the backend:
+// - 'App' is a role for an app proxy in the cluster
+// - 'Db' is a role for a database proxy in the cluster
+// - 'Kube' is a role for a kube service
+// - 'Node' is a role for a node in the cluster
+// - 'WindowsDesktop' is a role for a windows desktop service.
+export type JoinRole = 'App' | 'Node' | 'Db' | 'Kube' | 'WindowsDesktop';
 
-export type Method = 'token' | 'ec2' | 'iam';
+// JoinMethod is the method used for new nodes to join the cluster.
+// Same hard-corded value as the backend.
+// - 'token' is the default method, where nodes join the cluster by
+//   presenting a secret token.
+// - 'ec2' is a method where node will join with the EC2 join method
+// - 'iam' is a method where node will join with the IAM join method
+export type JoinMethod = 'token' | 'ec2' | 'iam';
 
-export type Rule = {
+// JoinRule is a rule that a joining node must match in order to use the
+// associated token.
+export type JoinRule = {
   awsAccountId: string;
+  // awsArn is used for the IAM join method.
   awsArn?: string;
 };

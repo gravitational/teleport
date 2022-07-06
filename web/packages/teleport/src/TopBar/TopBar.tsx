@@ -16,13 +16,15 @@ limitations under the License.
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useTheme } from 'styled-components';
+import { Text, Flex, ButtonPrimary, TopNav } from 'design';
+import { Wand } from 'design/Icon';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { MenuItemIcon, MenuItem } from 'design/Menu';
-import { Text, Flex, ButtonPrimary, TopNav } from 'design';
-import ClusterSelector from './ClusterSelector';
-import { useTheme } from 'styled-components';
+import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import ClusterSelector from './ClusterSelector';
 import useTopBar from './useTopBar';
 
 export default function Container() {
@@ -107,6 +109,12 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
           user={username}
         >
           {$userMenuItems}
+          {cfg.enabledDiscoverWizard && (
+            <MenuItem as={NavLink} to={cfg.routes.discover}>
+              <MenuItemIcon as={Wand} mr="2" />
+              Discovery Wizard
+            </MenuItem>
+          )}
           <MenuItem>
             <ButtonPrimary my={3} block onClick={logout}>
               Sign Out
