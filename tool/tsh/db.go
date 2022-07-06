@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sort"
@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -77,7 +76,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
+	roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -140,7 +139,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				continue
 			}
 
-			roleSet, err := fetchRoleSet(cf.Context, cluster, profile)
+			roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
@@ -659,12 +658,19 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	log.Debug(cmd.String())
+
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
+	// Use io.MultiWriter to duplicate stderr to the capture writer. The
+	// captured stderr can be used for diagnosing command failures. The capture
+	// writer captures up to a fixed number to limit memory usage.
+	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
+	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
+
 	err = cmd.Run()
 	if err != nil {
-		return trace.Wrap(err)
+		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
 	return nil
 }
@@ -810,32 +816,6 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 		return false, trace.Wrap(err)
 	}
 	return mfaResp.GetRequired(), nil
-}
-
-// fetchRoleSet fetches a user's roles for a specified cluster.
-func fetchRoleSet(ctx context.Context, cluster auth.ClientI, profile *client.ProfileStatus) (services.RoleSet, error) {
-	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
-	roles := profile.Roles
-	traits := profile.Traits
-
-	// GetCurrentUser() may not be implemented, fail gracefully.
-	user, err := cluster.GetCurrentUser(ctx)
-	if err == nil {
-		roles = user.GetRoles()
-		traits = user.GetTraits()
-	} else {
-		log.Debugf("Failed to fetch current user information: %v.", err)
-	}
-
-	// get the role definition for all roles of user.
-	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
-	// example scenario when this may happen:
-	// 1. we have set of roles [foo bar] from profile.
-	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
-	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
-	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := services.FetchRoles(roles, cluster, traits)
-	return roleSet, trace.Wrap(err)
 }
 
 // pickActiveDatabase returns the database the current profile is logged into.
