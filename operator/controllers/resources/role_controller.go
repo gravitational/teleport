@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"github.com/gravitational/teleport/api/types"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -83,18 +81,15 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(err)
 	}
 
-	updateCondition := func(condition metav1.Condition) error {
-		meta.SetStatusCondition(&k8sResource.Status.Conditions, condition)
-		err := r.Status().Update(ctx, k8sResource)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+	newCondition, ownershipErr := checkOwnership(existingResource)
+	// Setting the condition before returning a potential ownership error
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
+	if err := r.Status().Update(ctx, k8sResource); err != nil {
+		return trace.Wrap(err)
 	}
 
-	err = checkOwnership(existingResource, updateCondition)
-	if err != nil {
-		return trace.Wrap(err)
+	if ownershipErr != nil {
+		return trace.Wrap(ownershipErr)
 	}
 
 	r.addTeleportResourceOrigin(&teleportResource)

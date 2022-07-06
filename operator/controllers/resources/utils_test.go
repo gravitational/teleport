@@ -23,15 +23,6 @@ func TestCheckOwnership(t *testing.T) {
 		}
 	}
 
-	validateCondition := func(t2 *testing.T, status metav1.ConditionStatus, reason string) func(condition metav1.Condition) error {
-		return func(condition metav1.Condition) error {
-			require.Equal(t2, condition.Type, ConditionTypeTeleportResourceOwned)
-			require.Equal(t2, condition.Status, status)
-			require.Equal(t2, condition.Reason, reason)
-			return nil
-		}
-	}
-
 	tests := []struct {
 		name                    string
 		existingResource        types.Resource
@@ -97,11 +88,12 @@ func TestCheckOwnership(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 
-			err := checkOwnership(
-				tc.existingResource,
-				validateCondition(t, tc.expectedConditionStatus, tc.expectedConditionReason),
-			)
+			condition, err := checkOwnership(tc.existingResource)
+
 			tc.check(t, err)
+			require.Equal(t, condition.Type, ConditionTypeTeleportResourceOwned)
+			require.Equal(t, condition.Status, tc.expectedConditionStatus)
+			require.Equal(t, condition.Reason, tc.expectedConditionReason)
 		})
 	}
 }

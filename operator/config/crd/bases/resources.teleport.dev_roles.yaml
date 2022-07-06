@@ -961,9 +961,6 @@ spec:
               teleportResourceID:
                 format: int64
                 type: integer
-            required:
-            - conditions
-            - teleportResourceID
             type: object
         type: object
     served: true

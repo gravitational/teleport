@@ -23,7 +23,9 @@ func isResourceOriginKubernetes(resource types.Resource) bool {
 	return false
 }
 
-func checkOwnership(existingResource types.Resource, setCondition func(condition metav1.Condition) error) error {
+// checkOwnership takes an existing resource and validates the operator owns it.
+// It returns an ownership condition and an error if the resource is not owned by the operator
+func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 	if existingResource != nil {
 		if !isResourceOriginKubernetes(existingResource) {
 			// Existing Teleport resource does not belong to us, bailing out
@@ -34,11 +36,7 @@ func checkOwnership(existingResource types.Resource, setCondition func(condition
 				Reason:  ConditionReasonOriginLabelNotMatching,
 				Message: "A resource with the same name already exists in Teleport and does not have the Kubernetes origin label. Refusing to reconcile.",
 			}
-			err := setCondition(condition)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource)
+			return condition, trace.AlreadyExists("unowned resource '%s' already exists", existingResource)
 		}
 
 		condition := metav1.Condition{
@@ -47,11 +45,7 @@ func checkOwnership(existingResource types.Resource, setCondition func(condition
 			Reason:  ConditionReasonOriginLabelMatching,
 			Message: "Teleport resource has the Kubernetes origin label.",
 		}
-		err := setCondition(condition)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+		return condition, nil
 	}
 
 	condition := metav1.Condition{
@@ -60,9 +54,5 @@ func checkOwnership(existingResource types.Resource, setCondition func(condition
 		Reason:  ConditionReasonNewResource,
 		Message: "No existing Teleport resource found with that name. The created resource is owned by the operator.",
 	}
-	err := setCondition(condition)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return condition, nil
 }

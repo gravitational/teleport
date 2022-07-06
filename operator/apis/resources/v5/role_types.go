@@ -36,8 +36,10 @@ type RoleSpec types.RoleSpecV5
 // RoleStatus defines the observed state of Role
 type RoleStatus struct {
 	// Conditions represent the latest available observations of an object's state
-	Conditions         []metav1.Condition `json:"conditions"`
-	TeleportResourceID int64              `json:"teleportResourceID"`
+	// +optional
+	Conditions []metav1.Condition `json:"conditions"`
+	// +optional
+	TeleportResourceID int64 `json:"teleportResourceID"`
 }
 
 //+kubebuilder:object:root=true
