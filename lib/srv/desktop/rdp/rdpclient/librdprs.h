@@ -233,6 +233,18 @@ typedef struct CGOSharedDirectoryWriteRequest {
   uint8_t *write_data;
 } CGOSharedDirectoryWriteRequest;
 
+
+
+
+
+
+
+
+
+
+
+
+
 void init(void);
 
 /**
