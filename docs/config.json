@@ -375,6 +375,10 @@
             {
               "title": "Visual Studio Code",
               "slug": "/server-access/guides/vscode/"
+            },
+            {
+              "title": "Host User Creation",
+              "slug": "/server-access/guides/host-user-creation/"
             }
           ]
         }
@@ -713,6 +717,10 @@
             {
               "title": "Session Locking",
               "slug": "/access-controls/guides/locking/"
+            },
+            {
+              "title": "Passwordless (Preview)",
+              "slug": "/access-controls/guides/passwordless/"
             },
             {
               "title": "Second Factor - WebAuthn",
@@ -1319,6 +1327,11 @@
     {
       "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
       "destination": "/setup/helm-reference/teleport-kube-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
       "permanent": true
     }
   ]
