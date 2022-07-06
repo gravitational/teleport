@@ -164,8 +164,12 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
-  - [ ] tsh ssh -J \<leaf-proxy\>
-  - [ ] ssh -J \<leaf-proxy\>
+  - [ ] tls routing disabled
+    - [ ] tsh ssh -J \<leaf.proxy.example.com:3023\>
+    - [ ] ssh -J \<leaf.proxy.example.com:3023\>
+  - [ ] tls routing enabled
+    - [ ] tsh ssh -J \<leaf.proxy.example.com:3080\>
+    - [ ] tsh proxy ssh -J \<leaf.proxy.example.com:3080\>
 
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node

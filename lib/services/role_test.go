@@ -1828,32 +1828,34 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins         []string
-		outLogins        []string
-		inWindowsLogins  []string
-		outWindowsLogins []string
-		inRoleARNs       []string
-		outRoleARNs      []string
-		inLabels         types.Labels
-		outLabels        types.Labels
-		inKubeLabels     types.Labels
-		outKubeLabels    types.Labels
-		inKubeGroups     []string
-		outKubeGroups    []string
-		inKubeUsers      []string
-		outKubeUsers     []string
-		inAppLabels      types.Labels
-		outAppLabels     types.Labels
-		inDBLabels       types.Labels
-		outDBLabels      types.Labels
-		inDBNames        []string
-		outDBNames       []string
-		inDBUsers        []string
-		outDBUsers       []string
-		inImpersonate    types.ImpersonateConditions
-		outImpersonate   types.ImpersonateConditions
-		inSudoers        []string
-		outSudoers       []string
+		inLogins                []string
+		outLogins               []string
+		inWindowsLogins         []string
+		outWindowsLogins        []string
+		inRoleARNs              []string
+		outRoleARNs             []string
+		inLabels                types.Labels
+		outLabels               types.Labels
+		inKubeLabels            types.Labels
+		outKubeLabels           types.Labels
+		inKubeGroups            []string
+		outKubeGroups           []string
+		inKubeUsers             []string
+		outKubeUsers            []string
+		inAppLabels             types.Labels
+		outAppLabels            types.Labels
+		inDBLabels              types.Labels
+		outDBLabels             types.Labels
+		inWindowsDesktopLabels  types.Labels
+		outWindowsDesktopLabels types.Labels
+		inDBNames               []string
+		outDBNames              []string
+		inDBUsers               []string
+		outDBUsers              []string
+		inImpersonate           types.ImpersonateConditions
+		outImpersonate          types.ImpersonateConditions
+		inSudoers               []string
+		outSudoers              []string
 	}
 	var tests = []struct {
 		comment  string
@@ -1929,8 +1931,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			allow: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
@@ -1940,8 +1942,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			deny: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
@@ -2240,6 +2242,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "values are expanded in windows desktop labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inWindowsDesktopLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outWindowsDesktopLabels: types.Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
 			comment: "impersonate roles",
 			inTraits: map[string][]string{
 				"teams":         {"devs"},
@@ -2323,6 +2335,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
+						WindowsDesktopLabels: tt.allow.inWindowsDesktopLabels,
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
 					},
@@ -2338,6 +2351,7 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
+						WindowsDesktopLabels: tt.deny.inWindowsDesktopLabels,
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
 					},
@@ -2364,6 +2378,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outWindowsDesktopLabels, outRole.GetWindowsDesktopLabels(rule.condition))
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 			}
