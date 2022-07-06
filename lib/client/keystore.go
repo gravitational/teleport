@@ -204,6 +204,10 @@ func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 		fs.sshCAsPath(idx),
 		fs.tlsCertPath(idx),
 	}
+	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows
+	if runtime.GOOS == constants.WindowsOS {
+		files = append(files, fs.PPKFilePath(idx))
+	}
 	for _, fn := range files {
 		if err := os.Remove(fn); err != nil {
 			return trace.ConvertSystemError(err)
