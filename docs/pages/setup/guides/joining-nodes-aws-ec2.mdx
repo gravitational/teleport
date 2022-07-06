@@ -13,26 +13,7 @@ The EC2 join method is not available in Teleport Cloud. Teleport Cloud customers
 can use the [IAM join method](./joining-nodes-aws-iam.mdx) or
 [secret tokens](../admin/adding-nodes.mdx).
 
-You can view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-title="Open Source Teleport"
-href="./joining-nodes-aws-ec2.mdx/?scope=oss"
-icon="stack"
->
-</Tile>
-<Tile
-title="Teleport Enterprise"
-href="./joining-nodes-aws-ec2.mdx/?scope=enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 The EC2 join method is available in self-hosted versions of Teleport 7.3+. It is
 available to any Teleport node or Proxy running on an EC2 instance. Only one
@@ -302,4 +283,3 @@ spec:
     aws_role: "arn:aws:iam::333333333333:role/teleport-DescribeInstances-role"
 ```
 
-</ScopedBlock>
