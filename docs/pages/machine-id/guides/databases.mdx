@@ -264,7 +264,7 @@ to configure the new output files, then restart `tbot` with
 `systemctl restart machine-id machine-id-proxy`.
 
 <Admonition type="note" title="TLS Configuration Note">
-If desired, the `--tunnel` flag may be passed to `tbot proxy db ...` to
+If desired, you can add the `--tunnel` flag to the `tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file to
 authenticate automatically at the proxy level, however this will decrease
 security as all users of the system will be able to connect to the database
 without any additional authentication.
