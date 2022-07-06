@@ -57,38 +57,38 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
-|[Access Requests](./access-controls/guides/dual-authz.mdx)|Limited|&#10004;|&#10004;|
+|[Access Requests](./access-controls/guides/dual-authz.mdx)|Limited|&#10003;|&#10003;|
 |[Single Sign-On](./enterprise/sso.mdx)|GitHub|GitHub, Google Workspace, OIDC, SAML|GitHub, Google Workspace, OIDC, SAML|
-|[Role-Based Access Control](./access-controls/guides/role-templates.mdx)|&#10004;|&#10004;|&#10004;|
-|[Moderated Sessions](./access-controls/guides/moderated-sessions.mdx)|&#10006;|&#10004;|&#10004;|
+|[Role-Based Access Control](./access-controls/guides/role-templates.mdx)|&#10003;|&#10003;|&#10003;|
+|[Moderated Sessions](./access-controls/guides/moderated-sessions.mdx)|&#10761;|&#10003;|&#10003;|
 
 ### Infrastructure access
 
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
-|[Application Access](./application-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Server Access](./server-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Database Access](./database-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Desktop Access](./desktop-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Kubernetes Access](./kubernetes-access/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|[Machine ID](./machine-id/getting-started.mdx)|&#10004;|&#10004;|&#10004;|
-|Agentless integration with [OpenSSH servers](./server-access/guides/openssh.mdx)|&#10004;|&#10004;|&#10004;|
+|[Application Access](./application-access/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|[Server Access](./server-access/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|[Database Access](./database-access/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|[Desktop Access](./desktop-access/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|[Kubernetes Access](./kubernetes-access/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|[Machine ID](./machine-id/getting-started.mdx)|&#10003;|&#10003;|&#10003;|
+|Agentless integration with [OpenSSH servers](./server-access/guides/openssh.mdx)|&#10003;|&#10003;|&#10003;|
 
 ### Session recording
 
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
-|[Recording Proxy Mode](./server-access/guides/recording-proxy-mode.mdx)|&#10004;|&#10004;|&#10006;|
-|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10004;|&#10004;|&#10006;|
+|[Recording Proxy Mode](./server-access/guides/recording-proxy-mode.mdx)|&#10003;|&#10003;|&#10761;|
+|[Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx)|&#10003;|&#10003;|&#10761;|
 
 ### Compliance
 
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
-|[FedRAMP Control](./enterprise/fedramp.mdx)|&#10006;|&#10004;|&#10006;|
-|PCI DSS Features|Limited|&#10004;|&#10004;|
-|SOC2 Features|Limited|&#10004;|&#10004;|
-|FIPS-compliant binaries available for FedRAMP High|&#10006;|&#10004;|&#10006;|
+|[FedRAMP Control](./enterprise/fedramp.mdx)|&#10761;|&#10003;|&#10761;|
+|PCI DSS Features|Limited|&#10003;|&#10003;|
+|SOC2 Features|Limited|&#10003;|&#10003;|
+|FIPS-compliant binaries available for FedRAMP High|&#10761;|&#10003;|&#10761;|
 
 ### Operations
 
@@ -99,7 +99,7 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
 |[Backend support](setup/reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption|
 |Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends| Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access|
-|[Hardware Security Module support](./enterprise/hsm.mdx) for encryption at rest|&#10006;|&#10004;|&#10006;|
+|[Hardware Security Module support](./enterprise/hsm.mdx) for encryption at rest|&#10761;|&#10003;|&#10761;|
 
 ### Support
 
@@ -111,10 +111,9 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 
 ||Open Source|Enterprise|Cloud|
 |---|---|---|---|
-|Annual or multi-year contracts, volume discounts|&#10006;|&#10004;|&#10004;|
+|Annual or multi-year contracts, volume discounts|&#10761;|&#10003;|&#10003;|
 |License|Apache 2|Commercial|Commercial|
-|Usage tracking|&#10006;|&#10006;|Enables you to track the number of users per protocol.|
-
+|Usage tracking|&#10761;|&#10761;|Enables you to track the number of users per protocol.|
 
 ## Which version of Teleport is supported?
 
