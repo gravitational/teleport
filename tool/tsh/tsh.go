@@ -1305,7 +1305,9 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
+	usernameProvided := true
 	if cf.Username == "" {
+		usernameProvided = false
 		cf.Username = tc.Username
 	}
 
@@ -1319,6 +1321,9 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
+		if !usernameProvided && auth.IsInvalidLocalCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
+		}
 		return trace.Wrap(err)
 	}
 	tc.AllowStdinHijack = false
