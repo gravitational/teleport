@@ -33,9 +33,10 @@ use crate::{
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use consts::{
     CapabilityType, Component, DeviceType, FileInformationClassLevel,
-    FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId,
-    DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, GENERAL_CAPABILITY_VERSION_02,
-    NTSTATUS, SCARD_DEVICE_ID, SMARTCARD_CAPABILITY_VERSION_01, VERSION_MAJOR, VERSION_MINOR,
+    FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId, BOOL_SIZE,
+    DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, FILE_ATTR_SIZE,
+    GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
+    SMARTCARD_CAPABILITY_VERSION_01, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -2341,8 +2342,7 @@ struct FileBasicInformation {
 }
 
 impl FileBasicInformation {
-    /// 4 i64's and 1 u32's = (4 * 8) + 4
-    const BASE_SIZE: u32 = (4 * 8) + 4;
+    const BASE_SIZE: u32 = (4 * I64_SIZE) + FILE_ATTR_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2411,7 +2411,7 @@ struct FileStandardInformation {
 }
 
 impl FileStandardInformation {
-    const BASE_SIZE: u32 = (2 * 8) + 4 + 2;
+    const BASE_SIZE: u32 = (2 * I64_SIZE) + U32_SIZE + (2 * BOOL_SIZE);
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2437,7 +2437,7 @@ struct FileAttributeTagInformation {
 }
 
 impl FileAttributeTagInformation {
-    const BASE_SIZE: u32 = 2 * 4;
+    const BASE_SIZE: u32 = U32_SIZE + FILE_ATTR_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2486,8 +2486,7 @@ struct FileBothDirectoryInformation {
 impl FileBothDirectoryInformation {
     /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
     /// Note that file_name's size should be calculated as if it were a Unicode string.
-    /// 5 u32's (including FileAttributesFlags) + 6 i64's + 1 i8 + 24 bytes
-    const BASE_SIZE: u32 = (5 * 4) + (6 * 8) + 1 + 24; // 93
+    const BASE_SIZE: u32 = (4 * U32_SIZE) + FILE_ATTR_SIZE + (6 * I64_SIZE) + I8_SIZE + 24; // 93
 
     fn new(
         creation_time: i64,
@@ -2586,8 +2585,7 @@ struct FileFullDirectoryInformation {
 impl FileFullDirectoryInformation {
     /// Base size of the FileFullDirectoryInformation, not accounting for variably sized file_name.
     /// Note that file_name's size should be calculated as if it were a Unicode string.
-    /// 5 u32's (including FileAttributesFlags) + 6 i64's
-    const BASE_SIZE: u32 = (5 * 4) + (6 * 8); // 68
+    const BASE_SIZE: u32 = (4 * U32_SIZE) + FILE_ATTR_SIZE + (6 * I64_SIZE); // 68
 
     fn new(
         creation_time: i64,
@@ -2668,7 +2666,7 @@ struct FileEndOfFileInformation {
 }
 
 impl FileEndOfFileInformation {
-    const BASE_SIZE: u32 = 8;
+    const BASE_SIZE: u32 = I64_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2694,7 +2692,7 @@ struct FileDispositionInformation {
 }
 
 impl FileDispositionInformation {
-    const BASE_SIZE: u32 = 1;
+    const BASE_SIZE: u32 = U8_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2723,7 +2721,7 @@ struct FileRenameInformation {
 impl FileRenameInformation {
     // This matches the FreeRDP implementation rather than Microsoft specification
     // see encode method
-    const BASE_SIZE: u32 = 1 + 1 + 4;
+    const BASE_SIZE: u32 = (2 * U8_SIZE) + U32_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L709
@@ -2767,7 +2765,7 @@ struct FileAllocationInformation {
 }
 
 impl FileAllocationInformation {
-    const BASE_SIZE: u32 = 8;
+    const BASE_SIZE: u32 = I64_SIZE;
 
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
@@ -2827,7 +2825,7 @@ struct FileFsVolumeInformation {
 impl FileFsVolumeInformation {
     /// Base size of the FileFsVolumeInformation, not accounting for variably sized volume_label.
     /// 1 i64, 2 u32, 1 Boolean
-    const BASE_SIZE: u32 = 8 + (2 * 4) + 1; // 17
+    const BASE_SIZE: u32 = I64_SIZE + (2 * U32_SIZE) + BOOL_SIZE; // 17
 
     fn new(volume_creation_time: i64) -> Self {
         // volume_label can just be something we make up
@@ -2877,7 +2875,7 @@ struct FileFsSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsSizeInformation {
-    const BASE_SIZE: u32 = (2 * 8) + (2 * 4);
+    const BASE_SIZE: u32 = (2 * I64_SIZE) + (2 * U32_SIZE);
 
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
@@ -2918,7 +2916,7 @@ struct FileFsAttributeInformation {
 
 #[allow(dead_code)]
 impl FileFsAttributeInformation {
-    const BASE_SIZE: u32 = 3 * 4;
+    const BASE_SIZE: u32 = (2 * U32_SIZE) + FILE_ATTR_SIZE;
 
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L447
@@ -2967,7 +2965,7 @@ struct FileFsFullSizeInformation {
 
 #[allow(dead_code)]
 impl FileFsFullSizeInformation {
-    const BASE_SIZE: u32 = (3 * 8) + (2 * 4);
+    const BASE_SIZE: u32 = (3 * I64_SIZE) + (2 * U32_SIZE);
 
     fn new() -> Self {
         // Fill these out with the default fallback values FreeRDP uses
@@ -3010,7 +3008,7 @@ struct FileFsDeviceInformation {
 
 #[allow(dead_code)]
 impl FileFsDeviceInformation {
-    const BASE_SIZE: u32 = 2 * 4;
+    const BASE_SIZE: u32 = 2 * U32_SIZE;
 
     fn new() -> Self {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L570-L571
