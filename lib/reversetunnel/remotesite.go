@@ -504,9 +504,17 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		}
 		ca, err := s.localAccessPoint.GetCertAuthority(s.ctx, caID, false)
 		if err != nil {
+			s.WithError(err).Debugf("failed to get local cert authority %v", caID)
 			return trace.Wrap(err, "failed to get local cert authority")
 		}
+		errors := 0
+	retry:
 		if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, ca); err != nil {
+			s.WithError(err).Debugf("failed to push local cert authority %v", caID)
+			errors++
+			if trace.IsCompareFailed(err) && errors < 5 {
+				goto retry
+			}
 			return trace.Wrap(err, "failed to push local cert authority")
 		}
 		s.Debugf("Pushed local cert authority %v", caID.String())
