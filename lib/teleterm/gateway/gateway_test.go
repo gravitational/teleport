@@ -70,7 +70,6 @@ func TestGatewayStart(t *testing.T) {
 		mockCLICommandProvider{},
 	)
 	require.NoError(t, err)
-	require.Equal(t, gateway, gateway)
 
 	wait := make(chan error)
 
