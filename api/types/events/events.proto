@@ -1928,6 +1928,7 @@ message OneOf {
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
         events.SQLServerRPCRequest SQLServerRPCRequest = 89;
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
+        events.UpgradeWindowsUpdate UpgradeWindowsUpdate = 91;
     }
 }
 
@@ -2384,4 +2385,26 @@ message DatabaseSessionMalformedPacket {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // Payload is the malformed packet payload.
     bytes Payload = 5 [ (gogoproto.jsontag) = "payload,omitempty" ];
+}
+
+// UpgradeWindowMetadata contains common upgrade window information.
+message UpgradeWindowMetadata {
+    // Window is the upgrade window time.
+    string UpgradeWindow = 1 [ (gogoproto.jsontag) = "upgrade_window,omitempty" ];
+}
+
+// UpgradeWindowsUpdate is emitted when a user updates the cloud upgrade window.
+message UpgradeWindowsUpdate {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // UpgradeWindowMetadata contains upgrade window related metadata.
+    UpgradeWindowMetadata UpgradeWindow = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }

@@ -243,6 +243,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
 		e = &events.RenewableCertificateGenerationMismatch{}
+	case UpgradeWindowsUpdateEvent:
+		e = &events.UpgradeWindowsUpdate{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:

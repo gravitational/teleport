@@ -288,6 +288,9 @@ const (
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
 
+	// UpgradeWindowsUpdated is the upgrade windows edit code.
+	UpgradeWindowsUpdatedCode = "TUW01I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

@@ -534,6 +534,10 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
+	// UpgradeWindowsUpdateEvent is emmited when the upgrade window
+	// is updated. Used only for teleport cloud.
+	UpgradeWindowsUpdateEvent = "upgradewindow.update"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
