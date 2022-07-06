@@ -77,10 +77,10 @@ const StyledButtonIcon = styled.button`
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  transition: all .3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
 
-  ${Icon}{
+  ${Icon} {
     color: inherit;
   }
 

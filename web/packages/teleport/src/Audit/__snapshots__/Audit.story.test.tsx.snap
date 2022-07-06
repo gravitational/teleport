@@ -52,20 +52,20 @@ exports[`list of all events 1`] = `
 
 .c11 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
 .c13 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c15 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
@@ -3643,20 +3643,20 @@ exports[`loaded audit log screen 1`] = `
 
 .c15 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
 .c17 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c19 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;

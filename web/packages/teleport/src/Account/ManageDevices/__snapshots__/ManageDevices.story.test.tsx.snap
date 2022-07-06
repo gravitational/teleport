@@ -95,7 +95,7 @@ exports[`render device dashboard 1`] = `
 
 .c11 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -614,7 +614,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 
 .c12 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 

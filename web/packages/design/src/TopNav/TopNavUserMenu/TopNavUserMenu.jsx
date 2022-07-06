@@ -54,12 +54,7 @@ class TopNavUserMenu extends React.Component {
       menuListCss,
     } = this.props;
     const initial =
-      user && user.length
-        ? user
-            .trim()
-            .charAt(0)
-            .toUpperCase()
-        : '';
+      user && user.length ? user.trim().charAt(0).toUpperCase() : '';
     const anchorEl = open ? this.btnRef : null;
     return (
       <>

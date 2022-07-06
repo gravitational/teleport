@@ -16,7 +16,15 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio } from './utils/colorManipulator';
-import { lightBlue, red, teal, orange, pink, blueGrey, yellow } from './palette';
+import {
+  lightBlue,
+  red,
+  teal,
+  orange,
+  pink,
+  blueGrey,
+  yellow,
+} from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];

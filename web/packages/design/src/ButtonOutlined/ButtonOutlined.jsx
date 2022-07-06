@@ -19,7 +19,9 @@ import styled from 'styled-components';
 import { space, width } from 'design/system';
 import defaultTheme from 'design/theme';
 
-const ButtonOutlined = ({ children, setRef, ...props } = {setRef: undefined}) => {
+const ButtonOutlined = (
+  { children, setRef, ...props } = { setRef: undefined }
+) => {
   return (
     <StyledButton {...props} ref={setRef}>
       <span>{children}</span>
@@ -117,12 +119,12 @@ const StyledButton = styled.button`
   font-family: inherit;
   font-weight: bold;
   outline: none;
-  opacity: .56;
+  opacity: 0.56;
   position: relative;
   text-align: center;
   text-decoration: none;
   text-transform: uppercase;
-  transition: all .3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
 
   &:hover {
@@ -130,7 +132,7 @@ const StyledButton = styled.button`
   }
 
   &:active {
-    opacity: .24;
+    opacity: 0.24;
   }
 
   > span {
