@@ -192,7 +192,10 @@ func (s *KubeSession) Wait() {
 
 // Close sends a close request to the other end and waits it to gracefully terminate the connection.
 func (s *KubeSession) Close() error {
-	err := s.stream.Close()
+	if err := s.stream.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	<-s.ctx.Done()
-	return trace.Wrap(err)
+	return nil
 }
