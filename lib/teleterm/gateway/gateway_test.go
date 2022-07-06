@@ -72,11 +72,11 @@ func TestGatewayStart(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	openErr := make(chan error)
+	serveErr := make(chan error)
 
 	go func() {
-		err := gateway.Open()
-		openErr <- err
+		err := gateway.Serve()
+		serveErr <- err
 	}()
 
 	// Dial to make sure gateway is open.
@@ -86,5 +86,5 @@ func TestGatewayStart(t *testing.T) {
 
 	err = gateway.Close()
 	require.NoError(t, err)
-	require.NoError(t, <-openErr)
+	require.NoError(t, <-serveErr)
 }

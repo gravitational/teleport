@@ -156,7 +156,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	go func() {
-		if err := gateway.Open(); err != nil {
+		if err := gateway.Serve(); err != nil {
 			gateway.Log.WithError(err).Warn("Failed to open a connection.")
 		}
 	}()

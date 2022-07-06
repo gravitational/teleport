@@ -114,8 +114,8 @@ func (g *Gateway) Close() error {
 	return nil
 }
 
-// Open starts the underlying ALPN proxy. Blocks until closeContext is canceled.
-func (g *Gateway) Open() error {
+// Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
+func (g *Gateway) Serve() error {
 	g.Log.Info("Gateway is open.")
 
 	if err := g.localProxy.Start(g.closeContext); err != nil {
