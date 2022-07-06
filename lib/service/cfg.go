@@ -282,9 +282,6 @@ func (cfg *Config) ApplyToken(token string) (bool, error) {
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
 // If a pin is specified as a path to a file, that file must not be empty.
 func (cfg *Config) ApplyCAPins(caPins []string) error {
-	if len(caPins) == 0 {
-		return nil
-	}
 	var filteredPins []string
 	for _, pinOrPath := range caPins {
 		if pinOrPath == "" {
@@ -300,7 +297,9 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		}
 		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
 	}
-	cfg.CAPins = filteredPins
+	if len(filteredPins) > 0 {
+		cfg.CAPins = filteredPins
+	}
 	return nil
 }
 
