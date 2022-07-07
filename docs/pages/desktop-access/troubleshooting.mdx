@@ -113,23 +113,6 @@ instance(s) running Teleport's Windows Desktop Service to the LDAP server
 
 ## Teleport fails to start
 
-### Invalid LDAP Credentials
-
-Teleport fails to start with an error similar to:
-
-```text
-LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C0903C5, comment: AcceptSecurityContext error, data 52e, v2580\x00
-```
-
-**Solution:** Fix Credentials
-
-This means that your LDAP username and password were not correct. Double-check
-them in the `ldap` section of `windows_desktop_service`.
-
-Note that the LDAP username must be formatted as `DOMAIN\User`, where `DOMAIN`
-is the NetBIOS name for the domain. For example, user `Administrator` in domain
-`example.com` should be formatted as `EXAMPLE\Administrator`.
-
 ### Incorrect Domain
 
 Teleport fails to start with an error similar to:
@@ -187,3 +170,70 @@ issue, you can
 your own third party certificate. Note that Active Directory is
 [extremely picky](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-ldap-over-ssl-3rd-certification-authority#requirements-for-an-ldaps-certificate)
 so take care to generate your certificates correctly.
+
+## Desktops are not discovered via LDAP
+
+### LDAP not yet initialized
+
+Teleport is running, but desktops do not show up in the Web UI. The logs contain
+errors similar to:
+
+```
+skipping desktop discovery: LDAP not yet initialized
+```
+
+**Solution:** Confirm Teleport certificate is installed
+
+The Teleport Desktop Service uses a Teleport-issued certificate to authenticate
+with the LDAP server. This error occurs when Teleport is unable to authenticate,
+which is often due to its certificate authority not being trusted by Active
+Directory.
+
+First, verify that the Teleport CA is present in the LDAP NTAuth store. Run the
+following command, modifying the DN for your domain (in this command we use a
+domain of example.com)
+
+```
+$ certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Configuration,DC=example,DC=com?caCertificate"
+```
+
+You should see a popup window that shows the Teleport CA certificate. If the
+Teleport certificate is not present, import it with:
+
+```
+$ certutil -dspublish -f <path-to-cert> NTAuthCA
+```
+
+Once you've verified that the Teleport certificate is present in LDAP, you
+should check whether it has propagated to all desktops. From a desktop that you
+would like to connect to, run the following:
+
+```
+$ certutil -viewstore -enterprise NTAuth
+```
+
+If the popup window does not show the Teleport certificate, and it was present
+in LDAP, you can force the desktop to sync with the following command:
+
+```
+$ certutil -pulse
+```
+
+## Connection attempts fail
+
+### Enhanced RDP security with CredSSP required
+
+Attempts to connect to a desktop fail, and the logs show an error similar to:
+
+```
+Error during negotiation step: the server requires that the client support enhanced RDP security with CredSSP
+```
+
+**Solution:** Disable NLA
+
+This means that the RDP server is requiring Network Level Authentication (NLA).
+Teleport currently requires that NLA is disabled in order to perform its
+certificate-based passwordless login.
+
+To disable NLA, follow the instructions in our
+[Getting Started Guide](./getting-started.mdx#allow-remote-rdp-connections).
