@@ -202,5 +202,5 @@ func (s *KubeSession) Close() error {
 
 // Detach detaches the terminal from the session. Must be called if Close is not called.
 func (s *KubeSession) Detach() error {
-	return s.term.Close()
+	return trace.Wrap(s.term.Close())
 }
