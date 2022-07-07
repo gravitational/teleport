@@ -27,6 +27,7 @@ export default function useClusterLogin(props: Props) {
   const refAbortCtrl = useRef<types.tsh.TshAbortController>(null);
   const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
   const [shouldPromptHardwareKey, promptHardwareKey] = useState(false);
+  const loggedInUserName = cluster.loggedInUser?.name || null;
 
   const [initAttempt, init] = useAsync(async () => {
     const authSettings = await clustersService.getAuthSettings(clusterUri);
@@ -101,6 +102,7 @@ export default function useClusterLogin(props: Props) {
     shouldPromptSsoStatus,
     shouldPromptHardwareKey,
     title: getClusterName(cluster),
+    loggedInUserName,
     onLoginWithLocal,
     onLoginWithSso,
     onCloseDialog,
