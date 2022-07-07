@@ -55,7 +55,7 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+func (s *sftpSubsys) Start(serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
 	s.ch = ch
 
 	// Create two sets of anonymous pipes to give the child process
@@ -138,6 +138,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		}
 
 		r := bufio.NewReader(auditPipeOut)
+		ctx := context.Background()
 		for {
 			// Read up to a NULL byte, the child process uses this to
 			// delimit audit events
