@@ -170,12 +170,15 @@ func (x *XAuthCommand) output() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := io.ReadAll(stdout)
+	// We add a conservative peak length of 10 KB to prevent potential
+	// output spam from the client provided `xauth` binary
+	var peakLength int64 = 10000
+	out, err := io.ReadAll(io.LimitReader(stdout, peakLength))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	errOut, err := io.ReadAll(stderr)
+	errOut, err := io.ReadAll(io.LimitReader(stderr, peakLength))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,7 +186,8 @@ func (x *XAuthCommand) output() ([]byte, error) {
 	if err := x.Wait(); err != nil {
 		return nil, trace.Wrap(err, "command \"%s\" failed with stderr: \"%s\"", strings.Join(x.Cmd.Args, " "), errOut)
 	}
-	return out, trace.Wrap(err)
+
+	return out, nil
 }
 
 // CheckXAuthPath checks if xauth is runnable in the current environment.
