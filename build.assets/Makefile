@@ -123,7 +123,7 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build --platform=linux/$(RUNTIME_ARCH) \
+		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -157,7 +157,7 @@ buildbox-fips:
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
-	docker build \
+	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
