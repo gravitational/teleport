@@ -6408,9 +6408,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		teleport.StopAll()
 	})
 
-	client, err := teleport.NewClient(helpers.ClientConfig{
-		Login:   suite.Me.Username,
-		Cluster: helpers.Site,
+	client, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
 		Host:    Host,
 	})
 	require.NoError(t, err)
@@ -6423,7 +6423,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		proxyClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	sftpClient, err := sftp.NewClient(proxyClient.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())
