@@ -6,10 +6,13 @@ metadata:
 spec:
   group: resources.teleport.dev
   names:
-    kind: Role
-    listKind: RoleList
-    plural: roles
-    singular: role
+    kind: TeleportRole
+    listKind: TeleportRoleList
+    plural: teleportroles
+    shortNames:
+    - role
+    - roles
+    singular: teleportrole
   scope: Namespaced
   versions:
   - name: v5
@@ -886,7 +889,7 @@ spec:
                 type: object
             type: object
           status:
-            description: RoleStatus defines the observed state of Role
+            description: TeleportRoleStatus defines the observed state of TeleportRole
             properties:
               conditions:
                 description: Conditions represent the latest available observations

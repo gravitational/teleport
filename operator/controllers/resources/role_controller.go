@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// RoleReconciler reconciles a Role object
+// RoleReconciler reconciles a TeleportRole object
 type RoleReconciler struct {
 	kclient.Client
 	Scheme         *runtime.Scheme
@@ -44,7 +44,7 @@ type RoleReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Role object against the actual cluster state, and then
+// the TeleportRole object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
@@ -55,13 +55,13 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
 		UpsertExternal: r.Upsert,
-	}.Do(ctx, req, &resourcesv5.Role{})
+	}.Do(ctx, req, &resourcesv5.TeleportRole{})
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&resourcesv5.Role{}).
+		For(&resourcesv5.TeleportRole{}).
 		Complete(r)
 }
 
@@ -70,7 +70,7 @@ func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
 }
 
 func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
-	k8sResource, ok := obj.(*resourcesv5.Role)
+	k8sResource, ok := obj.(*resourcesv5.TeleportRole)
 	if !ok {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}

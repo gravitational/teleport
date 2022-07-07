@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// UserReconciler reconciles a User object
+// UserReconciler reconciles a TeleportUser object
 type UserReconciler struct {
 	kclient.Client
 	Scheme         *runtime.Scheme
@@ -44,7 +44,7 @@ type UserReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the User object against the actual cluster state, and then
+// the TeleportUser object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
@@ -55,13 +55,13 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
 		UpsertExternal: r.Upsert,
-	}.Do(ctx, req, &resourcesv2.User{})
+	}.Do(ctx, req, &resourcesv2.TeleportUser{})
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&resourcesv2.User{}).
+		For(&resourcesv2.TeleportUser{}).
 		Complete(r)
 }
 
@@ -70,7 +70,7 @@ func (r *UserReconciler) Delete(ctx context.Context, obj kclient.Object) error {
 }
 
 func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
-	k8sResource, ok := obj.(*resourcesv2.User)
+	k8sResource, ok := obj.(*resourcesv2.TeleportUser)
 	if !ok {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}

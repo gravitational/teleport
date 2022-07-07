@@ -133,7 +133,7 @@ func main() {
 		Scheme:         mgr.GetScheme(),
 		TeleportClient: teleportClient,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Role")
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
 		os.Exit(1)
 	}
 	if err = (&resourcescontrollers.UserReconciler{
@@ -141,7 +141,7 @@ func main() {
 		Scheme:         mgr.GetScheme(),
 		TeleportClient: teleportClient,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "User")
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

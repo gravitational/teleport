@@ -112,7 +112,7 @@ func TestUserDeletionDrift(t *testing.T) {
 	// The role is deleted in K8S
 	k8sDeleteUser(ctx, t, k8sClient, userName, ns.Name)
 
-	var k8sUser resourcesv2.User
+	var k8sUser resourcesv2.TeleportUser
 	fastEventually(t, func() bool {
 		err = k8sClient.Get(ctx, kclient.ObjectKey{
 			Namespace: ns.Name,
@@ -136,7 +136,7 @@ func TestUserUpdate(t *testing.T) {
 	userName := validRandomResourceName("user-")
 
 	// The user does not exist in K8S
-	var r resourcesv2.User
+	var r resourcesv2.TeleportUser
 	err := k8sClient.Get(ctx, kclient.ObjectKey{
 		Namespace: ns.Name,
 		Name:      userName,
@@ -155,12 +155,12 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// The user is created in K8S
-	k8sUser := resourcesv2.User{
+	k8sUser := resourcesv2.TeleportUser{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      userName,
 			Namespace: ns.Name,
 		},
-		Spec: resourcesv2.UserSpec{
+		Spec: resourcesv2.TeleportUserSpec{
 			Roles: []string{"x", "z"},
 		},
 	}
@@ -171,7 +171,7 @@ func TestUserUpdate(t *testing.T) {
 		tUser, err := tClient.GetUser(userName, false)
 		require.NoError(t, err)
 
-		// User was updated with new roles
+		// TeleportUser was updated with new roles
 		if !assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z"}) {
 			return false
 		}
@@ -179,7 +179,7 @@ func TestUserUpdate(t *testing.T) {
 	})
 
 	// Updating the user in K8S
-	var k8sUserNewVersion resourcesv2.User
+	var k8sUserNewVersion resourcesv2.TeleportUser
 	err = k8sClient.Get(ctx, kclient.ObjectKey{
 		Namespace: ns.Name,
 		Name:      userName,
@@ -195,18 +195,18 @@ func TestUserUpdate(t *testing.T) {
 		tUser, err := tClient.GetUser(userName, false)
 		require.NoError(t, err)
 
-		// User updated with new roles
+		// TeleportUser updated with new roles
 		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "admin", "root"})
 	})
 }
 
 func k8sCreateDummyUser(ctx context.Context, t *testing.T, kc kclient.Client, namespace, userName string) {
-	user := resourcesv2.User{
+	user := resourcesv2.TeleportUser{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      userName,
 			Namespace: namespace,
 		},
-		Spec: resourcesv2.UserSpec{
+		Spec: resourcesv2.TeleportUserSpec{
 			Roles: []string{"a", "b"},
 		},
 	}
@@ -214,7 +214,7 @@ func k8sCreateDummyUser(ctx context.Context, t *testing.T, kc kclient.Client, na
 }
 
 func k8sDeleteUser(ctx context.Context, t *testing.T, kc kclient.Client, userName, namespace string) {
-	user := resourcesv2.User{
+	user := resourcesv2.TeleportUser{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      userName,
 			Namespace: namespace,
@@ -224,7 +224,7 @@ func k8sDeleteUser(ctx context.Context, t *testing.T, kc kclient.Client, userNam
 	require.NoError(t, err)
 }
 
-func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *resourcesv2.User) {
+func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *resourcesv2.TeleportUser) {
 	err := kc.Create(ctx, user)
 	require.NoError(t, err)
 }

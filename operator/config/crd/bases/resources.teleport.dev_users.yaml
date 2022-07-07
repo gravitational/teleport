@@ -6,10 +6,13 @@ metadata:
 spec:
   group: resources.teleport.dev
   names:
-    kind: User
-    listKind: UserList
-    plural: users
-    singular: user
+    kind: TeleportUser
+    listKind: TeleportUserList
+    plural: teleportusers
+    shortNames:
+    - user
+    - users
+    singular: teleportuser
   scope: Namespaced
   versions:
   - name: v2
@@ -95,7 +98,7 @@ spec:
                 type: object
             type: object
           status:
-            description: UserStatus defines the observed state of User
+            description: TeleportUserStatus defines the observed state of TeleportUser
             properties:
               conditions:
                 description: Conditions represent the latest available observations

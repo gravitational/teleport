@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const k8sKindPrefix = "Teleport"
+
 var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
@@ -236,10 +238,11 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		Spec: apiextv1.CustomResourceDefinitionSpec{
 			Group: root.groupName,
 			Names: apiextv1.CustomResourceDefinitionNames{
-				Kind:     root.kind,
-				ListKind: root.kind + "List",
-				Plural:   root.pluralName,
-				Singular: root.name,
+				Kind:       k8sKindPrefix + root.kind,
+				ListKind:   k8sKindPrefix + root.kind + "List",
+				Plural:     strings.ToLower(k8sKindPrefix + root.pluralName),
+				Singular:   strings.ToLower(k8sKindPrefix + root.name),
+				ShortNames: []string{root.name, root.pluralName},
 			},
 			Scope: apiextv1.NamespaceScoped,
 		},
@@ -277,7 +280,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 				parser.NeedPackage(pkg)
 				statusType = crdtools.TypeIdent{
 					Package: pkg,
-					Name:    fmt.Sprintf("%sStatus", root.kind),
+					Name:    fmt.Sprintf("%s%sStatus", k8sKindPrefix, root.kind),
 				}
 				// Kubernetes CRDs don't support $ref in openapi schemas, we need a flattened schema
 				parser.NeedFlattenedSchemaFor(statusType)

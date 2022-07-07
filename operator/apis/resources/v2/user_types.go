@@ -24,17 +24,17 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&User{}, &UserList{})
+	SchemeBuilder.Register(&TeleportUser{}, &TeleportUserList{})
 }
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// UserSpec defines the desired state of User
-type UserSpec types.UserSpecV2
+// TeleportUserSpec defines the desired state of TeleportUser
+type TeleportUserSpec types.UserSpecV2
 
-// UserStatus defines the observed state of User
-type UserStatus struct {
+// TeleportUserStatus defines the observed state of TeleportUser
+type TeleportUserStatus struct {
 	// Conditions represent the latest available observations of an object's state
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
@@ -45,25 +45,25 @@ type UserStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// User is the Schema for the users API
-type User struct {
+// TeleportUser is the Schema for the users API
+type TeleportUser struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   UserSpec   `json:"spec,omitempty"`
-	Status UserStatus `json:"status,omitempty"`
+	Spec   TeleportUserSpec   `json:"spec,omitempty"`
+	Status TeleportUserStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// UserList contains a list of User
-type UserList struct {
+// TeleportUserList contains a list of TeleportUser
+type TeleportUserList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []User `json:"items"`
+	Items           []TeleportUser `json:"items"`
 }
 
-func (u User) ToTeleport() types.User {
+func (u TeleportUser) ToTeleport() types.User {
 	return &types.UserV2{
 		Kind:    types.KindUser,
 		Version: types.V2,
@@ -77,23 +77,23 @@ func (u User) ToTeleport() types.User {
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *UserSpec) Marshal() ([]byte, error) {
+func (spec *TeleportUserSpec) Marshal() ([]byte, error) {
 	return (*types.UserSpecV2)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *UserSpec) Unmarshal(data []byte) error {
+func (spec *TeleportUserSpec) Unmarshal(data []byte) error {
 	return (*types.UserSpecV2)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one user spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *UserSpec) DeepCopyInto(out *UserSpec) {
+func (spec *TeleportUserSpec) DeepCopyInto(out *TeleportUserSpec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = UserSpec{}
+	*out = TeleportUserSpec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
