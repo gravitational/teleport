@@ -1134,8 +1134,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 func TestProxyRoundRobin(t *testing.T) {
 	t.Parallel()
 
-	log.Infof("[TEST START] TestProxyRoundRobin")
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	proxyClient, _ := newProxyClient(t, f.testSrv)
