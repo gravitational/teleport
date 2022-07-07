@@ -193,7 +193,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
+			roundtrip.HTTPClient(&http.Client{
+				Timeout:   defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+			}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
