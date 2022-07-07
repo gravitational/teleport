@@ -896,7 +896,7 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 }
 
 // FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
-func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) (types.DatabaseServers, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFilters",
@@ -919,7 +919,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 }
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
-func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
+func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) (types.DatabaseServers, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFiltersForCluster",
