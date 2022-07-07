@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -38,6 +39,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -136,45 +138,71 @@ func (l databaseListings) ToDatabases() []types.Database {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
+	group, ctx := errgroup.WithContext(cf.Context)
+	group.SetLimit(runtime.NumCPU())
+
 	var dbListings databaseListings
+	dbListingsChan := make(chan databaseListings)
+	go func() {
+		for {
+			select {
+			case items := <-dbListingsChan:
+				dbListings = append(dbListings, items...)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		group.Go(func() error {
+			result, err := tc.ListDatabasesAllClusters(ctx, nil /* custom filter */)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		proxy, err := tc.ConnectToProxy(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		var errors []error
-		for clusterName, databases := range result {
-			var roleSet services.RoleSet
-			if isRoleSetRequiredForShowDatabases(cf) {
-				cluster, err := proxy.ConnectToCluster(cf.Context, clusterName)
-				if err != nil {
-					errors = append(errors, err)
-					continue
+			proxy, err := tc.ConnectToProxy(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			var errors []error
+			var dbListings databaseListings
+			for clusterName, databases := range result {
+				var roleSet services.RoleSet
+				if isRoleSetRequiredForShowDatabases(cf) {
+					cluster, err := proxy.ConnectToCluster(ctx, clusterName)
+					if err != nil {
+						errors = append(errors, err)
+						continue
+					}
+
+					roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+					if err != nil {
+						log.Debugf("Failed to fetch user roles: %v.", err)
+					}
 				}
 
-				roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
-				if err != nil {
-					log.Debugf("Failed to fetch user roles: %v.", err)
+				for _, database := range databases {
+					dbListings = append(dbListings, databaseListing{
+						Proxy:    profile.ProxyURL.Host,
+						Cluster:  clusterName,
+						roleSet:  roleSet,
+						Database: database,
+					})
 				}
 			}
 
-			for _, database := range databases {
-				dbListings = append(dbListings, databaseListing{
-					Proxy:    profile.ProxyURL.Host,
-					Cluster:  clusterName,
-					roleSet:  roleSet,
-					Database: database,
-				})
-			}
-		}
-		return trace.NewAggregate(errors...)
+			dbListingsChan <- dbListings
+			return trace.NewAggregate(errors...)
+		})
+		return nil
 	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
 	}
 
