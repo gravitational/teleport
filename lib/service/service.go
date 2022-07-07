@@ -3037,6 +3037,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		tunnelStrategy = types.AgentMesh
 	}
 
+	if tunnelStrategy == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
+	}
+
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
 		addr, err := peerAddr(&process.Config.Proxy.PeerAddr)
 		if err != nil {
