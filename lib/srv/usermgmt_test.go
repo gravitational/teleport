@@ -112,7 +112,7 @@ func (tm *testHostUserBackend) RemoveSudoersFile(user string) error {
 
 // CheckSudoers implements HostUsersBackend
 func (*testHostUserBackend) CheckSudoers(contents []byte) error {
-	if string(contents) == "valid" {
+	if strings.Contains(string(contents), "validsudoers") {
 		return nil
 	}
 	return errors.New("invalid")
@@ -184,12 +184,12 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 
 	_, closer, err := users.CreateUser("bob", &services.HostUsersInfo{
 		Groups:  []string{"hello", "sudo"},
-		Sudoers: []string{"valid"},
+		Sudoers: []string{"validsudoers"},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, closer)
 
-	require.Equal(t, map[string]string{"bob": "valid"}, backend.sudoers)
+	require.Equal(t, map[string]string{"bob": "bob validsudoers"}, backend.sudoers)
 
 	require.NoError(t, closer.Close())
 	require.Empty(t, backend.sudoers)

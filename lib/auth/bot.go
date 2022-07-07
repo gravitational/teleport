@@ -26,12 +26,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -98,9 +99,9 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 	// Traits need to be set to silence "failed to find roles or traits" warning
 	user.SetTraits(map[string][]string{
-		teleport.TraitLogins:     {},
-		teleport.TraitKubeUsers:  {},
-		teleport.TraitKubeGroups: {},
+		constants.TraitLogins:     {},
+		constants.TraitKubeUsers:  {},
+		constants.TraitKubeGroups: {},
 	})
 
 	if err := s.CreateUser(ctx, user); err != nil {
@@ -112,6 +113,11 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	if !modules.GetModules().Features().MachineID {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
+	}
+
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -452,6 +458,11 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 // is allowed to issue the (possibly renewable) certificates.
 func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
+
+	if !modules.GetModules().Features().MachineID {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
+	}
 
 	// Extract the user and role set for whom the certificate will be generated.
 	// This should be safe since this is typically done against a local user.
