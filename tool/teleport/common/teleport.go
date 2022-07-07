@@ -81,6 +81,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
+	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
@@ -371,6 +372,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
+	case sftp.FullCommand():
+		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
