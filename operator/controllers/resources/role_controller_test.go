@@ -177,10 +177,7 @@ func TestRoleUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// TeleportRole was updated with new roles
-		if !assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z"}) {
-			return false
-		}
-		return true
+		return assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
