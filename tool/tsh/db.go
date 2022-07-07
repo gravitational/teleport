@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -25,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -45,12 +44,6 @@ import (
 func onListDatabases(cf *CLIConf) error {
 	if cf.ListAll {
 		return trace.Wrap(listDatabasesAllClusters(cf))
-	}
-
-	showOptions := showDatabasesOptions{
-		Verbose:     cf.Verbose,
-		Format:      cf.Format,
-		ClusterFlag: cf.SiteName,
 	}
 
 	tc, err := makeClient(cf, false)
@@ -68,10 +61,31 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
+	dbServers, err := proxy.FindDatabaseServersByFilters(cf.Context, *tc.DefaultResourceFilter())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databases := types.DeduplicateDatabases(dbServers.ToDatabases())
+	sort.Sort(types.Databases(databases))
+
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	var roleSet services.RoleSet
+	if isRoleSetRequiredForShowDatabases(cf) {
+		cluster, err := proxy.ClusterAccessPoint(cf.Context, profile.Cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer cluster.Close()
+
+		roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+		if err != nil {
+			log.Debugf("Failed to fetch user roles: %v.", err)
+		}
 	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
@@ -79,66 +93,11 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	dbListings, err := fetchDatabaseListingsForCluster(cf.Context, tc, profile, proxy, profile.Cluster, showOptions.IsRoleSetRequired())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(showDatabases(dbListings, activeDatabases, showOptions))
+	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
-func fetchDatabaseListingsForCluster(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus, proxy *client.ProxyClient, cluster string, requireRoleSet bool) (databaseListings, error) {
-	databasesChan := make(chan []types.Database, 1)
-	roleSetChan := make(chan services.RoleSet, 1)
-
-	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		dbServers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), cluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		databases := types.DeduplicateDatabases(dbServers.ToDatabases())
-		sort.Sort(types.Databases(databases))
-		databasesChan <- databases
-		return nil
-	})
-
-	if requireRoleSet {
-		group.Go(func() error {
-			cluster, err := proxy.ClusterAccessPoint(ctx, cluster)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer cluster.Close()
-
-			roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
-			if err != nil {
-				log.Debugf("Failed to fetch user roles: %v.", err)
-			}
-			roleSetChan <- roleSet
-			return nil
-		})
-	}
-	if err := group.Wait(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	close(databasesChan)
-	close(roleSetChan)
-	databases := <-databasesChan
-	roleSet := <-roleSetChan
-
-	var dbListings databaseListings
-	for _, database := range databases {
-		dbListings = append(dbListings, databaseListing{
-			Proxy:    profile.ProxyURL.Host,
-			Cluster:  profile.Cluster,
-			roleSet:  roleSet,
-			Database: database,
-		})
-	}
-	return dbListings, nil
+func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
+	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
 }
 
 type databaseListing struct {
@@ -177,33 +136,43 @@ func (l databaseListings) ToDatabases() []types.Database {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	showOptions := showDatabasesOptions{
-		Verbose:             cf.Verbose,
-		Format:              cf.Format,
-		ShowProxyAndCluster: true,
-	}
-
 	var dbListings databaseListings
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		proxy, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxy.Close()
+		var errors []error
+		for clusterName, databases := range result {
+			var roleSet services.RoleSet
+			if isRoleSetRequiredForShowDatabases(cf) {
+				cluster, err := proxy.ConnectToCluster(cf.Context, clusterName)
+				if err != nil {
+					errors = append(errors, err)
+					continue
+				}
 
-		sites, err := proxy.GetSites(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, site := range sites {
-			listings, err := fetchDatabaseListingsForCluster(cf.Context, tc, profile, proxy, site.Name, showOptions.IsRoleSetRequired())
-			if err != nil {
-				return trace.Wrap(err)
+				roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+				if err != nil {
+					log.Debugf("Failed to fetch user roles: %v.", err)
+				}
 			}
-			dbListings = append(dbListings, listings...)
+
+			for _, database := range databases {
+				dbListings = append(dbListings, databaseListing{
+					Proxy:    profile.ProxyURL.Host,
+					Cluster:  clusterName,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
 		}
-		return nil
+		return trace.NewAggregate(errors...)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,7 +189,20 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		active = profile.Databases
 	}
 
-	return trace.Wrap(showDatabases(dbListings, active, showOptions))
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeDatabasesAllClusters(dbListings, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
 }
 
 // onDatabaseLogin implements "tsh db login" command.
