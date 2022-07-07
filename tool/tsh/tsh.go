@@ -2038,13 +2038,19 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func showDatabases(dbListings databaseListings, active []tlsca.RouteToDatabase, opt showDatabasesOptions) error {
+	format := strings.ToLower(opt.Format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
+		showDatabasesAsText(dbListings, active, opt)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format)
+		var out string
+		var err error
+		if opt.ShowProxyAndCluster {
+			out, err = serializeDatabasesAllClusters(dbListings, format)
+		} else {
+			out, err = serializeDatabases(dbListings.ToDatabases(), format)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2108,88 +2114,98 @@ func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	return fmt.Sprintf("%v, except: %v", allowed, denied)
 }
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) []string {
+// showDatabasesOptions contains options for printing databases.
+type showDatabasesOptions struct {
+	// ShowProxyAndCluster shows "Proxy" and "Cluster" columns.
+	ShowProxyAndCluster bool
+	// Verbose shows extra columns like "Protocol", "Type", etc.
+	Verbose bool
+	// ClusterFlag formats --cluster flag for the connect command.
+	ClusterFlag string
+	// Format is the print format.
+	Format string
+}
+
+// IsRoleSetRequired returns true when role set is required for printing as
+// text.
+func (opt showDatabasesOptions) IsRoleSetRequired() bool {
+	return opt.Format == "" || strings.ToLower(opt.Format) == teleport.Text
+}
+
+// MakeTableHeaders creates table headers.
+func (opt showDatabasesOptions) MakeTableHeaders() []string {
+	var headers []string
+	if opt.ShowProxyAndCluster {
+		headers = append(headers, "Proxy", "Cluster")
+	}
+
+	if opt.Verbose {
+		headers = append(headers, "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires")
+	} else {
+		headers = append(headers, "Name", "Description", "Allowed Users", "Labels", "Connect")
+	}
+	return headers
+}
+
+// MakeTableRow creates a table row with provided database listing.
+func (opt showDatabasesOptions) MakeTableRow(listing databaseListing, active []tlsca.RouteToDatabase) []string {
+	database := listing.Database
 	name := database.GetName()
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
 			name = formatActiveDB(a)
-			connect = formatConnectCommand(clusterFlag, a)
+			connect = formatConnectCommand(opt.ClusterFlag, a)
 		}
 	}
 
 	row := make([]string, 0)
-	if proxy != "" && cluster != "" {
-		row = append(row, proxy, cluster)
+	if opt.ShowProxyAndCluster {
+		row = append(row, listing.Proxy, listing.Proxy)
 	}
 
-	if verbose {
+	if opt.Verbose {
+		expire := ""
+		if !database.Expiry().IsZero() {
+			expire = database.Expiry().Format(constants.HumanDateFormatSeconds)
+		}
+
 		row = append(row,
 			name,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
-			getUsersForDb(database, roleSet),
+			getUsersForDb(database, listing.roleSet),
 			database.LabelsString(),
 			connect,
-			database.Expiry().Format(constants.HumanDateFormatSeconds),
+			expire,
 		)
 	} else {
 		row = append(row,
 			name,
 			database.GetDescription(),
-			getUsersForDb(database, roleSet),
+			getUsersForDb(database, listing.roleSet),
 			formatDatabaseLabels(database),
 			connect,
 		)
 	}
-
 	return row
 }
 
-func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
-	var rows [][]string
-	for _, database := range databases {
-		rows = append(rows, getDatabaseRow("", "",
-			clusterFlag,
-			database,
-			active,
-			roleSet,
-			verbose))
-	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
-	} else {
-
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
-	}
-	fmt.Println(t.AsBuffer().String())
-}
-
-func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
-	var rows [][]string
+func showDatabasesAsText(dbListings []databaseListing, active []tlsca.RouteToDatabase, opt showDatabasesOptions) {
+	rows := make([][]string, 0, len(dbListings))
 	for _, listing := range dbListings {
-		rows = append(rows, getDatabaseRow(
-			listing.Proxy,
-			listing.Cluster,
-			clusterFlag,
-			listing.Database,
-			active,
-			listing.roleSet,
-			verbose))
+		rows = append(rows, opt.MakeTableRow(listing, active))
 	}
+
 	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
+	if opt.Verbose {
+		t = asciitable.MakeTable(opt.MakeTableHeaders(), rows...)
 	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Name", "Description", "Allowed Users", "Labels", "Connect"},
-			rows,
-			"Labels",
-		)
+		t = asciitable.MakeTableWithTruncatedColumn(opt.MakeTableHeaders(), rows, "Labels")
 	}
+
 	fmt.Println(t.AsBuffer().String())
 }
 
@@ -3784,6 +3800,9 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 }
 
 // forEachProfile performs an action for each profile a user is currently logged in to.
+//
+// forEachProfile currently stops on first error. A ContinueOnError option can
+// be added in the future for situations all profiles must be enumerated.
 func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
 	profile, profiles, err := client.Status(cf.HomePath, "")
 	if err != nil {
@@ -3794,7 +3813,6 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	clock := clockwork.NewRealClock()
-	errors := make([]error, 0)
 	for _, p := range profiles {
 		proxyAddr := p.ProxyURL.Host
 		if p.IsExpired(clock) {
@@ -3803,13 +3821,12 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 		}
 		tc, err := makeClientForProxy(cf, proxyAddr, true)
 		if err != nil {
-			errors = append(errors, err)
-			continue
+			return trace.Wrap(err)
 		}
 		if err := fn(tc, p); err != nil {
-			errors = append(errors, err)
+			return trace.Wrap(err)
 		}
 	}
 
-	return trace.NewAggregate(errors...)
+	return nil
 }

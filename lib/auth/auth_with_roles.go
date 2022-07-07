@@ -2056,8 +2056,9 @@ func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error
 
 // GetCurrentUserRoles returns current user's roles.
 func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
-	var roles []types.Role
-	for _, roleName := range a.context.User.GetRoles() {
+	roleNames := a.context.User.GetRoles()
+	roles := make([]types.Role, 0, len(roleNames))
+	for _, roleName := range roleNames {
 		role, err := a.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
