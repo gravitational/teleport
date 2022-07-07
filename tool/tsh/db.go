@@ -48,6 +48,12 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
 
+	// Retrieve profile to be able to show which databases user is logged into.
+	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -70,12 +76,7 @@ func onListDatabases(cf *CLIConf) error {
 	databases := types.DeduplicateDatabases(dbServers.ToDatabases())
 	sort.Sort(types.Databases(databases))
 
-	// Retrieve profile to be able to show which databases user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Reuse proxy client to fetch role set.
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
 		cluster, err := proxy.ClusterAccessPoint(cf.Context, profile.Cluster)
@@ -177,7 +178,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 						continue
 					}
 
-					roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+					roleSet, err = services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
 					if err != nil {
 						log.Debugf("Failed to fetch user roles: %v.", err)
 					}
