@@ -45,6 +45,7 @@ function makeProps() {
       } as types.AuthSettings,
     } as const,
 
+    loggedInUserName: null,
     onCloseDialog: () => null,
     onAbort: () => null,
     onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
