@@ -718,6 +718,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	var err error
 
+	// auth and proxy benefit from precomputing keys since they can experience spikes in key
+	// generation due to web session creation and recorded session creation respectively.
+	// for all other agents precomputing keys consumes excess resources.
+	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
+		native.PrecomputeKeys()
+	}
+
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
@@ -3016,6 +3023,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	if err != nil {
 		process.log.WithError(err).Warn("Failed to get tunnel strategy. Falling back to agent mesh strategy.")
 		tunnelStrategy = types.AgentMesh
+	}
+
+	if tunnelStrategy == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
