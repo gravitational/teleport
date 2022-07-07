@@ -14,7 +14,7 @@ resources:
   controller: true
   domain: teleport.dev
   group: resources
-  kind: Role
+  kind: TeleportRole
   path: github.com/gravitational/teleport/operator/apis/resources/v5
   version: v5
 - api:
@@ -23,7 +23,7 @@ resources:
   controller: true
   domain: teleport.dev
   group: resources
-  kind: User
+  kind: TeleportUser
   path: github.com/gravitational/teleport/operator/apis/resources/v2
   version: v2
 version: "3"
