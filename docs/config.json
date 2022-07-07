@@ -105,6 +105,10 @@
             {
               "title": "IBM",
               "slug": "/setup/deployments/ibm/"
+            },
+            {
+              "title": "Digital Ocean",
+              "slug": "/setup/deployments/digitalocean/"
             }
           ]
         },
@@ -1238,6 +1242,11 @@
     {
       "source": "/access-controls/guides/u2f/",
       "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
       "permanent": true
     }
   ]
