@@ -17,11 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -69,23 +69,14 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
-	dbServers, err := proxy.FindDatabaseServersByFilters(cf.Context, *tc.DefaultResourceFilter())
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), profile.Cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases := types.DeduplicateDatabases(dbServers.ToDatabases())
-	sort.Sort(types.Databases(databases))
 
-	// Reuse proxy client to fetch role set.
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
-		cluster, err := proxy.ClusterAccessPoint(cf.Context, profile.Cluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer cluster.Close()
-
-		roleSet, err = services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, profile.Cluster)
 		if err != nil {
 			log.Debugf("Failed to fetch user roles: %v.", err)
 		}
@@ -96,11 +87,26 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	sort.Sort(types.Databases(databases))
 	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
 func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
 	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
+}
+
+func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
+	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roleSet, nil
 }
 
 type databaseListing struct {
@@ -130,26 +136,22 @@ func (l databaseListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func (l databaseListings) ToDatabases() []types.Database {
-	databases := make([]types.Database, 0, len(l))
-	for _, listing := range l {
-		databases = append(databases, listing.Database)
-	}
-	return databases
-}
-
 func listDatabasesAllClusters(cf *CLIConf) error {
-	group, ctx := errgroup.WithContext(cf.Context)
-	group.SetLimit(runtime.NumCPU())
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
 
-	var dbListings databaseListings
-	dbListingsChan := make(chan databaseListings)
+	dbListingsResultChan := make(chan databaseListings)
+	dbListingsCollectChan := make(chan databaseListings)
 	go func() {
+		var dbListings databaseListings
 		for {
 			select {
-			case items := <-dbListingsChan:
+			case items := <-dbListingsCollectChan:
 				dbListings = append(dbListings, items...)
-			case <-ctx.Done():
+			case <-groupCtx.Done():
+				dbListingsResultChan <- dbListings
 				return
 			}
 		}
@@ -157,28 +159,27 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
-			result, err := tc.ListDatabasesAllClusters(ctx, nil /* custom filter */)
+			proxy, err := tc.ConnectToProxy(groupCtx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxy.Close()
+
+			sites, err := proxy.GetSites(groupCtx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			proxy, err := tc.ConnectToProxy(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			var errors []error
 			var dbListings databaseListings
-			for clusterName, databases := range result {
+			for _, site := range sites {
+				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
 				var roleSet services.RoleSet
 				if isRoleSetRequiredForShowDatabases(cf) {
-					cluster, err := proxy.ConnectToCluster(ctx, clusterName)
-					if err != nil {
-						errors = append(errors, err)
-						continue
-					}
-
-					roleSet, err = services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
+					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
 					if err != nil {
 						log.Debugf("Failed to fetch user roles: %v.", err)
 					}
@@ -187,15 +188,15 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				for _, database := range databases {
 					dbListings = append(dbListings, databaseListing{
 						Proxy:    profile.ProxyURL.Host,
-						Cluster:  clusterName,
+						Cluster:  site.Name,
 						roleSet:  roleSet,
 						Database: database,
 					})
 				}
 			}
 
-			dbListingsChan <- dbListings
-			return trace.NewAggregate(errors...)
+			dbListingsCollectChan <- dbListings
+			return nil
 		})
 		return nil
 	})
@@ -207,6 +208,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
