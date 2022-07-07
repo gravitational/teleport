@@ -81,8 +81,9 @@ func TestGatewayStart(t *testing.T) {
 
 	// Dial to make sure gateway is open.
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress, gateway.LocalPort)
-	_, err = net.DialTimeout("tcp", gatewayAddress, time.Second*1)
+	conn, err := net.DialTimeout("tcp", gatewayAddress, time.Second*1)
 	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
 
 	err = gateway.Close()
 	require.NoError(t, err)
