@@ -3887,9 +3887,6 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 }
 
 // forEachProfile performs an action for each profile a user is currently logged in to.
-//
-// forEachProfile currently stops on first error. A ContinueOnError option can
-// be added in the future for situations all profiles must be enumerated.
 func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
 	profile, profiles, err := client.Status(cf.HomePath, "")
 	if err != nil {
@@ -3900,6 +3897,7 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	clock := clockwork.NewRealClock()
+	errors := make([]error, 0)
 	for _, p := range profiles {
 		proxyAddr := p.ProxyURL.Host
 		if p.IsExpired(clock) {
@@ -3908,12 +3906,13 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 		}
 		tc, err := makeClientForProxy(cf, proxyAddr, true)
 		if err != nil {
-			return trace.Wrap(err)
+			errors = append(errors, err)
+			continue
 		}
 		if err := fn(tc, p); err != nil {
-			return trace.Wrap(err)
+			errors = append(errors, err)
 		}
 	}
 
-	return nil
+	return trace.NewAggregate(errors...)
 }
