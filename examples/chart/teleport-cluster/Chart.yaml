@@ -6,3 +6,8 @@ description: Teleport is a unified access plane for your infrastructure
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
   - Teleport
+
+dependencies:
+  - name: teleport-operator
+    version: "11.0.0-dev"
+    condition: installCRDs
