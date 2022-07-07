@@ -447,29 +447,41 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeKube:
-			kube, ok := h.current.(types.Server)
-			if !ok {
-				return trace.BadParameter("expected services.Server, got %#v", h.current)
-			}
-			keepAlive, err := h.Announcer.UpsertKubeServiceV2(h.cancelCtx, kube)
-			if err != nil {
-				// Check if the error is an Unimplemented grpc status code,
-				// if it is fall back to old keepalive method
-				// DELETE in 11.0
-				if e, ok := status.FromError(trail.ToGRPC(err)); ok && e.Code() == codes.Unimplemented {
-					err := h.Announcer.UpsertKubeService(h.cancelCtx, kube)
-					if err != nil {
-						h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			var (
+				keepAlive *types.KeepAlive
+				err       error
+			)
+
+			switch current := h.current.(type) {
+			case types.Server:
+				keepAlive, err = h.Announcer.UpsertKubeServiceV2(h.cancelCtx, current)
+				if err != nil {
+					// Check if the error is an Unimplemented grpc status code,
+					// if it is fall back to old keepalive method
+					// DELETE in 11.0
+					if e, ok := status.FromError(trail.ToGRPC(err)); ok && e.Code() == codes.Unimplemented {
+						err := h.Announcer.UpsertKubeService(h.cancelCtx, current)
+						if err != nil {
+							h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+							h.setState(HeartbeatStateAnnounceWait)
+							return trace.Wrap(err)
+						}
+						h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+						h.notifySend()
 						h.setState(HeartbeatStateAnnounceWait)
-						return trace.Wrap(err)
+						return nil
 					}
-					h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
-					h.notifySend()
-					h.setState(HeartbeatStateAnnounceWait)
-					return nil
+					return trace.Wrap(err)
 				}
-				return trace.Wrap(err)
+			case types.KubeServer:
+				keepAlive, err = h.Announcer.UpsertKubernetesServer(h.cancelCtx, current)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			default:
+				return trace.BadParameter("expected types.KubeServer, got %#v", h.current)
 			}
+
 			h.notifySend()
 			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
 			if err != nil {
