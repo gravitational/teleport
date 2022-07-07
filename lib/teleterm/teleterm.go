@@ -28,8 +28,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Start starts daemon service
-func Start(ctx context.Context, cfg Config) error {
+// Serve starts daemon service
+func Serve(ctx context.Context, cfg Config) error {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

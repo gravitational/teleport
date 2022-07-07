@@ -39,7 +39,7 @@ func onDaemonStart(cf *CLIConf) error {
 		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 	}
 
-	err := teleterm.Start(ctx, teleterm.Config{
+	err := teleterm.Serve(ctx, teleterm.Config{
 		HomeDir:            homeDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
