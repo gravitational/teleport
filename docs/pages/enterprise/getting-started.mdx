@@ -6,20 +6,6 @@ h1: Teleport Enterprise Quick Start
 
 This guide shows you how to get up and running with Teleport Enterprise.
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-This guide is intended for Teleport Enterprise users.
-
-<TileSet>
-<Tile title="View this guide as a Teleport Enterprise user" icon="building" href="./getting-started.mdx/?scope=enterprise">
-
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope="enterprise">
-
 There are three types of services Teleport can run:
 
 - **Auth Service** stores user accounts and provides authentication and
@@ -325,15 +311,21 @@ store it in `~/.tsh/keys/<proxy>` directory.
 With a certificate in place, Joe can now interact with the Teleport cluster:
 
 ```code
-# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
-$ tsh ssh joe@node.example.com
-
 # See what hosts are available behind the proxy:
 $ tsh ls
+
+# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
+$ tsh ssh joe@node.example.com
 
 # Log out (this will remove the user certificate from ~/.tsh)
 $ tsh logout
 ```
+
+<Details title="tsh not showing Nodes?" opened={false}>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
 
 ## Configuring SSO
 
@@ -474,4 +466,3 @@ If something is not working, please reach out to us by creating a ticket in your
 Customers who have purchased the premium support package can also ping us through
 your Slack channel.
 
-</ScopedBlock>

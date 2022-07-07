@@ -6,20 +6,6 @@ description: How to configure SSH, Kubernetes, database, and web app access to b
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-This guide is intended for Teleport Enterprise users.
-
-<TileSet>
-<Tile title="View this guide as a Teleport Enterprise user" icon="building" href="./fedramp.mdx/?scope=enterprise">
-
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope="enterprise">
-
 ### Obtain FedRAMP certification with Teleport
 
 Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
@@ -158,5 +144,3 @@ is emitted to the Audit Log.
 - Removes all uses of non-compliant algorithms like NaCl and replace with compliant algorithms like AES-GCM.
 - Teleport is compiled  with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/3678)
 - User, host and CA certificates (and host keys for recording proxy mode) should only use 2048-bit RSA private keys.
-
-</ScopedBlock>
