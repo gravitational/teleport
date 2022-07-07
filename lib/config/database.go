@@ -34,7 +34,6 @@ var databaseConfigTemplateFuncs = template.FuncMap{
 }
 
 // databaseAgentConfigurationTemplate database configuration template.
-// TODO(greedy52) add documentation link to ElastiCache page.
 var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(databaseConfigTemplateFuncs).Parse(`#
 # Teleport database agent configuration file.
 # Configuration reference: https://goteleport.com/docs/database-access/reference/configuration/
@@ -60,7 +59,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions }}
+  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -92,6 +91,7 @@ db_service:
   {{- end }}
   {{- if .ElastiCacheDiscoveryRegions }}
   # ElastiCache databases auto-discovery.
+  # For more information about ElastiCache auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
   - types: ["elasticache"]
     # AWS regions to register databases from.
     regions:
@@ -104,6 +104,7 @@ db_service:
   {{- end }}
   {{- if .MemoryDBDiscoveryRegions }}
   # MemoryDB databases auto-discovery.
+  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
   - types: ["memorydb"]
     # AWS regions to register databases from.
     regions:
