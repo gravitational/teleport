@@ -8,8 +8,6 @@ This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on a Linux machine, then show you how to use
 Teleport to configure access to resources.
 
-(!docs/pages/includes/cloud/cloudmanagedadvisory.mdx!)
-
 We will run the following Teleport services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
@@ -152,7 +150,7 @@ app_service:
       public_addr: "demo.teleport.example.com"
 ```
 
-## Start Teleport
+### Start Teleport
 
 On your Linux machine, run the following command to start the `teleport` daemon
 (this depends on how you installed Telport earlier).
@@ -176,7 +174,7 @@ You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
 to the following:
 
-![Teleport User Registration](../../img/quickstart/login.png)
+![Teleport Welcome Screen](../../img/quickstart/welcome.png)
 
 ## Step 4/6. Create a Teleport user and set up two-factor authentication
 
@@ -367,3 +365,4 @@ Teleport tasks, such as:
 ## Further reading
 
 - How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates
+

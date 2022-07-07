@@ -217,3 +217,56 @@ const (
 	// when HTTPS_PROXY or HTTP_PROXY is ignored
 	NoProxy = "NO_PROXY"
 )
+
+// SessionRecordingService is used to differentiate session recording services.
+type SessionRecordingService int
+
+const (
+	// SessionRecordingServiceSSH represents the SSH service session.
+	SessionRecordingServiceSSH SessionRecordingService = iota
+)
+
+// SessionRecordingMode determines how session recording will behave in failure
+// scenarios.
+type SessionRecordingMode string
+
+const (
+	// SessionRecordingModeStrict causes any failure session recording to
+	// terminate the session or prevent a new session from starting.
+	SessionRecordingModeStrict = SessionRecordingMode("strict")
+
+	// SessionRecordingModeBestEffort allows the session to keep going even when
+	// session recording fails.
+	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
+)
+
+// Constants for Traits
+const (
+	// TraitLogins is the name of the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
+
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+)

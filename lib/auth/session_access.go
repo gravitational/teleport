@@ -43,14 +43,16 @@ type SessionAccessEvaluator struct {
 	kind        types.SessionKind
 	policySets  []*types.SessionTrackerPolicySet
 	isModerated bool
+	owner       string
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
-func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind, owner string) SessionAccessEvaluator {
 	e := SessionAccessEvaluator{
 		kind:       kind,
 		policySets: policySets,
+		owner:      owner,
 	}
 
 	for _, policySet := range policySets {
@@ -183,10 +185,15 @@ func HasV5Role(roles []types.Role) bool {
 
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.SessionParticipantMode, error) {
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
 	if !HasV5Role(user.Roles) {
-		return preAccessControlsModes(e.kind), nil
+		return preAccessControlsModes(e.kind)
+	}
+
+	// Session owners can always join their own sessions.
+	if user.Username == e.owner {
+		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
 	}
 
 	var modes []types.SessionParticipantMode
@@ -205,7 +212,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.Ses
 		}
 	}
 
-	return modes, nil
+	return modes
 }
 
 func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {

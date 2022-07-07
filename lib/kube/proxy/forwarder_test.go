@@ -189,6 +189,11 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "local",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+						DynamicLabels: map[string]types.CommandLabelV2{},
 					}},
 				},
 			}},
@@ -197,6 +202,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -219,9 +228,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -243,9 +253,10 @@ func TestAuthenticate(t *testing.T) {
 				},
 			}},
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -334,9 +345,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -375,9 +387,10 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:         utils.StringsSet([]string{"user-a"}),
+				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster:       "local",
+				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -416,6 +429,10 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
+						StaticLabels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
 					}},
 				},
 			}},
@@ -424,6 +441,10 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -455,7 +476,7 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.FromSpec("ops", types.RoleSpecV5{
+			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					KubeUsers:  tt.roleKubeUsers,
 					KubeGroups: tt.roleKubeGroups,
@@ -463,8 +484,10 @@ func TestAuthenticate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			authCtx := auth.Context{
-				User:    user,
-				Checker: roles,
+				User: user,
+				Checker: services.NewAccessChecker(&services.AccessInfo{
+					RoleSet: roles,
+				}, "local"),
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
@@ -767,8 +790,8 @@ func TestClusterSessionDial(t *testing.T) {
 	sess := &clusterSession{
 		authContext: authContext{
 			teleportCluster: teleportClusterClient{
-				dial: func(_ context.Context, _, addr, _ string) (net.Conn, error) {
-					if addr == "" {
+				dial: func(_ context.Context, _ string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+					if endpoint.addr == "" {
 						return nil, trace.BadParameter("no addr")
 					}
 					return &net.TCPConn{}, nil
@@ -823,7 +846,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
 
-	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
 	}
 

@@ -5,72 +5,26 @@ h1: SSH Authentication with Google Workspace (G Suite)
 videoBanner: WTLWc6nnPfk
 ---
 
-## Google Workspace as SSO for SSH
-
-This guide will cover how to configure [Google Workspace](https://workspace.google.com/) to be a
+This guide will explain how to configure [Google Workspace](https://workspace.google.com/) to be a
 single sign-on (SSO) provider to issue SSH credentials to specific groups of users.
 When used in combination with role based access control (RBAC) it allows SSH administrators
 to define policies like:
 
 - Only members of "DBA" Google group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
-
-<Notice
-  type="warning"
-  scope={["oss"]}
->
-
-  This guide requires Teleport Cloud or Teleport Enterprise.
-
-</Notice>
 
 ## Prerequisites
 
 Before you get started you’ll need:
 
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](/docs/enterprise/getting-started) guide.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
-  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
 - A Google Workspace super administrator account. We recommend setting up a separate super admin account with 2FA as opposed to granting your daily user super admin privileges.
 - Ability to create a Google Cloud project, which requires signing up for Google Cloud. Note that this guide will not require using any paid Google Cloud services.
 - Ability to set up Google Workspace groups.
+- Teleport role with access to maintaining `oidc` resources.  This is available in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Enable default OIDC authentication
 
@@ -346,3 +300,4 @@ automatically in a browser).
 - [Google Workspace Cloud Identity API](https://cloud.google.com/identity)
 - [Google Workspace Directory API](https://developers.google.com/admin-sdk/directory)
 - [How nested Google Workspace groups work](https://support.google.com/a/answer/167100?hl=en)
+

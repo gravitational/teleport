@@ -8,12 +8,11 @@ default everything is stored in a local directory at the Auth server.
 Integration with other storage types is implemented based on the nature of the
 stored data (size, read/write ratio, mutability, etc.).
 
-<Notice scope={["cloud"]} type="tip">
+<ScopedBlock scope={["cloud"]}>
 
 Teleport Cloud manages Auth Service and Proxy Service data for you, so there is
 no need to configure a backend.
-
-</Notice>
+</ScopedBlock>
 
 | Data type | Description | Supported storage backends |
 | - | - | - |
@@ -214,7 +213,8 @@ teleport:
 The AWS authentication settings above can be omitted if the machine itself is
 running on an EC2 instance with an IAM role.
 
-The optional `GET` parameters shown below control how Teleport interacts with an S3 endpoint, including S3-compatible endpoints.
+You can add optional query parameters to the S3 URL. The Teleport Auth
+Service reads these parameters to configure its interactions with S3:
 
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
 

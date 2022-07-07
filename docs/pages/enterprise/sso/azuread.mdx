@@ -12,21 +12,18 @@ SSH credentials to specific groups of users with a SAML Authentication Connector
 
 The following steps configure an example SAML authentication connector matching Azure AD groups with security roles.  You can choose to configure other options.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires either an Enterprise version of Teleport or a Teleport Cloud account.
-</Admonition>
-
 ## Prerequisites
 
 Before you get started you’ll need:
 
-- Either an Enterprise version of Teleport (downloaded via the [Enterprise dashboard](https://dashboard.gravitational.com/web/login)) or a Teleport Cloud account (sign up for a [free trial](https://goteleport.com/signup/)).
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
 - To create at least two security groups in Azure AD and assign one or more users to each group
+- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -387,3 +384,4 @@ Change the Name ID format to use email instead:
 
 ## Further reading
 - [Teleport Configuration Resources Reference](../../setup/reference/resources.mdx)
+

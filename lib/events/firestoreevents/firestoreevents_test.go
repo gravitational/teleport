@@ -107,3 +107,7 @@ func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
 func (s *FirestoreeventsSuite) TestPagination(c *check.C) {
 	s.EventPagination(c)
 }
+
+func (s *FirestoreeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
+}

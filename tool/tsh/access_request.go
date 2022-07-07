@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 )
 
@@ -193,10 +193,21 @@ func printRequest(req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
+	resourcesStr := ""
+	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
+		var err error
+		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	table := asciitable.MakeHeadlessTable(2)
 	table.AddRow([]string{"Request ID:", req.GetName()})
 	table.AddRow([]string{"Username:", req.GetUser()})
 	table.AddRow([]string{"Roles:", strings.Join(req.GetRoles(), ", ")})
+	if len(resourcesStr) > 0 {
+		table.AddRow([]string{"Resources:", resourcesStr})
+	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
@@ -321,16 +332,30 @@ func showRequestTable(reqs []types.AccessRequest) error {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
 
-	table := asciitable.MakeTable([]string{"ID", "User", "Roles", "Created (UTC)", "Status"})
+	table := asciitable.MakeTable([]string{"ID", "User", "Roles"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Resources",
+		MaxCellLength: 20,
+		FootnoteLabel: "[+]",
+	})
+	table.AddFootnote("[+]",
+		"Requested resources truncated, use `tsh request show <request-id>` to view the full list")
+	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
+		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
 			strings.Join(req.GetRoles(), ","),
+			resourceIDsString,
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			req.GetState().String(),
 		})
@@ -354,7 +379,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context, false /* quiet */)
+	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -366,49 +391,57 @@ func onRequestSearch(cf *CLIConf) error {
 	clusterName := clusterNameResource.GetClusterName()
 
 	req := proto.ListResourcesRequest{
-		ResourceType:        cf.ResourceKind,
+		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
 		Labels:              tc.Labels,
 		PredicateExpression: cf.PredicateExpression,
 		SearchKeywords:      tc.SearchKeywords,
 		UseSearchAsRoles:    true,
 	}
-	resources, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
+
+	results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	var resources types.ResourcesWithLabels
+	for _, result := range results {
+		leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resources = append(resources, leafResources...)
+	}
+
 	rows := [][]string{}
-	resourceIDs := []types.ResourceID{}
+	var resourceIDs []string
 	for _, resource := range resources {
-		resourceIDs = append(resourceIDs, types.ResourceID{
+		resourceID := types.ResourceIDToString(types.ResourceID{
 			ClusterName: clusterName,
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		})
+		resourceIDs = append(resourceIDs, resourceID)
 		hostName := ""
 		if r, ok := resource.(interface{ GetHostname() string }); ok {
 			hostName = r.GetHostname()
 		}
 		rows = append(rows, []string{
-			resource.GetKind(),
+			resource.GetName(),
 			hostName,
 			sortedLabels(resource.GetAllLabels()),
-			resource.GetName(),
+			resourceID,
 		})
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Hostname", "Labels", "ID"}, rows, "Labels")
+	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
 	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
-		resourcesStr, err := services.ResourceIDsToString(resourceIDs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		resourcesStr := strings.Join(resourceIDs, " --resource ")
 		fmt.Fprintf(os.Stdout, `
 To request access to these resources, run
-> tsh request create --resources '%s' \
+> tsh request create --resource %s \
     --reason <request reason>
 
 `, resourcesStr)

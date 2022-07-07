@@ -4,7 +4,7 @@ description: How to configure SSH access with Active Directory Federation Servic
 h1: Single Sign-On with Active Directory Federation Services
 ---
 
-This guide will cover how to configure Active Directory Federation Services
+This guide will explain how to configure Active Directory Federation Services
 ([ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services)) to be
 a single sign-on (SSO) provider to issue
 SSH credentials to specific groups of users. When used in combination with role
@@ -13,14 +13,15 @@ like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
 
-<Admonition
-  type="warning"
-  title="Version Warning"
->
-  This guide requires a commercial edition of Teleport.
-</Admonition>
+## Prerequisites
+
+- ADFS installation with Admin access and users assigned to at least two groups.
+- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -146,7 +147,7 @@ to the *"admin"* role. Groups with the value *"users"* is being mapped to the
 
 For the last step, you'll need to export the signing key:
 
-```bsh
+```code
 $ tctl saml export adfs
 ```
 
@@ -159,7 +160,7 @@ certificates.
 The Web UI will now contain a new button: "Login with MS Active Directory". The CLI is
 the same as before:
 
-```bsh
+```code
 $ tsh --proxy=proxy.example.com login
 ```
 

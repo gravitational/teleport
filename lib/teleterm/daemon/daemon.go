@@ -18,7 +18,7 @@ import (
 	"context"
 	"sync"
 
-	apiuri "github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -98,12 +98,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 
 // ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	clusterURI, err := apiuri.ParseClusterURI(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := s.Storage.GetByURI(clusterURI.String())
+	cluster, err := s.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,21 +121,45 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	gateway, err := s.createGateway(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
+// createGateway assumes that mu is already held by a public method.
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	cluster, err := s.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	gateway, err := cluster.CreateGateway(ctx, params)
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage, dbcmd.SystemExecer{})
+
+	clusterCreateGatewayParams := clusters.CreateGatewayParams{
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetSubresourceName: params.TargetSubresourceName,
+		LocalPort:             params.LocalPort,
+		CLICommandProvider:    cliCommandProvider,
+	}
+
+	gateway, err := cluster.CreateGateway(ctx, clusterCreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.Open()
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			gateway.Log.WithError(err).Warn("Failed to open a connection.")
+		}
+	}()
 
 	s.gateways = append(s.gateways, gateway)
 
@@ -184,10 +203,22 @@ func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
 		return trace.Wrap(err)
 	}
 
-	gateway.Close()
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// removeGateway assumes that mu is already held by a public method.
+func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+	if err := gateway.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// remove closed gateway from list
 	for index := range s.gateways {
 		if s.gateways[index] == gateway {
@@ -196,7 +227,54 @@ func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
 		}
 	}
 
+	return trace.NotFound("gateway %v not found in gateway list", gateway.URI.String())
+}
+
+// RestartGateway stops a gateway and starts a new one with identical parameters.
+// It also keeps the original URI so that from the perspective of Connect it's still the same
+// gateway but with fresh certs.
+func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
+	gateway, err := s.FindGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
+		TargetURI:             gateway.TargetURI,
+		TargetUser:            gateway.TargetUser,
+		TargetSubresourceName: gateway.TargetSubresourceName,
+		LocalPort:             gateway.LocalPort,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway.URI = gateway.URI
+
 	return nil
+}
+
+// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
+// s.gateways.
+func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gateway.TargetSubresourceName = targetSubresourceName
+
+	return gateway, nil
 }
 
 // ListKubes lists kubernetes clusters
@@ -219,6 +297,16 @@ func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
+// findGateway assumes that mu is already held by a public method.
+func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	for _, gateway := range s.gateways {
 		if gateway.URI.String() == gatewayURI {
 			return gateway, nil
@@ -254,6 +342,15 @@ type Service struct {
 	Config
 
 	mu sync.RWMutex
-	// gateways is the cluster gateways
+	// gateways holds the long-running gateways for resources on different clusters. So far it's been
+	// used mostly for database gateways but it has potential to be used for app access as well.
+	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
 	gateways []*gateway.Gateway
+}
+
+type CreateGatewayParams struct {
+	TargetURI             string
+	TargetUser            string
+	TargetSubresourceName string
+	LocalPort             string
 }

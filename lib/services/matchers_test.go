@@ -375,9 +375,13 @@ func TestMatchResourceByFilters(t *testing.T) {
 		resource       func() types.ResourceWithLabels
 	}{
 		{
-			name:     "empty filter",
-			resource: func() types.ResourceWithLabels { return nil },
-			filters:  MatchResourceFilter{},
+			name: "no filter should return true",
+			resource: func() types.ResourceWithLabels {
+				server, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{})
+				require.NoError(t, err)
+				return server
+			},
+			filters: MatchResourceFilter{ResourceKind: types.KindNode},
 		},
 		{
 			name:     "unsupported resource kind",
@@ -497,7 +501,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 			t.Parallel()
 
 			resource := tc.resource()
-			match, err := MatchResourceByFilters(resource, tc.filters)
+			match, err := MatchResourceByFilters(resource, tc.filters, nil)
 
 			switch tc.wantNotImplErr {
 			case true:
