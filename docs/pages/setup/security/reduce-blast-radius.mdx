@@ -15,9 +15,9 @@ Teleport encourages users to practice defense in depth so that every component o
 (!docs/pages/includes/tctl.mdx!)
 
 ## Make MFA mandatory for `tsh login`
-If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`. 
+If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`.
 
-Teleport lets you make it mandatory for a user to enroll an MFA device when they create an account, and to authenticate using that device when they begin a new Teleport session. 
+Teleport lets you make it mandatory for a user to enroll an MFA device when they create an account, and to authenticate using that device when they begin a new Teleport session.
 
 To do so, make the following changes depending on your environment:
 
@@ -25,19 +25,13 @@ To do so, make the following changes depending on your environment:
 <TabItem label="Self-hosted" scope={["oss","enterprise"]}>
 
 Ensure that the value of `auth_service.authentication.second_factor` is `otp`,
-`u2f`, `webauthn`, or `on`:
+`webauthn`, or `on`:
 
 ```yaml
 auth_service:
   authentication:
     second_factor: webauthn
 ```
-
-<Notice type="tip">
-
-`u2f` is an alias for `webauthn`.
-
-</Notice>
 
 </TabItem>
 <TabItem label="Teleport Cloud" scope={["cloud"]}>
@@ -50,7 +44,7 @@ $ tctl get cap > cap.yaml
 
 If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
 
-In `cap.yaml`, ensure that the value of `spec.second_factor` is `otp`, `u2f`,
+In `cap.yaml`, ensure that the value of `spec.second_factor` is `otp`,
 `webauthn`, or `on`:
 
 ```yaml
@@ -62,25 +56,18 @@ spec:
   second_factor: otp
 ```
 
-<Notice type="tip">
-
-`u2f` is an alias for `webauthn`.
-
-</Notice>
-
-Apply your change: 
+Apply your change:
 
 ```code
 $ tctl create -f cap.yaml
 ```
 
 </TabItem>
-</Tabs> 
+</Tabs>
 
 To make MFA mandatory for all users, `second_factor` must be set to one of the following values:
 
 - `otp`
-- `u2f`
 - `webauthn`
 - `on`
 
@@ -92,7 +79,7 @@ Choose `on` if you would like to require MFA for all users while letting them ch
 If you have enabled SSO in your Teleport environment, Teleport will conduct its own MFA challenge before sending a request to the identity provider. This means that, even if an attacker has managed to compromise your organization's SSO provider (e.g., by impersonating an administrator), a malicious user will still need to authenticate using valid credentials.
 
 <Admonition type="warning">
-If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario: 
+If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
 - Set `second_factor` to `optional` until you have confirmed that existing users have enrolled their MFA devices.
 - Run the `tctl users reset <account>` command to force a user to enter new credentials, including any required MFA device.
 </Admonition>
@@ -127,7 +114,7 @@ spec:
 
 Create your dynamic resource using `tctl create -f <path to your YAML file>`.
 </TabItem>
-</Tabs> 
+</Tabs>
 
 ## Require dual authorization for role requests
 Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicous user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
