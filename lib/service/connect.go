@@ -72,9 +72,9 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// if connected and client is present, make sure the connector's
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
-				pingResponse, err := connector.Client.Ping(process.ExitContext())
+				pingResponse, pingErr := connector.Client.Ping(process.ExitContext())
 
-				if err == nil {
+				if pingErr == nil {
 					if compareErr := process.authServerTooOld(&pingResponse); compareErr != nil {
 						return nil, trace.Wrap(compareErr)
 					}
@@ -84,7 +84,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 					return connector, nil
 				}
 
-				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
+				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, pingErr)
 				if err := connector.Client.Close(); err != nil {
 					process.log.Debugf("Failed to close the client: %v.", err)
 				}
