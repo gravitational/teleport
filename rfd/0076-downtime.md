@@ -46,12 +46,17 @@ When a Proxy itself restarts, the new instance begins with zero reverse tunnels 
 
 In proxy peering mode, reverse tunnel agents become fully available as soon as they are connected to at least one proxy that's reachable by other proxies (and they heartbeat as such). It should be easy to maintain availability across a restart of an agent (as long as we add some grace period during the shutdown of the previous instance). Restarting a proxy in-place has the same problems that in-place restarting causes when in mesh mode, and should be avoided in this case as well. Spinning up a new proxy in proxy peering mode incurs no downtime, as the newly added proxy will be able to serve user connections immediately, by connecting to the other proxies - shutting down a proxy ungracefully will cause a loss of connectivity for all agents that are connected to just that proxy, however.
 
+### CA rotations
+
+The current implementation of CA rotations involves restarting every component in the cluster after each phase (other than `init`); as such, connectivity loss for reverse tunnel agents is inevitable (requiring potentially more effort than a full shutdown and startup, as newly restarted agents might initially connect to proxies that haven't restarted yet), and the fact that all Auths are restarted means that at least some disruption is to be expected, even for agents in direct connection mode. As most of the best practices around maintaining high availability and low downtime involve rolling upgrades and not restarting Auth and Proxy in place, it's clear that the current implementation of CA rotations is problematic. It should be possible to swap out credentials without a full restart on a rotation, and that would make most of the availability concerns around CA rotations disappear.
+
 ## Potential future steps
 
 * Remove the old-style `session.Session`: already underway, will be completed in v11.
 * Allow running different Auth builds from the same major version at the same time (potentially restricted to only two versions, upgrading from old to new): potentially good value, requires engineering care and prevents us from running migrations outside of major version upgrades.
-* Properly deprecate in-place restarts when `auth_service` is enabled and `auth_servers` is pointing to just localhost (auth and other services in the same process).
+* Properly deprecate in-place upgrades when `auth_service` is enabled and `auth_servers` is pointing to just localhost (auth and other services in the same process).
 * Add a grace period on shutdown of reverse tunnel agents and servers: will delay shutdowns - potentially for nothing, if the shutdown is meant to be a shutdown rather than a restart and we're not in proxy peering mode, but we could extend the internal "shutdown" protocol to also carry this information, as we always know if we have spawned a new Teleport ourselves or not.
 * Backport the reconnection advisory mechanism for reverse tunnels.
 * Don't close the proxy peering listeners when shutting down rather than restarting.
 * Deprecate in-place restarts for Proxies in proxy peering mode.
+* Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted.
