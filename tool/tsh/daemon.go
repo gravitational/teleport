@@ -18,8 +18,6 @@ package main
 
 import (
 	"context"
-	"os"
-	"syscall"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
@@ -45,7 +43,6 @@ func onDaemonStart(cf *CLIConf) error {
 		HomeDir:            homeDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ShutdownSignals:    []os.Signal{os.Interrupt, syscall.SIGTERM},
 	})
 	if err != nil {
 		return trace.Wrap(err)
