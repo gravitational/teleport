@@ -304,6 +304,9 @@ func (s *Server) isAuditedAtProxy() bool {
 type ServerOption func(s *Server) error
 
 func (s *Server) close() {
+	s.Lock()
+	defer s.Unlock()
+
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
@@ -338,55 +341,48 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // Start starts server
 func (s *Server) Start() error {
-	// If the server has dynamic labels defined, start a loop that will
-	// asynchronously keep them updated.
-	if s.dynamicLabels != nil {
-		go s.dynamicLabels.Start()
+	// Only call srv.Start() which listens on a socket if the server did not
+	// request connections to it arrive over a reverse tunnel.
+	if !s.useTunnel {
+		if err := s.srv.Start(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-
-	if s.users != nil {
-		go s.users.UserCleanup()
-	}
-
-	// If the server requested connections to it arrive over a reverse tunnel,
-	// don't call Start() which listens on a socket, return right away.
-	if s.useTunnel {
-		go s.heartbeat.Run()
-		return nil
-	}
-	if err := s.srv.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Heartbeat should start only after s.srv.Start.
 	// If the server is configured to listen on port 0 (such as in tests),
 	// it'll only populate its actual listening address during s.srv.Start.
 	// Heartbeat uses this address to announce. Avoid announcing an empty
 	// address on first heartbeat.
-	go s.heartbeat.Run()
-
+	s.startPeriodicOperations()
 	return nil
 }
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	s.startPeriodicOperations()
+	return trace.Wrap(s.srv.Serve(l))
+}
+
+func (s *Server) startPeriodicOperations() {
+	s.Lock()
+	defer s.Unlock()
+
 	// If the server has dynamic labels defined, start a loop that will
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
 		go s.dynamicLabels.Start()
 	}
-	// if the server allows host user provisioning, this will start an
-	// automatic cleanup process for any temporary leftover users
+	// If the server allows host user provisioning, this will start an
+	// automatic cleanup process for any temporary leftover users.
 	if s.users != nil {
 		go s.users.UserCleanup()
 	}
-
 	if s.cloudLabels != nil {
 		s.cloudLabels.Start(s.Context())
 	}
-
-	go s.heartbeat.Run()
-	return s.srv.Serve(l)
+	if s.heartbeat != nil {
+		go s.heartbeat.Run()
+	}
 }
 
 // Wait waits until server stops

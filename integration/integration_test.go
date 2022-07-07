@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -156,6 +157,8 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
