@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,7 +104,7 @@ func blockUntilGatewayAcceptsConnections(t *testing.T, address string) {
 	// httptest.NewTLSServer) doesn't support.
 	//
 	// So we just expect EOF here. In case of a timeout, this check will fail.
-	require.ErrorContains(t, err, "EOF")
+	require.True(t, trace.IsEOF(err), "expected EOF, got %v", err)
 
 	err = conn.Close()
 	require.NoError(t, err)
