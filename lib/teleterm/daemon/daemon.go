@@ -155,7 +155,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.Open()
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			gateway.Log.WithError(err).Warn("Failed to open a connection.")
+		}
+	}()
 
 	s.gateways = append(s.gateways, gateway)
 
@@ -202,22 +206,28 @@ func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.removeGateway(gateway)
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
 
 // removeGateway assumes that mu is already held by a public method.
-func (s *Service) removeGateway(gateway *gateway.Gateway) {
-	gateway.Close()
+func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+	if err := gateway.Close(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// remove closed gateway from list
 	for index := range s.gateways {
 		if s.gateways[index] == gateway {
 			s.gateways = append(s.gateways[:index], s.gateways[index+1:]...)
-			return
+			return nil
 		}
 	}
+
+	return trace.NotFound("gateway %v not found in gateway list", gateway.URI.String())
 }
 
 // RestartGateway stops a gateway and starts a new one with identical parameters.
@@ -232,7 +242,9 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.removeGateway(gateway)
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
 
 	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
 		TargetURI:             gateway.TargetURI,

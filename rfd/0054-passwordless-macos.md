@@ -11,6 +11,8 @@ Passwordless features for native macOS CLIs, aka Touch ID support for CLI/`tsh`.
 
 This is a part of the [Passwordless RFD][passwordless rfd].
 
+Passwordless is available as a preview in Teleport 10.
+
 ## Why
 
 Native, non-browser macOS clients lack support for Touch ID. This RFD explores
