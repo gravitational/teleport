@@ -205,11 +205,8 @@ func fido2Login(
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Trust the assertion user if present, otherwise go with the requested user.
+	// Trust the assertion user if present, otherwise say nothing.
 	actualUser := assertionResp.User.Name
-	if actualUser == "" {
-		actualUser = user
-	}
 
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
@@ -255,8 +252,12 @@ func pickAssertion(
 	case l == 0:
 		return nil, errors.New("authenticator returned empty assertions")
 
-	// MFA or single credential (no explicit user).
-	case !passwordless, l == 1 && user == "":
+	// MFA or single account.
+	// Note that authenticators don't return the user name, display name or icon
+	// for a single account per RP.
+	// See the authenticatorGetAssertion response, user member (0x04):
+	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorgetassertion-response-structure
+	case !passwordless, l == 1:
 		return assertions[0], nil
 
 	// Explicit user required. First occurrence wins.
