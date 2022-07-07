@@ -233,7 +233,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 			Kind:       "CustomResourceDefinition",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s.%s", root.pluralName, root.groupName),
+			Name: fmt.Sprintf("%s.%s", strings.ToLower(k8sKindPrefix+root.pluralName), root.groupName),
 		},
 		Spec: apiextv1.CustomResourceDefinitionSpec{
 			Group: root.groupName,
