@@ -667,6 +667,10 @@
               "slug": "/access-controls/guides/locking/"
             },
             {
+              "title": "Passwordless (Preview)",
+              "slug": "/access-controls/guides/passwordless/"
+            },
+            {
               "title": "Second Factor - WebAuthn",
               "slug": "/access-controls/guides/webauthn/"
             },
@@ -1221,6 +1225,11 @@
     {
       "source": "/docs/kubernetes-access/getting-started/local/",
       "destination": "/docs/getting-started/local-kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
       "permanent": true
     }
   ]
