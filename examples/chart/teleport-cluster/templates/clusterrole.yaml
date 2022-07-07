@@ -24,7 +24,7 @@ rules:
   verbs:
   - create
 
-{{ if .Values.operator }}
+{{ if .Values.operator.enabled }}
 - apiGroups:
   - "resources.teleport.dev"
   resources:

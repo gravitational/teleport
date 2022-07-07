@@ -205,7 +205,7 @@ spec:
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
-{{ if .Values.operator }}
+{{ if .Values.operator.enabled }}
       - name: "operator"
         image: "{{ .Values.operatorImage }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
         imagePullPolicy: {{ .Values.imagePullPolicy }}
