@@ -90,7 +90,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -299,7 +299,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1464,7 +1464,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1619,7 +1619,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -5102,7 +5102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:145
+# Generated at dronegen/misc.go:149
 ################################################
 
 kind: pipeline
@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:169
+# Generated at dronegen/misc.go:173
 ################################################
 
 kind: pipeline
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 8353436a7d9f4c391f4cb87473e0b6a249a3d57e078e6a6f0d768cbaed65cb20
+hmac: b662295f3a64d55f5b446997e0a822dc840da2aa35ede16d24282c9951168228
 
 ...
