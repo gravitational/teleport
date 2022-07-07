@@ -4956,11 +4956,15 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 }
 
 type mockCurrentUserRoleGetter struct {
-	currentUser types.User
-	nameToRole  map[string]types.Role
+	getCurrentUserError error
+	currentUser         types.User
+	nameToRole          map[string]types.Role
 }
 
 func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
+	if m.getCurrentUserError != nil {
+		return nil, trace.Wrap(m.getCurrentUserError)
+	}
 	if m.currentUser != nil {
 		return m.currentUser, nil
 	}
@@ -4968,10 +4972,6 @@ func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.Us
 }
 
 func (m mockCurrentUserRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
-	if m.currentUser == nil {
-		return nil, trace.NotFound("currentUser not set")
-	}
-
 	var roles []types.Role
 	for _, role := range m.nameToRole {
 		roles = append(roles, role)
@@ -5057,6 +5057,7 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	})
 
 	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		getCurrentUserError: trace.NotImplemented("GetCurrentUser not implemented on server"),
 		nameToRole: map[string]types.Role{
 			"access": &accessRole,
 			"editor": &editorRole,
