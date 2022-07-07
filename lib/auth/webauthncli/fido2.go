@@ -170,6 +170,15 @@ func fido2Login(
 			opts.UV = libfido2.True
 		}
 		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
+			// Try again if we are getting "unsupported option" and the PIN is set.
+			// Happens inconsistently in some authenticator series (YubiKey 5).
+			// We are relying on the fact that, because the PIN is set, the
+			// authenticator will set the UV bit regardless of it being requested.
+			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
+			opts.UV = libfido2.Default
+			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
