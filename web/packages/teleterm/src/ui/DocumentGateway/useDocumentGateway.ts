@@ -112,7 +112,6 @@ export default function useGateway(doc: types.DocumentGateway) {
   );
 
   return {
-    doc,
     gateway,
     disconnect,
     connected,
