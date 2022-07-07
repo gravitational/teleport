@@ -54,8 +54,19 @@ acmeURI: ""
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
 
-# Set operator to true to add the Kubernetes Teleport Operator
-operator: false
+# Configuration of the optional Teleport operator
+operator:
+  # Set enabled to true to add the Kubernetes Teleport Operator
+  enabled: false
+  # Resources to request for the operator container
+  # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+  resources: {}
+  #  requests:
+  #    cpu: "0.5"
+  #    memory: "1Gi"
+  #  limits:
+  #    memory: "1Gi"
+
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
@@ -280,7 +291,7 @@ initContainers: []
 postStart:
   command: []
 
-# Resources to request for each pod in the deployment
+# Resources to request for the teleport container
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources: {}
 #  requests:

@@ -108,8 +108,20 @@
         },
         "operator": {
             "$id": "#/properties/operator",
-            "type": "boolean",
-            "default": false
+            "type": "object",
+            "required": ["enabled", "resources"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/operator/properties/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "resources": {
+                    "$id": "#/properties/operator/properties/resources",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "podSecurityPolicy": {
             "$id": "#/properties/podSecurityPolicy",
