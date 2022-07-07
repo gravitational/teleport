@@ -112,7 +112,7 @@ func TestRoleDeletionDrift(t *testing.T) {
 	// The role is deleted in K8S
 	k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
 
-	var k8sRole resourcesv5.Role
+	var k8sRole resourcesv5.TeleportRole
 	fastEventually(t, func() bool {
 		err = k8sClient.Get(ctx, kclient.ObjectKey{
 			Namespace: ns.Name,
@@ -136,7 +136,7 @@ func TestRoleUpdate(t *testing.T) {
 	roleName := validRandomResourceName("role-")
 
 	// The role does not exist in K8S
-	var r resourcesv5.Role
+	var r resourcesv5.TeleportRole
 	err := k8sClient.Get(ctx, kclient.ObjectKey{
 		Namespace: ns.Name,
 		Name:      roleName,
@@ -158,12 +158,12 @@ func TestRoleUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// The role is created in K8S
-	k8sRole := resourcesv5.Role{
+	k8sRole := resourcesv5.TeleportRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleName,
 			Namespace: ns.Name,
 		},
-		Spec: resourcesv5.RoleSpec{
+		Spec: resourcesv5.TeleportRoleSpec{
 			Allow: types.RoleConditions{
 				Logins: []string{"x", "z"},
 			},
@@ -176,7 +176,7 @@ func TestRoleUpdate(t *testing.T) {
 		tRole, err := tClient.GetRole(ctx, roleName)
 		require.NoError(t, err)
 
-		// Role was updated with new roles
+		// TeleportRole was updated with new roles
 		if !assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z"}) {
 			return false
 		}
@@ -184,7 +184,7 @@ func TestRoleUpdate(t *testing.T) {
 	})
 
 	// Updating the role in K8S
-	var k8sRoleNewVersion resourcesv5.Role
+	var k8sRoleNewVersion resourcesv5.TeleportRole
 	err = k8sClient.Get(ctx, kclient.ObjectKey{
 		Namespace: ns.Name,
 		Name:      roleName,
@@ -200,18 +200,18 @@ func TestRoleUpdate(t *testing.T) {
 		tRole, err := tClient.GetRole(ctx, roleName)
 		require.NoError(t, err)
 
-		// Role updated with new roles
+		// TeleportRole updated with new roles
 		return assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z", "admin", "root"})
 	})
 }
 
 func k8sCreateDummyRole(ctx context.Context, t *testing.T, kc kclient.Client, namespace, roleName string) {
-	role := resourcesv5.Role{
+	role := resourcesv5.TeleportRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleName,
 			Namespace: namespace,
 		},
-		Spec: resourcesv5.RoleSpec{
+		Spec: resourcesv5.TeleportRoleSpec{
 			Allow: types.RoleConditions{
 				Logins: []string{"a", "b"},
 			},
@@ -221,7 +221,7 @@ func k8sCreateDummyRole(ctx context.Context, t *testing.T, kc kclient.Client, na
 }
 
 func k8sDeleteRole(ctx context.Context, t *testing.T, kc kclient.Client, roleName, namespace string) {
-	role := resourcesv5.Role{
+	role := resourcesv5.TeleportRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleName,
 			Namespace: namespace,
@@ -231,7 +231,7 @@ func k8sDeleteRole(ctx context.Context, t *testing.T, kc kclient.Client, roleNam
 	require.NoError(t, err)
 }
 
-func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *resourcesv5.Role) {
+func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *resourcesv5.TeleportRole) {
 	err := kc.Create(ctx, role)
 	require.NoError(t, err)
 }

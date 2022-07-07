@@ -24,17 +24,17 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&Role{}, &RoleList{})
+	SchemeBuilder.Register(&TeleportRole{}, &TeleportRoleList{})
 }
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// RoleSpec defines the desired state of Role
-type RoleSpec types.RoleSpecV5
+// TeleportRoleSpec defines the desired state of TeleportRole
+type TeleportRoleSpec types.RoleSpecV5
 
-// RoleStatus defines the observed state of Role
-type RoleStatus struct {
+// TeleportRoleStatus defines the observed state of TeleportRole
+type TeleportRoleStatus struct {
 	// Conditions represent the latest available observations of an object's state
 	// +optional
 	Conditions []metav1.Condition `json:"conditions"`
@@ -45,25 +45,25 @@ type RoleStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Role is the Schema for the roles API
-type Role struct {
+// TeleportRole is the Schema for the roles API
+type TeleportRole struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   RoleSpec   `json:"spec,omitempty"`
-	Status RoleStatus `json:"status,omitempty"`
+	Spec   TeleportRoleSpec   `json:"spec,omitempty"`
+	Status TeleportRoleStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// RoleList contains a list of Role
-type RoleList struct {
+// TeleportRoleList contains a list of TeleportRole
+type TeleportRoleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Role `json:"items"`
+	Items           []TeleportRole `json:"items"`
 }
 
-func (r Role) ToTeleport() types.Role {
+func (r TeleportRole) ToTeleport() types.Role {
 	return &types.RoleV5{
 		Kind:    types.KindRole,
 		Version: types.V5,
@@ -77,27 +77,27 @@ func (r Role) ToTeleport() types.Role {
 }
 
 func init() {
-	SchemeBuilder.Register(&Role{}, &RoleList{})
+	SchemeBuilder.Register(&TeleportRole{}, &TeleportRoleList{})
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *RoleSpec) Marshal() ([]byte, error) {
+func (spec *TeleportRoleSpec) Marshal() ([]byte, error) {
 	return (*types.RoleSpecV5)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *RoleSpec) Unmarshal(data []byte) error {
+func (spec *TeleportRoleSpec) Unmarshal(data []byte) error {
 	return (*types.RoleSpecV5)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one role spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *RoleSpec) DeepCopyInto(out *RoleSpec) {
+func (spec *TeleportRoleSpec) DeepCopyInto(out *TeleportRoleSpec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = RoleSpec{}
+	*out = TeleportRoleSpec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
