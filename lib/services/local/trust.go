@@ -17,6 +17,9 @@ package local
 import (
 	"context"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -122,6 +125,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 	}
 
 	if !services.CertAuthoritiesEquivalent(actual, expected) {
+		logrus.Debugf("CAS failed: %q", cmp.Diff(actual, expected))
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 
