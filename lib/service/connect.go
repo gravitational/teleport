@@ -67,8 +67,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 	var assertionID string
 
 	for {
-		connector, err := process.connectToAuthService(role, systemRoleAssertionID(assertionID))
-		if err == nil {
+		connector, connectErr := process.connectToAuthService(role, systemRoleAssertionID(assertionID))
+		if connectErr == nil {
 			// if connected and client is present, make sure the connector's
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
@@ -94,7 +94,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		// clear assertion ID
 		assertionID = ""
 
-		if role == types.RoleInstance && strings.Contains(err.Error(), auth.TokenExpiredOrNotFound) {
+		if role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound) {
 			process.log.Infof("Token too old for direct instance cert request, will attempt to use system role assertions.")
 			id, assertionErr := process.assertSystemRoles()
 			if assertionErr == nil {
