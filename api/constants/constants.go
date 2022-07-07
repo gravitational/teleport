@@ -239,3 +239,34 @@ const (
 	// session recording fails.
 	SessionRecordingModeBestEffort = SessionRecordingMode("best_effort")
 )
+
+// Constants for Traits
+const (
+	// TraitLogins is the name of the role variable used to store
+	// allowed logins.
+	TraitLogins = "logins"
+
+	// TraitWindowsLogins is the name of the role variable used
+	// to store allowed Windows logins.
+	TraitWindowsLogins = "windows_logins"
+
+	// TraitKubeGroups is the name the role variable used to store
+	// allowed kubernetes groups
+	TraitKubeGroups = "kubernetes_groups"
+
+	// TraitKubeUsers is the name the role variable used to store
+	// allowed kubernetes users
+	TraitKubeUsers = "kubernetes_users"
+
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
+	// TraitAWSRoleARNs is the name of the role variable used to store
+	// allowed AWS role ARNs.
+	TraitAWSRoleARNs = "aws_role_arns"
+)
