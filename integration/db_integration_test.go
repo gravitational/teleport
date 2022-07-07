@@ -610,36 +610,51 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 
 // TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
 func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
-	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
-	)
+	tests := []struct {
+		desc       string
+		disableTLS bool
+	}{
+		{desc: "With TLS enabled", disableTLS: false},
+		{desc: "With TLS disabled", disableTLS: true},
+	}
 
-	// Connect to the database service in root cluster.
-	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
-		Cluster:    pack.root.cluster.Secrets.SiteName,
-		Username:   pack.root.user.GetName(),
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: pack.root.postgresService.Name,
-			Protocol:    pack.root.postgresService.Protocol,
-			Username:    "postgres",
-			Database:    "test",
-		},
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			pack := setupDatabaseTest(t,
+				withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
+				withRootConfig(func(config *service.Config) {
+					config.Proxy.DisableTLS = tt.disableTLS
+				}),
+			)
 
-	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
-	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+			// Connect to the database service in root cluster.
+			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.postgresService.Name,
+					Protocol:    pack.root.postgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			require.NoError(t, err)
 
-	// Disconnect.
-	err = client.Close(context.Background())
-	require.NoError(t, err)
+			// Execute a query.
+			result, err := client.Exec(context.Background(), "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+			require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+			require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+			// Disconnect.
+			err = client.Close(context.Background())
+			require.NoError(t, err)
+		})
+	}
 }
 
 func init() {
