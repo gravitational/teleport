@@ -216,7 +216,7 @@ running on an EC2 instance with an IAM role.
 You can add optional query parameters to the S3 URL. The Teleport Auth
 Service reads these parameters to configure its interactions with S3:
 
-`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
+`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
@@ -224,7 +224,7 @@ Service reads these parameters to configure its interactions with S3:
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-
+- `use_fips_endpoint=true` -  set to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) S3 endpoints will be used. If `false`, normal S3 endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used. In Teleport 10 or greater, FIPS endpoints will be used if Teleport is run with the `--fips` flag.
 ### S3 Server Side Encryption
 
 Teleport supports using a custom AWS KMS Customer Managed Key for encrypting objects uploaded to S3.
@@ -443,6 +443,14 @@ teleport:
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+The optional `GET` parameters shown below control how Teleport interacts with a Dynamo endpoint.
+
+`dynamodb://events_table_name?region=us-east-1&endpoint=dynamo.example.com&use_fips_endpoint=true`
+
+- `region=us-east-1` - set the Amazon region to use.
+- `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
+- `use_fips_endpoint=true` -  set to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used. If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used. In Teleport 10 or greater, FIPS endpoints will be used if Teleport is run with the `--fips` flag.
 
 <Admonition
   type="warning"
