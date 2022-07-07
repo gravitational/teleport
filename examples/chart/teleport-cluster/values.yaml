@@ -54,6 +54,9 @@ acmeURI: ""
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
 
+# Set operator to true to add the Kubernetes Teleport Operator
+operator: false
+
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 podSecurityPolicy:
@@ -191,6 +194,8 @@ tls:
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
+# Kubernetes Teleport Operator image
+operatorImage: quay.io/gravitational/teleport-operator
 # Teleport logging configuration
 log:
   # Log level for the Teleport process.
