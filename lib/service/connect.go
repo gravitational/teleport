@@ -73,12 +73,12 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// client works, by using call that should succeed at all times
 			if connector.Client != nil {
 				pingResponse, err := connector.Client.Ping(process.ExitContext())
-				compareErr := process.authServerTooOld(&pingResponse)
-				if compareErr != nil {
-					return nil, trace.Wrap(compareErr)
-				}
 
 				if err == nil {
+					if compareErr := process.authServerTooOld(&pingResponse); compareErr != nil {
+						return nil, trace.Wrap(compareErr)
+					}
+
 					process.setClusterFeatures(pingResponse.GetServerFeatures())
 					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
 					return connector, nil
