@@ -507,6 +507,10 @@
               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
+              "title": "Snowflake (Preview)",
+              "slug": "/database-access/guides/snowflake/"
+            },
+            {
               "title": "Database GUI Clients",
               "slug": "/database-access/guides/gui-clients/"
             },
