@@ -287,7 +287,7 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production Ready?
 
 Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
+computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports](https://goteleport.com/resources/audits/).
 We are comfortable with the use of Teleport from a security perspective.
 
 You can see the list of companies who use Teleport in production on the Teleport
@@ -297,6 +297,5 @@ You can find the latest stable Teleport build on our [Releases](https://gotelepo
 
 ## Who Built Teleport?
 
-Teleport was created by [Gravitational Inc](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
+Teleport was created by [Gravitational Inc](https://goteleport.com). We built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).
