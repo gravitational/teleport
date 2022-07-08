@@ -10,26 +10,7 @@ using Teleport Helm charts and AWS products (DynamoDB and S3).
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-You can also view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-href="./aws.mdx/?scope=oss"
-title="Open Source"
-icon="stack"
->
-</Tile>
-<Tile
-href="./aws.mdx/?scope=enterprise"
-title="Enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Prerequisites
 
@@ -134,27 +115,31 @@ You'll need to replace these values in the policy example below:
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "ClusterSessionsStorage",
+            "Sid": "BucketActions",
             "Effect": "Allow",
             "Action": [
                 "s3:PutEncryptionConfiguration",
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:GetEncryptionConfiguration",
-                "s3:GetObjectRetention",
+                "s3:PutBucketVersioning",
                 "s3:ListBucketVersions",
                 "s3:ListBucketMultipartUploads",
-                "s3:AbortMultipartUpload",
-                "s3:CreateBucket",
                 "s3:ListBucket",
+                "s3:GetEncryptionConfiguration",
                 "s3:GetBucketVersioning",
-                "s3:PutBucketVersioning",
-                "s3:GetObjectVersion"
+                "s3:CreateBucket"
             ],
-            "Resource": [
-                "arn:aws:s3:::teleport-helm-sessions/*",
-                "arn:aws:s3:::teleport-helm-sessions"
-            ]
+            "Resource": "arn:aws:s3:::teleport-helm-sessions"
+        },
+        {
+            "Sid": "ObjectActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObjectVersion",
+                "s3:GetObjectRetention",
+                "s3:*Object",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+            ],
+            "Resource": "arn:aws:s3:::teleport-helm-sessions/*"
         }
     ]
 }
@@ -557,4 +542,3 @@ See the [high availability section of our Helm chart reference](../helm-referenc
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
 
-</ScopedBlock>

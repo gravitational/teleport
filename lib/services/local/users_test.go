@@ -27,7 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -38,10 +38,9 @@ import (
 
 func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
 	t.Helper()
-	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clock,
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
