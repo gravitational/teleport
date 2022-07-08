@@ -1402,7 +1402,7 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-func testHelperGetWaitForServerStart(t *testing.T, s *Server, config *ssh.ClientConfig) func() bool {
+func getWaitForServerStartFunc(t *testing.T, s *Server, config *ssh.ClientConfig) func() bool {
 	return func() bool {
 		clt, _ := ssh.Dial("tcp", s.Addr(), config)
 		if clt != nil {
