@@ -19,10 +19,13 @@ package cloud
 import (
 	"context"
 	"crypto/tls"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -511,4 +514,45 @@ func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.Upda
 		}
 	}
 	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserName))
+}
+
+type EC2Mock struct {
+	ec2iface.EC2API
+	Instances []*ec2.Instance
+}
+
+func (m *EC2Mock) DescribeInstancesPagesWithContext(
+	ctx context.Context, input *ec2.DescribeInstancesInput,
+	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option) error {
+
+	var instances []*ec2.Instance
+
+	for _, inst := range m.Instances {
+		tagMatch := false
+		stateMatch := false
+		for _, tag := range inst.Tags {
+			for _, filter := range input.Filters {
+				if strings.HasPrefix(aws.StringValue(filter.Name), "tag:") && !tagMatch {
+					tagMatch =
+						aws.StringValue(filter.Name)[4:] == aws.StringValue(tag.Key) &&
+							aws.StringValue(tag.Value) == aws.StringValueSlice(filter.Values)[0]
+				}
+				if aws.StringValue(filter.Name) == "instance-state-name" && !stateMatch {
+					stateMatch =
+						aws.StringValue(inst.State.Name) == ec2.InstanceStateNameRunning
+				}
+
+				if stateMatch && tagMatch {
+					instances = append(instances, inst)
+				}
+			}
+		}
+
+	}
+
+	filtered := &ec2.DescribeInstancesOutput{
+		Reservations: []*ec2.Reservation{{Instances: instances}},
+	}
+	f(filtered, true)
+	return nil
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -93,11 +94,27 @@ func TestWatcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
+	ec2InstanceDiscovered := makeEC2Instances(
+		"instance-1",
+		ec2.InstanceStateNameRunning,
+		map[string]string{"teleport": "yes"})
+
+	ec2InstanceIgnored := makeEC2Instances(
+		"instance-1",
+		ec2.InstanceStateNameRunning,
+		map[string]string{"teleport": "no"})
+
+	ec2InstanceOff := makeEC2Instances(
+		"instance-1",
+		ec2.InstanceStateNamePending,
+		map[string]string{"teleport": "yes"})
+
 	tests := []struct {
-		name              string
-		awsMatchers       []services.AWSMatcher
-		clients           clients.CloudClients
-		expectedDatabases types.Databases
+		name                 string
+		awsMatchers          []services.AWSMatcher
+		clients              clients.CloudClients
+		expectedDatabases    types.Databases
+		expectedEC2Instances []EC2Instances
 	}{
 		{
 			name: "RDS labels matching",
@@ -294,6 +311,30 @@ func TestWatcher(t *testing.T) {
 				memorydbDatabaseProd,
 			},
 		},
+		{
+			name: "EC2",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{services.AWSMatcherEC2},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"teleport": []string{"yes"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
+				EC2: &cloud.EC2Mock{
+					Instances: []*ec2.Instance{
+						ec2InstanceDiscovered, // labels match
+						ec2InstanceIgnored,    // labels do not match
+						ec2InstanceOff,
+					},
+				},
+			},
+			expectedEC2Instances: []EC2Instances{
+				EC2Instances{
+					Instances: []*ec2.Instance{ec2InstanceDiscovered},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -307,6 +348,8 @@ func TestWatcher(t *testing.T) {
 				// makeFetchers function uses a map for matcher types so
 				// databases can come in random orders.
 				require.ElementsMatch(t, test.expectedDatabases, databases)
+			case ec2Instances := <-watcher.EC2C():
+				require.ElementsMatch(t, test.expectedEC2Instances, ec2Instances)
 			case <-time.After(time.Second):
 				t.Fatal("didn't receive databases after 1 second")
 			}
@@ -524,4 +567,22 @@ func labelsToTags(labels map[string]string) (tags []*rds.Tag) {
 		})
 	}
 	return tags
+}
+
+func makeEC2Instances(instID, state string, labels map[string]string) *ec2.Instance {
+	var tags []*ec2.Tag
+	for key, val := range labels {
+		tags = append(tags, &ec2.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(val),
+		})
+	}
+
+	return &ec2.Instance{
+		InstanceId: &instID,
+		State: &ec2.InstanceState{
+			Name: aws.String(state),
+		},
+		Tags: tags,
+	}
 }
