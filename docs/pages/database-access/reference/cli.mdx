@@ -109,7 +109,7 @@ $ teleport db configure create \
 | `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |
+| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |
