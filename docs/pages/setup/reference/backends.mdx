@@ -699,3 +699,49 @@ $ psql -d postgres
 postgres=# CREATE DATABASE teleport;
 postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
 ```
+
+## SQLite
+
+The SQLite backend is used when no `type` is specified in the storage section in
+the Teleport configuration file, or when `type` is set to `sqlite` or `dir`.
+It's not designed for high throughput and it's not capable of serving the needs
+of Teleport's High Availability configurations; as such, it's only recommended
+for deployments of moderate size.
+
+A sign that the cluster has outgrown the capabilities of the SQLite backend in a
+local directory is the presence of warning messages in the auth server's logs
+that say `SLOW TRANSACTION`. As a stopgap measure until it's possible to migrate
+the cluster to use a HA-capable backend, the SQLite backend can be configured to
+reduce the amount of disk synchronization, in exchange for less resilience
+against system crashes or power loss. For an explanation on what the options
+mean, see [the official SQLite
+docs](https://www.sqlite.org/pragma.html#pragma_synchronous). No matter the
+configuration, we recommend you take regular backups of your cluster state.
+
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+```
+
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: "OFF"
+```
+
+When running on a filesystem that supports file locks (i.e. a local filesystem,
+not a networked one) it's possible to also configure the SQLite database to use
+Write-Ahead Logging (see [the official docs on WAL
+mode](https://www.sqlite.org/wal.html)) for improved performance without
+sacrificing reliability:
+
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+    journal: WAL
+```
