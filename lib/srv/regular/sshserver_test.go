@@ -1414,7 +1414,7 @@ func getWaitForServerStartFunc(t *testing.T, s *Server, config *ssh.ClientConfig
 	}
 }
 
-func testHelperGetWaitForNumberOfConns(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
 	return func() bool {
 		connNumber, err := limiter.GetNumConnection(token)
 		require.NoError(t, err)
