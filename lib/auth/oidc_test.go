@@ -187,9 +187,9 @@ func TestUserInfoBadStatus(t *testing.T) {
 
 func TestSSODiagnostic(t *testing.T) {
 	tests := []struct {
-		name          string
-		claimsToRoles []types.ClaimMapping
-		err           error
+		name            string
+		claimsToRoles   []types.ClaimMapping
+		wantValidateErr error
 	}{
 		{
 			name: "success",
@@ -210,7 +210,7 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			err: oidcNoRolesError,
+			wantValidateErr: ErrOIDCNoRoles,
 		},
 	}
 
@@ -272,8 +272,8 @@ func TestSSODiagnostic(t *testing.T) {
 			}
 
 			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
-			if tc.err != nil {
-				require.ErrorIs(t, err, tc.err)
+			if tc.wantValidateErr != nil {
+				require.ErrorIs(t, err, tc.wantValidateErr)
 				return
 			}
 

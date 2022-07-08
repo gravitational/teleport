@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -246,43 +245,6 @@ func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, di
 	return nil, trace.NotImplemented("mockValidateGithubAuthCallback not implemented")
 }
 
-func TestIsGithubNoTeams(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name  string
-		err   error
-		match bool
-	}{
-		{
-			name:  "correct error",
-			err:   githubNoTeamsError("a", "b"),
-			match: true,
-		},
-		{
-			name: "nil",
-			err:  nil,
-		},
-		{
-			name: "random error",
-			err:  errors.New("random error"),
-		},
-		{
-			name: "right message, wrong type",
-			err:  errors.New(githubNoTeamsError("a", "b").Error()),
-		},
-		{
-			name: "wrong message, right type",
-			err:  trace.BadParameter("random error"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.match, IsGithubNoTeamsError(tc.err))
-		})
-	}
-}
-
 func TestCalculateGithubUserNoTeams(t *testing.T) {
 	a := &Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -304,5 +266,5 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}, &types.GithubAuthRequest{})
-	require.True(t, IsGithubNoTeamsError(err), "Unexpected error: %v", err)
+	require.ErrorIs(t, err, ErrGithubNoTeams)
 }

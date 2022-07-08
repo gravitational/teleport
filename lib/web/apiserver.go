@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -1159,8 +1160,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
-
-		if auth.IsGithubNoTeamsError(err) {
+		if errors.Is(err, auth.ErrGithubNoTeams) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
@@ -1266,7 +1266,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 			}
 		}
 
-		if auth.IsOIDCNoRolesError(err) {
+		if errors.Is(err, auth.ErrOIDCNoRoles) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 

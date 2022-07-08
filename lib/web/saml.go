@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/types"
@@ -113,7 +114,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			}
 		}
 
-		if auth.IsSAMLNoRolesError(err) {
+		if errors.Is(err, auth.ErrSAMLNoRoles) {
 			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
