@@ -604,9 +604,9 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep integration)
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -list=. $(PACKAGES) \
+	go test -list=. $(PACKAGES) \
 		| egrep ^Test \
-		| xargs -I{} go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -run {} $(FLAGS) ./integration/... \
+		| $(CGOFLAG) xargs -I{} go test -timeout 5m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -run {} $(FLAGS) ./integration/... \
 		| tee $(TEST_LOG_DIR)/integration.json \
 		| $(RENDER_TESTS) -report-by test
 
