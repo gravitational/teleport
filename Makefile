@@ -509,7 +509,7 @@ test-go: FLAGS ?= -race -shuffle on
 test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test  -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
@@ -517,27 +517,27 @@ test-go: $(VERSRC) $(TEST_LOG_DIR)
 # TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
 #  embed openssl/libcrypto.
 ifneq ("$(LIBFIDO2_TEST_TAG)", "")
-	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test  -json -tags "$(LIBFIDO2_TEST_TAG)" ./lib/auth/webauthncli/... $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
 # Make sure untagged touchid code build/tests.
 ifneq ("$(TOUCHID_TAG)", "")
-	$(CGOFLAG) go test -cover -json ./lib/auth/touchid/... $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test  -json ./lib/auth/touchid/... $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 endif
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG_TSH) go test  -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test  -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
 
 .PHONY: test-ci
 test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	(cd .cloudbuild/scripts && \
-		go test -cover -json ./... \
+		go test  -json ./... \
 		| tee $(TEST_LOG_DIR)/ci.json \
 		| ${RENDER_TESTS})
 
@@ -824,8 +824,7 @@ test-grep-package: remove-temp-files
 
 .PHONY: cover-package
 cover-package: remove-temp-files
-	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
-	go tool cover -html=/tmp/coverage.out
+	go test -v ./$(p)
 
 .PHONY: profile
 profile:
