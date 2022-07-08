@@ -17,7 +17,7 @@ Teleport.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Create a GitHub OAuth app
+## Step 1/5. Create a GitHub OAuth app
 
 Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
 App's "Authentication callback URL" is the following:
@@ -34,10 +34,15 @@ Instructions for creating a GitHub OAuth app are available here:
 
 [Creating an OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
 
-## Step 2/3. Create a GitHub authentication connector
+## Step 2/5. Define a GitHub authentication connector
 
-Define a GitHub authentication connector by creating a file called `github.yaml`
-with the following content:
+Define a GitHub authentication connector by running the following command:
+
+```code
+$ tctl sso configure github --id <client-id> --secret <client-secret> -r octocats,admins,access | tee github.yaml
+```
+
+The resulting file should look like this:
 
 ```yaml
 kind: github
@@ -63,18 +68,66 @@ spec:
         - access
 ```
 
-The values of `client_id`, `client_secret`, and `redirect_url` come from the
-GitHub OAuth App you created earlier.
+The values of `client_id` and `client_secret` come from the GitHub OAuth App you created earlier. `redirect_url` was automatically configured based on the settings of your Teleport cluster when you ran [`tctl sso configure github`](../reference/cli.mdx#tctl-sso-configure-github).
 
-Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
+<Admonition
+  type="tip"
+  title="Teams to logins mapping"
+>
+  The `--teams-to-logins` flag (`-r` for short) can be repeated multiple times. Each repetition will create an additional entry in the `teams_to_logins` mapping of your GitHub authentication connector.
+  
+  To map a GitHub team to multiple Teleport roles, list these roles after the name of the GitHub team, separated by commas: `-r org,team,role1,role2,role3,...`.
+</Admonition>
+
+Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in [GitHub's documentation](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
 
 [GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
 
-Finally, create the connector using `tctl`:
+To ensure the connector is working as intended: SSO flow is passing, roles are assigned as intended etc., you can now test it using [`tctl sso test`](../reference/cli.mdx#tctl-sso-test) command.
 
 ```code
-$ tctl create github.yaml
-# authentication connector "github" has been created
+$ tctl sso test github.yaml
+# If browser window does not open automatically, open it by clicking on the link:
+#  http://127.0.0.1:62482/e1fadd3f-dc6a-420b-9791-94fd29dfc2db
+# Success! Logged in as: ExampleGithubUser
+# --------------------------------------------------------------------------------
+# Authentication details:
+#    logins:
+#    - access
+#    roles:
+#    - access
+#    traits:
+#      github_teams:
+#      - admins
+#      kubernetes_groups: null
+#      kubernetes_users: null
+#      logins:
+#      - ExampleGithubUser
+#    username: ExampleGithubUser
+# --------------------------------------------------------------------------------
+# [GitHub] Received claims:
+# organization_to_teams:
+#   octocats:
+#   - admins
+# teams:
+# - admins
+# username: ExampleGithubUser
+# 
+# --------------------------------------------------------------------------------
+# [GitHub] Connector team to logins mapping:
+# - logins:
+#   - access
+#   organization: octocats
+#   team: admins
+# 
+# --------------------------------------------------------------------------------
+# For more details repeat the command with --debug flag.
+```
+
+The test command can accept the auth connector from standard input. The pipeline may also utilise `tee` to save the connector to file:
+
+```code
+$ tctl sso configure github ... | tee github.yaml | tctl sso test
 ```
 
 <Admonition type="tip">
@@ -84,7 +137,16 @@ $ tctl create github.yaml
   able to determine team memberships for these organizations.
 </Admonition>
 
-## Step 3/3. Configure authentication preference
+## Step 4/5. Create the connector
+
+Once you are satisfied with the connector, you can finally create it using `tctl`:
+
+```code
+$ tctl create github.yaml
+# authentication connector "github" has been created
+```
+
+## Step 5/5. Configure authentication preference
 
 Configure the Teleport Auth Service to enable the GitHub authentication
 connector.

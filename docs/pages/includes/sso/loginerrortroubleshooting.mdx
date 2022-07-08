@@ -12,7 +12,10 @@ must be able to:
 
 If something is not working, we recommend to:
 
+- Run the connector definition through [`tctl sso test`](../../setup/reference/cli.mdx#tctl-sso-test) command.
 - Double-check the host names, tokens and TCP ports in a connector definition.
+- Double-check the role mapping in connector definition for possible typos.
+- Verify the configuration on IdP side (callback URLs, claim names, scopes, ...).
 
 ### Using the Web UI
 

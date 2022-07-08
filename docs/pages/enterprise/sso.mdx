@@ -1,7 +1,7 @@
 ---
-title: SSO for SSH
-description: How to set up single sign-on (SSO) for SSH using Teleport
-h1: Single Sign-On (SSO) for SSH
+title: SSO in Teleport
+description: How to configure Teleport Single Sign-On
+h1: Single Sign-On in Teleport
 ---
 
 Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
@@ -129,8 +129,11 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
 </Tabs>
 
 
-Next, define an authentication connector. Create a file called `connector.yaml`
-based on one of the following examples.
+Next, define an authentication connector. We recommend the usage of helper 
+commands to achieve this for [SAML](../setup/reference/cli.mdx#tctl-sso-configure-saml), 
+ [OIDC](../setup/reference/cli.mdx#tctl-sso-configure-oidc) and 
+ [GitHub](../setup/reference/cli.mdx#tctl-sso-configure-github) connectors. 
+ The resulting file `connector.yaml` should be similar to one of the following examples.
 
 <Tabs>
 <TabItem label="Okta">
@@ -199,12 +202,16 @@ spec:
 </TabItem>
 </Tabs>
 
+Note:
+- Manually pasting the XML to `entity_descriptor` field is error prone. We recommend using `tctl sso configure saml -e entity_descriptor.xml ...` command instead.
+- You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
+  your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
-You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
+Test the connector with [`tctl sso test`](../setup/reference/cli.mdx#tctl-sso-test) command:
 
-We recommend "pinning" the entity descriptor by including the XML rather than
-fetching from a URL.
+```bsh
+$ tctl sso test connector.yaml
+```
 
 Create the connector: 
 
@@ -311,13 +318,14 @@ SAML and OIDC types:
 
 ## SSO Customization
 
-| Provider | YAML | Example |
-| - | - | - |
-| GitHub | `display: GitHub` | ![github](../../img/teleport-sso/github@2x.png) |
+| Provider  | YAML                 | Example                                               |
+|-----------|----------------------|-------------------------------------------------------|
+| Github    | `display: Github`    | ![github](../../img/teleport-sso/github@2x.png)       |
 | Microsoft | `display: Microsoft` | ![microsoft](../../img/teleport-sso/microsoft@2x.png) |
-| Google | `display: Google` | ![google](../../img/teleport-sso/google@2x.png) |
+| Google    | `display: Google`    | ![google](../../img/teleport-sso/google@2x.png)       |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket@2x.png) |
-| OpenID | `display: Okta` | ![Okta](../../img/teleport-sso/openId@2x.png) |
+| OpenID    | `display: Okta`      | ![Okta](../../img/teleport-sso/openId@2x.png)         |
+
 
 ## Troubleshooting
 
@@ -335,8 +343,10 @@ must be able to:
 
 If something is not working, we recommend to:
 
+- Run the connector definition through [`tctl sso test`](../setup/reference/cli.mdx#tctl-sso-test) command.
 - Double-check the host names, tokens and TCP ports in a connector definition.
-
+- Double-check the role mapping in connector definition for possible typos.
+- Verify the configuration on IdP side (callback URLs, claim names, scopes, ...).
 
 ### Using the Web UI
 
