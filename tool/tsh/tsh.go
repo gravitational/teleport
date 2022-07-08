@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -67,13 +68,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -420,6 +422,7 @@ const (
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
+	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -445,19 +448,33 @@ type cliOption func(*CLIConf) error
 // defaultFormats is the default set of formats to use for commands that have the --format flag.
 var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
+// initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
+func initLogger(cf *CLIConf) {
+	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
+	cf.Debug = cf.Debug || isDebug
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+	} else {
+		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+	}
+}
+
 // Run executes TSH client. same as main() but easier to test
 func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
 		TracingProvider: tracing.NoopProvider(),
 	}
-	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+
+	// run early to enable debug logging if env var is set.
+	// this makes it possible to debug early startup functionality, particularly command aliases.
+	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile string
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(false)
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
@@ -485,7 +502,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
-	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app.Flag("debug", "Verbose logging to stdout").Short('d').Envar(debugEnvVar).BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
@@ -755,9 +772,42 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		bench.Hidden()
 	}
 
+	var err error
+
+	cf.executablePath, err = os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// configs
+	setEnvFlags(&cf, os.Getenv)
+
+	confOptions, err := loadAllConfigs(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cf.TshConfig = *confOptions
+
+	// aliases
+	actionRun, aliasMatch, err := tryRunAlias(ctx, cf.executablePath, cf.TshConfig.Aliases, args, os.Setenv, os.Getenv)
+	if actionRun {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
+	if errors.Is(err, kingpin.ErrExpectedCommand) {
+		if aliasMatch != "" {
+			log.Debugf("failing due to recursive alias. aliases seen: %v", getSeenAliases(os.Getenv))
+			return trace.Wrap(fmt.Errorf("recursive alias %q; correct alias definition and try again", aliasMatch))
+		}
+	}
+
 	if err != nil {
 		app.Usage(args)
 		return trace.Wrap(err)
@@ -773,10 +823,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
-	// While in debug mode, send logs to stdout.
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
-	}
+	// Enable debug logging if requested by --debug.
+	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
+	initLogger(&cf)
 
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
@@ -807,22 +856,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf.Context = ctx
 	defer span.End()
 
-	cf.executablePath, err = os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
-
-	setEnvFlags(&cf, os.Getenv)
-
-	confOptions, err := loadAllConfigs(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cf.TshConfig = *confOptions
 
 	if cpuProfile != "" {
 		log.Debugf("writing CPU profile to %v", cpuProfile)
