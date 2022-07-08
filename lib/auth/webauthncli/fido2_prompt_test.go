@@ -29,18 +29,18 @@ func TestDefaultPrompt_PromptCredential(t *testing.T) {
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
-	llamaCred := &wancli.Credential{
-		User: wancli.User{
+	llamaCred := &wancli.CredentialInfo{
+		User: wancli.UserInfo{
 			Name: "llama",
 		},
 	}
-	alpacaCred := &wancli.Credential{
-		User: wancli.User{
+	alpacaCred := &wancli.CredentialInfo{
+		User: wancli.UserInfo{
 			Name: "alpaca",
 		},
 	}
-	camelCred := &wancli.Credential{
-		User: wancli.User{
+	camelCred := &wancli.CredentialInfo{
+		User: wancli.UserInfo{
 			Name: "camel",
 		},
 	}
@@ -51,8 +51,8 @@ func TestDefaultPrompt_PromptCredential(t *testing.T) {
 		name       string
 		fakeReader *prompt.FakeReader
 		ctx        context.Context
-		creds      []*wancli.Credential
-		wantCred   *wancli.Credential
+		creds      []*wancli.CredentialInfo
+		wantCred   *wancli.CredentialInfo
 		wantErr    string
 		// Optional, verifies output text.
 		wantOut string
@@ -60,19 +60,19 @@ func TestDefaultPrompt_PromptCredential(t *testing.T) {
 		{
 			name:       "credential by number (1)",
 			fakeReader: prompt.NewFakeReader().AddString("1"), // sorted by name
-			creds:      []*wancli.Credential{llamaCred, alpacaCred, camelCred},
+			creds:      []*wancli.CredentialInfo{llamaCred, alpacaCred, camelCred},
 			wantCred:   alpacaCred,
 		},
 		{
 			name:       "credential by number (2)",
 			fakeReader: prompt.NewFakeReader().AddString("3"), // sorted by name
-			creds:      []*wancli.Credential{llamaCred, alpacaCred, camelCred},
+			creds:      []*wancli.CredentialInfo{llamaCred, alpacaCred, camelCred},
 			wantCred:   llamaCred,
 		},
 		{
 			name:       "credential by name",
 			fakeReader: prompt.NewFakeReader().AddString("alpaca"),
-			creds:      []*wancli.Credential{llamaCred, alpacaCred, camelCred},
+			creds:      []*wancli.CredentialInfo{llamaCred, alpacaCred, camelCred},
 			wantCred:   alpacaCred,
 		},
 		{
@@ -81,19 +81,19 @@ func TestDefaultPrompt_PromptCredential(t *testing.T) {
 				AddString("bad").
 				AddString("5").
 				AddString("llama"),
-			creds:    []*wancli.Credential{llamaCred, alpacaCred, camelCred},
+			creds:    []*wancli.CredentialInfo{llamaCred, alpacaCred, camelCred},
 			wantCred: llamaCred,
 		},
 		{
 			name:       "NOK empty credentials errors",
 			fakeReader: prompt.NewFakeReader(),
-			creds:      []*wancli.Credential{},
+			creds:      []*wancli.CredentialInfo{},
 			wantErr:    "empty credentials",
 		},
 		{
 			name:       "output text",
 			fakeReader: prompt.NewFakeReader().AddString("llama"),
-			creds:      []*wancli.Credential{llamaCred, alpacaCred, camelCred},
+			creds:      []*wancli.CredentialInfo{llamaCred, alpacaCred, camelCred},
 			wantCred:   llamaCred,
 			wantOut: `[1] alpaca
 [2] camel

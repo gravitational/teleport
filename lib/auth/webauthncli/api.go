@@ -36,6 +36,35 @@ const (
 	AttachmentPlatform
 )
 
+// CredentialInfo holds information about a WebAuthn credential, typically a
+// resident public key credential.
+type CredentialInfo struct {
+	ID   []byte
+	User UserInfo
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	// UserHandle is the WebAuthn user handle (also referred as user ID).
+	UserHandle []byte
+	Name       string
+}
+
+// LoginPrompt is the user interface for FIDO2Login.
+type LoginPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	PromptTouch()
+	// PromptCredential prompts the user to choose a credential, in case multiple
+	// credentials are available.
+	// Callers are free to modify the slice, such as by sorting the credentials,
+	// but must return one of the pointers contained within.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
+
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
@@ -122,6 +151,16 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
 		},
 	}, credentialUser, nil
+}
+
+// RegisterPrompt is the user interface for FIDO2Register.
+type RegisterPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (eg, PIN-protected
+	// devices)
+	PromptTouch()
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.

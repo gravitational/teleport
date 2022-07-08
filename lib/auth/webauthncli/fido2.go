@@ -280,14 +280,14 @@ func pickAssertion(
 	}
 
 	// Prepare credentials and show picker.
-	creds := make([]*Credential, len(assertions))
-	credToAssertion := make(map[*Credential]*libfido2.Assertion)
+	creds := make([]*CredentialInfo, len(assertions))
+	credToAssertion := make(map[*CredentialInfo]*libfido2.Assertion)
 	for i, assertion := range assertions {
-		cred := &Credential{
+		cred := &CredentialInfo{
 			ID: assertion.CredentialID,
-			User: User{
-				ID:   assertion.User.ID,
-				Name: assertion.User.Name,
+			User: UserInfo{
+				UserHandle: assertion.User.ID,
+				Name:       assertion.User.Name,
 			},
 		}
 		credToAssertion[cred] = assertion

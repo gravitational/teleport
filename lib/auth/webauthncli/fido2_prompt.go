@@ -74,7 +74,7 @@ func (p *DefaultPrompt) PromptTouch() {
 
 // PromptCredential prompts the user to choose a credential, in case multiple
 // credentials are available.
-func (p *DefaultPrompt) PromptCredential(creds []*Credential) (*Credential, error) {
+func (p *DefaultPrompt) PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error) {
 	// Shouldn't happen, but let's check just in case.
 	if len(creds) == 0 {
 		return nil, errors.New("attempted to prompt credential with empty credentials")
