@@ -19,6 +19,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/operator/sidecar"
 
 	"github.com/gravitational/teleport/api/types"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,7 +27,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gravitational/teleport/api/client"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	"github.com/gravitational/trace"
 )
@@ -34,8 +34,8 @@ import (
 // RoleReconciler reconciles a TeleportRole object
 type RoleReconciler struct {
 	kclient.Client
-	Scheme         *runtime.Scheme
-	TeleportClient *client.Client
+	Scheme                 *runtime.Scheme
+	TeleportClientAccessor sidecar.ClientAccessor
 }
 
 //+kubebuilder:rbac:groups=resources.teleport.dev,resources=roles,verbs=get;list;watch;create;update;patch;delete
@@ -67,7 +67,11 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	return r.TeleportClient.DeleteRole(ctx, obj.GetName())
+	teleportClient, err := r.TeleportClientAccessor(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return teleportClient.DeleteRole(ctx, obj.GetName())
 }
 
 func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
@@ -76,8 +80,12 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
 	teleportResource := k8sResource.ToTeleport()
+	teleportClient, err := r.TeleportClientAccessor(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	existingResource, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
+	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -95,7 +103,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	r.addTeleportResourceOrigin(&teleportResource)
 
-	return r.TeleportClient.UpsertRole(ctx, teleportResource)
+	return teleportClient.UpsertRole(ctx, teleportResource)
 }
 
 func (r *RoleReconciler) addTeleportResourceOrigin(resource *types.Role) {

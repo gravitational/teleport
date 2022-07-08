@@ -19,6 +19,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/operator/sidecar"
 
 	"github.com/gravitational/teleport/api/types"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,7 +27,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/gravitational/teleport/api/client"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	"github.com/gravitational/trace"
 )
@@ -34,8 +34,8 @@ import (
 // UserReconciler reconciles a TeleportUser object
 type UserReconciler struct {
 	kclient.Client
-	Scheme         *runtime.Scheme
-	TeleportClient *client.Client
+	Scheme                 *runtime.Scheme
+	TeleportClientAccessor sidecar.ClientAccessor
 }
 
 //+kubebuilder:rbac:groups=resources.teleport.dev,resources=users,verbs=get;list;watch;create;update;patch;delete
@@ -67,7 +67,11 @@ func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *UserReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	return r.TeleportClient.DeleteUser(ctx, obj.GetName())
+	teleportClient, err := r.TeleportClientAccessor(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return teleportClient.DeleteUser(ctx, obj.GetName())
 }
 
 func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
@@ -77,7 +81,12 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	}
 	teleportResource := k8sResource.ToTeleport()
 
-	existingResource, err := r.TeleportClient.GetUser(teleportResource.GetName(), false)
+	teleportClient, err := r.TeleportClientAccessor(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingResource, err := teleportClient.GetUser(teleportResource.GetName(), false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -98,9 +107,9 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	r.addTeleportResourceOrigin(&teleportResource)
 
 	if !exists {
-		return r.TeleportClient.CreateUser(ctx, teleportResource)
+		return teleportClient.CreateUser(ctx, teleportResource)
 	}
-	return r.TeleportClient.UpdateUser(ctx, teleportResource)
+	return teleportClient.UpdateUser(ctx, teleportResource)
 }
 
 func (r *UserReconciler) addTeleportResourceOrigin(resource *types.User) {

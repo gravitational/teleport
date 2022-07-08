@@ -18,6 +18,12 @@ package resources
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 	"math/rand"
 	"path/filepath"
 	"testing"
@@ -33,7 +39,6 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -46,16 +51,28 @@ func fastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
-func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
+func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) auth.ClientI {
 	identityFilePath := integration.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
+	id, err := identityfile.ReadFile(identityFilePath)
+	require.NoError(t, err)
+	addr, err := utils.ParseAddr(teleportServer.GetAuthAddr())
+	require.NoError(t, err)
+	tlsConfig, err := id.TLSConfig()
+	require.NoError(t, err)
+	sshConfig, err := id.SSHClientConfig()
+	require.NoError(t, err)
+	authClientConfig := &authclient.Config{
+		TLS:                  tlsConfig,
+		SSH:                  sshConfig,
+		AuthServers:          []utils.NetAddr{*addr},
+		Log:                  logrus.StandardLogger(),
+		CircuitBreakerConfig: breaker.Config{},
+	}
 
-	teleportClient, err := client.New(context.Background(), client.Config{
-		Addrs:       []string{teleportServer.GetAuthAddr()},
-		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
-	})
+	c, err := authclient.Connect(context.Background(), authClientConfig)
 	require.NoError(t, err)
 
-	return teleportClient
+	return c
 }
 
 func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
@@ -94,7 +111,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	return teleportServer, operatorName
 }
 
-func startKubernetesOperator(t *testing.T, teleportClient *client.Client) kclient.Client {
+func startKubernetesOperator(t *testing.T, teleportClient auth.ClientI) kclient.Client {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
@@ -114,6 +131,10 @@ func startKubernetesOperator(t *testing.T, teleportClient *client.Client) kclien
 	require.NoError(t, err)
 	require.NotNil(t, k8sClient)
 
+	clientAccessor := func(ctx context.Context) (auth.ClientI, error) {
+		return teleportClient, nil
+	}
+
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
@@ -121,16 +142,16 @@ func startKubernetesOperator(t *testing.T, teleportClient *client.Client) kclien
 	require.NoError(t, err)
 
 	err = (&RoleReconciler{
-		Client:         k8sClient,
-		Scheme:         k8sManager.GetScheme(),
-		TeleportClient: teleportClient,
+		Client:                 k8sClient,
+		Scheme:                 k8sManager.GetScheme(),
+		TeleportClientAccessor: clientAccessor,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	err = (&UserReconciler{
-		Client:         k8sClient,
-		Scheme:         k8sManager.GetScheme(),
-		TeleportClient: teleportClient,
+		Client:                 k8sClient,
+		Scheme:                 k8sManager.GetScheme(),
+		TeleportClientAccessor: clientAccessor,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 

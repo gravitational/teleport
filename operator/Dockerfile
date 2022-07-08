@@ -22,7 +22,7 @@ COPY operator/main.go operator/main.go
 COPY operator/namespace.go operator/namespace.go
 
 # Build
-RUN GOOS=linux GOARCH=amd64 go build -a -o teleport-operator operator/main.go
+RUN GOOS=linux GOARCH=amd64 go build -a -o teleport-operator github.com/gravitational/teleport/operator
 
 FROM gcr.io/distroless/cc
 WORKDIR /

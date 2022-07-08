@@ -17,24 +17,14 @@ limitations under the License.
 package sidecar
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-
 	log "github.com/sirupsen/logrus"
+	"path/filepath"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,7 +32,7 @@ import (
 )
 
 const (
-	DefaultLocalAddr  = "127.0.0.1:3025"
+	DefaultLocalAddr  = "localhost:3025"
 	DefaultConfigPath = "/etc/teleport/teleport.yaml"
 	DefaultDataDir    = "/var/lib/teleport"
 	DefaultUser       = "teleport-operator-sidecar"
@@ -60,51 +50,11 @@ type Options struct {
 	// Addr is an endpoint of Teleport e.g. 127.0.0.1:3025.
 	Addr string
 
-	// User is a user used to access Teleport Auth/Proxy/Tunnel server.
-	User string
+	// Name is the bot name used to access Teleport Auth/Proxy/Tunnel server.
+	Name string
 
 	// Role is a role allowed to manage Teleport resources.
 	Role string
-}
-
-func writeIdentityFile(ctx context.Context, clusterAPI auth.ClientI, identityFilePath, userName string) error {
-	// generate a keypair:
-	key, err := libclient.NewKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	reqExpiry := time.Now().UTC().Add(1 * time.Hour)
-	// Request signed certs from `auth` server.
-	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey: key.Pub,
-		Username:  userName,
-		Expires:   reqExpiry,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
-
-	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
-
-	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
-		OutputPath:           identityFilePath,
-		Key:                  key,
-		Format:               identityfile.FormatFile,
-		OverwriteDestination: true,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
-	return nil
 }
 
 func createAuthClientConfig(opts Options) (*authclient.Config, error) {
@@ -154,68 +104,12 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 	return authConfig, nil
 }
 
-// NewSidecarClient returns a connection to the Teleport server running on the same machine or pod.
-// It automatically upserts the sidecar role and the user and generates the credentials.
-func NewSidecarClient(ctx context.Context, opts Options) (*client.Client, error) {
-	var err error
-	if err := opts.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClientConfig, err := createAuthClientConfig(opts)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create auth client config")
-	}
-
-	authClient, err := authclient.Connect(ctx, authClientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create auth client")
-	}
-
-	role, err := sidecarRole(opts.Role)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create role")
-	}
-
-	if err := authClient.UpsertRole(ctx, role); err != nil {
-		return nil, trace.Wrap(err, "failed to create operator's role")
-	}
-
-	user, err := sidecarUserWithRole(opts.User, opts.Role)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create user")
-	}
-
-	if err := authClient.UpsertUser(user); err != nil {
-		return nil, trace.Wrap(err, "failed to create operator's role")
-	}
-
-	identityfile, err := os.CreateTemp("", "teleport-identity-*")
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create temp identity file")
-	}
-	defer os.Remove(identityfile.Name())
-
-	if err := writeIdentityFile(ctx, authClient, identityfile.Name(), opts.User); err != nil {
-		return nil, trace.Wrap(err, "failed to write identity file")
-	}
-
-	creds := []client.Credentials{
-		client.LoadIdentityFile(identityfile.Name()),
-	}
-
-	return client.New(ctx, client.Config{
-		Addrs:       []string{opts.Addr},
-		Credentials: creds,
-	})
-}
-
 func sidecarRole(roleName string) (types.Role, error) {
 	return types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
-					Resources: []string{"*"},
+					Resources: []string{"role", "user"},
 					Verbs:     []string{"*"},
 				},
 			},
@@ -223,28 +117,22 @@ func sidecarRole(roleName string) (types.Role, error) {
 	})
 }
 
-func sidecarUserWithRole(userName, roleName string) (types.User, error) {
-	user, err := types.NewUser(userName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user.AddRole(roleName)
-
-	return user, nil
-}
-
 func (opts *Options) CheckAndSetDefaults() error {
 	if opts.Addr == "" {
 		opts.Addr = DefaultLocalAddr
+
 	}
 	if opts.ConfigPath == "" {
 		opts.ConfigPath = DefaultConfigPath
 	}
-	if opts.User == "" {
-		opts.User = DefaultUser
+	if opts.Name == "" {
+		opts.Name = DefaultUser
 	}
 	if opts.Role == "" {
 		opts.Role = DefaultRole
+	}
+	if opts.DataDir == "" {
+		opts.DataDir = DefaultDataDir
 	}
 	return nil
 }

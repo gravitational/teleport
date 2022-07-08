@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/gravitational/trace"
 	"os"
 	"time"
 
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/utils"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -106,7 +106,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var teleportClient *client.Client
+	var bot *sidecar.Bot
 
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: 100 * time.Millisecond,
@@ -117,11 +117,11 @@ func main() {
 		os.Exit(1)
 	}
 	if err := retry.For(ctx, func() error {
-		teleportClient, err = sidecar.NewSidecarClient(ctx, sidecar.Options{})
+		bot, err = sidecar.CreateAndBootstrapBot(ctx, sidecar.Options{})
 		if err != nil {
 			setupLog.Error(err, "failed to connect to teleport cluster, backing off")
 		}
-		return err
+		return trace.Wrap(err)
 	}); err != nil {
 		setupLog.Error(err, "failed to setup teleport client")
 		os.Exit(1)
@@ -129,17 +129,17 @@ func main() {
 	setupLog.Info("connected to Teleport")
 
 	if err = (&resourcescontrollers.RoleReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		TeleportClient: teleportClient,
+		Client:                 mgr.GetClient(),
+		Scheme:                 mgr.GetScheme(),
+		TeleportClientAccessor: bot.GetClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
 		os.Exit(1)
 	}
 	if err = (&resourcescontrollers.UserReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		TeleportClient: teleportClient,
+		Client:                 mgr.GetClient(),
+		Scheme:                 mgr.GetScheme(),
+		TeleportClientAccessor: bot.GetClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
@@ -153,6 +153,10 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
+	}
+
+	if err := mgr.Add(bot); err != nil {
+		setupLog.Error(err, "unable to setup bot ")
 	}
 
 	setupLog.Info("starting manager")
