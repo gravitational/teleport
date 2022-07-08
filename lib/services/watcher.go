@@ -1169,6 +1169,8 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
+	// GetProxyID returns a list of proxy ids this server is connected to.
+	GetProxyIDs() []string
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
