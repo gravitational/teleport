@@ -166,36 +166,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// ListServers returns cluster servers
-func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := cluster.GetServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
-// ListServers returns cluster servers
-func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	apps, err := cluster.GetApps(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apps, nil
-}
-
 // RemoveGateway removes cluster gateway
 func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
 	gateway, err := s.FindGateway(gatewayURI)
@@ -261,37 +231,6 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	return nil
 }
 
-// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
-// s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	gateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gateway.TargetSubresourceName = targetSubresourceName
-
-	return gateway, nil
-}
-
-// ListKubes lists kubernetes clusters
-func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubes, err := cluster.GetKubes(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return kubes, nil
-}
-
 // FindGateway finds a gateway by URI
 func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 	s.mu.RLock()
@@ -325,6 +264,67 @@ func (s *Service) ListGateways(ctx context.Context) ([]*gateway.Gateway, error) 
 	gateways := make([]*gateway.Gateway, len(s.gateways))
 	copy(gateways, s.gateways)
 	return gateways, nil
+}
+
+// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
+// s.gateways.
+func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gateway.TargetSubresourceName = targetSubresourceName
+
+	return gateway, nil
+}
+
+// ListServers returns cluster servers
+func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
+	cluster, err := s.ResolveCluster(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := cluster.GetServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// ListServers returns cluster servers
+func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
+	cluster, err := s.ResolveCluster(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apps, err := cluster.GetApps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apps, nil
+}
+
+// ListKubes lists kubernetes clusters
+func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
+	cluster, err := s.ResolveCluster(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubes, err := cluster.GetKubes(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return kubes, nil
 }
 
 // Stop terminates all cluster open connections
