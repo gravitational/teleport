@@ -599,6 +599,9 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
+
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
