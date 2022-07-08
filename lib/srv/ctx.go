@@ -507,10 +507,11 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	}
 
 	// update ctx with a session ID
-	c.session, _ = findSession()
-	if c.session == nil {
+	sess, _ := findSession()
+	if sess == nil {
 		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	} else {
+		c.session = sess
 		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	}
 
