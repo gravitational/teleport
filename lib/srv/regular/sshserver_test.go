@@ -1402,18 +1402,6 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-func getWaitForServerStartFunc(t *testing.T, s *Server, config *ssh.ClientConfig) func() bool {
-	return func() bool {
-		clt, _ := ssh.Dial("tcp", s.Addr(), config)
-		if clt != nil {
-			require.NoError(t, clt.Close())
-			require.ErrorIs(t, clt.Wait(), net.ErrClosed)
-			return true
-		}
-		return false
-	}
-}
-
 func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
 	return func() bool {
 		connNumber, err := limiter.GetNumConnection(token)
@@ -1422,6 +1410,8 @@ func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token s
 	}
 }
 
+// fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
+// We are wrapping this so we can use the same mocked clock across the server and rate limiter.
 type fakeClock struct {
 	clock clockwork.FakeClock
 }
@@ -1502,10 +1492,6 @@ func TestLimiter(t *testing.T) {
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
 	}
 
-	require.Eventually(t, testHelperGetWaitForServerStart(t, srv, config), time.Second*10, time.Millisecond*100)
-	// Advancing clock here so it wont interfere with the rate limit testing bellow
-	fClock.Sleep(time.Second * 100)
-
 	clt0, err := ssh.Dial("tcp", srv.Addr(), config)
 	require.NoError(t, err)
 	require.NotNil(t, clt0)
@@ -1531,7 +1517,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, testHelperGetWaitForNumberOfConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	clt, err = ssh.Dial("tcp", srv.Addr(), config)
@@ -1550,7 +1536,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, testHelperGetWaitForNumberOfConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	// requests rate should exceed now
