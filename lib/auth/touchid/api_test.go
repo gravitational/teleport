@@ -604,12 +604,14 @@ func (f *fakeNative) FindCredentials(rpID, user string) ([]touchid.CredentialInf
 	for _, cred := range f.creds {
 		if cred.rpID == rpID && (user == "" || cred.user == user) {
 			resp = append(resp, touchid.CredentialInfo{
-				UserHandle:   cred.userHandle,
 				CredentialID: cred.id,
 				RPID:         cred.rpID,
-				User:         cred.user,
-				PublicKey:    &cred.key.PublicKey,
-				CreateTime:   cred.createTime,
+				User: touchid.UserInfo{
+					UserHandle: cred.userHandle,
+					Name:       cred.user,
+				},
+				PublicKey:  &cred.key.PublicKey,
+				CreateTime: cred.createTime,
 			})
 		}
 	}

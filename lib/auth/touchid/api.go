@@ -113,16 +113,21 @@ type DiagResult struct {
 
 // CredentialInfo holds information about a Secure Enclave credential.
 type CredentialInfo struct {
-	UserHandle   []byte
 	CredentialID string
 	RPID         string
-	User         string
+	User         UserInfo
 	PublicKey    *ecdsa.PublicKey
 	CreateTime   time.Time
 
 	// publicKeyRaw is used internally to return public key data from native
 	// register requests.
 	publicKeyRaw []byte
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	UserHandle []byte
+	Name       string
 }
 
 var (
@@ -506,9 +511,9 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 			},
 			AuthenticatorData: attData.rawAuthData,
 			Signature:         sig,
-			UserHandle:        cred.UserHandle,
+			UserHandle:        cred.User.UserHandle,
 		},
-	}, cred.User, nil
+	}, cred.User.Name, nil
 }
 
 func findAllowedCredential(infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor) (CredentialInfo, bool) {
