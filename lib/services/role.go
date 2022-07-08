@@ -848,7 +848,7 @@ func (result *EnumerationResult) filtered(value bool) []string {
 	return filtered
 }
 
-// Check if the given entity is allowed.
+// IsAllowed checks if the given entity is allowed.
 func (result *EnumerationResult) IsAllowed(entity string) bool {
 	if answer, ok := result.allowedDeniedMap[entity]; ok {
 		return answer
