@@ -27,8 +27,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -40,26 +42,24 @@ type SessionsCommand struct {
 	format string
 	// sessionsList implements the "tctl sessions ls" subcommand.
 	sessionsList *kingpin.CmdClause
-	// FromUTC is the start time to use for the range of sessions listed by the recorded session listing command
-	FromUTC string
-
-	// ToUTC is the start time to use for the range of sessions listed by the recorded session listing command
-	ToUTC string
+	// fromUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	fromUTC string
+	// toUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	toUTC string
+	// maxSessionsToShow is the maximum number of sessions to show per page of results
+	maxSessionsToShow int
 }
 
 // Initialize allows SessionsCommand to plug itself into the CLI parser
 func (c *SessionsCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
-
-	sessions := app.Command("sessions", "Operate on recorded sessions.")
+	sessions := app.Command("sessions", "View and control recorded sessions.")
 	c.sessionsList = sessions.Command("ls", "List recorded sessions.")
-	c.sessionsList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
-	c.sessionsList.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s", time.RFC3339)).StringVar(&c.FromUTC)
-	c.sessionsList.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s", time.RFC3339)).StringVar(&c.ToUTC)
+	c.sessionsList.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.sessionsList.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&c.fromUTC)
+	c.sessionsList.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&c.toUTC)
+	c.sessionsList.Flag("limit", fmt.Sprintf("Maximum number of sessions to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxSessionsToShow)
 }
-
-// TODO: Move this somewhere more appropriate
-const defaultSearchSessionPageLimit = 50
 
 // TryRun attempts to run subcommands like "sessions ls".
 func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
@@ -72,55 +72,19 @@ func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 	return true, trace.Wrap(err)
 }
 
-//TODO: Deduplicate this logic, same functions defined for tsh
-// ListApps prints the list of recorded sessions.
 func (c *SessionsCommand) ListSessions(tc auth.ClientI) error {
-	fromUTC := time.Unix(0, 0)
-	toUTC := time.Now()
-	var err error
-	if c.FromUTC != "" {
-		fromUTC, err = time.Parse(time.RFC3339, c.FromUTC)
-		if err != nil {
-			return trace.Errorf("parsing session listing start time: %v", err)
-		}
+	fromUTC, toUTC, err := client.DefaultSearchSessionRange(c.fromUTC, c.toUTC)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if c.ToUTC != "" {
-		toUTC, err = time.Parse(time.RFC3339, c.ToUTC)
-		if err != nil {
-			return trace.Errorf("parsing session listing end time: %v", err)
-		}
+	sessionGetter := func(startKey string) ([]apievents.AuditEvent, string, error) {
+		return tc.SearchSessionEvents(fromUTC, toUTC,
+			defaults.TshTctlSessionSearchPageSize, types.EventOrderAscending, startKey,
+			nil /* where condition */, "" /* session ID */)
 	}
-
-	var sessions []events.AuditEvent
-	// Get a list of all Sessions joining pages
-	prevEventKey := ""
-	sessions = []events.AuditEvent{}
-	for {
-		nextEvents, eventKey, err := tc.SearchSessionEvents(fromUTC, toUTC,
-			defaultSearchSessionPageLimit, types.EventOrderDescending, prevEventKey, nil, "")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sessions = append(sessions, nextEvents...)
-		if eventKey == "" {
-			break
-		}
-		prevEventKey = eventKey
+	sessions, err := client.GetPaginatedSessions(c.maxSessionsToShow, sessionGetter)
+	if err != nil {
+		return trace.Errorf("getting session events: %v", err)
 	}
-	return trace.Wrap(c.showSessions(sessions))
-}
-
-func (c *SessionsCommand) showSessions(events []events.AuditEvent) error {
-	sessions := &SessionsCollection{SessionEvents: events}
-	switch c.format {
-	case teleport.Text:
-		return trace.Wrap(sessions.WriteText(os.Stdout))
-	case teleport.YAML:
-		return trace.Wrap(sessions.WriteYAML(os.Stdout))
-	case teleport.JSON:
-		return trace.Wrap(sessions.WriteJSON(os.Stdout))
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
-
-	}
+	return trace.Wrap(client.ShowSessions(sessions, c.format, os.Stdout))
 }

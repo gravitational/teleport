@@ -3022,6 +3022,25 @@ func TestShowSessions(t *testing.T) {
         ],
         "session_start": "0001-01-01T00:00:00Z",
         "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID3",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "windows_desktop_service": "",
+        "desktop_addr": "",
+        "windows_domain": "",
+        "windows_user": "",
+        "desktop_labels": null,
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z",
+        "desktop_name": "",
+        "recorded": false,
+        "participants": [
+            "someParticipant"
+        ]
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -3041,9 +3060,17 @@ func TestShowSessions(t *testing.T) {
 			EndTime:      time.Time{},
 			Participants: []string{"someParticipant"},
 		},
+		&events.WindowsDesktopSessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID3",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
 	}
 	var buf bytes.Buffer
-	err := showSessions(sessions, teleport.JSON, &buf)
+	err := client.ShowSessions(sessions, teleport.JSON, &buf)
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
 }

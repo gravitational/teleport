@@ -4346,7 +4346,7 @@ func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.Sessio
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -4356,7 +4356,9 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC time.
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	decodedEvents, lastKey, err := authClient.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, nil, "")
+	defer authClient.Close()
+	decodedEvents, lastKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
+		limit, order, startKey, nil /* where condition */, "" /* session ID */)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

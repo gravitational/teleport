@@ -767,3 +767,9 @@ const (
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
 )
+
+// Default values for TSH and TCTL commands.
+const (
+	TshTctlSessionListLimit      = "50"
+	TshTctlSessionSearchPageSize = 50
+)

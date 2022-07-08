@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -550,42 +549,6 @@ func (c *appCollection) writeText(w io.Writer) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-type SessionsCollection struct {
-	SessionEvents []events.AuditEvent
-}
-
-func (e *SessionsCollection) WriteText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
-	for _, event := range e.SessionEvents {
-		session, ok := event.(*events.SessionEnd)
-		if !ok {
-			return trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event)
-		}
-		t.AddRow([]string{
-			session.GetSessionID(),
-			session.Protocol,
-			strings.Join(session.Participants, ", "),
-			session.ServerHostname,
-			session.GetTime().Format(constants.HumanDateFormatSeconds),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (e *SessionsCollection) WriteJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(e.SessionEvents, "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (e *SessionsCollection) WriteYAML(w io.Writer) error {
-	return utils.WriteYAML(w, e.SessionEvents)
 }
 
 type authPrefCollection struct {
