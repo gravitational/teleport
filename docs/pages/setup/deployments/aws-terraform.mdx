@@ -7,55 +7,6 @@ h1: Running Teleport Enterprise in High Availability mode on AWS
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to manage the resulting Teleport deployment.
 
-<ScopedBlock scope="cloud">
-
-Our reference Terraform code deploys self-hosted instances of the Teleport Auth
-Service and Proxy Service. Since Teleport Cloud manages these services for you,
-users interested in Terraform should consult the following guides instead of
-this one:
-
-<TileSet>
-<Tile
-href="../guides/terraform-provider.mdx"
-title="Getting started"
-icon="wrench"
->
-
-Read our guide to using Teleport and Terraform
-
-</Tile>
-<Tile
-href="../reference/terraform-provider.mdx"
-title="Reference"
-icon="wrench"
->
-
-Read our Terraform provider reference
-
-</Tile>
-</TileSet>
-
-You can also view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-title="Open Source Teleport"
-href="./aws-terraform.mdx/?scope=oss"
-icon="stack"
->
-</Tile>
-<Tile
-title="Teleport Enterprise"
-href="./aws-terraform.mdx/?scope=enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ## Prerequisites
 
 Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
@@ -883,5 +834,3 @@ $ ./connect.sh proxy 1
 # connect to the node
 $ ./connect.sh node
 ```
-
-</ScopedBlock>

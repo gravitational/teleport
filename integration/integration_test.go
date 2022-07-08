@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -213,6 +214,8 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3323,6 +3326,28 @@ func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 		time.Sleep(1 * time.Second)
 	}
 	require.Len(t, conns, expectedCount)
+}
+
+// waitAppServerTunnel waits for application server tunnel connections.
+func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
+	t.Helper()
+	cluster, err := tunnel.GetSite(clusterName)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		conn, err := cluster.Dial(reversetunnel.DialParams{
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
+			ConnType: types.AppTunnel,
+		})
+		if err != nil {
+			return false
+		}
+
+		require.NoError(t, conn.Close())
+		return true
+	}, 10*time.Second, time.Second)
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
