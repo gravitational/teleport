@@ -82,7 +82,7 @@ type Backend struct {
 	// Mutex is used to limit the number of concurrent operations per agent to 1 so we do not need
 	// to handle retries locally.
 	// The same happens with SQlite backend.
-	mu *sync.Mutex
+	mu sync.Mutex
 }
 
 // New returns a new instance of Kubernetes Secret identity backend storage.
@@ -130,7 +130,7 @@ func NewWithConfig(conf Config) (*Backend, error) {
 		replicaName:  conf.ReplicaName,
 		secretName:   conf.SecretName,
 		releaseName:  conf.ReleaseName,
-		mu:           &sync.Mutex{},
+		mu:           sync.Mutex{},
 	}, nil
 }
 

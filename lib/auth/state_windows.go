@@ -37,5 +37,5 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProcessStorage{Backend: m, stateStorage: m}, nil
+	return &ProcessStorage{BackendStorage: m, stateStorage: m}, nil
 }
