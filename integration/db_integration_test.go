@@ -55,7 +55,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestDatabaseAccessPP(t *testing.T) {
+// TestDatabaseAccess runs the database access integration test suite.
+//
+// It allows to make the entire cluster set up once, instead of per test,
+// which speeds things up significantly.
+func TestDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		// set tighter rotation intervals
 		withLeafConfig(func(config *service.Config) {
@@ -79,13 +83,13 @@ func TestDatabaseAccessPP(t *testing.T) {
 	t.Run("HARootCluster", pack.testHARootCluster)
 	t.Run("HALeafCluster", pack.testHALeafCluster)
 	t.Run("LargeQuery", pack.testLargeQuery)
-	t.Run("testAgentState", pack.testAgentState)
+	t.Run("AgentState", pack.testAgentState)
 
 	// This test should go last because it rotates the Database CA.
 	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
 }
 
-// TestDatabaseAccessSeparateListeners tests the Mongo and Postgres sperate sport setup.
+// TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
 func TestDatabaseAccessSeparateListeners(t *testing.T) {
 	pack := setupDatabaseTest(t,
 		withPortSetupDatabaseTest(helpers.SeparateMongoAndPostgresPortSetup),
