@@ -2363,7 +2363,7 @@ message SQLServerRPCRequest {
     DatabaseMetadata Database = 4
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // Procname is the RPC SQL Server procedure name.
-    string Procname = 5 [ (gogoproto.jsontag) = "procname,omitempty" ];
+    string Procname = 5 [ (gogoproto.jsontag) = "proc_name,omitempty" ];
     // Parameters are the RPC parameters used to execute RPC Procedure..
     repeated string Parameters = 6 [ (gogoproto.jsontag) = "parameters,omitempty" ];
 }
