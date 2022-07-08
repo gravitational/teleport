@@ -747,8 +747,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'docs/pages/includes/**/*.go'
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
