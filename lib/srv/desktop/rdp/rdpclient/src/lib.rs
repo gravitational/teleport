@@ -400,7 +400,7 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_read_request = Box::new(move |req: SharedDirectoryReadRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
+        debug!("sending TDP SharedDirectoryReadRequest: {:?}", req);
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
                 unsafe {
@@ -434,7 +434,7 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_write_request = Box::new(move |req: SharedDirectoryWriteRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
+        debug!("sending TDP SharedDirectoryWriteRequest: {:?}", req);
         match CString::new(req.path.clone()) {
             Ok(c_string) => {
                 unsafe {
