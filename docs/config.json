@@ -105,6 +105,10 @@
             {
               "title": "IBM",
               "slug": "/setup/deployments/ibm/"
+            },
+            {
+              "title": "Digital Ocean",
+              "slug": "/setup/deployments/digitalocean/"
             }
           ]
         },
@@ -459,6 +463,10 @@
               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
+              "title": "AWS ElastiCache",
+              "slug": "/database-access/guides/redis-aws/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
@@ -501,6 +509,10 @@
             {
               "title": "SQL Server (Preview)",
               "slug": "/database-access/guides/sql-server-ad/"
+            },
+            {
+              "title": "Snowflake (Preview)",
+              "slug": "/database-access/guides/snowflake/"
             },
             {
               "title": "Database GUI Clients",
@@ -1230,6 +1242,11 @@
     {
       "source": "/access-controls/guides/u2f/",
       "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
       "permanent": true
     }
   ]
