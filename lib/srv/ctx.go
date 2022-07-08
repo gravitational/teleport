@@ -525,8 +525,8 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return trace.BadParameter("invalid session id")
 	}
 
-	// update ctx with the session if it exists
-	if sess, found := reg.findSession(*id); found {
+	// update ctx with the session if it exists and is still active
+	if sess, found := reg.findSession(*id); found && !sess.isStopped() {
 		c.session = sess
 		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {

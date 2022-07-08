@@ -652,10 +652,6 @@ func (s *session) Stop() {
 	// close io copy loops
 	s.io.Close()
 
-	// remove session from server context to prevent new requests
-	// from attempting to join the session during cleanup
-	s.scx.setSession(nil)
-
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
@@ -1386,6 +1382,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	return nil
 }
 
+// isStopped does not need to be called under sessionLock
 func (s *session) isStopped() bool {
 	select {
 	case <-s.stopC:
