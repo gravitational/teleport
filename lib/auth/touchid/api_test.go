@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -498,6 +499,272 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 			_, _, err := touchid.Login(origin, test.user, test.assertion, simplePicker{})
 			assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
 			assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
+		})
+	}
+}
+
+type funcToPicker func([]*touchid.CredentialInfo) (*touchid.CredentialInfo, error)
+
+func (f funcToPicker) PromptCredential(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+	return f(creds)
+}
+
+func pickByName(name string) func([]*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+	return func(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+		for _, c := range creds {
+			if c.User.Name == name {
+				return c, nil
+			}
+		}
+		return nil, fmt.Errorf("user %v not found", name)
+	}
+}
+
+func TestLogin_credentialPicker(t *testing.T) {
+	n := *touchid.Native
+	t.Cleanup(func() {
+		*touchid.Native = n
+	})
+
+	// Use monotonically-increasing time.
+	// Newer credentials are preferred.
+	var timeCounter int64
+	fake := &fakeNative{
+		timeNow: func() time.Time {
+			timeCounter++
+			return time.Unix(timeCounter, 0)
+		},
+	}
+	*touchid.Native = fake
+
+	const rpID = "goteleport.com"
+	const origin = "https://goteleport.com"
+	baseAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   rpID,
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+	newAssertion := func(allowedCreds [][]byte) *wanlib.CredentialAssertion {
+		cp := *baseAssertion
+		for _, id := range allowedCreds {
+			cp.Response.AllowedCredentials = append(cp.Response.AllowedCredentials, protocol.CredentialDescriptor{
+				Type:         protocol.PublicKeyCredentialType,
+				CredentialID: id,
+			})
+		}
+		return &cp
+	}
+
+	// Test results vary depending on registered credentials, so instead of a
+	// single table we'll build scenarios little-by-litte.
+	type pickerTest struct {
+		name         string
+		allowedCreds [][]byte
+		user         string
+		picker       func([]*touchid.CredentialInfo) (*touchid.CredentialInfo, error)
+		wantID       string
+		wantUser     string
+	}
+	runTests := func(t *testing.T, tests []pickerTest) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				fake.userPrompts = 0 // reset before test
+
+				assertion := newAssertion(test.allowedCreds)
+				picker := funcToPicker(test.picker)
+
+				resp, actualUser, err := touchid.Login(origin, test.user, assertion, picker)
+				require.NoError(t, err, "Login failed")
+				assert.Equal(t, test.wantID, resp.ID, "credential ID mismatch")
+				assert.Equal(t, test.wantUser, actualUser, "user mismatch")
+				assert.Equal(t, 1, fake.userPrompts, "Login prompted an unexpected number of times")
+			})
+		}
+	}
+
+	const llamaUser = "llama"
+	llamaHandle := []byte{1, 1, 1, 1, 1}
+	const alpacaUser = "alpaca"
+	alpacaHandle := []byte{1, 1, 1, 1, 2}
+	const camelUser = "camel"
+	camelHandle := []byte{1, 1, 1, 1, 3}
+
+	// Single user, single credential.
+	llama1, err := fake.Register(rpID, llamaUser, llamaHandle)
+	require.NoError(t, err)
+	runTests(t, []pickerTest{
+		{
+			name:     "single user, single credential, empty user",
+			wantID:   llama1.CredentialID,
+			wantUser: llamaUser,
+		},
+		{
+			name:     "single user, single credential, explicit user",
+			user:     llamaUser,
+			wantID:   llama1.CredentialID,
+			wantUser: llamaUser,
+		},
+		{
+			name: "MFA single credential",
+			allowedCreds: [][]byte{
+				[]byte(llama1.CredentialID),
+			},
+			user:     llamaUser,
+			wantID:   llama1.CredentialID,
+			wantUser: llamaUser,
+		},
+	})
+
+	// Single user, multi credentials.
+	llama2, err := fake.Register(rpID, llamaUser, llamaHandle)
+	_ = llama2 // unused apart from registration
+	require.NoError(t, err)
+	llama3, err := fake.Register(rpID, llamaUser, llamaHandle)
+	require.NoError(t, err)
+	runTests(t, []pickerTest{
+		{
+			name:     "single user, multi credential, empty user",
+			wantID:   llama3.CredentialID, // latest registered credential
+			wantUser: llamaUser,
+		},
+		{
+			name:     "single user, multi credential, explicit user",
+			user:     llamaUser,
+			wantID:   llama3.CredentialID,
+			wantUser: llamaUser,
+		},
+	})
+
+	// Multi user, multi credentials.
+	alpaca1, err := fake.Register(rpID, alpacaUser, alpacaHandle)
+	require.NoError(t, err)
+	camel1, err := fake.Register(rpID, camelUser, camelHandle)
+	require.NoError(t, err)
+	camel2, err := fake.Register(rpID, camelUser, camelHandle)
+	require.NoError(t, err)
+	runTests(t, []pickerTest{
+		{
+			name:     "multi user, multi credential, explicit user (1)",
+			user:     llamaUser,
+			wantID:   llama3.CredentialID, // latest credential for llama
+			wantUser: llamaUser,
+		},
+		{
+			name:     "multi user, multi credential, explicit user (2)",
+			user:     camelUser,
+			wantID:   camel2.CredentialID, // latest credential for camel
+			wantUser: camelUser,
+		},
+		{
+			name:     "credential picker (1)",
+			picker:   pickByName(llamaUser),
+			wantID:   llama3.CredentialID,
+			wantUser: llamaUser,
+		},
+		{
+			name:     "credential picker (2)",
+			picker:   pickByName(alpacaUser),
+			wantID:   alpaca1.CredentialID,
+			wantUser: alpacaUser,
+		},
+		{
+			name: "MFA multiple credentials (1)",
+			allowedCreds: [][]byte{
+				[]byte(llama1.CredentialID),
+				[]byte(camel1.CredentialID),
+			},
+			user:     llamaUser,
+			wantID:   llama1.CredentialID,
+			wantUser: llamaUser,
+		},
+		{
+			name: "MFA multiple credentials (2)",
+			allowedCreds: [][]byte{
+				[]byte(llama1.CredentialID),
+				[]byte(camel1.CredentialID),
+			},
+			user:     camelUser,
+			wantID:   camel1.CredentialID,
+			wantUser: camelUser,
+		},
+	})
+
+	// Verify that deduping is working as expected.
+	// Tests above already cover all users.
+	t.Run("number of credentials is correct", func(t *testing.T) {
+		picker := funcToPicker(func(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+			// 3 = llama + alpaca + camel
+			assert.Len(t, creds, 3, "unexpected number of picker credentials")
+			return pickByName(llamaUser)(creds)
+		})
+
+		_, actualUser, err := touchid.Login(origin, "" /* user */, baseAssertion, picker)
+		assert.NoError(t, err, "Login failed")
+		assert.Equal(t, llamaUser, actualUser, "Login user mismatch")
+	})
+
+	errUnexpected := errors.New("the llamas escaped")
+
+	// Finally, let's take advantage of the complete setup and run a few error
+	// tests.
+	for _, test := range []struct {
+		name         string
+		allowedCreds [][]byte
+		user         string
+		picker       func([]*touchid.CredentialInfo) (*touchid.CredentialInfo, error)
+		// At least one of wantErr or wantMsg should be supplied.
+		wantErr error
+		wantMsg string
+	}{
+		{
+			name: "credential picker error",
+			picker: func(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+				return nil, errUnexpected
+			},
+			wantErr: errUnexpected,
+		},
+		{
+			name: "credential picker returns bad pointer",
+			picker: func(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+				// Returned pointer not part of creds.
+				return &touchid.CredentialInfo{
+					CredentialID: creds[0].CredentialID,
+					User:         creds[0].User,
+				}, nil
+			},
+			wantMsg: "returned invalid credential",
+		},
+		{
+			name:    "unknown user requested",
+			user:    "whoami",
+			wantErr: touchid.ErrCredentialNotFound,
+		},
+		{
+			name: "MFA no credentials allowed",
+			allowedCreds: [][]byte{
+				[]byte("notme"),
+				[]byte("alsonotme"),
+			},
+			user:    llamaUser,
+			wantErr: touchid.ErrCredentialNotFound,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.True(t, test.wantErr != nil || test.wantMsg != "", "Sanity check failed")
+
+			assertion := newAssertion(test.allowedCreds)
+			picker := funcToPicker(test.picker)
+
+			_, _, err := touchid.Login(origin, test.user, assertion, picker)
+			require.Error(t, err, "Login succeeded unexpectedly")
+			if test.wantErr != nil {
+				assert.ErrorIs(t, err, test.wantErr, "Login error mismatch")
+			}
+			if test.wantMsg != "" {
+				assert.ErrorContains(t, err, test.wantMsg, "Login error mismatch")
+			}
 		})
 	}
 }
