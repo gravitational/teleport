@@ -479,29 +479,34 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 		return i1.CreateTime.After(i2.CreateTime)
 	})
 
-	// Verify infos against allowed credentials, if any.
-	cred, ok := findAllowedCredential(infos, assertion.Response.AllowedCredentials)
-	if !ok {
-		return nil, "", ErrCredentialNotFound
-	}
-
-	// Guard first read of chosen credential with an explicit check.
-	// A more meaningful check can be made once the credential picker is
-	// implemented.
+	// Prepare authentication context and prompt for the credential picker.
 	actx := native.NewAuthContext()
 	defer actx.Close()
-	promptPlatform()
-	if err := actx.Guard(func() {
-		log.Debugf("Touch ID: using credential %q", cred.CredentialID)
-	}); err != nil {
+
+	var prompted bool
+	promptOnce := func() {
+		if prompted {
+			return
+		}
+		promptPlatform()
+		prompted = true
+	}
+
+	cred, err := pickCredential(
+		actx,
+		infos, assertion.Response.AllowedCredentials,
+		picker, promptOnce, user != "" /* userRequested */)
+	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
+	promptOnce() // In case the picker prompt didn't happen.
 	sig, err := native.Authenticate(actx, cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -526,21 +531,68 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 	}, cred.User.Name, nil
 }
 
-func findAllowedCredential(infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor) (CredentialInfo, bool) {
-	if len(infos) > 0 && len(allowedCredentials) == 0 {
-		// Default to "first" credential for passwordless
-		return infos[0], true
-	}
-
-	for _, info := range infos {
-		for _, cred := range allowedCredentials {
-			if info.CredentialID == string(cred.CredentialID) {
-				return info, true
+func pickCredential(
+	actx AuthContext,
+	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
+	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	// Handle early exits.
+	switch l := len(infos); {
+	// MFA.
+	case len(allowedCredentials) > 0:
+		for _, info := range infos {
+			for _, cred := range allowedCredentials {
+				if info.CredentialID == string(cred.CredentialID) {
+					return &info, nil
+				}
 			}
 		}
+		return nil, ErrCredentialNotFound
+
+	// Single credential or specific user requested.
+	// A requested user means that all credentials are for that user, so there
+	// would be nothing to pick.
+	case l == 1 && userRequested:
+		return &infos[0], nil
 	}
 
-	return CredentialInfo{}, false
+	// Dedup users to avoid confusion.
+	// This assumes credentials are sorted from most to less preferred.
+	knownUsers := make(map[string]struct{})
+	deduped := make([]*CredentialInfo, 0, len(infos))
+	for _, c := range infos {
+		if _, ok := knownUsers[c.User.Name]; ok {
+			continue
+		}
+		knownUsers[c.User.Name] = struct{}{}
+
+		c := c // Avoid capture-by-reference errors
+		deduped = append(deduped, &c)
+	}
+	if len(deduped) == 1 {
+		return deduped[0], nil
+	}
+
+	promptOnce()
+	var choice *CredentialInfo
+	var choiceErr error
+	if err := actx.Guard(func() {
+		choice, choiceErr = picker.PromptCredential(deduped)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if choiceErr != nil {
+		return nil, trace.Wrap(choiceErr)
+	}
+
+	// Is choice a pointer within the slice?
+	// We could work around this requirement, but it seems better to constrain the
+	// picker API from the start.
+	for _, c := range deduped {
+		if c == choice {
+			return choice, nil
+		}
+	}
+	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }
 
 // ListCredentials lists all registered Secure Enclave credentials.
