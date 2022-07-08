@@ -365,15 +365,21 @@ eventHandler:
   batch: 20
   namespace: "default"
 
-fluentd:
-  url: "https://localhost:8888/test.log"
-  caPath: "/home/sasha/scripts/event-handler/ca.crt"
-  certPath: "/home/sasha/scripts/event-handler/client.crt"
-  keyPath: "/home/sasha/scripts/event-handler/client.key"
-
 teleport:
   address: "example.teleport.com:443"
   identitySecretName: teleport-event-handler-identity
+
+fluentd:
+  url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
+  certificate:
+    secretName: "teleport-plugin-event-handler-client-tls"
+    caPath: "ca.crt"
+    certPath: "client.crt"
+    keyPath: "client.key"
+
+persistentVolumeClaim:
+  enabled: true
 ```
 
 </TabItem>
