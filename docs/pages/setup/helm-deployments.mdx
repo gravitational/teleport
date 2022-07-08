@@ -9,7 +9,6 @@ layout: tocless-doc
 These guides show you how to set up a full self-hosted Teleport deployment using
 our `teleport-cluster` Helm chart.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
 <TileSet>
     <Tile icon="kubernetes" title="HA AWS Teleport Cluster" href="./helm-deployments/aws.mdx">
         Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster
@@ -21,27 +20,6 @@ our `teleport-cluster` Helm chart.
         Running a Teleport cluster in Kubernetes with a custom Teleport config
     </Tile>
 </TileSet>
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-<TileSet>
-    <Tile 
-    icon="stack"
-    title="Open Source Teleport"
-    href="./guides.mdx/?scope=oss"
-  >
-    Learn how to deploy an open source Teleport cluster using Helm.
-    </Tile>
-    <Tile 
-    icon="building"
-    title="Teleport Enterprise"
-    href="./guides.mdx/?scope=enterprise"
-  >
-    Learn how to deploy a Teleport Enterprise cluster using Helm.
-    </Tile>
-  </TileSet>
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Migration Guides
 
@@ -54,4 +32,3 @@ icon="kubernetes"
 </Tile>
 </TileSet>
 
-</ScopedBlock>

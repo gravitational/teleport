@@ -1731,8 +1731,14 @@ func listNodesAllClusters(cf *CLIConf) error {
 		}
 		fmt.Println(out)
 	default:
-
+		return trace.BadParameter("unsupported format %q", format)
 	}
+
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(listings) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+	}
+
 	return nil
 }
 
@@ -1896,6 +1902,11 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
+	}
+
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(nodes) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
 	}
 
 	return nil
