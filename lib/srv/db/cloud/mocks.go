@@ -35,7 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
@@ -338,7 +338,7 @@ func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.Put
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-// GCPSQLAdminClientMock implements the common.GCPSQLAdminClient interface for tests.
+// GCPSQLAdminClientMock implements the clients.GCPSQLAdminClient interface for tests.
 type GCPSQLAdminClientMock struct {
 	// DatabaseInstance is returned from GetDatabaseInstance.
 	DatabaseInstance *sqladmin.DatabaseInstance
@@ -346,15 +346,15 @@ type GCPSQLAdminClientMock struct {
 	EphemeralCert *tls.Certificate
 }
 
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *common.Session, user *sqladmin.User) error {
+func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *clients.Session, user *sqladmin.User) error {
 	return nil
 }
 
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *common.Session) (*sqladmin.DatabaseInstance, error) {
+func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *clients.Session) (*sqladmin.DatabaseInstance, error) {
 	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *clients.Session) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
 }
 

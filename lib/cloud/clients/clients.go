@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package clients
 
 import (
 	"context"
@@ -303,6 +303,7 @@ type TestCloudClients struct {
 	IAM            iamiface.IAMAPI
 	STS            stsiface.STSAPI
 	GCPSQL         GCPSQLAdminClient
+	EC2            ec2iface.EC2API
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -363,6 +364,11 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdmi
 // GetAzureCredential returns default Azure token credential chain.
 func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return &azidentity.ChainedTokenCredential{}, nil
+}
+
+// GetAWSEC2Client return AWS EC2 lient
+func (c *TestCloudClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
+	return c.EC2, nil
 }
 
 // Close closes all initialized clients.

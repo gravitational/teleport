@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -187,31 +188,31 @@ const (
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
-func (a *testAuth) GetRDSAuthToken(sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetRDSAuthToken(sessionCtx *clients.Session) (string, error) {
 	a.Infof("Generating RDS auth token for %v.", sessionCtx)
 	return rdsAuthToken, nil
 }
 
 // GetRedshiftAuthToken generates Redshift auth token.
-func (a *testAuth) GetRedshiftAuthToken(sessionCtx *common.Session) (string, string, error) {
+func (a *testAuth) GetRedshiftAuthToken(sessionCtx *clients.Session) (string, string, error) {
 	a.Infof("Generating Redshift auth token for %v.", sessionCtx)
 	return redshiftAuthUser, redshiftAuthToken, nil
 }
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.
-func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
 	return cloudSQLAuthToken, nil
 }
 
 // GetCloudSQLPassword generates Cloud SQL user password.
-func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
 	return cloudSQLPassword, nil
 }
 
 // GetAzureAccessToken generates Azure access token.
-func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	a.Infof("Generating Azure access token for %v.", sessionCtx)
 	return azureAccessToken, nil
 }

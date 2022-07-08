@@ -24,11 +24,11 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -36,7 +36,7 @@ import (
 
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
-func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWriter, error) {
+func (s *Server) newStreamWriter(sessionCtx *clients.Session) (libevents.StreamWriter, error) {
 	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)

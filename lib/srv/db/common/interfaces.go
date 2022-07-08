@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -71,13 +72,13 @@ type ProxyContext struct {
 type Engine interface {
 	// InitializeConnection initializes the client connection. No DB connection is made at this point, but a message
 	// can be sent to a client in a database format.
-	InitializeConnection(clientConn net.Conn, sessionCtx *Session) error
+	InitializeConnection(clientConn net.Conn, sessionCtx *clients.Session) error
 	// SendError sends an error to a client in database encoded format.
 	// NOTE: Client connection must be initialized before this function is called.
 	SendError(error)
 	// HandleConnection proxies the connection received from the proxy to
 	// the particular database instance.
-	HandleConnection(context.Context, *Session) error
+	HandleConnection(context.Context, *clients.Session) error
 }
 
 // Users defines an interface for managing database users.

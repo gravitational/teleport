@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -76,7 +77,7 @@ type Engine struct {
 	// clientConn is a client connection.
 	clientConn net.Conn
 	// sessionCtx is current session context.
-	sessionCtx *common.Session
+	sessionCtx *clients.Session
 	// HTTPClient is the client being used to talk to Snowflake API.
 	HTTPClient *http.Client
 	// tokens is a tokens cache that holds the current session and master token
@@ -88,7 +89,7 @@ type Engine struct {
 	snowflakeHost string
 }
 
-func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *clients.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
 	// Make sure that tokens are initialized. Tokens are not initialized in tests.
@@ -138,7 +139,7 @@ func (e *Engine) SendError(err error) {
 	}
 }
 
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	var err error
 	e.accountName, e.snowflakeHost, err = parseConnectionString(sessionCtx.Database.GetURI())
 	if err != nil {
@@ -169,7 +170,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // process reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *clients.Session, req *http.Request) error {
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -210,7 +211,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	return trace.Wrap(e.sendResponse(resp))
 }
 
-func (e *Engine) tokenResponseHandler(ctx context.Context, sessionCtx *common.Session, resp *http.Response) error {
+func (e *Engine) tokenResponseHandler(ctx context.Context, sessionCtx *clients.Session, resp *http.Response) error {
 	err := e.processResponse(resp, func(body []byte) ([]byte, error) {
 		renewSessResp := &renewSessionResponse{}
 		if err := json.Unmarshal(body, renewSessResp); err != nil {
@@ -257,7 +258,7 @@ func (e *Engine) tokenResponseHandler(ctx context.Context, sessionCtx *common.Se
 	return trace.Wrap(err)
 }
 
-func (e *Engine) loginResponseHandler(ctx context.Context, sessionCtx *common.Session, resp *http.Response) error {
+func (e *Engine) loginResponseHandler(ctx context.Context, sessionCtx *clients.Session, resp *http.Response) error {
 	err := e.processResponse(resp, func(body []byte) ([]byte, error) {
 		newResp, err := e.processLoginResponse(body, func(tokens sessionTokens) (string, string, error) {
 			// Create one session for connection token.

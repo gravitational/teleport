@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -60,7 +61,7 @@ type Engine struct {
 	// clientReader is a go-redis wrapper for Redis client connection.
 	clientReader *redis.Reader
 	// sessionCtx is current session context.
-	sessionCtx *common.Session
+	sessionCtx *clients.Session
 	// newClient returns a new client connection
 	newClient redisClientFactoryFn
 	// redisClient is a current connection to Redis server.
@@ -68,7 +69,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the database connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *clients.Session) error {
 	e.clientConn = clientConn
 	e.clientReader = redis.NewReader(clientConn)
 	e.sessionCtx = sessionCtx
@@ -143,7 +144,7 @@ func (e *Engine) sendToClient(vals interface{}) error {
 }
 
 // HandleConnection is responsible for connecting to a Redis instance/cluster.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)
 	if err != nil {
@@ -179,7 +180,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getNewClientFn returns a partial Redis client factory function.
-func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session) (redisClientFactoryFn, error) {
+func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *clients.Session) (redisClientFactoryFn, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -218,7 +219,7 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 
 // createOnClientConnectFunc creates a callback function that is called after a
 // successful client connection with the Redis server.
-func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username, password string) onClientConnectFunc {
+func (e *Engine) createOnClientConnectFunc(sessionCtx *clients.Session, username, password string) onClientConnectFunc {
 	switch {
 	// If password is provided by client.
 	case password != "":
@@ -256,7 +257,7 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *clients.Session) error {
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
@@ -301,7 +302,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
+func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *clients.Session) (interface{}, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.

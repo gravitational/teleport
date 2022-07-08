@@ -22,6 +22,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -57,7 +58,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *clients.Session) error {
 	e.clientConn = clientConn
 	return nil
 }
@@ -73,7 +74,7 @@ func (e *Engine) SendError(err error) {
 
 // HandleConnection authorizes the incoming client connection, connects to the
 // target SQL Server server and starts proxying messages between client/server.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	// Pre-Login packet was handled on the Proxy. Now we expect the client to
 	// send us a Login7 packet that contains username/database information and
 	// other connection options.
@@ -123,7 +124,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // receiveFromClient relays protocol messages received from  SQL Server client
 // to SQL Server database.
-func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *clients.Session) {
 	defer func() {
 		if r := recover(); r != nil {
 			e.Log.Warnf("Recovered while handling DB connection %v", r)
@@ -178,7 +179,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, se
 //
 // Login7 packet contains database user, database name and various login
 // options that we pass to the target SQL Server.
-func (e *Engine) handleLogin7(sessionCtx *common.Session) (*protocol.Login7Packet, error) {
+func (e *Engine) handleLogin7(sessionCtx *clients.Session) (*protocol.Login7Packet, error) {
 	pkt, err := protocol.ReadLogin7Packet(e.clientConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -192,7 +193,7 @@ func (e *Engine) handleLogin7(sessionCtx *common.Session) (*protocol.Login7Packe
 	return pkt, nil
 }
 
-func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *clients.Session) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -214,7 +215,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	return nil
 }
-func (e *Engine) emitMalformedPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+func (e *Engine) emitMalformedPacket(ctx context.Context, sessCtx *clients.Session, packet protocol.Packet) {
 	e.Audit.EmitEvent(ctx, &events.DatabaseSessionMalformedPacket{
 		Metadata: common.MakeEventMetadata(sessCtx,
 			libevents.DatabaseSessionMalformedPacketEvent,
@@ -227,7 +228,7 @@ func (e *Engine) emitMalformedPacket(ctx context.Context, sessCtx *common.Sessio
 	})
 }
 
-func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+func (e *Engine) auditPacket(ctx context.Context, sessCtx *clients.Session, packet protocol.Packet) {
 	switch t := packet.(type) {
 	case *protocol.SQLBatch:
 		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: t.SQLText})

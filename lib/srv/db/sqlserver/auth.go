@@ -17,20 +17,19 @@ limitations under the License.
 package sqlserver
 
 import (
-	"github.com/gravitational/teleport/lib/srv/db/common"
-
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/keytab"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/trace"
 )
 
 // getAuth returns Kerberos authenticator used by SQL Server driver.
 //
 // TODO(r0mant): Unit-test this. In-memory Kerberos server?
-func (c *connector) getAuth(sessionCtx *common.Session) (*krbAuth, error) {
+func (c *connector) getAuth(sessionCtx *clients.Session) (*krbAuth, error) {
 	// Load keytab.
 	keytab, err := keytab.Load(sessionCtx.Database.GetAD().KeytabFile)
 	if err != nil {

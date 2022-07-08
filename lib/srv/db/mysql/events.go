@@ -18,6 +18,7 @@ package mysql
 
 import (
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -25,7 +26,7 @@ import (
 
 // makeStatementPrepareEvent creates an audit event for MySQL statement prepare
 // command.
-func makeStatementPrepareEvent(session *common.Session, packet *protocol.StatementPreparePacket) events.AuditEvent {
+func makeStatementPrepareEvent(session *clients.Session, packet *protocol.StatementPreparePacket) events.AuditEvent {
 	return &events.MySQLStatementPrepare{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementPrepareEvent,
@@ -39,7 +40,7 @@ func makeStatementPrepareEvent(session *common.Session, packet *protocol.Stateme
 
 // makeStatementExecuteEvent creates an audit event for MySQL statement execute
 // command.
-func makeStatementExecuteEvent(session *common.Session, packet *protocol.StatementExecutePacket) events.AuditEvent {
+func makeStatementExecuteEvent(session *clients.Session, packet *protocol.StatementExecutePacket) events.AuditEvent {
 	// TODO(greedy52) get parameters from packet and format them for audit.
 	return &events.MySQLStatementExecute{
 		Metadata: common.MakeEventMetadata(session,
@@ -54,7 +55,7 @@ func makeStatementExecuteEvent(session *common.Session, packet *protocol.Stateme
 
 // makeStatementSendLongDataEvent creates an audit event for MySQL statement
 // send long data command.
-func makeStatementSendLongDataEvent(session *common.Session, packet *protocol.StatementSendLongDataPacket) events.AuditEvent {
+func makeStatementSendLongDataEvent(session *clients.Session, packet *protocol.StatementSendLongDataPacket) events.AuditEvent {
 	return &events.MySQLStatementSendLongData{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementSendLongDataEvent,
@@ -70,7 +71,7 @@ func makeStatementSendLongDataEvent(session *common.Session, packet *protocol.St
 
 // makeStatementCloseEvent creates an audit event for MySQL statement close
 // command.
-func makeStatementCloseEvent(session *common.Session, packet *protocol.StatementClosePacket) events.AuditEvent {
+func makeStatementCloseEvent(session *clients.Session, packet *protocol.StatementClosePacket) events.AuditEvent {
 	return &events.MySQLStatementClose{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementCloseEvent,
@@ -84,7 +85,7 @@ func makeStatementCloseEvent(session *common.Session, packet *protocol.Statement
 
 // makeStatementResetEvent creates an audit event for MySQL statement close
 // command.
-func makeStatementResetEvent(session *common.Session, packet *protocol.StatementResetPacket) events.AuditEvent {
+func makeStatementResetEvent(session *clients.Session, packet *protocol.StatementResetPacket) events.AuditEvent {
 	return &events.MySQLStatementReset{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementResetEvent,
@@ -98,7 +99,7 @@ func makeStatementResetEvent(session *common.Session, packet *protocol.Statement
 
 // makeStatementFetchEvent creates an audit event for MySQL statement fetch
 // command.
-func makeStatementFetchEvent(session *common.Session, packet *protocol.StatementFetchPacket) events.AuditEvent {
+func makeStatementFetchEvent(session *clients.Session, packet *protocol.StatementFetchPacket) events.AuditEvent {
 	return &events.MySQLStatementFetch{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLStatementFetchEvent,
@@ -113,7 +114,7 @@ func makeStatementFetchEvent(session *common.Session, packet *protocol.Statement
 
 // makeStatementBulkExecuteEvent creates an audit event for MySQL statement
 // bulk execute command.
-func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.StatementBulkExecutePacket) events.AuditEvent {
+func makeStatementBulkExecuteEvent(session *clients.Session, packet *protocol.StatementBulkExecutePacket) events.AuditEvent {
 	// TODO(greedy52) get parameters from packet and format them for audit.
 	return &events.MySQLStatementBulkExecute{
 		Metadata: common.MakeEventMetadata(session,
@@ -127,7 +128,7 @@ func makeStatementBulkExecuteEvent(session *common.Session, packet *protocol.Sta
 }
 
 // makeInitDBEvent creates an audit event for MySQL init DB command.
-func makeInitDBEvent(session *common.Session, packet *protocol.InitDB) events.AuditEvent {
+func makeInitDBEvent(session *clients.Session, packet *protocol.InitDB) events.AuditEvent {
 	return &events.MySQLInitDB{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLInitDBEvent,
@@ -140,7 +141,7 @@ func makeInitDBEvent(session *common.Session, packet *protocol.InitDB) events.Au
 }
 
 // makeCreateDBEvent creates an audit event for MySQL create DB command.
-func makeCreateDBEvent(session *common.Session, packet *protocol.CreateDB) events.AuditEvent {
+func makeCreateDBEvent(session *clients.Session, packet *protocol.CreateDB) events.AuditEvent {
 	return &events.MySQLCreateDB{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLCreateDBEvent,
@@ -153,7 +154,7 @@ func makeCreateDBEvent(session *common.Session, packet *protocol.CreateDB) event
 }
 
 // makeDropDBEvent creates an audit event for MySQL drop DB command.
-func makeDropDBEvent(session *common.Session, packet *protocol.DropDB) events.AuditEvent {
+func makeDropDBEvent(session *clients.Session, packet *protocol.DropDB) events.AuditEvent {
 	return &events.MySQLDropDB{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLDropDBEvent,
@@ -166,7 +167,7 @@ func makeDropDBEvent(session *common.Session, packet *protocol.DropDB) events.Au
 }
 
 // makeShutDownEvent creates an audit event for MySQL shut down command.
-func makeShutDownEvent(session *common.Session, packet *protocol.ShutDown) events.AuditEvent {
+func makeShutDownEvent(session *clients.Session, packet *protocol.ShutDown) events.AuditEvent {
 	return &events.MySQLShutDown{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLShutDownEvent,
@@ -178,7 +179,7 @@ func makeShutDownEvent(session *common.Session, packet *protocol.ShutDown) event
 }
 
 // makeProcessKillEvent creates an audit event for MySQL process kill command.
-func makeProcessKillEvent(session *common.Session, packet *protocol.ProcessKill) events.AuditEvent {
+func makeProcessKillEvent(session *clients.Session, packet *protocol.ProcessKill) events.AuditEvent {
 	return &events.MySQLProcessKill{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLProcessKillEvent,
@@ -191,7 +192,7 @@ func makeProcessKillEvent(session *common.Session, packet *protocol.ProcessKill)
 }
 
 // makeDebugEvent creates an audit event for MySQL debug command.
-func makeDebugEvent(session *common.Session, packet *protocol.Debug) events.AuditEvent {
+func makeDebugEvent(session *clients.Session, packet *protocol.Debug) events.AuditEvent {
 	return &events.MySQLDebug{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLDebugEvent,
@@ -203,7 +204,7 @@ func makeDebugEvent(session *common.Session, packet *protocol.Debug) events.Audi
 }
 
 // makeRefreshEvent creates an audit event for MySQL refresh command.
-func makeRefreshEvent(session *common.Session, packet *protocol.Refresh) events.AuditEvent {
+func makeRefreshEvent(session *clients.Session, packet *protocol.Refresh) events.AuditEvent {
 	return &events.MySQLRefresh{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionMySQLRefreshEvent,

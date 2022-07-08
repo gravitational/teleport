@@ -28,6 +28,7 @@ import (
 	"sync"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -141,7 +142,7 @@ func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
 
 // fetchUserPasswordOnConnect returns an onClientConnectFunc that fetches user
 // password on the fly then uses it for "auth".
-func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, audit common.Audit) onClientConnectFunc {
+func fetchUserPasswordOnConnect(sessionCtx *clients.Session, users common.Users, audit common.Audit) onClientConnectFunc {
 	var auditOnce sync.Once
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,

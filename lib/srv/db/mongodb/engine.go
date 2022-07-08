@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -55,7 +56,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *clients.Session) error {
 	e.clientConn = clientConn
 	return nil
 }
@@ -73,7 +74,7 @@ func (e *Engine) SendError(err error) {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx, sessionCtx)
 	if err != nil {
@@ -110,7 +111,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 //    after sending message to the server and wait for next client message.
 // 4. Server can also send multiple messages in a row in which case we exhaust
 //    them before returning to listen for next client message.
-func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
+func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *clients.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
 	e.Log.Debugf("===> %v", clientMessage)
 	// First check the client command against user's role and log in the audit.
 	err := e.authorizeClientMessage(sessionCtx, clientMessage)
@@ -154,7 +155,7 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
-func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -182,7 +183,7 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 //
 // Each MongoDB command contains information about the database it's run in
 // so we check it against allowed databases in the user's role.
-func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message protocol.Message) error {
+func (e *Engine) authorizeClientMessage(sessionCtx *clients.Session, message protocol.Message) error {
 	// Each client message should have database information in it.
 	database, err := message.GetDatabase()
 	if err != nil {
@@ -197,7 +198,7 @@ func (e *Engine) authorizeClientMessage(sessionCtx *common.Session, message prot
 	return trace.Wrap(err)
 }
 
-func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol.Message, database string) error {
+func (e *Engine) checkClientMessage(sessionCtx *clients.Session, message protocol.Message, database string) error {
 	// Legacy OP_KILL_CURSORS command doesn't contain database information.
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,

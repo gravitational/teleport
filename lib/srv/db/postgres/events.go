@@ -18,13 +18,14 @@ package postgres
 
 import (
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // makeParseEvent returns audit event for Postgres Parse wire message which
 // is sent by the client when creating a new prepared statement.
-func makeParseEvent(session *common.Session, statementName, query string) events.AuditEvent {
+func makeParseEvent(session *clients.Session, statementName, query string) events.AuditEvent {
 	return &events.PostgresParse{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionPostgresParseEvent,
@@ -40,7 +41,7 @@ func makeParseEvent(session *common.Session, statementName, query string) events
 // makeBindEvent returns audit event for Postgres Bind wire message which is
 // sent by the client when binding a prepared statement to parameters into a
 // destination portal.
-func makeBindEvent(session *common.Session, statementName, portalName string, parameters []string) events.AuditEvent {
+func makeBindEvent(session *clients.Session, statementName, portalName string, parameters []string) events.AuditEvent {
 	return &events.PostgresBind{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionPostgresBindEvent,
@@ -56,7 +57,7 @@ func makeBindEvent(session *common.Session, statementName, portalName string, pa
 
 // makeExecuteEvent returns audit event for Postgres Execute wire message which
 // is sent by the client when executing a destination portal.
-func makeExecuteEvent(session *common.Session, portalName string) events.AuditEvent {
+func makeExecuteEvent(session *clients.Session, portalName string) events.AuditEvent {
 	return &events.PostgresExecute{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionPostgresExecuteEvent,
@@ -70,7 +71,7 @@ func makeExecuteEvent(session *common.Session, portalName string) events.AuditEv
 
 // makeCloseEvent returns audit event for Postgres Close wire message which is
 // sent by the client when closing a prepared statement or a destination portal.
-func makeCloseEvent(session *common.Session, statementName, portalName string) events.AuditEvent {
+func makeCloseEvent(session *clients.Session, statementName, portalName string) events.AuditEvent {
 	return &events.PostgresClose{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionPostgresCloseEvent,
@@ -85,7 +86,7 @@ func makeCloseEvent(session *common.Session, statementName, portalName string) e
 
 // makeFuncCallEvent returns audit event for Postgres FunctionCall wire message
 // which is sent by the client when invoking an internal function.
-func makeFuncCallEvent(session *common.Session, funcOID uint32, funcArgs []string) events.AuditEvent {
+func makeFuncCallEvent(session *clients.Session, funcOID uint32, funcArgs []string) events.AuditEvent {
 	return &events.PostgresFunctionCall{
 		Metadata: common.MakeEventMetadata(session,
 			libevents.DatabaseSessionPostgresFunctionEvent,

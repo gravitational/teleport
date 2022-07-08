@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"go.mongodb.org/mongo-driver/mongo/address"
@@ -41,7 +42,7 @@ import (
 // When connecting to a replica set, returns connection to the server selected
 // based on the read preference connection string option. This allows users to
 // configure database access to always connect to a secondary for example.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, func(), error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *clients.Session) (driver.Connection, func(), error) {
 	options, selector, err := e.getTopologyOptions(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -80,7 +81,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
-func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, description.ServerSelector, error) {
+func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *clients.Session) ([]topology.Option, description.ServerSelector, error) {
 	connString, err := getConnectionString(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -107,7 +108,7 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 }
 
 // getServerOptions constructs server options for connecting to a MongoDB server.
-func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ServerOption, error) {
+func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *clients.Session) ([]topology.ServerOption, error) {
 	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -120,7 +121,7 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
-func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ConnectionOption, error) {
+func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *clients.Session) ([]topology.ConnectionOption, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,7 +156,7 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 }
 
 // getConnectionString returns connection string for the server.
-func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, error) {
+func getConnectionString(sessionCtx *clients.Session) (connstring.ConnString, error) {
 	uri, err := url.Parse(sessionCtx.Database.GetURI())
 	if err != nil {
 		return connstring.ConnString{}, trace.Wrap(err)

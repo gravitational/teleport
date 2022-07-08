@@ -24,6 +24,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -71,7 +72,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 type TestConnector struct{}
 
 // Connect simulates successful connection to a SQL Server.
-func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
+func (c *TestConnector) Connect(ctx context.Context, sessionCtx *clients.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
 	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

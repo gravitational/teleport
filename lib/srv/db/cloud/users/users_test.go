@@ -30,9 +30,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/trace"
 )
@@ -72,7 +72,7 @@ func TestUsers(t *testing.T) {
 	db6 := mustCreateMemoryDBDatabase(t, "db6", "acl1")
 
 	users, err := NewUsers(Config{
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			ElastiCache:    ecMock,
 			MemoryDB:       mdbMock,
 			SecretsManager: smMock,

@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -106,7 +107,7 @@ type pgError interface {
 
 // ConvertConnectError converts common connection errors to trace errors with
 // extra information/recommendations if necessary.
-func ConvertConnectError(err error, sessionCtx *Session) error {
+func ConvertConnectError(err error, sessionCtx *clients.Session) error {
 	errString := err.Error()
 	switch {
 	case strings.Contains(errString, "x509: certificate signed by unknown authority"):
@@ -127,7 +128,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
-func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
+func createRDSAccessDeniedError(err error, sessionCtx *clients.Session) error {
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolMySQL:
 		return trace.AccessDenied(`Could not connect to database:

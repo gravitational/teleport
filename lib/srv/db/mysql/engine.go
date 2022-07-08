@@ -29,6 +29,7 @@ import (
 	"github.com/go-mysql-org/go-mysql/server"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -64,7 +65,7 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the engine with client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
+func (e *Engine) InitializeConnection(clientConn net.Conn, _ *clients.Session) error {
 	// Make server conn to get access to protocol's WriteOK/WriteError methods.
 	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
 	return nil
@@ -83,7 +84,7 @@ func (e *Engine) SendError(err error) {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *clients.Session) error {
 	// Perform authorization checks.
 	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
@@ -137,7 +138,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // updateServerVersion updates the server runtime version if the version reported by the database is different from
 // the version in status configuration.
-func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
+func (e *Engine) updateServerVersion(sessionCtx *clients.Session, serverConn *client.Conn) error {
 	serverVersion := serverConn.GetServerVersion()
 	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
 	// Update only when needed
@@ -149,7 +150,7 @@ func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *cli
 }
 
 // checkAccess does authorization check for MySQL connection about to be established.
-func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) checkAccess(ctx context.Context, sessionCtx *clients.Session) error {
 	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -176,7 +177,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 }
 
 // connect establishes connection to MySQL database.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *clients.Session) (*client.Conn, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -286,7 +287,7 @@ func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
 
 // receiveFromClient relays protocol messages received from MySQL client
 // to MySQL database.
-func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh chan<- error, sessionCtx *common.Session) {
+func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh chan<- error, sessionCtx *clients.Session) {
 	log := e.Log.WithFields(logrus.Fields{
 		"from":   "client",
 		"client": clientConn.RemoteAddr(),
@@ -404,7 +405,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 
 // makeAcquireSemaphoreConfig builds parameters for acquiring a semaphore
 // for connecting to a MySQL Cloud SQL instance for this session.
-func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services.AcquireSemaphoreWithRetryConfig {
+func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *clients.Session) services.AcquireSemaphoreWithRetryConfig {
 	return services.AcquireSemaphoreWithRetryConfig{
 		Service: e.AuthClient,
 		// The semaphore will serialize connections to the database as specific

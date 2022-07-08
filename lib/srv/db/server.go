@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
@@ -103,7 +104,7 @@ type Config struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
-	CloudClients common.CloudClients
+	CloudClients clients.CloudClients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
@@ -169,7 +170,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = common.NewCloudClients()
+		c.CloudClients = clients.NewCloudClients()
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -806,7 +807,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *clients.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter: streamWriter,
 	})
@@ -827,7 +828,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 
 // createEngine creates a new database engine based on the database protocol.
 // An error is returned when a protocol is not supported.
-func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
+func (s *Server) createEngine(sessionCtx *clients.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database.GetProtocol(), common.EngineConfig{
 		Auth:         s.cfg.Auth,
 		Audit:        audit,
@@ -840,7 +841,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 	})
 }
 
-func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
+func (s *Server) authorize(ctx context.Context) (*clients.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
@@ -871,7 +872,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
 	id := uuid.New().String()
-	return &common.Session{
+	return &clients.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
 		HostID:            s.cfg.HostID,
@@ -922,7 +923,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval. Once the ctx is closed, the session tracker's state
 // will be updated to terminated.
-func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) error {
+func (s *Server) trackSession(ctx context.Context, sessionCtx *clients.Session) error {
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:    sessionCtx.ID,
 		Kind:         string(types.DatabaseSessionKind),

@@ -40,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/cloud/watchers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -53,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -795,7 +795,7 @@ func New(addr utils.NetAddr,
 	}
 
 	if len(s.awsMatchers) != 0 {
-		s.cloudClients = common.NewCloudClients()
+		s.cloudClients = clients.NewCloudClients()
 		s.cloudWatcher, err = watchers.NewWatcher(s.ctx, watchers.WatcherConfig{
 			AWSMatchers: s.awsMatchers,
 			Clients:     s.cloudClients,

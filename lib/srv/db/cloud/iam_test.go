@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -125,7 +126,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
 			STS:      stsClient,
@@ -219,7 +220,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			STS:      stsClient,
 			RDS:      rdsClient,
 			Redshift: redshiftClient,
@@ -299,7 +300,7 @@ func TestAWSIAMDeleteOldPolicy(t *testing.T) {
 	configurator, err := NewIAM(ctx, IAMConfig{
 		Clock:       fakeClock,
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
+		Clients: &clients.TestCloudClients{
 			STS: stsClient,
 			IAM: iamClient,
 		},

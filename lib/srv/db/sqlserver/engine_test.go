@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -168,7 +169,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				},
 			}
 
-			err = e.HandleConnection(context.Background(), &common.Session{
+			err = e.HandleConnection(context.Background(), &clients.Session{
 				Checker:  &mockChecker{},
 				Database: &types.DatabaseV3{},
 			})
@@ -234,6 +235,6 @@ type mockConnector struct {
 	conn io.ReadWriteCloser
 }
 
-func (m *mockConnector) Connect(context.Context, *common.Session, *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
+func (m *mockConnector) Connect(context.Context, *clients.Session, *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
 	return m.conn, []mssql.Token{}, nil
 }

@@ -22,8 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -34,7 +34,7 @@ type WatcherConfig struct {
 	// AWSMatchers is a list of matchers for AWS databases.
 	AWSMatchers []services.AWSMatcher
 	// Clients provides cloud API clients.
-	Clients common.CloudClients
+	Clients clients.CloudClients
 	// Interval is the interval between DB fetches.
 	Interval time.Duration
 	// EC2Interval is the interval between EC2 fetches
@@ -44,7 +44,7 @@ type WatcherConfig struct {
 // CheckAndSetDefaults validates the config.
 func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = clients.NewCloudClients()
 	}
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
@@ -218,11 +218,11 @@ type fetcherConfig struct {
 	region   string
 	tags     types.Labels
 	document string
-	clients  common.CloudClients
+	clients  clients.CloudClients
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
-func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+func makeFetchers(clients clients.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(*fetcherConfig) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},

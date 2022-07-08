@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -37,7 +38,7 @@ func TestRegisterEngine(t *testing.T) {
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
 		AuthClient:   &auth.Client{},
-		CloudClients: NewCloudClients(),
+		CloudClients: clients.NewCloudClients(),
 	}
 
 	// No engine is registered initially.

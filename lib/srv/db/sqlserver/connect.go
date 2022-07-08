@@ -26,6 +26,7 @@ import (
 	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
@@ -33,7 +34,7 @@ import (
 // Connector defines an interface for connecting to a SQL Server so it can be
 // swapped out in tests.
 type Connector interface {
-	Connect(context.Context, *common.Session, *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error)
+	Connect(context.Context, *clients.Session, *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error)
 }
 
 type connector struct {
@@ -41,7 +42,7 @@ type connector struct {
 }
 
 // Connect connects to the target SQL Server with Kerberos authentication.
-func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
+func (c *connector) Connect(ctx context.Context, sessionCtx *clients.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
 	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

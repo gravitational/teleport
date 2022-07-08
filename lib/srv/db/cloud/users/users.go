@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 
@@ -32,7 +32,7 @@ import (
 // Config is the config for users service.
 type Config struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients clients.CloudClients
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Interval is the interval between user updates. Interval is also used as
@@ -50,7 +50,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = clients.NewCloudClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

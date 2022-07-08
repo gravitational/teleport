@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -41,13 +42,13 @@ import (
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients clients.CloudClients
 }
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = clients.NewCloudClients()
 	}
 	return nil
 }

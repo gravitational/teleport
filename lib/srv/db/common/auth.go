@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud/clients"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,17 +51,17 @@ import (
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
 	// GetRDSAuthToken generates RDS/Aurora auth token.
-	GetRDSAuthToken(sessionCtx *Session) (string, error)
+	GetRDSAuthToken(sessionCtx *clients.Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
-	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	GetRedshiftAuthToken(sessionCtx *clients.Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
-	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
+	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *clients.Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
-	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
+	GetCloudSQLPassword(ctx context.Context, sessionCtx *clients.Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
-	GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error)
+	GetAzureAccessToken(ctx context.Context, sessionCtx *clients.Session) (string, error)
 	// GetTLSConfig builds the client TLS configuration for the session.
-	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
+	GetTLSConfig(ctx context.Context, sessionCtx *clients.Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	// Closer releases all resources used by authenticator.
@@ -72,7 +73,7 @@ type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient *libauth.Client
 	// Clients provides interface for obtaining cloud provider clients.
-	Clients CloudClients
+	Clients clients.CloudClients
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -85,7 +86,7 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = NewCloudClients()
+		c.Clients = clients.NewCloudClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -114,7 +115,7 @@ func NewAuth(config AuthConfig) (Auth, error) {
 
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
-func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
+func (a *dbAuth) GetRDSAuthToken(sessionCtx *clients.Session) (string, error) {
 	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -141,7 +142,7 @@ permissions (note that IAM changes may take a few minutes to propagate):
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
-func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
+func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *clients.Session) (string, string, error) {
 	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -175,7 +176,7 @@ propagate):
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a
 // password when connecting to Cloud SQL databases.
-func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
+func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -216,7 +217,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 //
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
-func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error) {
+func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -251,7 +252,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *clients.Session, gcpCloudSQL clients.GCPSQLAdminClient, user *sqladmin.User) error {
 	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
@@ -266,7 +267,7 @@ Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
 }
 
 // GetAzureAccessToken generates Azure database access token.
-func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error) {
+func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *clients.Session) (string, error) {
 	a.cfg.Log.Debugf("Generating Azure access token for %s.", sessionCtx)
 	cred, err := a.cfg.Clients.GetAzureCredential()
 	if err != nil {
@@ -289,7 +290,7 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
 // authority. For on-prem we generate a client certificate signed by the host
 // CA used to authenticate.
-func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *clients.Session) (*tls.Config, error) {
 	dbTLSConfig := sessionCtx.Database.GetTLS()
 
 	// Mode won't be set for older clients. We will default to VerifyFull then - the same as before.
@@ -305,7 +306,7 @@ func (a *dbAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Co
 
 // getTLSConfigVerifyFull returns tls.Config with full verification enabled ('verify-full' mode).
 // Config also includes database specific adjustment.
-func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *clients.Session) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		RootCAs: x509.NewCertPool(),
 	}
@@ -354,7 +355,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = GCPServerName(sessionCtx)
+		tlsConfig.ServerName = clients.GCPServerName(sessionCtx)
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
@@ -381,7 +382,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 
 // getTLSConfigInsecure generates tls.Config when TLS mode is equal to 'insecure'.
 // Generated configuration will accept any certificate provided by database.
-func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *clients.Session) (*tls.Config, error) {
 	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -398,7 +399,7 @@ func (a *dbAuth) getTLSConfigInsecure(ctx context.Context, sessionCtx *Session) 
 // getTLSConfigVerifyCA generates tls.Config when TLS mode is equal to 'verify-ca'.
 // Generated configuration is the same as 'verify-full' except the server name
 // verification is disabled.
-func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *clients.Session) (*tls.Config, error) {
 	tlsConfig, err := a.getTLSConfigVerifyFull(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -416,7 +417,7 @@ func (a *dbAuth) getTLSConfigVerifyCA(ctx context.Context, sessionCtx *Session) 
 }
 
 // appendClientCert generates a client certificate and appends it to the provided tlsConfig.
-func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsConfig *tls.Config) (*tls.Config, error) {
+func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *clients.Session, tlsConfig *tls.Config) (*tls.Config, error) {
 	cert, cas, err := a.getClientCert(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -432,7 +433,7 @@ func (a *dbAuth) appendClientCert(ctx context.Context, sessionCtx *Session, tlsC
 }
 
 // appendCAToRoot appends CA certificate from session context to provided tlsConfig.
-func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *Session) (*tls.Config, error) {
+func appendCAToRoot(tlsConfig *tls.Config, sessionCtx *clients.Session) (*tls.Config, error) {
 	if len(sessionCtx.Database.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM([]byte(sessionCtx.Database.GetCA())) {
 			return nil, trace.BadParameter("invalid server CA certificate")
@@ -470,7 +471,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
-func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
+func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *clients.Session) (cert *tls.Certificate, cas [][]byte, err error) {
 	privateBytes, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
