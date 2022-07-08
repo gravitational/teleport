@@ -84,82 +84,21 @@ type integrationTestSuite struct {
 }
 
 func newSuite(t *testing.T) *integrationTestSuite {
-	return &integrationTestSuite{*helpers.NewFixture(t)}
+	s := &integrationTestSuite{*helpers.NewFixture(t)}
+	// Attempt to set a logger for the test. Be warned that parts of the
+	// Teleport codebase do not honour the logger passed in via config and
+	// will create their own. Do not expect to catch _all_ output with this.
+	s.Log = utils.NewLoggerForTests()
+	err := os.RemoveAll(profile.FullProfilePath(""))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { s.Log = nil })
+	return s
 }
 
-type integrationTest func(t *testing.T, suite *integrationTestSuite)
-
-func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
-	return func(t *testing.T) {
-		// Attempt to set a logger for the test. Be warned that parts of the
-		// Teleport codebase do not honour the logger passed in via config and
-		// will create their own. Do not expect to catch _all_ output with this.
-		s.Log = utils.NewLoggerForTests()
-		os.RemoveAll(profile.FullProfilePath(""))
-		t.Cleanup(func() { s.Log = nil })
-		test(t, s)
-	}
-}
-
-// TestIntegrations acts as the master test suite for all integration tests
-// requiring standardised setup and teardown.
-func TestIntegrations(t *testing.T) {
+// TestDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one.
+func TestDifferentPinnedIP(t *testing.T) {
 	suite := newSuite(t)
-
-	t.Run("AuditOff", suite.bind(testAuditOff))
-	t.Run("AuditOn", suite.bind(testAuditOn))
-	t.Run("BPFExec", suite.bind(testBPFExec))
-	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
-	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
-	t.Run("CmdLabels", suite.bind(testCmdLabels))
-	t.Run("ControlMaster", suite.bind(testControlMaster))
-	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
-	t.Run("DataTransfer", suite.bind(testDataTransfer))
-	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
-	t.Run("Discovery", suite.bind(testDiscovery))
-	t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
-	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
-	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
-	t.Run("ExecEvents", suite.bind(testExecEvents))
-	t.Run("ExternalClient", suite.bind(testExternalClient))
-	t.Run("HA", suite.bind(testHA))
-	t.Run("Interactive (Regular)", suite.bind(testInteractiveRegular))
-	t.Run("Interactive (Reverse Tunnel)", suite.bind(testInteractiveReverseTunnel))
-	t.Run("Interoperability", suite.bind(testInteroperability))
-	t.Run("InvalidLogin", suite.bind(testInvalidLogins))
-	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
-	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
-	t.Run("List", suite.bind(testList))
-	t.Run("MapRoles", suite.bind(testMapRoles))
-	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
-	t.Run("PAM", suite.bind(testPAM))
-	t.Run("PortForwarding", suite.bind(testPortForwarding))
-	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
-	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
-	t.Run("RotateRollback", suite.bind(testRotateRollback))
-	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
-	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
-	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
-	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
-	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
-	t.Run("Shutdown", suite.bind(testShutdown))
-	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
-	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
-	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
-	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
-	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
-	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
-	t.Run("WindowChange", suite.bind(testWindowChange))
-	t.Run("SSHTracker", suite.bind(testSSHTracker))
-	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
-	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
-	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
-	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
-	t.Run("SFTP", suite.bind(testSFTP))
-}
-
-// testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
-func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -207,7 +146,8 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 
 // testAuditOn creates a live session, records a bunch of data through it
 // and then reads it back and compares against simulated reality.
-func testAuditOn(t *testing.T, suite *integrationTestSuite) {
+func TestAuditOn(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -531,7 +471,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 // testInteroperability checks if Teleport and OpenSSH behave in the same way
 // when executing commands.
-func testInteroperability(t *testing.T, suite *integrationTestSuite) {
+func TestInteroperability(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -705,7 +646,8 @@ func replaceNewlines(in string) string {
 
 // TestUUIDBasedProxy verifies that attempts to proxy to nodes using ambiguous
 // hostnames fails with the correct error, and that proxying by UUID succeeds.
-func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
+func TestUUIDBasedProxy(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -788,7 +730,9 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 }
 
 // testSSHTracker verifies that an SSH session creates a tracker for sessions.
-func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
+func TestSSHTracker(t *testing.T) {
+	suite := newSuite(t)
+
 	ctx := context.Background()
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
@@ -821,7 +765,8 @@ func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
 
 // testInteractive covers SSH into shell and joining the same session from another client
 // against a standard teleport node.
-func testInteractiveRegular(t *testing.T, suite *integrationTestSuite) {
+func TestInteractiveRegular(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -833,7 +778,8 @@ func testInteractiveRegular(t *testing.T, suite *integrationTestSuite) {
 
 // TestInteractiveReverseTunnel covers SSH into shell and joining the same session from another client
 // against a reversetunnel node.
-func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
+func TestInteractiveReverseTunnel(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -847,7 +793,8 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	verifySessionJoin(t, suite.Me.Username, teleport)
 }
 
-func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+func TestSessionRecordingModes(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1010,7 +957,8 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 // proxy address if it cannot connect via the proxy address from the reverse
 // tunnel discovery query.
 // See https://github.com/gravitational/teleport/issues/4141 for context.
-func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
+func TestCustomReverseTunnel(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1152,7 +1100,8 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 
 // TestShutdown tests scenario with a graceful shutdown,
 // that session will be working after
-func testShutdown(t *testing.T, suite *integrationTestSuite) {
+func TestShutdown(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1273,7 +1222,7 @@ type disconnectTestCase struct {
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
-func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
+func TestDisconnectScenarios(t *testing.T) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1368,12 +1317,13 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
-			runDisconnectTest(t, suite, tc)
+			runDisconnectTest(t, tc)
 		})
 	}
 }
 
-func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+func runDisconnectTest(t *testing.T, tc disconnectTestCase) {
+	suite := newSuite(t)
 	teleport := suite.NewTeleportInstance()
 
 	username := suite.Me.Username
@@ -1522,9 +1472,10 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 	}
 }
 
-// TestInvalidLogins validates that you can't login with invalid login or
+// TestInvalidLogins validates that you can't log in with invalid login or
 // with invalid 'site' parameter
-func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
+func TestEnvironmentVariables(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1553,9 +1504,10 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, testVal, strings.TrimSpace(out.String()))
 }
 
-// TestInvalidLogins validates that you can't login with invalid login or
+// TestInvalidLogins validates that you can't log in with invalid login or
 // with invalid 'site' parameter
-func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
+func TestInvalidLogins(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1586,7 +1538,8 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 // In the second test, sessions are recorded at B. All sessions still show up on
 // A (they are Teleport nodes) but in addition, two show up on B when connecting
 // over the B<->A tunnel because sessions are recorded at the proxy.
-func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
+func TestTwoClustersTunnel(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1788,7 +1741,8 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
 // establish a connection.
-func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
+func TestTwoClustersProxy(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1836,9 +1790,10 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, a.StopAll())
 }
 
-// TestHA tests scenario when auth server for the cluster goes down
+// TestHA tests scenario when auth server for the cluster goes down,
 // and we switch to local persistent caches
-func testHA(t *testing.T, suite *integrationTestSuite) {
+func TestHA(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1927,7 +1882,8 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestMapRoles tests local to remote role mapping and access patterns
-func testMapRoles(t *testing.T, suite *integrationTestSuite) {
+func TestMapRoles(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -2183,7 +2139,8 @@ type trustedClusterTest struct {
 
 // TestTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature
-func testTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+func TestTrustedClusters(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2192,7 +2149,8 @@ func testTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 // TestTrustedClustersWithLabels tests remote clusters scenarios
 // using trusted clusters feature and access labels
-func testTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
+func TestTrustedClustersWithLabels(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2201,7 +2159,8 @@ func testTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
 
 // TestJumpTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature using jumphost connection
-func testJumpTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+func TestJumpTrustedClusters(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2210,7 +2169,8 @@ func testJumpTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 
 // TestJumpTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature using jumphost connection
-func testJumpTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite) {
+func TestJumpTrustedClustersWithLabels(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2219,7 +2179,8 @@ func testJumpTrustedClustersWithLabels(t *testing.T, suite *integrationTestSuite
 
 // TestMultiplexingTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature
-func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+func TestMultiplexingTrustedClusters(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2488,7 +2449,8 @@ func waitForClusters(tun reversetunnel.Server, expected int) func() bool {
 	}
 }
 
-func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
+func TestTrustedTunnelNode(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 	username := suite.Me.Username
 
@@ -2639,7 +2601,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 // TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
 // state (all known proxies are offline).
-func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
+func TestDiscoveryRecovers(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2771,8 +2734,9 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
-// agent that eventually connnects to the the right proxy
-func testDiscovery(t *testing.T, suite *integrationTestSuite) {
+// agent that eventually connects to the right proxy
+func TestDiscovery(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2842,7 +2806,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output)
 
 	// Execute the connection via second proxy, should work. This command is
-	// tried 10 times with 250 millisecond delay between each attempt to allow
+	// tried 10 times with 250-millisecond delay between each attempt to allow
 	// the discovery request to be received and the connection added to the agent
 	// pool.
 	cfgProxy := helpers.ClientConfig{
@@ -2870,7 +2834,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output)
 
 	// Connect the main proxy back and make sure agents have reconnected over time.
-	// This command is tried 10 times with 250 millisecond delay between each
+	// This command is tried 10 times with 250-millisecond delay between each
 	// attempt to allow the discovery request to be received and the connection
 	// added to the agent pool.
 	lb.AddBackend(mainProxyAddr)
@@ -2899,7 +2863,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 // TestReverseTunnelCollapse makes sure that when a reverse tunnel collapses
 // nodes will reconnect when network connection between the proxy and node
 // is restored.
-func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+func TestReverseTunnelCollapse(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -3043,7 +3008,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestDiscoveryNode makes sure the discovery protocol works with nodes.
-func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
+func TestDiscoveryNode(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3139,7 +3105,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.Equal(t, "hello world\n", output)
 
 	// Execute the connection via second proxy, should work. This command is
-	// tried 10 times with 250 millisecond delay between each attempt to allow
+	// tried 10 times with 250-millisecond delay between each attempt to allow
 	// the discovery request to be received and the connection added to the agent
 	// pool.
 	cfgProxy := helpers.ClientConfig{
@@ -3297,7 +3263,8 @@ func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName,
 
 // TestExternalClient tests if we can connect to a node in a Teleport
 // cluster. Both normal and recording proxies are tested.
-func testExternalClient(t *testing.T, suite *integrationTestSuite) {
+func TestExternalClient(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3426,7 +3393,8 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 
 // TestControlMaster checks if multiple SSH channels can be created over the
 // same connection. This is frequently used by tools like Ansible.
-func testControlMaster(t *testing.T, suite *integrationTestSuite) {
+func TestControlMaster(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3524,7 +3492,8 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 // testProxyHostKeyCheck uses the forwarding proxy to connect to a server that
 // presents a host key instead of a certificate in different configurations
 // for the host key checking parameter in services.ClusterConfig.
-func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
+func TestProxyHostKeyCheck(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3603,7 +3572,8 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 
 // testAuditOff checks that when session recording has been turned off,
 // sessions are not recorded.
-func testAuditOff(t *testing.T, suite *integrationTestSuite) {
+func TestAuditOff(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3673,7 +3643,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, session.Parties[0].User)
 
-	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
+	// let's type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	// wait for session to end
@@ -3696,7 +3666,8 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 // that means if the account and session modules return success, the user
 // should be allowed to log in. If either the account or session module does
 // not return success, the user should not be able to log in.
-func testPAM(t *testing.T, suite *integrationTestSuite) {
+func TestPAM(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3858,7 +3829,8 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 }
 
 // testRotateSuccess tests full cycle cert authority rotation
-func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
+func TestRotateSuccess(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4028,7 +4000,8 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestRotateRollback tests cert authority rollback
-func testRotateRollback(t *testing.T, s *integrationTestSuite) {
+func TestRotateRollback(t *testing.T) {
+	s := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4169,7 +4142,8 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 }
 
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
-func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+func TestRotateTrustedClusters(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -4190,7 +4164,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	config, err := main.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
+	serviceC := make(chan *service.TeleportProcess, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
@@ -4491,7 +4465,8 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 
 // TestWindowChange checks if custom Teleport window change requests are sent
 // when the server side PTY changes its size.
-func testWindowChange(t *testing.T, suite *integrationTestSuite) {
+func TestWindowChange(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4609,7 +4584,8 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 }
 
 // testList checks that the list of servers returned is identity aware.
-func testList(t *testing.T, suite *integrationTestSuite) {
+func TestList(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -4753,7 +4729,8 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 // TestCmdLabels verifies the behavior of running commands via labels
 // with a mixture of regular and reversetunnel nodes.
-func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
+func TestCmdLabels(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4846,7 +4823,8 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 // TestDataTransfer makes sure that a "session.data" event is emitted at the
 // end of a session that matches the amount of data that was transferred.
-func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
+func TestDataTransfer(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4882,7 +4860,8 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 	require.Greater(t, eventFields.GetInt(events.DataTransmitted), KB)
 }
 
-func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
+func TestBPFInteractive(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -5010,7 +4989,8 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testBPFExec(t *testing.T, suite *integrationTestSuite) {
+func TestBPFExec(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -5116,7 +5096,8 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
+func TestSSHExitCode(t *testing.T) {
+	suite := newSuite(t)
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
@@ -5245,7 +5226,8 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 // testBPFSessionDifferentiation verifies that the bpf package can
 // differentiate events from two different sessions. This test in turn also
 // verifies the cgroup package.
-func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
+func TestBPFSessionDifferentiation(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -5377,7 +5359,8 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 }
 
 // testExecEvents tests if exec events were emitted with and without PTY allocated
-func testExecEvents(t *testing.T, suite *integrationTestSuite) {
+func TestExecEvents(t *testing.T) {
+	suite := newSuite(t)
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -5427,7 +5410,8 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestSuite) {
+func TestSessionStartContainsAccessRequest(t *testing.T) {
+	suite := newSuite(t)
 	accessRequestsKey := "access_requests"
 	requestedRoleName := "requested-role"
 	userRoleName := "user-role"
@@ -5954,7 +5938,8 @@ func TestTraitsPropagation(t *testing.T) {
 }
 
 // testSessionStreaming tests streaming events from session recordings.
-func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
+func TestSessionStreaming(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 	sessionID := session.ID(uuid.New().String())
 	teleport := suite.newTeleport(t, nil, true)
@@ -6020,7 +6005,8 @@ outer:
 
 // TestKubeAgentFiltering tests that kube-agent filtering for pre-v8 agents and
 // moderated sessions users works as expected.
-func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
+func TestKubeAgentFiltering(t *testing.T) {
+	suite := newSuite(t)
 	ctx := context.Background()
 
 	type testCase struct {
@@ -6243,7 +6229,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	return tc
 }
 
-func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+func TestListResourcesAcrossClusters(t *testing.T) {
+	suite := newSuite(t)
 	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *helpers.TeleInstance) {
 		rootNodes := []string{"root-one", "root-two"}
 		leafNodes := []string{"leaf-one", "leaf-two"}
@@ -6435,7 +6422,8 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 	}
 }
 
-func testSFTP(t *testing.T, suite *integrationTestSuite) {
+func TestSFTP(t *testing.T) {
+	suite := newSuite(t)
 	// Create Teleport instance.
 	teleport := suite.newTeleport(t, nil, true)
 	t.Cleanup(func() {

@@ -70,7 +70,8 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 	}
 }
 
-func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
+func TestPortForwarding(t *testing.T) {
+	suite := newSuite(t)
 	testCases := []struct {
 		desc                  string
 		portForwardingAllowed bool
