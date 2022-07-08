@@ -579,8 +579,6 @@ func TestSAML(t *testing.T) {
 
 			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 			require.NoError(t, err)
-			err = services.ValidateSAMLConnector(connector)
-			require.NoError(t, err)
 
 			role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
 				Options: types.RoleOptions{
