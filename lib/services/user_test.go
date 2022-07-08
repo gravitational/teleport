@@ -19,23 +19,21 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"testing"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/coreos/go-oidc/jose"
+	"github.com/google/go-cmp/cmp"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
-	"gopkg.in/check.v1"
-
-	"github.com/gravitational/teleport/api/types"
+	"github.com/stretchr/testify/require"
 )
 
-type UserSuite struct {
-}
+func TestTraits(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&UserSuite{})
-
-func (s *UserSuite) TestTraits(c *check.C) {
 	var tests = []struct {
 		traitName string
 	}{
@@ -65,14 +63,16 @@ func (s *UserSuite) TestTraits(c *check.C) {
 		}
 
 		data, err := json.Marshal(user)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		_, err = UnmarshalUser(data)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 	}
 }
 
-func (s *UserSuite) TestOIDCMapping(c *check.C) {
+func TestOIDCMapping(t *testing.T) {
+	t.Parallel()
+
 	type input struct {
 		comment       string
 		claims        jose.Claims
@@ -240,9 +240,9 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 		}
 		for _, input := range testCase.inputs {
-			comment := check.Commentf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
+			comment := fmt.Sprintf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
 			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
-			c.Assert(outRoles, check.DeepEquals, input.expectedRoles, comment)
+			require.Empty(t, cmp.Diff(outRoles, input.expectedRoles), comment)
 		}
 
 		samlConn := types.SAMLConnectorV2{
@@ -251,10 +251,10 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 			},
 		}
 		for _, input := range testCase.inputs {
-			comment := check.Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
+			comment := fmt.Sprintf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
 			warnings, outRoles := TraitsToRoles(samlConn.GetTraitMappings(), SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
-			c.Assert(outRoles, check.DeepEquals, input.expectedRoles, comment)
-			c.Assert(warnings, check.DeepEquals, input.warnings, comment)
+			require.Empty(t, cmp.Diff(outRoles, input.expectedRoles), comment)
+			require.Empty(t, cmp.Diff(warnings, input.warnings), comment)
 		}
 	}
 }
