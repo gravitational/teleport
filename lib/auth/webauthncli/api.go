@@ -114,10 +114,10 @@ func Login(
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(origin, user, assertion)
+		return platformLogin(origin, user, assertion, prompt)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(origin, user, assertion)
+		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
@@ -141,8 +141,8 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, string, error) {
-	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion)
+func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
 	}

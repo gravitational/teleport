@@ -42,6 +42,12 @@ func init() {
 	touchid.PromptWriter = io.Discard
 }
 
+type simplePicker struct{}
+
+func (p simplePicker) PromptCredential(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+	return creds[0], nil
+}
+
 func TestRegisterAndLogin(t *testing.T) {
 	n := *touchid.Native
 	t.Cleanup(func() {
@@ -112,7 +118,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			assertion := (*wanlib.CredentialAssertion)(a)
 			test.modifyAssertion(assertion)
 
-			assertionResp, actualUser, err := touchid.Login(origin, user, assertion)
+			assertionResp, actualUser, err := touchid.Login(origin, user, assertion, simplePicker{})
 			require.NoError(t, err, "Login failed")
 			assert.Equal(t, test.wantUser, actualUser, "actualUser mismatch")
 			assert.Equal(t, 2, fake.userPrompts, "unexpected number of Login prompts")
@@ -169,7 +175,7 @@ func TestRegister_rollback(t *testing.T) {
 			RelyingPartyID:   web.Config.RPID,
 			UserVerification: "required",
 		},
-	})
+	}, simplePicker{})
 	require.Equal(t, touchid.ErrCredentialNotFound, err, "unexpected Login error")
 }
 
@@ -331,7 +337,7 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 					RelyingPartyID:     web.Config.RPID,
 					AllowedCredentials: allowedCreds,
 				},
-			})
+			}, simplePicker{})
 			require.NoError(t, err, "Login failed")
 
 			wantUser := test.wantUser
@@ -398,7 +404,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fake.userPrompts = 0 // reset before test
-			_, _, err := touchid.Login(origin, test.user, test.assertion)
+			_, _, err := touchid.Login(origin, test.user, test.assertion, simplePicker{})
 			assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
 			assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
 		})
@@ -489,7 +495,7 @@ func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fake.userPrompts = 0 // reset before test
-			_, _, err := touchid.Login(origin, test.user, test.assertion)
+			_, _, err := touchid.Login(origin, test.user, test.assertion, simplePicker{})
 			assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
 			assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
 		})

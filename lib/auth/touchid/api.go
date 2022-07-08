@@ -428,10 +428,18 @@ func makeAttestationData(ceremony protocol.CeremonyType, origin, rpID string, ch
 	}, nil
 }
 
+// CredentialPicker allows users to choose a credential for login.
+type CredentialPicker interface {
+	// PromptCredential prompts the user to pick a credential from the list.
+	// Prompts only happen if there is more than one credential to choose from.
+	// Must return one of the pointers from the slice or an error.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
+
 // Login authenticates using a Secure Enclave-backed biometric credential.
 // It returns the assertion response and the user that owns the credential to
 // sign it.
-func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
+func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
@@ -450,6 +458,8 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", errors.New("challenge required")
 	case assertion.Response.RelyingPartyID == "":
 		return nil, "", errors.New("relying party ID required")
+	case picker == nil:
+		return nil, "", errors.New("picker required")
 	}
 
 	rpID := assertion.Response.RelyingPartyID
