@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-// B is an interface covering various public B methods to circumvent
+// B is an interface covering various public Bot methods to circumvent
 // import cycle issues.
 type B interface {
 	// AuthPing pings the auth server and returns the (possibly cached) response.
