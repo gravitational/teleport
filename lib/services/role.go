@@ -345,6 +345,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		// apply templates to windows desktop labels
+		inLabels = r.GetWindowsDesktopLabels(condition)
+		if inLabels != nil {
+			r.SetWindowsDesktopLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
