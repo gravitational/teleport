@@ -20,9 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -48,7 +47,7 @@ func (t *TemplateMongo) Name() string {
 	return TemplateMongoName
 }
 
-func (t *TemplateMongo) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateMongo) Describe(destination bot.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.Prefix + ".crt",
@@ -59,12 +58,13 @@ func (t *TemplateMongo) Describe(destination destination.Destination) []FileDesc
 	}
 }
 
-func (t *TemplateMongo) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateMongo) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	authClient := bot.Client()
 	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
 	if err != nil {
 		return trace.Wrap(err)

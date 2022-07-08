@@ -140,6 +140,10 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	// KubeCluster is the kubernetes cluster name, used to retrieve kubectl
+	// credentials.
+	KubeCluster string
 }
 
 // OnboardingConfig contains values only required on first connect.

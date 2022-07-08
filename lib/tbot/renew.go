@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -187,7 +187,7 @@ func (b *Bot) generateIdentity(
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	client := b.client()
+	client := b.Client()
 	certs, err := client.GenerateUserCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -328,6 +328,17 @@ func (b *Bot) generateImpersonatedIdentity(
 		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
 
 		return newIdent, trace.Wrap(err)
+	} else if destCfg.KubernetesCluster != nil {
+		// Note: the Teleport server does attempt to verify k8s cluster names
+		// and will fail to generate certs if the cluster doesn't exist or is
+		// offline.
+		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
+		})
+
+		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
+
+		return newIdent, trace.Wrap(err)
 	}
 
 	return ident, nil
@@ -397,7 +408,7 @@ func (b *Bot) renewIdentityViaAuth(
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	ident := b.ident()
-	certs, err := b.client().GenerateUserCerts(ctx, proto.UserCertsRequest{
+	certs, err := b.Client().GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: ident.PublicKeyBytes,
 		Username:  ident.X509Cert.Subject.CommonName,
 		Expires:   time.Now().Add(b.cfg.CertificateTTL),
@@ -432,7 +443,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 
 // renew performs a single renewal
 func (b *Bot) renew(
-	ctx context.Context, botDestination destination.Destination,
+	ctx context.Context, botDestination bot.Destination,
 ) error {
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
@@ -534,7 +545,7 @@ func (b *Bot) renew(
 				return trace.Wrap(err)
 			}
 
-			if err := template.Render(ctx, b.client(), impersonatedIdent, dest); err != nil {
+			if err := template.Render(ctx, b, impersonatedIdent, dest); err != nil {
 				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 			}
 		}
