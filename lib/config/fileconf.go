@@ -987,6 +987,9 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1173,6 +1176,9 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// SSMDocument is the ssm command document to execute for EC2
+	// installation
+	SSMDocument string `yaml:"ssm_command_document"`
 }
 
 // Database represents a single database proxied by the service.
