@@ -62,8 +62,7 @@ func (t *TemplateCockroach) Render(ctx context.Context, bot bot.B, currentIdenti
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
-	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

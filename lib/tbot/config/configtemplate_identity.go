@@ -60,8 +60,7 @@ func (t *TemplateIdentity) Render(ctx context.Context, bot bot.B, currentIdentit
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

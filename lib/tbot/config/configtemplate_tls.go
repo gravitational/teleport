@@ -114,8 +114,7 @@ func (t *TemplateTLS) Render(ctx context.Context, bot bot.B, currentIdentity *id
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
-	cas, err := authClient.GetCertAuthorities(ctx, types.CertAuthType(t.CACertType), false)
+	cas, err := bot.GetCertAuthorities(ctx, types.CertAuthType(t.CACertType))
 	if err != nil {
 		return trace.Wrap(err)
 	}

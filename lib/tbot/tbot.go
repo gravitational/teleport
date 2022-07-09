@@ -46,6 +46,7 @@ type Bot struct {
 	_ident     *identity.Identity
 	_authPong  *proto.PingResponse
 	_proxyPong *webclient.PingResponse
+	_cas       map[types.CertAuthType][]types.CertAuthority
 	started    bool
 }
 
@@ -58,6 +59,8 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 		cfg:        cfg,
 		log:        log,
 		reloadChan: reloadChan,
+
+		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
 }
 
@@ -105,6 +108,42 @@ func (b *Bot) markStarted() error {
 	b.started = true
 
 	return nil
+}
+
+// certAuthorities returns cached CAs of the given type.
+func (b *Bot) certAuthorities(caType types.CertAuthType) []types.CertAuthority {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b._cas[caType]
+}
+
+// clearCertAuthorities purges the CA cache. This should be run at least as
+// frequently as CAs are rotated.
+func (b *Bot) clearCertAuthorities() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b._cas = map[types.CertAuthType][]types.CertAuthority{}
+}
+
+// GetCertAuthorities returns the possibly cached CAs of the given type and
+// requests them from the server if unavailable.
+func (b *Bot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+	if cas := b.certAuthorities(caType); len(cas) > 0 {
+		return cas, nil
+	}
+
+	cas, err := b.Client().GetCertAuthorities(ctx, caType, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b._cas[caType] = cas
+	return cas, nil
 }
 
 // authPong returns the last ping response from the auth server. It may be nil

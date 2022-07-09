@@ -112,6 +112,10 @@ func (t *templateKubernetesMockBot) ProxyPing(ctx context.Context) (*webclient.P
 	return &webclient.PingResponse{}, nil
 }
 
+func (t *templateKubernetesMockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+	return t.mockAuth.GetCertAuthorities(ctx, caType, false)
+}
+
 // getTestIdent returns a mostly-valid bot Identity without starting up an
 // entire Teleport server instance.
 func getTestIdent(t *testing.T, username string, k8sCluster string) *identity.Identity {

@@ -105,18 +105,17 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 }
 
 func (t *TemplateTLSCAs) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
-	authClient := bot.Client()
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	userCAs, err := authClient.GetCertAuthorities(ctx, types.UserCA, false)
+	userCAs, err := bot.GetCertAuthorities(ctx, types.UserCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	databaseCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	databaseCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

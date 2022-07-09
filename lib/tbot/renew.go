@@ -551,6 +551,10 @@ func (b *Bot) renew(
 		}
 	}
 
+	// Purge the CA cache. We could be smarter about this in the future if
+	// desired, since generally CAs don't change that often.
+	b.clearCertAuthorities()
+
 	b.log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", b.cfg.RenewalInterval)
 	return nil
 }

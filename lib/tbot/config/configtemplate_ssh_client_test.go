@@ -91,8 +91,17 @@ func (t *templateSSHClientMockBot) Client() auth.ClientI {
 	return t.mockAuth
 }
 
+func (t *templateSSHClientMockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+	return t.mockAuth.GetCertAuthorities(ctx, caType, false)
+}
+
 func (t *templateSSHClientMockBot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	return nil, trace.NotImplemented("not implemented")
+	ping, err := t.mockAuth.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ping, err
 }
 
 func (t *templateSSHClientMockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
