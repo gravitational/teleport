@@ -19,7 +19,10 @@ import (
 	"crypto/tls"
 	"net"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -30,8 +33,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -116,8 +117,20 @@ func (c *Config) CheckAndSetDefaults() error {
 		Scheme: "grpc",
 		Host:   c.ExporterURL,
 	}
-
 	return nil
+}
+
+func (c *Config) Endpoint() string {
+	uri := *c.exporterURL
+
+	uri.Scheme = ""
+	uri.RawQuery = ""
+
+	s := uri.String()
+	if strings.HasPrefix(s, "//") {
+		return s[2:]
+	}
+	return s
 }
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
@@ -145,9 +158,11 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 
 // NoopProvider creates a new Provider that never samples any spans.
 func NoopProvider() *Provider {
-	return &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.NeverSample()),
-	)}
+	return &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.NeverSample()),
+		),
+	}
 }
 
 // NoopTracer creates a new Tracer that never samples any spans.
@@ -175,11 +190,9 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
-		resource.WithProcess(),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessExecutablePath(),
-		resource.WithProcessOwner(),
 		resource.WithProcessRuntimeName(),
 		resource.WithProcessRuntimeVersion(),
 		resource.WithProcessRuntimeDescription(),
@@ -201,11 +214,13 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	}))
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions
-	provider := &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
-		sdktrace.WithResource(res),
-		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
-	)}
+	provider := &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
+			sdktrace.WithResource(res),
+			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
+		),
+	}
 	otel.SetTracerProvider(provider)
 
 	return provider, nil
