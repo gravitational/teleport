@@ -23,8 +23,6 @@ import (
 	"encoding/base32"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -86,60 +84,61 @@ func (a *authContext) Close() error {
 }
 
 func TestTLS(t *testing.T) {
-	//t.Run("TestRemoteBuiltinRole"
-	//t.Run("TestAcceptedUsage"
-	//t.Run("TestRemoteRotation"
-	//t.Run("TestLocalProxyPermissions"
-	//t.Run("TestAutoRotation"
-	//t.Run("TestAutoFallback"
-	//t.Run("TestManualRotation"
-	//t.Run("TestRollback"
-	//t.Run("TestAppTokenRotation"
-	//t.Run("TestRemoteUser"
-	//t.Run("TestNopUser"
-	//t.Run("TestReadOwnRole"
-	//t.Run("TestGetCurrentUser"
-	//t.Run("TestAuthPreferenceSettings"
-	//t.Run("TestTunnelConnectionsCRUD"
-	//t.Run("TestRemoteClustersCRUD"
-	//t.Run("TestServersCRUD"
-	//t.Run("TestAppServerCRUD"
-	//t.Run("TestReverseTunnelsCRUD"
-	//t.Run("TestUsersCRUD"
-	//t.Run("TestPasswordGarbage"
-	//t.Run("TestPasswordCRUD"
-	//t.Run("TestTokens"
-	//t.Run("TestOTPCRUD"
-	//t.Run("TestWebSessionWithoutAccessRequest"
-	//t.Run("TestWebSessionWithApprovedAccessRequestAndSwitchback"
-	//t.Run("TestGetCertAuthority"
-	//t.Run("TestPluginData"
-	//t.Run("TestGenerateCerts"
-	//t.Run("TestGenerateAppToken"
-	//t.Run("TestCertificateFormat"
-	//t.Run("TestClusterConfigContext"
-	//t.Run("TestAuthenticateWebUserOTP"
-	//t.Run("TestLoginAttempts"
-	//t.Run("TestChangeUserAuthenticationSettings"
-	//t.Run("TestLoginNoLocalAuth"
-	//t.Run("TestCipherSuites"
-	//t.Run("TestTLSFailover"
-	//t.Run("TestRegisterCAPin"
-	//t.Run("TestRegisterCAPath"
-	//t.Run("TestEventsNodePresence"
-	//t.Run("TestEventsPermissions"
-	//t.Run("TestEvents"
-	//t.Run("TestEventsClusterConfig"
-	//t.Run("TestNetworkRestrictions"
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	t.Run("TestRemoteBuiltinRole", tt.TestRemoteBuiltinRole)
+	t.Run("TestAcceptedUsage", tt.TestAcceptedUsage)
+	t.Run("TestRemoteRotation", tt.TestRemoteRotation)
+	t.Run("TestLocalProxyPermissions", tt.TestLocalProxyPermissions)
+	t.Run("TestAutoRotation", tt.TestAutoRotation)
+	t.Run("TestAutoFallback", tt.TestAutoFallback)
+	t.Run("TestManualRotation", tt.TestManualRotation)
+	t.Run("TestRollback", tt.TestRollback)
+	t.Run("TestAppTokenRotation", tt.TestAppTokenRotation)
+	t.Run("TestRemoteUser", tt.TestRemoteUser)
+	t.Run("TestNopUser", tt.TestNopUser)
+	t.Run("TestReadOwnRole", tt.TestReadOwnRole)
+	t.Run("TestGetCurrentUser", tt.TestGetCurrentUser)
+	t.Run("TestAuthPreferenceSettings", tt.TestAuthPreferenceSettings)
+	t.Run("TestTunnelConnectionsCRUD", tt.TestTunnelConnectionsCRUD)
+	t.Run("TestRemoteClustersCRUD", tt.TestRemoteClustersCRUD)
+	t.Run("TestServersCRUD", tt.TestServersCRUD)
+	t.Run("TestAppServerCRUD", tt.TestAppServerCRUD)
+	t.Run("TestReverseTunnelsCRUD", tt.TestReverseTunnelsCRUD)
+	t.Run("TestUsersCRUD", tt.TestUsersCRUD)
+	t.Run("TestPasswordGarbage", tt.TestPasswordGarbage)
+	t.Run("TestPasswordCRUD", tt.TestPasswordCRUD)
+	t.Run("TestTokens", tt.TestTokens)
+	t.Run("TestOTPCRUD", tt.TestOTPCRUD)
+	t.Run("TestWebSessionWithoutAccessRequest", tt.TestWebSessionWithoutAccessRequest)
+	t.Run("TestWebSessionWithApprovedAccessRequestAndSwitchback", tt.TestWebSessionWithApprovedAccessRequestAndSwitchback)
+	t.Run("TestGetCertAuthority", tt.TestGetCertAuthority)
+	t.Run("TestPluginData", tt.TestPluginData)
+	t.Run("TestGenerateCerts", tt.TestGenerateCerts)
+	t.Run("TestGenerateAppToken", tt.TestGenerateAppToken)
+	t.Run("TestCertificateFormat", tt.TestCertificateFormat)
+	t.Run("TestClusterConfigContext", tt.TestClusterConfigContext)
+	t.Run("TestAuthenticateWebUserOTP", tt.TestAuthenticateWebUserOTP)
+	t.Run("TestLoginAttempts", tt.TestLoginAttempts)
+	t.Run("TestChangeUserAuthenticationSettings", tt.TestChangeUserAuthenticationSettings)
+	t.Run("TestLoginNoLocalAuth", tt.TestLoginNoLocalAuth)
+	t.Run("TestCipherSuites", tt.TestCipherSuites)
+	t.Run("TestTLSFailover", tt.TestTLSFailover)
+	t.Run("TestRegisterCAPin", tt.TestRegisterCAPin)
+	t.Run("TestRegisterCAPath", tt.TestRegisterCAPath)
+	t.Run("TestEventsPermissions", tt.TestEventsPermissions)
+	t.Run("TestEvents", tt.TestEvents)
+	t.Run("TestEventsClusterConfig", tt.TestEventsClusterConfig)
+	t.Run("TestNetworkRestrictions", tt.TestNetworkRestrictions)
 }
 
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role
-func TestRemoteBuiltinRole(t *testing.T) {
+func (tt *authContext) TestRemoteBuiltinRole(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         t.TempDir(),
@@ -186,11 +185,10 @@ func TestRemoteBuiltinRole(t *testing.T) {
 // TestAcceptedUsage tests scenario when server is set up
 // to accept certificates with certain usage metadata restrictions
 // encoded
-func TestAcceptedUsage(t *testing.T) {
+func (tt *authContext) TestAcceptedUsage(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	server, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:           t.TempDir(),
@@ -248,11 +246,10 @@ func TestAcceptedUsage(t *testing.T) {
 
 // TestRemoteRotation tests remote builtin role
 // that attempts certificate authority rotation
-func TestRemoteRotation(t *testing.T) {
+func (tt *authContext) TestRemoteRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	var ok bool
 
@@ -355,11 +352,10 @@ func TestRemoteRotation(t *testing.T) {
 
 // TestLocalProxyPermissions tests new local proxy permissions
 // as it's now allowed to update host cert authorities of remote clusters
-func TestLocalProxyPermissions(t *testing.T) {
+func (tt *authContext) TestLocalProxyPermissions(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         t.TempDir(),
@@ -397,11 +393,10 @@ func TestLocalProxyPermissions(t *testing.T) {
 }
 
 // TestAutoRotation tests local automatic rotation
-func TestAutoRotation(t *testing.T) {
+func (tt *authContext) TestAutoRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	var ok bool
 
@@ -495,11 +490,10 @@ func TestAutoRotation(t *testing.T) {
 // TestAutoFallback tests local automatic rotation fallback,
 // when user intervenes with rollback and rotation gets switched
 // to manual mode
-func TestAutoFallback(t *testing.T) {
+func (tt *authContext) TestAutoFallback(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	var ok bool
 
@@ -555,11 +549,10 @@ func TestAutoFallback(t *testing.T) {
 
 // TestManualRotation tests local manual rotation
 // that performs full-cycle certificate authority rotation
-func TestManualRotation(t *testing.T) {
+func (tt *authContext) TestManualRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	var ok bool
 
@@ -665,11 +658,10 @@ func TestManualRotation(t *testing.T) {
 }
 
 // TestRollback tests local manual rotation rollback
-func TestRollback(t *testing.T) {
+func (tt *authContext) TestRollback(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	var ok bool
 
@@ -761,11 +753,10 @@ func TestRollback(t *testing.T) {
 
 // TestAppTokenRotation checks that JWT tokens can be rotated and tokens can or
 // can not be validated at the appropriate phase.
-func TestAppTokenRotation(t *testing.T) {
+func (tt *authContext) TestAppTokenRotation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	client, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
@@ -903,11 +894,10 @@ func TestAppTokenRotation(t *testing.T) {
 
 // TestRemoteUser tests scenario when remote user connects to the local
 // auth server and some edge cases.
-func TestRemoteUser(t *testing.T) {
+func (tt *authContext) TestRemoteUser(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         t.TempDir(),
@@ -956,11 +946,10 @@ func TestRemoteUser(t *testing.T) {
 
 // TestNopUser tests user with no permissions except
 // the ones that require other authentication methods ("nop" user)
-func TestNopUser(t *testing.T) {
+func (tt *authContext) TestNopUser(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	client, err := tt.server.NewClient(TestNop())
 	require.NoError(t, err)
@@ -983,11 +972,10 @@ func TestNopUser(t *testing.T) {
 }
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
-func TestReadOwnRole(t *testing.T) {
+func (tt *authContext) TestReadOwnRole(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1013,7 +1001,7 @@ func TestReadOwnRole(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestGetCurrentUser(t *testing.T) {
+func (tt *authContext) TestGetCurrentUser(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -1045,11 +1033,8 @@ func TestGetCurrentUser(t *testing.T) {
 	}, currentUser)
 }
 
-func TestAuthPreferenceSettings(t *testing.T) {
+func (tt *authContext) TestAuthPreferenceSettings(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1060,11 +1045,8 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	suite.AuthPreference(t)
 }
 
-func TestTunnelConnectionsCRUD(t *testing.T) {
+func (tt *authContext) TestTunnelConnectionsCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1076,11 +1058,8 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	suite.TunnelConnectionsCRUD(t)
 }
 
-func TestRemoteClustersCRUD(t *testing.T) {
+func (tt *authContext) TestRemoteClustersCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1091,11 +1070,8 @@ func TestRemoteClustersCRUD(t *testing.T) {
 	suite.RemoteClustersCRUD(t)
 }
 
-func TestServersCRUD(t *testing.T) {
+func (tt *authContext) TestServersCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1107,11 +1083,8 @@ func TestServersCRUD(t *testing.T) {
 }
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
-func TestAppServerCRUD(t *testing.T) {
+func (tt *authContext) TestAppServerCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
@@ -1122,11 +1095,8 @@ func TestAppServerCRUD(t *testing.T) {
 	suite.AppServerCRUD(t)
 }
 
-func TestReverseTunnelsCRUD(t *testing.T) {
+func (tt *authContext) TestReverseTunnelsCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1137,11 +1107,8 @@ func TestReverseTunnelsCRUD(t *testing.T) {
 	suite.ReverseTunnelsCRUD(t)
 }
 
-func TestUsersCRUD(t *testing.T) {
+func (tt *authContext) TestUsersCRUD(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1161,11 +1128,8 @@ func TestUsersCRUD(t *testing.T) {
 	require.Equal(t, len(users), 0)
 }
 
-func TestPasswordGarbage(t *testing.T) {
+func (tt *authContext) TestPasswordGarbage(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1180,11 +1144,10 @@ func TestPasswordGarbage(t *testing.T) {
 	}
 }
 
-func TestPasswordCRUD(t *testing.T) {
+func (tt *authContext) TestPasswordCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1212,11 +1175,10 @@ func TestPasswordCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokens(t *testing.T) {
+func (tt *authContext) TestTokens(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1226,11 +1188,10 @@ func TestTokens(t *testing.T) {
 	require.NotEqual(t, out, 0)
 }
 
-func TestOTPCRUD(t *testing.T) {
+func (tt *authContext) TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1280,11 +1241,8 @@ func TestOTPCRUD(t *testing.T) {
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
-func TestWebSessionWithoutAccessRequest(t *testing.T) {
+func (tt *authContext) TestWebSessionWithoutAccessRequest(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1346,11 +1304,8 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
+func (tt *authContext) TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -1460,11 +1415,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 }
 
 // TestGetCertAuthority tests certificate authority permissions
-func TestGetCertAuthority(t *testing.T) {
+func (tt *authContext) TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	// generate server keys for node
 	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
@@ -1524,11 +1478,8 @@ func TestGetCertAuthority(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestPluginData(t *testing.T) {
+func (tt *authContext) TestPluginData(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
@@ -1616,7 +1567,7 @@ func TestPluginData(t *testing.T) {
 
 // TestGenerateCerts tests edge cases around authorization of
 // certificate generation for servers and users
-func TestGenerateCerts(t *testing.T) {
+func (tt *authContext) TestGenerateCerts(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -2007,10 +1958,7 @@ func TestGenerateCerts(t *testing.T) {
 
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
-func TestGenerateAppToken(t *testing.T) {
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
+func (tt *authContext) TestGenerateAppToken(t *testing.T) {
 	authClient, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err)
 
@@ -2074,9 +2022,8 @@ func TestGenerateAppToken(t *testing.T) {
 
 // TestCertificateFormat makes sure that certificates are generated with the
 // correct format.
-func TestCertificateFormat(t *testing.T) {
+func (tt *authContext) TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
@@ -2148,11 +2095,10 @@ func TestCertificateFormat(t *testing.T) {
 
 // TestClusterConfigContext checks that the cluster configuration gets passed
 // along in the context and permissions get updated accordingly.
-func TestClusterConfigContext(t *testing.T) {
+func (tt *authContext) TestClusterConfigContext(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
@@ -2184,11 +2130,10 @@ func TestClusterConfigContext(t *testing.T) {
 }
 
 // TestAuthenticateWebUserOTP tests web authentication flow for password + OTP
-func TestAuthenticateWebUserOTP(t *testing.T) {
+func (tt *authContext) TestAuthenticateWebUserOTP(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -2269,11 +2214,8 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 
 // TestLoginAttempts makes sure the login attempt counter is incremented and
 // reset correctly.
-func TestLoginAttempts(t *testing.T) {
+func (tt *authContext) TestLoginAttempts(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -2316,11 +2258,10 @@ func TestLoginAttempts(t *testing.T) {
 	require.Len(t, loginAttempts, 0)
 }
 
-func TestChangeUserAuthenticationSettings(t *testing.T) {
+func (tt *authContext) TestChangeUserAuthenticationSettings(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
@@ -2374,11 +2315,10 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
 // performed when local auth is disabled.
-func TestLoginNoLocalAuth(t *testing.T) {
+func (tt *authContext) TestLoginNoLocalAuth(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	user := "foo"
 	pass := []byte("barbaz")
@@ -2425,10 +2365,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.
-func TestCipherSuites(t *testing.T) {
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
+func (tt *authContext) TestCipherSuites(t *testing.T) {
 	otherServer, err := tt.server.AuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer otherServer.Close()
@@ -2460,11 +2397,10 @@ func TestCipherSuites(t *testing.T) {
 }
 
 // TestTLSFailover tests HTTP client failover between two tls servers
-func TestTLSFailover(t *testing.T) {
+func (tt *authContext) TestTLSFailover(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	otherServer, err := tt.server.AuthServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -2505,11 +2441,10 @@ func TestTLSFailover(t *testing.T) {
 
 // TestRegisterCAPin makes sure that registration only works with a valid
 // CA pin.
-func TestRegisterCAPin(t *testing.T) {
+func (tt *authContext) TestRegisterCAPin(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
 	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
@@ -2644,83 +2579,10 @@ func TestRegisterCAPin(t *testing.T) {
 
 // TestRegisterCAPath makes sure registration only works with a valid CA
 // file on disk.
-func TestRegisterCAPath(t *testing.T) {
+func (tt *authContext) TestRegisterCAPath(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
-
-	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
-	// Attempt to register with nothing at the CA path, should work.
-	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
-		ID: IdentityID{
-			HostUUID: "once",
-			NodeName: "node-name",
-			Role:     types.RoleProxy,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
-		Clock:                tt.clock,
-	})
-	require.NoError(t, err)
-
-	// Extract the root CA public key and write it out to the data dir.
-	hostCA, err := tt.server.AuthServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.AuthServer.ClusterName,
-		Type:       types.HostCA,
-	}, false)
-	require.NoError(t, err)
-	certs := services.GetTLSCerts(hostCA)
-	require.Len(t, certs, 1)
-	certPem := certs[0]
-	caPath := filepath.Join(tt.dataDir, defaults.CACertFile)
-	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
-	require.NoError(t, err)
-
-	// Attempt to register with valid CA path, should work.
-	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
-		Token:   token,
-		ID: IdentityID{
-			HostUUID: "once",
-			NodeName: "node-name",
-			Role:     types.RoleProxy,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
-		CAPath:               caPath,
-		Clock:                tt.clock,
-	})
-	require.NoError(t, err)
-}
-
-// TestEventsNodePresence tests streaming node presence API -
-// announcing node and keeping node alive
-func TestEventsNodePresence(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
@@ -2791,11 +2653,10 @@ func TestEventsNodePresence(t *testing.T) {
 
 // TestEventsPermissions tests events with regards
 // to certificate authority rotation
-func TestEventsPermissions(t *testing.T) {
+func (tt *authContext) TestEventsPermissions(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestBuiltin(types.RoleNode))
 	require.NoError(t, err)
@@ -2909,11 +2770,8 @@ func TestEventsPermissions(t *testing.T) {
 }
 
 // TestEvents tests events suite
-func TestEvents(t *testing.T) {
+func (tt *authContext) TestEvents(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
@@ -2931,11 +2789,10 @@ func TestEvents(t *testing.T) {
 }
 
 // TestEventsClusterConfig test cluster configuration
-func TestEventsClusterConfig(t *testing.T) {
+func (tt *authContext) TestEventsClusterConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err)
@@ -3060,11 +2917,8 @@ func TestEventsClusterConfig(t *testing.T) {
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }
 
-func TestNetworkRestrictions(t *testing.T) {
+func (tt *authContext) TestNetworkRestrictions(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
