@@ -22,7 +22,7 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_groups:
-    - basic-viewers
+    - viewers
     kubernetes_users:
     - USER
   deny: {}
@@ -51,24 +51,31 @@ $ tctl create -f kube-user.yaml
 $ tctl create -f user.yaml
 ```
 
-Create a ClusterRoleBinding for the "basic-viewers" group:
+In order for the "viewers" group to have access to anything, it must be granted permissions in your kubernetes cluster.
+Create a file called `viewers-bind.yaml` with the following contents:
 
-```code
-$ cat <<EOF | kubectl apply -f -
+```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: basic-viewers-bind
+  name: viewers-bind
 subjects:
 - kind: Group
-  name: basic-viewers # corresponds to the kubernetes_group we assigned our "kube-user" role above
+  # Bind the group "viewers", corresponding to the kubernetes_groups we assigned our "kube-user" role above
+  name: viewers
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
-  name: view # A default ClusterRole with read-only access: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+  # "view" is a default ClusterRole which gives read-only access
+  # See: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+  name: view
   apiGroup: rbac.authorization.k8s.io
-EOF
+```
 
+Apply the ClusterRoleBinding with kubectl:
+
+```code
+$ kubectl apply -f viewers-bind.yaml
 ```
 
 Log out of Teleport and log in again.
