@@ -86,6 +86,16 @@ type License interface {
 	// SetSupportsResourceAccessRequests sets resource access requests support flag
 	SetSupportsResourceAccessRequests(Bool)
 
+	// GetMonthlyActiveUsers gets the max number of monthly active users
+	GetMonthlyActiveUsers() uint
+	// SetMonthlyActiveUsers sets the max number of monthly active users
+	SetMonthlyActiveUsers(uint)
+
+	// GetIsTrial returns the trial flag
+	GetIsTrial() Bool
+	// SetIsTrial sets the trial flag
+	SetIsTrial(Bool)
+
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
 
@@ -329,12 +339,39 @@ func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
 	c.Spec.SupportsResourceAccessRequests = value
 }
 
+// GetMonthlyActiveUsers gets the max number of monthly active users
+func (c *LicenseV3) GetMonthlyActiveUsers() uint {
+	return c.Spec.MonthlyActiveUsers
+}
+
+// SetMonthlyActiveUsers sets the max number of monthly active users
+func (c *LicenseV3) SetMonthlyActiveUsers(value uint) {
+	c.Spec.MonthlyActiveUsers = value
+}
+
+// GetIsTrial returns the trial flag
+func (c *LicenseV3) GetIsTrial() Bool {
+	return c.Spec.IsTrial
+}
+
+// SetIsTrial sets the trial flag
+func (c *LicenseV3) SetIsTrial(value Bool) {
+	c.Spec.IsTrial = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
 	}
+	if c.GetIsTrial() {
+		features = append(features, "is trial")
+	}
+	if c.GetMonthlyActiveUsers() != uint(0) {
+		features = append(features, fmt.Sprintf("monthly active users %v", c.GetMonthlyActiveUsers()))
+	}
+
 	if c.GetReportsUsage() {
 		features = append(features, "reports usage")
 	}
@@ -401,4 +438,8 @@ type LicenseSpecV3 struct {
 	SupportsMachineID Bool `json:"machine_id,omitempty"`
 	// SupportsResourceAccessRequests turns resource access request support on or off
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
+	// MonthlyActiveUsers is the max number of monthly active users
+	MonthlyActiveUsers uint `json:"monthly_active_users,omitempty"`
+	// IsTrial is true for trial licenses
+	IsTrial Bool `json:"is_trial,omitempty"`
 }
