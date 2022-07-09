@@ -17,7 +17,9 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/user"
 	"path"
@@ -126,6 +128,9 @@ func mkdir(p string) error {
 
 		log.Infof("Created directory %q", p)
 	} else if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
+		}
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
 		return trace.BadParameter("Path %q already exists and is not a directory", p)
