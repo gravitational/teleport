@@ -261,3 +261,12 @@ func (s DatabaseServers) Less(i, j int) bool {
 
 // Swap swaps two database servers.
 func (s DatabaseServers) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// ToDatabases converts database servers to a list of databases.
+func (s DatabaseServers) ToDatabases() []Database {
+	databases := make([]Database, 0, len(s))
+	for _, server := range s {
+		databases = append(databases, server.GetDatabase())
+	}
+	return databases
+}

@@ -496,6 +496,29 @@ func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*typ
 	return v2, nil
 }
 
+func (g *GRPCServer) GetCurrentUserRoles(_ *empty.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roles, err := auth.ServerWithRoles.GetCurrentUserRoles(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, role := range roles {
+		v4, ok := role.(*types.RoleV4)
+		if !ok {
+			log.Warnf("expected type RoleV4, got %T for role %q", role, role.GetName())
+			return trace.Errorf("encountered unexpected role type")
+		}
+
+		if err := stream.Send(v4); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {

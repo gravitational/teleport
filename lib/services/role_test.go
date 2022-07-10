@@ -18,8 +18,10 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -3989,4 +3991,126 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
 		})
 	}
+}
+
+type mockCurrentUserRoleGetter struct {
+	getCurrentUserError error
+	currentUser         types.User
+	nameToRole          map[string]types.Role
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
+	if m.getCurrentUserError != nil {
+		return nil, trace.Wrap(m.getCurrentUserError)
+	}
+	if m.currentUser != nil {
+		return m.currentUser, nil
+	}
+	return nil, trace.NotFound("currentUser not set")
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.nameToRole {
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, ok := m.nameToRole[name]; ok {
+		return role, nil
+	}
+	return nil, trace.NotFound("role not found: %v", name)
+}
+
+type mockCurrentUser struct {
+	types.User
+	roles  []string
+	traits wrappers.Traits
+}
+
+func (u mockCurrentUser) GetRoles() []string {
+	return u.roles
+}
+
+func (u mockCurrentUser) GetTraits() map[string][]string {
+	return u.traits
+}
+
+func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	user := mockCurrentUser{
+		roles: []string{"dev", "admin"},
+		traits: map[string][]string{
+			"logins": {"currentUserTraitLogin"},
+		},
+	}
+
+	devRole := newRole(func(r *types.RoleV4) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	adminRole := newRole(func(r *types.RoleV4) {
+		r.Metadata.Name = "admin"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev":   &devRole,
+			"admin": &adminRole,
+		},
+		currentUser: user,
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	// After sort: "admin","default-implicit-role","dev"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
+	require.Contains(t, roleSet, &devRole, "devRole not found in roleSet")
+	require.Contains(t, roleSet, &adminRole, "adminRole not found in roleSet")
+	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[2].GetLogins(types.Allow))
+}
+
+func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailable(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	accessRole := newRole(func(r *types.RoleV4) {
+		r.Metadata.Name = "access"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	editorRole := newRole(func(r *types.RoleV4) {
+		r.Metadata.Name = "editor"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		getCurrentUserError: trace.NotImplemented("GetCurrentUser not implemented on server"),
+		nameToRole: map[string]types.Role{
+			"access": &accessRole,
+			"editor": &editorRole,
+		},
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	// After sort: "access","default-implicit-role","editor"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
+	require.Contains(t, roleSet, &accessRole, "accessRole not found in roleSet")
+	require.Contains(t, roleSet, &editorRole, "editorRole not found in roleSet")
+	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
 }
