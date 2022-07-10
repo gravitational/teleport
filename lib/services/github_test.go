@@ -17,15 +17,17 @@ limitations under the License.
 package services
 
 import (
+	"testing"
+
 	"github.com/gravitational/teleport/api/types"
-	check "gopkg.in/check.v1"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-type GithubSuite struct{}
+func TestUnmarshal(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&GithubSuite{})
-
-func (g *GithubSuite) TestUnmarshal(c *check.C) {
 	data := []byte(`{"kind": "github",
 "version": "v3",
 "metadata": {
@@ -43,7 +45,7 @@ func (g *GithubSuite) TestUnmarshal(c *check.C) {
   }]
 }}`)
 	connector, err := UnmarshalGithubConnector(data)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
@@ -57,11 +59,13 @@ func (g *GithubSuite) TestUnmarshal(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(expected, check.DeepEquals, connector)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, connector))
 }
 
-func (g *GithubSuite) TestMapClaims(c *check.C) {
+func TestMapClaims(t *testing.T) {
+	t.Parallel()
+
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
@@ -82,33 +86,41 @@ func (g *GithubSuite) TestMapClaims(c *check.C) {
 				KubeGroups:   []string{"kube-devs"},
 			},
 		},
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "gravitational",
+				Team:         "admins",
+				Roles:        []string{"system"},
+			},
+		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	logins, kubeGroups, kubeUsers := connector.MapClaims(types.GithubClaims{
+	roles, kubeGroups, kubeUsers := connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"admins"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"admin", "dev"})
-	c.Assert(kubeGroups, check.DeepEquals, []string{"system:masters", "kube-devs"})
-	c.Assert(kubeUsers, check.DeepEquals, []string{"alice@example.com"})
+	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "system"}))
+	require.Empty(t, cmp.Diff(kubeGroups, []string{"system:masters", "kube-devs"}))
+	require.Empty(t, cmp.Diff(kubeUsers, []string{"alice@example.com"}))
 
-	logins, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
+	roles, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"devs"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"dev", "test"})
-	c.Assert(kubeGroups, check.DeepEquals, []string{"kube-devs"})
-	c.Assert(kubeUsers, check.DeepEquals, []string(nil))
 
-	logins, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
+	require.Empty(t, cmp.Diff(roles, []string{"dev", "test"}))
+	require.Empty(t, cmp.Diff(kubeGroups, []string{"kube-devs"}))
+	require.Empty(t, cmp.Diff(kubeUsers, []string(nil)))
+
+	roles, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
 		OrganizationToTeams: map[string][]string{
 			"gravitational": {"admins", "devs"},
 		},
 	})
-	c.Assert(logins, check.DeepEquals, []string{"admin", "dev", "test"})
-	c.Assert(kubeGroups, check.DeepEquals, []string{"system:masters", "kube-devs"})
-	c.Assert(kubeUsers, check.DeepEquals, []string{"alice@example.com"})
+	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "test", "system"}))
+	require.Empty(t, cmp.Diff(kubeGroups, []string{"system:masters", "kube-devs"}))
+	require.Empty(t, cmp.Diff(kubeUsers, []string{"alice@example.com"}))
 }

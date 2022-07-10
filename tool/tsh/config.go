@@ -103,7 +103,7 @@ func onConfig(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	rootClusterName, rootErr := proxyClient.RootClusterName()
+	rootClusterName, rootErr := proxyClient.RootClusterName(cf.Context)
 	leafClusters, leafErr := proxyClient.GetLeafClusters(cf.Context)
 	if err := trace.NewAggregate(rootErr, leafErr); err != nil {
 		return trace.Wrap(err)

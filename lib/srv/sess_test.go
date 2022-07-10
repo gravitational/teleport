@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -521,17 +522,29 @@ func TestSessionRecordingModes(t *testing.T) {
 			}
 
 			// Wait until the session is stopped.
-			require.Eventually(t, sess.isStopped, time.Second, time.Millisecond*500)
+			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 
-			// Ensure all non-print events were emitted properly.
-			emittedEvents := srv.Events()
-			eventsTypes := make([]string, len(emittedEvents))
-			for i, e := range emittedEvents {
-				eventsTypes[i] = e.GetType()
+			// Wait until server receives all non-print events.
+			checkEventsReceived := func() bool {
+				expectedEventTypes := []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+				}
+
+				emittedEvents := srv.Events()
+				if len(emittedEvents) != len(expectedEventTypes) {
+					return false
+				}
+
+				// Events can appear in different orders. Use a set to track.
+				eventsNotReceived := utils.StringsSet(expectedEventTypes)
+				for _, e := range emittedEvents {
+					delete(eventsNotReceived, e.GetType())
+				}
+				return len(eventsNotReceived) == 0
 			}
-
-			// Guarantee server received non-print events.
-			require.ElementsMatch(t, eventsTypes, []string{events.SessionStartEvent, events.SessionLeaveEvent, events.SessionEndEvent})
+			require.Eventually(t, checkEventsReceived, time.Second*5, time.Millisecond*500, "Some events are not received.")
 		})
 	}
 }

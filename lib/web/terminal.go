@@ -84,6 +84,7 @@ type TerminalRequest struct {
 type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -116,6 +117,17 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
+	var join bool
+	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
+	switch {
+	case trace.IsNotFound(err):
+		join = false
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		join = true
+	}
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -129,6 +141,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
+		join:         join,
 	}, nil
 }
 
@@ -178,6 +191,9 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
+
+	// join is set if we're joining an existing session
+	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -301,8 +317,13 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
+	if t.join {
+		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
+	} else {
+		clientConfig.HostLogin = t.params.Login
+	}
+
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream

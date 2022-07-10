@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"time"
@@ -86,6 +87,10 @@ type SessionRegistry struct {
 	// is closing.
 	sessions    map[rsession.ID]*session
 	sessionsMux sync.Mutex
+
+	// users is used for automatic user creation when new sessions are
+	// started
+	users HostUsers
 }
 
 type SessionRegistryConfig struct {
@@ -136,6 +141,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 			trace.Component: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
 		sessions: make(map[rsession.ID]*session),
+		users:    cfg.Srv.GetHostUsers(),
 	}, nil
 }
 
@@ -174,10 +180,40 @@ func (s *SessionRegistry) Close() {
 	s.log.Debug("Closing Session Registry.")
 }
 
-// OpenSession either joins an existing session or starts a new session.
+func (s *SessionRegistry) tryCreateHostUser(ctx *ServerContext) (*user.User, error) {
+	if !ctx.srv.GetCreateHostUser() || s.users == nil {
+		return nil, nil // not an error to not be able to create a host user
+	}
+
+	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
+	if err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, nil
+		}
+		log.Debug("Error while checking host users creation permission: ", err)
+		return nil, trace.Wrap(err)
+	}
+
+	tempUser, existsErr := s.users.UserExists(ctx.Identity.Login)
+	if trace.IsAccessDenied(err) && existsErr != nil {
+		return tempUser,
+			trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+	}
+	tempUser, userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
+		return nil, trace.Wrap(err)
+	}
+	if userCloser != nil {
+		ctx.AddCloser(userCloser)
+	}
+	return tempUser, nil
+}
+
+// OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error {
 	session := ctx.getSession()
-	if session != nil {
+	if session != nil && !session.isStopped() {
 		ctx.Infof("Joining existing session %v.", session.id)
 
 		mode := types.SessionParticipantMode(ctx.env[teleport.EnvSSHJoinMode])
@@ -220,9 +256,13 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error 
 	s.addSession(sess)
 	ctx.Infof("Creating (interactive) session %v.", sid)
 
+	tempUser, err := s.tryCreateHostUser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	if err := sess.startInteractive(ch, ctx); err != nil {
+	if err := sess.startInteractive(ch, ctx, tempUser); err != nil {
 		sess.Close()
 		return trace.Wrap(err)
 	}
@@ -255,7 +295,13 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, ctx *ServerContex
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	ctx.setSession(sess)
-	err = sess.startExec(channel, ctx)
+
+	tempUser, err := s.tryCreateHostUser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = sess.startExec(channel, ctx, tempUser)
 	if err != nil {
 		sess.Close()
 		return trace.Wrap(err)
@@ -498,7 +544,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if existing.Login != rsess.Login {
+			if existing.Login != rsess.Login && rsess.Login != teleport.SSHSessionJoinPrincipal {
 				return nil, trace.AccessDenied(
 					"can't switch users from %v to %v for session %v",
 					rsess.Login, existing.Login, id)
@@ -524,7 +570,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
-		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, ctx.Identity.TeleportUser),
 		scx:                            ctx,
 		presenceEnabled:                ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 		io:                             NewTermManager(),
@@ -605,10 +651,6 @@ func (s *session) Stop() {
 
 	// close io copy loops
 	s.io.Close()
-
-	// remove session from server context to prevent new requests
-	// from attempting to join the session during cleanup
-	s.scx.setSession(nil)
 
 	// Close and kill terminal
 	if s.term != nil {
@@ -976,7 +1018,7 @@ func (s *session) launch(ctx *ServerContext) error {
 
 // startInteractive starts a new interactive process (or a shell) in the
 // current session.
-func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
+func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser *user.User) error {
 	inReader, inWriter := io.Pipe()
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
@@ -1029,11 +1071,18 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 		}()
 	}
 
-	if err := s.addParty(p, types.SessionPeerMode); err != nil {
-		return trace.Wrap(err)
-	}
-
 	ctx.Debug("Waiting for continue signal")
+
+	if tempUser != nil {
+		sessionUser, err := user.Lookup(ctx.Identity.Login)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if sessionUser.Uid != tempUser.Uid {
+			return trace.Errorf("UID changed between session start and terminal start: start(%s) != now(%s)",
+				tempUser.Uid, sessionUser.Uid)
+		}
+	}
 
 	// Process has been placed in a cgroup, continue execution.
 	s.term.Continue()
@@ -1140,7 +1189,7 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 	return rec, nil
 }
 
-func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
+func (s *session) startExec(channel ssh.Channel, ctx *ServerContext, tempUser *user.User) error {
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(ctx)
 
@@ -1179,6 +1228,17 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
 		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+	}
+
+	if tempUser != nil {
+		sessionUser, err := user.Lookup(ctx.Identity.Login)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if sessionUser.Uid != tempUser.Uid {
+			return trace.Errorf("UID changed between session start and terminal start: start(%s) != now(%s)",
+				tempUser.Uid, sessionUser.Uid)
+		}
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -1322,6 +1382,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	return nil
 }
 
+// isStopped does not need to be called under sessionLock
 func (s *session) isStopped() bool {
 	select {
 	case <-s.stopC:
@@ -1476,7 +1537,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.login != p.login {
+	if s.login != p.login && p.login != teleport.SSHSessionJoinPrincipal {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
 			s.login, p.login, s.id)
@@ -1569,7 +1630,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
 		accessContext := auth.SessionAccessContext{
-			Roles: ctx.Identity.AccessChecker.Roles(),
+			Username: ctx.Identity.TeleportUser,
+			Roles:    ctx.Identity.AccessChecker.Roles(),
 		}
 
 		modes := s.access.CanJoin(accessContext)
@@ -1693,18 +1755,13 @@ func (p *party) closeUnderSessionLock() {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:   s.id.String(),
-		Kind:        string(types.SSHSessionKind),
-		State:       types.SessionState_SessionStatePending,
-		Hostname:    s.registry.Srv.GetInfo().GetHostname(),
-		Address:     s.scx.srv.ID(),
-		ClusterName: s.scx.ClusterName,
-		Login:       s.login,
-		Participants: []types.Participant{{
-			ID:         teleportUser,
-			User:       teleportUser,
-			LastActive: s.registry.clock.Now(),
-		}},
+		SessionID:    s.id.String(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStatePending,
+		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
+		Address:      s.scx.srv.ID(),
+		ClusterName:  s.scx.ClusterName,
+		Login:        s.login,
 		HostUser:     teleportUser,
 		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,
