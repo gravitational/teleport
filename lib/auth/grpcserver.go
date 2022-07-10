@@ -507,7 +507,13 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *empty.Empty, stream proto.AuthServic
 			log.Warnf("expected type RoleV5, got %T for role %q", role, role.GetName())
 			return trace.Errorf("encountered unexpected role type")
 		}
-		if err := stream.Send(v5); err != nil {
+
+		downgraded, err := downgradeRole(stream.Context(), v5)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := stream.Send(downgraded); err != nil {
 			return trace.Wrap(err)
 		}
 	}
