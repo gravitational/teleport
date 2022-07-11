@@ -273,6 +273,7 @@ type Config struct {
 // If the value stored points to a file, it will attempt to read the token value from the file
 // and return an error if it wasn't successful
 // If the value stored doesn't point to a file, it'll return the value stored
+// If the token hasn't been set, an empty string will be returned
 func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
@@ -284,11 +285,7 @@ func (cfg *Config) Token() (string, error) {
 
 // SetToken stores the value for --token or auth_token in the config
 //
-// In the case of the token value pointing to a file, this allows us to
-// fetch the value of the token when it's needed (when connecting for the first time)
-// instead of trying to read the file every time that teleport is launched.
-// This means we can allow temporary token files that are removed after teleport has
-// successfully connected the first time.
+// This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
 }
