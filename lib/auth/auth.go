@@ -192,24 +192,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	services := &Services{
-		Trust:                  cfg.Trust,
-		Presence:               cfg.Presence,
-		Provisioner:            cfg.Provisioner,
-		Identity:               cfg.Identity,
-		Access:                 cfg.Access,
-		DynamicAccessExt:       cfg.DynamicAccessExt,
-		ClusterConfiguration:   cfg.ClusterConfiguration,
-		Restrictions:           cfg.Restrictions,
-		Apps:                   cfg.Apps,
-		Databases:              cfg.Databases,
-		IAuditLog:              cfg.AuditLog,
-		Events:                 cfg.Events,
-		WindowsDesktops:        cfg.WindowsDesktops,
-		SessionTrackerService:  cfg.SessionTrackerService,
-		Enforcer:               cfg.Enforcer,
-		ConnectionsDiagnostic:  cfg.ConnectionsDiagnostic,
-		Status:                 cfg.Status,
-		AssertionReplayService: cfg.AssertionReplayService,
+		Trust:                 cfg.Trust,
+		Presence:              cfg.Presence,
+		Provisioner:           cfg.Provisioner,
+		Identity:              cfg.Identity,
+		Access:                cfg.Access,
+		DynamicAccessExt:      cfg.DynamicAccessExt,
+		ClusterConfiguration:  cfg.ClusterConfiguration,
+		Restrictions:          cfg.Restrictions,
+		Apps:                  cfg.Apps,
+		Databases:             cfg.Databases,
+		IAuditLog:             cfg.AuditLog,
+		Events:                cfg.Events,
+		WindowsDesktops:       cfg.WindowsDesktops,
+		SessionTrackerService: cfg.SessionTrackerService,
+		Enforcer:              cfg.Enforcer,
+		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
+		Status:                cfg.Status,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -226,7 +225,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend),
+		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
@@ -264,7 +263,6 @@ type Services struct {
 	services.Status
 	types.Events
 	events.IAuditLog
-	*local.AssertionReplayService
 }
 
 // GetWebSession returns existing web session described by req.
