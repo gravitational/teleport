@@ -26,8 +26,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -99,9 +99,9 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 	// Traits need to be set to silence "failed to find roles or traits" warning
 	user.SetTraits(map[string][]string{
-		teleport.TraitLogins:     {},
-		teleport.TraitKubeUsers:  {},
-		teleport.TraitKubeGroups: {},
+		constants.TraitLogins:     {},
+		constants.TraitKubeUsers:  {},
+		constants.TraitKubeGroups: {},
 	})
 
 	if err := s.CreateUser(ctx, user); err != nil {

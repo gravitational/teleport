@@ -193,7 +193,10 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
+			roundtrip.HTTPClient(&http.Client{
+				Timeout:   defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+			}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -1511,6 +1514,9 @@ type IdentityService interface {
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
 	GetCurrentUser(ctx context.Context) (types.User, error)
+
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error

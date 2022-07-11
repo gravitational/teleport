@@ -39,8 +39,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudflare/cfssl/log"
-	"github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -55,19 +55,26 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/common"
+
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 type integrationTestSuite struct {
@@ -164,7 +171,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.DisableCreateHostUser = true
 
-	teleport := suite.NewTeleportInstance(t)
+	teleport := suite.NewTeleportInstance()
 
 	role := services.NewImplicitRole()
 	ro := role.GetOptions()
@@ -3242,6 +3249,28 @@ func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 	require.Len(t, conns, expectedCount)
 }
 
+// waitAppServerTunnel waits for application server tunnel connections.
+func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
+	t.Helper()
+	cluster, err := tunnel.GetSite(clusterName)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		conn, err := cluster.Dial(reversetunnel.DialParams{
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
+			ConnType: types.AppTunnel,
+		})
+		if err != nil {
+			return false
+		}
+
+		require.NoError(t, conn.Close())
+		return true
+	}, 10*time.Second, time.Second)
+}
+
 // TestExternalClient tests if we can connect to a node in a Teleport
 // cluster. Both normal and recording proxies are tested.
 func testExternalClient(t *testing.T, suite *integrationTestSuite) {
@@ -4115,7 +4144,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	}
 }
 
-// // TestRotateTrustedClusters tests CA rotation support for trusted clusters
+// TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
@@ -5750,160 +5779,160 @@ func dumpGoroutineProfile() {
 	pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
 }
 
-// // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
-// func TestWebProxyInsecure(t *testing.T) {
-// 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-// 	require.NoError(t, err)
+// TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
+func TestWebProxyInsecure(t *testing.T) {
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
 
-// 	rc := helpers.NewInstance(helpers.InstanceConfig{
-// 		ClusterName: "example.com",
-// 		HostID:      uuid.New().String(),
-// 		NodeName:    Host,
-// 		Priv:        privateKey,
-// 		Pub:         publicKey,
-// 		Log:         utils.NewLoggerForTests(),
-// 	})
+	rc := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: "example.com",
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         utils.NewLoggerForTests(),
+	})
 
-// 	rcConf := service.MakeDefaultConfig()
-// 	rcConf.DataDir = t.TempDir()
-// 	rcConf.Auth.Enabled = true
-// 	rcConf.Auth.Preference.SetSecondFactor("off")
-// 	rcConf.Proxy.Enabled = true
-// 	rcConf.Proxy.DisableWebInterface = true
-// 	// DisableTLS flag should turn off TLS termination and multiplexing.
-// 	rcConf.Proxy.DisableTLS = true
-// 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	// DisableTLS flag should turn off TLS termination and multiplexing.
+	rcConf.Proxy.DisableTLS = true
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-// 	err = rc.CreateEx(t, nil, rcConf)
-// 	require.NoError(t, err)
+	err = rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
 
-// 	err = rc.Start()
-// 	require.NoError(t, err)
-// 	t.Cleanup(func() {
-// 		rc.StopAll()
-// 	})
+	err = rc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		rc.StopAll()
+	})
 
-// 	// Web proxy endpoint should just respond with 200 when called over http://,
-// 	// content doesn't matter.
-// 	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", net.JoinHostPort(Loopback, rc.GetPortWeb())))
-// 	require.NoError(t, err)
-// 	require.Equal(t, http.StatusOK, resp.StatusCode)
-// 	require.NoError(t, resp.Body.Close())
-// }
+	// Web proxy endpoint should just respond with 200 when called over http://,
+	// content doesn't matter.
+	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", net.JoinHostPort(Loopback, rc.GetPortWeb())))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+}
 
-// // TestTraitsPropagation makes sure that user traits are applied properly to
-// // roles in root and leaf clusters.
-// func TestTraitsPropagation(t *testing.T) {
-// 	log := utils.NewLoggerForTests()
+// TestTraitsPropagation makes sure that user traits are applied properly to
+// roles in root and leaf clusters.
+func TestTraitsPropagation(t *testing.T) {
+	log := utils.NewLoggerForTests()
 
-// 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-// 	require.NoError(t, err)
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
 
-// 	// Create root cluster.
-// 	rc := helpers.NewInstance(helpers.InstanceConfig{
-// 		ClusterName: "root.example.com",
-// 		HostID:      uuid.New().String(),
-// 		NodeName:    Host,
-// 		Priv:        privateKey,
-// 		Pub:         publicKey,
-// 		Log:         log,
-// 	})
+	// Create root cluster.
+	rc := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         log,
+	})
 
-// 	// Create leaf cluster.
-// 	lc := helpers.NewInstance(helpers.InstanceConfig{
-// 		ClusterName: "leaf.example.com",
-// 		HostID:      uuid.New().String(),
-// 		NodeName:    Host,
-// 		Priv:        privateKey,
-// 		Pub:         publicKey,
-// 		Log:         log,
-// 	})
+	// Create leaf cluster.
+	lc := helpers.NewInstance(helpers.InstanceConfig{
+		ClusterName: "leaf.example.com",
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         log,
+	})
 
-// 	// Make root cluster config.
-// 	rcConf := service.MakeDefaultConfig()
-// 	rcConf.DataDir = t.TempDir()
-// 	rcConf.Auth.Enabled = true
-// 	rcConf.Auth.Preference.SetSecondFactor("off")
-// 	rcConf.Proxy.Enabled = true
-// 	rcConf.Proxy.DisableWebService = true
-// 	rcConf.Proxy.DisableWebInterface = true
-// 	rcConf.SSH.Enabled = true
-// 	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
-// 	rcConf.SSH.Labels = map[string]string{"env": "integration"}
-// 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	// Make root cluster config.
+	rcConf := service.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebService = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = true
+	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+	rcConf.SSH.Labels = map[string]string{"env": "integration"}
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-// 	// Make leaf cluster config.
-// 	lcConf := service.MakeDefaultConfig()
-// 	lcConf.DataDir = t.TempDir()
-// 	lcConf.Auth.Enabled = true
-// 	lcConf.Auth.Preference.SetSecondFactor("off")
-// 	lcConf.Proxy.Enabled = true
-// 	lcConf.Proxy.DisableWebInterface = true
-// 	lcConf.SSH.Enabled = true
-// 	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
-// 	lcConf.SSH.Labels = map[string]string{"env": "integration"}
-// 	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	// Make leaf cluster config.
+	lcConf := service.MakeDefaultConfig()
+	lcConf.DataDir = t.TempDir()
+	lcConf.Auth.Enabled = true
+	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Proxy.Enabled = true
+	lcConf.Proxy.DisableWebInterface = true
+	lcConf.SSH.Enabled = true
+	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+	lcConf.SSH.Labels = map[string]string{"env": "integration"}
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-// 	// Create identical user/role in both clusters.
-// 	me, err := user.Current()
-// 	require.NoError(t, err)
+	// Create identical user/role in both clusters.
+	me, err := user.Current()
+	require.NoError(t, err)
 
-// 	role := services.NewImplicitRole()
-// 	role.SetName("test")
-// 	role.SetLogins(types.Allow, []string{me.Username})
-// 	// Users created by CreateEx have "testing: integration" trait.
-// 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
+	role := services.NewImplicitRole()
+	role.SetName("test")
+	role.SetLogins(types.Allow, []string{me.Username})
+	// Users created by CreateEx have "testing: integration" trait.
+	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"env": []string{"{{external.testing}}"}})
 
-// 	rc.AddUserWithRole(me.Username, role)
-// 	lc.AddUserWithRole(me.Username, role)
+	rc.AddUserWithRole(me.Username, role)
+	lc.AddUserWithRole(me.Username, role)
 
-// 	// Establish trust b/w root and leaf.
-// 	err = rc.CreateEx(t, lc.Secrets.AsSlice(), rcConf)
-// 	require.NoError(t, err)
-// 	err = lc.CreateEx(t, rc.Secrets.AsSlice(), lcConf)
-// 	require.NoError(t, err)
+	// Establish trust b/w root and leaf.
+	err = rc.CreateEx(t, lc.Secrets.AsSlice(), rcConf)
+	require.NoError(t, err)
+	err = lc.CreateEx(t, rc.Secrets.AsSlice(), lcConf)
+	require.NoError(t, err)
 
-// 	// Start both clusters.
-// 	require.NoError(t, rc.Start())
-// 	t.Cleanup(func() {
-// 		rc.StopAll()
-// 	})
-// 	require.NoError(t, lc.Start())
-// 	t.Cleanup(func() {
-// 		lc.StopAll()
-// 	})
+	// Start both clusters.
+	require.NoError(t, rc.Start())
+	t.Cleanup(func() {
+		rc.StopAll()
+	})
+	require.NoError(t, lc.Start())
+	t.Cleanup(func() {
+		lc.StopAll()
+	})
 
-// 	// Update root's certificate authority on leaf to configure role mapping.
-// 	ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
-// 		Type:       types.UserCA,
-// 		DomainName: rc.Secrets.SiteName,
-// 	}, false)
-// 	require.NoError(t, err)
-// 	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
-// 	ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-// 	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
-// 	require.NoError(t, err)
+	// Update root's certificate authority on leaf to configure role mapping.
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: rc.Secrets.SiteName,
+	}, false)
+	require.NoError(t, err)
+	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
+	ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
+	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+	require.NoError(t, err)
 
-// 	// Run command in root.
-// 	outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
-// 		Login:   me.Username,
-// 		Cluster: "root.example.com",
-// 		Host:    Loopback,
-// 		Port:    rc.GetPortSSHInt(),
-// 	}, 1)
-// 	require.NoError(t, err)
-// 	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
+	// Run command in root.
+	outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
+		Login:   me.Username,
+		Cluster: "root.example.com",
+		Host:    Loopback,
+		Port:    rc.GetPortSSHInt(),
+	}, 1)
+	require.NoError(t, err)
+	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
 
-// 	// Run command in leaf.
-// 	outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
-// 		Login:   me.Username,
-// 		Cluster: "leaf.example.com",
-// 		Host:    Loopback,
-// 		Port:    lc.GetPortSSHInt(),
-// 	}, 1)
-// 	require.NoError(t, err)
-// 	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
-// }
+	// Run command in leaf.
+	outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
+		Login:   me.Username,
+		Cluster: "leaf.example.com",
+		Host:    Loopback,
+		Port:    lc.GetPortSSHInt(),
+	}, 1)
+	require.NoError(t, err)
+	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
+}
 
 // testSessionStreaming tests streaming events from session recordings.
 func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
@@ -6388,4 +6417,95 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testSFTP(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport instance.
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	client, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// Create SFTP session.
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
+
+	// Create file that will be uploaded and downloaded.
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "testfile")
+	testFile, err := os.Create(testFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
+
+	_, err = testFile.WriteString("This is test data.")
+	require.NoError(t, err)
+	require.NoError(t, testFile.Sync())
+
+	// Test stat'ing a file.
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
+
+	// Test downloading a file.
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
+
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
+
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
+
+	// Test uploading a file.
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
+
+	// Ensure SFTP audit events are present.
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+	require.NoError(t, err)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }

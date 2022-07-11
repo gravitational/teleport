@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -120,6 +121,11 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{DB: true},
+	})
+
 	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
 		&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_ProxyPeering{
@@ -226,11 +232,17 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 		require.Fail(t, "load balancer already initialized")
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, helpers.NewPortStr()))
-	lb, err := utils.NewLoadBalancer(context.Background(), *lbAddr)
+	lb, err := utils.NewRandomLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
 	require.NoError(t, lb.Listen())
+	t.Cleanup(func() {
+		require.NoError(t, lb.Close())
+	})
 	go lb.Serve()
 
 	p.lb = lb
@@ -260,6 +272,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
+	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
 

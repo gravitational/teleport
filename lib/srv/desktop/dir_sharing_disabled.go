@@ -19,6 +19,6 @@ limitations under the License.
 
 package desktop
 
-func allowDirectorySharing() bool {
+func AllowDirectorySharing() bool {
 	return false
 }
