@@ -214,8 +214,11 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
+
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
+	// awsInviteToken used to fill the default installer script
+	awsInviteToken string
 }
 
 // GetClock returns server clock implementation
@@ -661,9 +664,10 @@ func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 }
 
 // SetAWSMatchers sets the matchers used for matching EC2 instances
-func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
+func SetAWSMatchers(matchers []services.AWSMatcher, token string) ServerOption {
 	return func(s *Server) error {
 		s.awsMatchers = matchers
+		s.awsInviteToken = token
 		return nil
 	}
 }

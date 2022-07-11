@@ -996,7 +996,7 @@ type SSH struct {
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
 
 	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	AWSMatchers *AWSMatcherConf `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1174,9 +1174,9 @@ type ResourceMatcher struct {
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
-// AWSMatcher matches AWS databases.
+// AWSMatcher matches AWS databases and EC2 instances.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// Types are AWS service types to match, "ec2", "rds", "redshift", "elasticache",
 	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
@@ -1186,6 +1186,15 @@ type AWSMatcher struct {
 	// SSMDocument is the ssm command document to execute for EC2
 	// installation
 	SSMDocument string `yaml:"ssm_command_document"`
+}
+
+// AWSMatcherConf is used to configure and set aws matchers.
+type AWSMatcherConf struct {
+	// InviteToken is the token to use when generating the teleport
+	// install script.
+	InviteToken string `yaml:"invite_token,omitempty"`
+	// AWSMatchers matches AWS databases and EC2 instances.
+	AWSMatchers []AWSMatcher `yaml:"matchers,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

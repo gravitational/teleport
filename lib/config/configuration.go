@@ -1044,7 +1044,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
-	for _, matcher := range fc.SSH.AWSMatchers {
+	cfg.SSH.AWSInviteToken = fc.SSH.AWSMatchers.InviteToken
+	for _, matcher := range fc.SSH.AWSMatchers.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{
 				Types:       matcher.Types,
