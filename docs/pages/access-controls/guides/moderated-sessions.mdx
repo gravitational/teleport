@@ -196,7 +196,7 @@ By default, Teleport treats an empty string in this field as the same as `termin
 That is, the session is terminated instantly and all participants are disconnected.
 
 If all require policies attached to the session owner are set to `"pause"`, the session will instead pause
-but the session will remain open. This discards all input from session participants and buffers output until the session can resume.
+but the session will remain open. This discards all input from session participants and buffers the most recent output until the session can resume.
 
 ## Backwards compatibility with Server Access
 
