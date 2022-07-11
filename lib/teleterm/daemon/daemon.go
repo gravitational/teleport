@@ -165,7 +165,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 // RemoveGateway removes cluster gateway
-func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
+func (s *Service) RemoveGateway(gatewayURI string) error {
 	gateway, err := s.FindGateway(gatewayURI)
 	if err != nil {
 		return trace.Wrap(err)
@@ -254,19 +254,19 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 }
 
 // ListGateways lists gateways
-func (s *Service) ListGateways(ctx context.Context) ([]*gateway.Gateway, error) {
+func (s *Service) ListGateways() []*gateway.Gateway {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// copy this slice to avoid race conditions when original slice gets modified
 	gateways := make([]*gateway.Gateway, len(s.gateways))
 	copy(gateways, s.gateways)
-	return gateways, nil
+	return gateways
 }
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
