@@ -89,8 +89,7 @@ func TestGatewayCRUD(t *testing.T) {
 			testFunc: func(
 				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
 			) {
-				gateways, err := daemon.ListGateways(context.Background())
-				require.NoError(t, err)
+				gateways := daemon.ListGateways()
 				require.Equal(t, 2, len(gateways))
 				require.Contains(t, gateways, nameToGateway["gateway1"])
 				require.Contains(t, gateways, nameToGateway["gateway2"])
@@ -104,7 +103,7 @@ func TestGatewayCRUD(t *testing.T) {
 			) {
 				gatewayToRemove := nameToGateway["gatewayToRemove"]
 				gatewayToKeep := nameToGateway["gatewayToKeep"]
-				err := daemon.RemoveGateway(context.Background(), gatewayToRemove.URI.String())
+				err := daemon.RemoveGateway(gatewayToRemove.URI.String())
 				require.NoError(t, err)
 
 				_, err = daemon.FindGateway(gatewayToRemove.URI.String())
