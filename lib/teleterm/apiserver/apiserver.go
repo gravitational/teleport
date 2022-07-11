@@ -16,6 +16,11 @@ package apiserver
 
 import (
 	"net"
+	"path/filepath"
+
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
 	"net/url"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
@@ -24,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // New creates an instance of API Server
@@ -46,7 +52,12 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(nil), grpc.ChainUnaryInterceptor(
+	keyPair, err := LoadKeyPair(cfg.CertsDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	grpcServer := grpc.NewServer(grpc.Creds(keyPair), grpc.ChainUnaryInterceptor(
 		withErrorHandling(cfg.Log),
 	))
 
@@ -72,16 +83,19 @@ func newListener(hostAddr string) (net.Listener, error) {
 		return nil, trace.BadParameter("invalid host address: %s", hostAddr)
 	}
 
-	if uri.Scheme != "unix" {
-		return nil, trace.BadParameter("invalid unix socket address: %s", hostAddr)
-	}
-
-	lis, err := net.Listen(uri.Scheme, uri.Path)
+	lis, err := net.Listen(uri.Scheme, getAddrByScheme(uri))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return lis, nil
+}
+
+func getAddrByScheme(uri *url.URL) string {
+	if uri.Scheme == "unix" {
+		return uri.Path
+	}
+	return uri.Host
 }
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.
@@ -91,4 +105,30 @@ type APIServer struct {
 	ls net.Listener
 	// grpc is an instance of grpc server
 	grpcServer *grpc.Server
+}
+
+func LoadKeyPair(certsDir string) (credentials.TransportCredentials, error) {
+	certificate, err := tls.LoadX509KeyPair(
+		filepath.Join(certsDir, "server.crt"), filepath.Join(certsDir, "server.key"))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to load server certificates")
+	}
+
+	caCert, err := ioutil.ReadFile(filepath.Join(certsDir, "ca.crt"))
+
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to read CA file")
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caCert) {
+		return nil, trace.Wrap(err, "failed to add CA file")
+	}
+
+	tlsConfig := &tls.Config{
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{certificate},
+		ClientCAs:    caPool,
+	}
+	return credentials.NewTLS(tlsConfig), nil
 }
