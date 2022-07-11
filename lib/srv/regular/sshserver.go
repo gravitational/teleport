@@ -19,6 +19,7 @@ limitations under the License.
 package regular
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -218,13 +220,17 @@ type Server struct {
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
 
+	// authClient is a client to the authentication service
+	authClient auth.ClientI
+
 	cloudWatcher *watchers.Watcher
+
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
 	// awsInviteToken used to fill the default installer script
 	awsInviteToken string
-	awsMatchers    []services.AWSMatcher
-	cloudClients   common.CloudClients
+	cloudClients   clients.CloudClients
+	authAddr       string
 }
 
 // GetClock returns server clock implementation
@@ -681,6 +687,13 @@ func SetAWSMatchers(matchers []services.AWSMatcher, token string) ServerOption {
 	}
 }
 
+func SetAuthServerAddr(addr string) ServerOption {
+	return func(s *Server) error {
+		s.authAddr = addr
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -797,6 +810,8 @@ func New(addr utils.NetAddr,
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
 	}
+
+	s.authClient = auth
 
 	if len(s.awsMatchers) != 0 {
 		s.cloudClients = clients.NewCloudClients()
@@ -1025,6 +1040,64 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
+}
+
+type installer struct {
+	AuthServer string
+	Token      string
+}
+
+// setScriptTemplates sets the script being served to a default option
+func (s *Server) setScriptTemplates() error {
+	osReleaseFile, err := os.Open("/etc/os-release")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rel, err := utils.OSRelease(osReleaseFile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	id, ok := rel["ID"]
+	if !ok {
+		return trace.NotFound("/etc/os-release did not contain an ID field")
+	}
+
+	inst := installer{
+		AuthServer: s.authAddr,
+		Token:      s.awsInviteToken,
+	}
+
+	buff := bytes.NewBuffer(nil)
+	switch id {
+	case constants.Debian, constants.Ubuntu:
+		err = web.DebInstallerTemplate.Execute(buff, &inst)
+	case constants.RHEL, constants.AmazonLinux2:
+		err = web.RpmInstallerTemplate.Execute(buff, &inst)
+	default:
+		err = trace.NotImplemented("Unsupported Linux distro: %s", id)
+	}
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	templated, err := io.ReadAll(buff)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(
+		s.authClient.SetInstaller(s.ctx, types.NewInstallerV1(string(templated))))
+}
+
+// setDefaultScript sets the script to a default if it isn't working
+func (s *Server) setDefaultScript() error {
+	inst, err := s.authClient.GetInstaller(s.ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if inst.GetScript() != "" {
+		return nil
+	}
+	return trace.Wrap(s.setScriptTemplates())
 }
 
 func (s *Server) handleEC2Discovery() {

@@ -2260,6 +2260,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		storagePresence := local.NewPresenceService(process.storage)
 
+		authAddr, err := process.AuthAddr()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2293,6 +2298,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetAWSMatchers(cfg.SSH.AWSMatchers, cfg.SSH.AWSInviteToken),
+			regular.SetAuthServer(authAddr.Addr),
 		)
 		if err != nil {
 			return trace.Wrap(err)

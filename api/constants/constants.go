@@ -270,3 +270,11 @@ const (
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
 )
+
+// /etc/os-release IDs
+const (
+	Ubuntu       = "ubuntu"
+	Debian       = "debian"
+	RHEL         = "rhel"
+	AmazonLinux2 = "amzn"
+)
