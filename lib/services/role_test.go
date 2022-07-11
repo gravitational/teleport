@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -4955,15 +4956,27 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 }
 
 type mockCurrentUserRoleGetter struct {
-	currentUser types.User
-	nameToRole  map[string]types.Role
+	getCurrentUserError error
+	currentUser         types.User
+	nameToRole          map[string]types.Role
 }
 
 func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
+	if m.getCurrentUserError != nil {
+		return nil, trace.Wrap(m.getCurrentUserError)
+	}
 	if m.currentUser != nil {
 		return m.currentUser, nil
 	}
 	return nil, trace.NotFound("currentUser not set")
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.nameToRole {
+		roles = append(roles, role)
+	}
+	return roles, nil
 }
 
 func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -5021,9 +5034,12 @@ func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T)
 
 	require.NoError(t, err)
 
+	// After sort: "admin","default-implicit-role","dev"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
 	require.Contains(t, roleSet, &devRole, "devRole not found in roleSet")
 	require.Contains(t, roleSet, &adminRole, "adminRole not found in roleSet")
-	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[0].GetLogins(types.Allow))
+	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[2].GetLogins(types.Allow))
 }
 
 func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailable(t *testing.T) {
@@ -5041,6 +5057,7 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	})
 
 	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		getCurrentUserError: trace.NotImplemented("GetCurrentUser not implemented on server"),
 		nameToRole: map[string]types.Role{
 			"access": &accessRole,
 			"editor": &editorRole,
@@ -5052,6 +5069,9 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 
 	require.NoError(t, err)
 
+	// After sort: "access","default-implicit-role","editor"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
 	require.Contains(t, roleSet, &accessRole, "accessRole not found in roleSet")
 	require.Contains(t, roleSet, &editorRole, "editorRole not found in roleSet")
 	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
