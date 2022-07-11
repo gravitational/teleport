@@ -602,6 +602,9 @@ type SSHConfig struct {
 	// SSH node.
 	DisableCreateHostUser bool
 
+	//AWSInviteToken is used to set the token in the default installer script
+	AWSInviteToken string
+
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
 }
