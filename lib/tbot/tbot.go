@@ -158,7 +158,11 @@ func (b *Bot) initialize(ctx context.Context) error {
 				fetchNewIdentity = hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes)
 			} else {
 				// we failed to get the token, we'll continue on trying to use the existing identity
+				b.log.Errorf("There was an error loading the token: %s", err)
+
 				fetchNewIdentity = false
+
+				b.log.Info("Using the last good identity")
 			}
 		}
 
