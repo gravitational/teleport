@@ -184,6 +184,14 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 
 // removeGateway assumes that mu is already held by a public method.
 func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+	// In case closing the gateway fails, we want to return early and leave the gateway in the map.
+	//
+	// This way the gateway will remain shown as available in the app. The user will see the error
+	// related to closing the gateway and will be able to attempt to close it again.
+	//
+	// This is preferable to removing the gateway from the hash map. Since Connect remembers the port
+	// used for a particular db server + username pair, the user would be able to reopen the same
+	// gateway on the occupied port only to see an error.
 	if err := gateway.Close(); err != nil {
 		return trace.Wrap(err)
 	}
