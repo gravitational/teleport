@@ -20,9 +20,74 @@ import (
 	"strings"
 )
 
-func promoteBuildPipeline() pipeline {
+func promoteBuildPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
-	return aptPipeline
+	dockerPipeline := promoteDockerPipeline()
+	return []pipeline{aptPipeline, dockerPipeline}
+}
+
+func promoteDockerPipeline() pipeline {
+	dockerPipeline := newKubePipeline("promote-docker")
+	dockerPipeline.Trigger = triggerPromote
+	dockerPipeline.Trigger.Target.Include = append(dockerPipeline.Trigger.Target.Include, "promote-docker")
+	dockerPipeline.Workspace = workspace{Path: "/go"}
+
+	// Add docker service
+	dockerPipeline.Services = []service{
+		dockerService(),
+	}
+	dockerPipeline.Volumes = dockerVolumes()
+
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
+
+	// Pull/Push Steps
+	dockerPipeline.Steps = append(dockerPipeline.Steps, step{
+		Name:  "Pull/retag Docker images",
+		Image: "docker",
+		Environment: map[string]value{
+			"AWS_ACCESS_KEY_ID":          {fromSecret: "TELEPORT_BUILD_USER_KEY"},
+			"AWS_SECRET_ACCESS_KEY":      {fromSecret: "TELEPORT_BUILD_USER_SECRET"},
+			"DOCKER_PRODUCTION_USERNAME": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
+			"DOCKER_PRODUCTION_PASSWORD": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
+		},
+		Volumes: dockerVolumeRefs(),
+		Commands: []string{
+			"apk add --no-cache aws-cli",
+			"export VERSION=${DRONE_TAG##v}",
+			// authenticate with staging credentials
+			"aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com",
+			// pull 'temporary' CI-built images
+			"echo \"---> Pulling images for $${VERSION}\"",
+			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}",
+			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}",
+			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips",
+			// retag images to production naming
+			"echo \"---> Tagging images for $${VERSION}\"",
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION} quay.io/gravitational/teleport:$${VERSION}",
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}",
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips",
+			//retag ECR images
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION} public.ecr.aws/gravitational/teleport:$${VERSION}",
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION} public.ecr.aws/gravitational/teleport-ent:$${VERSION}",
+			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips",
+			// authenticate with production credentials
+			"docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com",
+			"docker login -u=\"$DOCKER_PRODUCTION_USERNAME\" -p=\"$DOCKER_PRODUCTION_PASSWORD\" quay.io",
+			// push production images
+			"echo \"---> Pushing images for $${VERSION}\"",
+			"docker push quay.io/gravitational/teleport:$${VERSION}",
+			"docker push quay.io/gravitational/teleport-ent:$${VERSION}",
+			"docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips",
+			// push production images ECR
+			"aws ecr-public get-login-password --region=us-east-1 | docker login -u=\"AWS\" --password-stdin public.ecr.aws",
+			"docker push public.ecr.aws/gravitational/teleport:$${VERSION}",
+			"docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}",
+			"docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips",
+		},
+	})
+
+	return dockerPipeline
 }
 
 // Used for one-off migrations of older versions.
@@ -91,13 +156,7 @@ func promoteAptPipeline() pipeline {
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
 	steps := []step{
-		{
-			Name:  "Verify build is tagged",
-			Image: "alpine:latest",
-			Commands: []string{
-				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-			},
-		},
+		verifyTaggedBuildStep(),
 	}
 	steps = append(steps, p.Steps...)
 	steps = append(steps,
@@ -343,4 +402,14 @@ func aptToolCheckoutCommands(commit, checkoutPath string) []string {
 func updateDocsPipeline() pipeline {
 	// TODO: migrate
 	return pipeline{}
+}
+
+func verifyTaggedBuildStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
 }
