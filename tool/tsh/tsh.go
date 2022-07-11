@@ -475,6 +475,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
+
+	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
+	// shouldTerminate will be checked after app.Parse() call.
+	var shouldTerminate *int
+	app.Terminate(func(exitCode int) {
+		shouldTerminate = &exitCode
+	})
+
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
@@ -812,6 +820,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+
+	// handle: help command, --help flag, version command, ...
+	if shouldTerminate != nil {
+		os.Exit(*shouldTerminate)
+	}
+
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
 
