@@ -4739,18 +4739,17 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-    settings:
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_BUILD_USER_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_BUILD_USER_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make bash
+      - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
@@ -4765,19 +4764,18 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-    settings:
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_BUILD_USER_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_BUILD_USER_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:BUILDBOX_VERSION || true
+      - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       # VERSION needs to be set manually when running in the e directory.
       # Normally, the version is set and exported by the root Makefile and then inherited,
