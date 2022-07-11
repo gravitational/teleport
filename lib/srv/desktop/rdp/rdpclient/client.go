@@ -134,9 +134,8 @@ type Client struct {
 
 	// wg is used to wait for the input/output streaming
 	// goroutines to complete
-	wg          sync.WaitGroup
-	closeOnce   sync.Once
-	cleanupOnce sync.Once
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -547,13 +546,11 @@ func (c *Client) close() {
 // cleanup frees the Rust client and
 // frees the memory of the cgo.Handle.
 func (c *Client) cleanup() {
-	c.cleanupOnce.Do(func() {
-		// Let the Rust side free its data
-		C.free_rdp(c.rustClient)
+	// Let the Rust side free its data
+	C.free_rdp(c.rustClient)
 
-		// Release the memory of the cgo.Handle
-		c.handle.Delete()
-	})
+	// Release the memory of the cgo.Handle
+	c.handle.Delete()
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
