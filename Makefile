@@ -14,8 +14,9 @@
 VERSION=11.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
+DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
+DOCKER_IMAGE_CI ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -993,6 +994,12 @@ image: clean docker-binaries
 publish: image
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: publish-ecr
+publish-ecr: image
+	docker tag $(DOCKER_IMAGE) $(DOCKER_IMAGE_ECR)
+	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) _C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
