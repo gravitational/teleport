@@ -345,7 +345,7 @@ CI/CD pipeline.
 For this kind of automation, it is recommended to create a separate Teleport
 user for bots and request a certificate for them with a long time to live (TTL).
 
-In this example, we're creating a certificate with a TTL of one hour for the 
+In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
@@ -373,7 +373,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 [CLI Docs - tctl auth sign](../../setup/reference/cli.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
-(identity file) flag of `tsh`. 
+(identity file) flag of `tsh`.
 
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
@@ -627,6 +627,11 @@ other user can join you through their terminal by typing:
 $ tsh join <session_ID>
 ```
 
+The Teleport user joining the session must have access to the same SSH principal
+used to start the session. In this case, Teleport user `joe` is logged in to the
+SSH Node as Unix user `joe`, so only Teleport users with a role allowing login `joe`
+will be able to join.
+
 <Notice type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Notice>
@@ -744,7 +749,7 @@ so that it can communicate directly with your local display and I/O devices.
   The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
   in order to enable more "unsafe" features, such as running clipboard or
   screenshot utilities like `xclip`. However, it provides the server with
-  unmitigated access to your local X Server and puts your local machine at 
+  unmitigated access to your local X Server and puts your local machine at
   risk of X11 attacks, so it should only be used with extreme caution.
 </Notice>
 
