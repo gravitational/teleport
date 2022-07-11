@@ -13,14 +13,27 @@ import (
 )
 
 type MockedBackendGetter struct {
+	items map[string]backend.Item
+}
+
+func NewMockedBackendGetter() *MockedBackendGetter {
+	return &MockedBackendGetter{
+		items: make(map[string]backend.Item),
+	}
 }
 
 func (m *MockedBackendGetter) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	return nil, nil
+	if item, ok := m.items[string(key)]; ok {
+		return &item, nil
+	}
+	return nil, trace.NotFound("item %q not found", string(key))
 }
 
 func (m *MockedBackendGetter) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	return nil, nil
+	m.items[string(i.Key)] = i
+	return &backend.Lease{
+		Key: i.Key,
+	}, nil
 }
 
 func (m *MockedBackendGetter) Clock() clockwork.Clock {

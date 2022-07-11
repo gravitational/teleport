@@ -154,7 +154,7 @@ func createReporterMocks() (reporterMocks, error) {
 		Clock:          clockwork.NewFakeClock(),
 		CloudClient:    client,
 		ResourceGetter: apiGetters,
-		BackendGetter:  &MockedBackendGetter{},
+		BackendGetter:  NewMockedBackendGetter(),
 		Interval:       1 * time.Microsecond,
 	})
 
