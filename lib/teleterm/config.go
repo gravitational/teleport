@@ -55,8 +55,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if addr.Network() != "unix" {
-		return trace.BadParameter("only unix sockets are supported")
+	if !(addr.Network() == "unix" || addr.Network() == "tcp") {
+		return trace.BadParameter("only unix and tcp sockets are supported")
 	}
 
 	return nil
