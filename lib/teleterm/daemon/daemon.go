@@ -32,7 +32,8 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		cfg: &cfg,
+		cfg:      &cfg,
+		gateways: make(map[string]*gateway.Gateway),
 	}, nil
 }
 
@@ -159,7 +160,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		}
 	}()
 
-	s.gateways = append(s.gateways, gateway)
+	s.gateways[gateway.URI.String()] = gateway
 
 	return gateway, nil
 }
@@ -187,22 +188,16 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 		return trace.Wrap(err)
 	}
 
-	// remove closed gateway from list
-	for index := range s.gateways {
-		if s.gateways[index] == gateway {
-			s.gateways = append(s.gateways[:index], s.gateways[index+1:]...)
-			return nil
-		}
-	}
+	delete(s.gateways, gateway.URI.String())
 
-	return trace.NotFound("gateway %v not found in gateway list", gateway.URI.String())
+	return nil
 }
 
 // RestartGateway stops a gateway and starts a new one with identical parameters.
 // It also keeps the original URI so that from the perspective of Connect it's still the same
 // gateway but with fresh certs.
 func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	gateway, err := s.FindGateway(gatewayURI)
+	oldGateway, err := s.FindGateway(gatewayURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,21 +205,25 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.removeGateway(gateway); err != nil {
+	if err := s.removeGateway(oldGateway); err != nil {
 		return trace.Wrap(err)
 	}
 
 	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             gateway.TargetURI,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		LocalPort:             gateway.LocalPort,
+		TargetURI:             oldGateway.TargetURI,
+		TargetUser:            oldGateway.TargetUser,
+		TargetSubresourceName: oldGateway.TargetSubresourceName,
+		LocalPort:             oldGateway.LocalPort,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newGateway.URI = gateway.URI
+	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
+	// the URI of the old gateway.
+	delete(s.gateways, newGateway.URI.String())
+	newGateway.URI = oldGateway.URI
+	s.gateways[oldGateway.URI.String()] = newGateway
 
 	return nil
 }
@@ -244,10 +243,8 @@ func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 
 // findGateway assumes that mu is already held by a public method.
 func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
-	for _, gateway := range s.gateways {
-		if gateway.URI.String() == gatewayURI {
-			return gateway, nil
-		}
+	if gateway, ok := s.gateways[gatewayURI]; ok {
+		return gateway, nil
 	}
 
 	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
@@ -258,10 +255,14 @@ func (s *Service) ListGateways() []*gateway.Gateway {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// copy this slice to avoid race conditions when original slice gets modified
-	gateways := make([]*gateway.Gateway, len(s.gateways))
-	copy(gateways, s.gateways)
-	return gateways
+	gws := make([]*gateway.Gateway, 0, len(s.gateways))
+	for _, gateway := range s.gateways {
+		gateway := gateway
+
+		gws = append(gws, gateway)
+	}
+
+	return gws
 }
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
@@ -341,8 +342,7 @@ type Service struct {
 	mu  sync.RWMutex
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
-	gateways []*gateway.Gateway
+	gateways map[string]*gateway.Gateway
 }
 
 type CreateGatewayParams struct {
