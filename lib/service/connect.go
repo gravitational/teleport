@@ -67,34 +67,41 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 	var assertionID string
 
 	for {
-		connector, err := process.connectToAuthService(role, systemRoleAssertionID(assertionID))
-		if err == nil {
-			// if connected and client is present, make sure the connector's
-			// client works, by using call that should succeed at all times
-			if connector.Client != nil {
-				pingResponse, err := connector.Client.Ping(process.ExitContext())
-				compareErr := process.authServerTooOld(&pingResponse)
-				if compareErr != nil {
+		connector, connectErr := process.connectToAuthService(role, systemRoleAssertionID(assertionID))
+		if connectErr == nil {
+			if connector.Client == nil {
+				// Should only hit this if called with RoleAuth or RoleAdmin, which are both local and do not get a
+				// client, so it does not make sense to call reconnectToAuthService.
+				return nil, trace.BadParameter("reconnectToAuthService got a connector with no client, this is a logic error")
+			}
+
+			// If connected, make sure the connector's client works by using
+			// a call that should succeed at all times (Ping).
+			pingResponse, pingErr := connector.Client.Ping(process.ExitContext())
+			if pingErr == nil {
+				// Return a helpful message and don't retry if ping was successful but auth server is too old.
+				// Auth is not going to get any younger.
+				if compareErr := process.authServerTooOld(&pingResponse); compareErr != nil {
 					return nil, trace.Wrap(compareErr)
 				}
 
-				if err == nil {
-					process.setClusterFeatures(pingResponse.GetServerFeatures())
-					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
-					return connector, nil
-				}
+				// Set cluster features and return successfully with a working connector.
+				process.setClusterFeatures(pingResponse.GetServerFeatures())
+				process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
+				return connector, nil
+			}
 
-				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
-				if err := connector.Client.Close(); err != nil {
-					process.log.Debugf("Failed to close the client: %v.", err)
-				}
+			// Ping failed, close the client and continue the loop.
+			process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, pingErr)
+			if err := connector.Client.Close(); err != nil {
+				process.log.Debugf("Failed to close the client: %v.", err)
 			}
 		}
 
 		// clear assertion ID
 		assertionID = ""
 
-		if role == types.RoleInstance && strings.Contains(err.Error(), auth.TokenExpiredOrNotFound) {
+		if role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound) {
 			process.log.Infof("Token too old for direct instance cert request, will attempt to use system role assertions.")
 			id, assertionErr := process.assertSystemRoles()
 			if assertionErr == nil {
@@ -162,7 +169,7 @@ func (process *TeleportProcess) assertSystemRoles() (assertionID string, err err
 func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error {
 	serverVersion, err := semver.NewVersion(resp.ServerVersion)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("failed to parse reported auth server version as semver: %v", err)
 	}
 
 	version := teleport.Version
@@ -171,7 +178,7 @@ func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error
 	}
 	teleportVersion, err := semver.NewVersion(version)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("failed to parse local teleport version as semver: %v", err)
 	}
 
 	if serverVersion.Major < teleportVersion.Major {
@@ -1049,8 +1056,6 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
-	// store err in directLogger, only log it if tunnel dial fails.
-	directErrLogger := logger.WithError(directErr)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
@@ -1066,8 +1071,17 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
-		directErrLogger.Debug("Failed to connect to Auth Server directly.")
-		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
+		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
+		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
+		if trace.IsConnectionProblem(directErr) && strings.Contains(directErr.Error(), "x509: certificate is valid for") {
+			directErr = trace.Wrap(directErr, "TLS certificate error. Certificate is invalid or not trusted. "+
+				"Fix the certificate to correct this error: https://goteleport.com/docs/architecture/authentication/")
+		}
+		process.log.Errorf("- connecting to auth server directly: %v", directErr)
+		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
+			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
+		}
+		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
 		return nil, trace.WrapWithMessage(
 			trace.NewAggregate(directErr, err),
 			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))

@@ -1,4 +1,4 @@
-timeout: 25m
+timeout: 40m
 
 options:
   pool:
@@ -26,4 +26,7 @@ steps:
           -build "$BUILD_ID"                    \
           -key-secret "$_GITHUB_DEPLOY_KEY_SRC" \
           -a "test-logs/*.json"
-    timeout: 25m
+    # The actual makefile timeout is 30m. We add the 10 minute buffer here to
+    # allow for setup and teardown time, reports to be saved, etc, if the
+    # underlying tests time out.
+    timeout: 40m
