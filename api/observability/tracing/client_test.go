@@ -97,8 +97,7 @@ func TestUploadTraces(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &Client{
-				Client:             &tt.client,
-				notImplementedFlag: new(int32),
+				Client: &tt.client,
 			}
 
 			for i := 0; i < uploadCount; i++ {
