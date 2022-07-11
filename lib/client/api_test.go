@@ -711,7 +711,7 @@ func TestVirtualPathNames(t *testing.T) {
 	}
 }
 
-func Test_formatConnectToProxyErr(t *testing.T) {
+func TestFormatConnectToProxyErr(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -730,7 +730,7 @@ func Test_formatConnectToProxyErr(t *testing.T) {
 		},
 		{
 			name:            "principals mismatch user message injected",
-			err:             fmt.Errorf(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`),
+			err:             trace.Wrap(fmt.Errorf(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`)),
 			wantError:       `ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`,
 			wantUserMessage: unconfiguredPublicAddrMsg,
 		},
@@ -745,10 +745,10 @@ func Test_formatConnectToProxyErr(t *testing.T) {
 			}
 			traceErr, isTraceErr := err.(*trace.TraceErr)
 
-			if !isTraceErr {
-				require.EqualError(t, err, tt.wantError)
-			} else {
+			if isTraceErr {
 				require.EqualError(t, traceErr.OrigError(), tt.wantError)
+			} else {
+				require.EqualError(t, err, tt.wantError)
 			}
 
 			if tt.wantUserMessage != "" {
