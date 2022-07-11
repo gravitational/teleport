@@ -32,13 +32,13 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		Config: cfg,
+		cfg: &cfg,
 	}, nil
 }
 
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.Storage.ReadAll()
+	clusters, err := s.cfg.Storage.ReadAll()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +68,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 
 // AddCluster adds a cluster
 func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clusters.Cluster, error) {
-	cluster, err := s.Storage.Add(ctx, webProxyAddress)
+	cluster, err := s.cfg.Storage.Add(ctx, webProxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,7 +89,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 		}
 	}
 
-	if err := s.Storage.Remove(ctx, cluster.Name); err != nil {
+	if err := s.cfg.Storage.Remove(ctx, cluster.Name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -98,7 +98,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 
 // ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	cluster, err := s.Storage.GetByResourceURI(uri)
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,7 +140,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage, dbcmd.SystemExecer{})
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
@@ -339,9 +339,8 @@ func (s *Service) Stop() {
 
 // Service is the daemon service
 type Service struct {
-	Config
-
-	mu sync.RWMutex
+	cfg *Config
+	mu  sync.RWMutex
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
