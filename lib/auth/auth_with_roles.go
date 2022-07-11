@@ -3125,6 +3125,25 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 		return nil, trace.Wrap(err)
 	}
 
+	// emit a session recording view event for the audit log
+	user, err := a.GetCurrentUser(context.Background())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingView{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRecordingViewEvent,
+			Code: events.SessionRecordingViewCode,
+		},
+		SessionID: sid.String(),
+		UserMetadata: apievents.UserMetadata{
+			User: user.GetName(),
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
 }
 
