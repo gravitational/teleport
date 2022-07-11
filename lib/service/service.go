@@ -1184,22 +1184,7 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		upstream, downstream := client.InventoryControlStreamPipe()
-		go func() {
-			select {
-			case msg := <-upstream.Recv():
-				hello, ok := msg.(proto.UpstreamInventoryHello)
-				if !ok {
-					upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
-					return
-				}
-				auth.RegisterInventoryControlStream(upstream, hello)
-			case <-upstream.Done():
-			case <-auth.CloseContext().Done():
-				upstream.Close()
-			}
-		}()
-		return downstream, nil
+		return auth.MakeLocalInventoryControlStream(), nil
 	}
 
 	// fallback to using the instance client
@@ -2292,6 +2277,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
