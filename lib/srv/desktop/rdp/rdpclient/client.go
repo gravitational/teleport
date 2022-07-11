@@ -134,8 +134,9 @@ type Client struct {
 
 	// wg is used to wait for the input/output streaming
 	// goroutines to complete
-	wg        sync.WaitGroup
-	closeOnce sync.Once
+	wg          sync.WaitGroup
+	closeOnce   sync.Once
+	cleanupOnce sync.Once
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -167,13 +168,18 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
-	defer c.close()
-
 	if err := c.connect(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	c.start()
+
+	// Hang until input and output streaming
+	// goroutines both finish.
 	c.wg.Wait()
+
+	// Both goroutines have finished, its now
+	// safe to clean up the memory.
+	c.cleanup()
 
 	return nil
 }
@@ -259,16 +265,13 @@ func (c *Client) start() {
 		defer c.close()
 		defer c.cfg.Log.Info("RDP output streaming finished")
 
+		c.cfg.Log.Info("RDP output streaming starting")
+
 		// C.read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		if errCode := C.read_rdp_output(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("Failed reading RDP output frame: %v", errCode)
-
-			// close the TDP connection to the browser
-			// (without this the input streaming goroutine will hang
-			// waiting for user input)
 			c.cfg.Conn.SendError("There was an error reading data from the Windows Desktop")
-			c.cfg.Conn.Close()
 		}
 	}()
 
@@ -278,6 +281,8 @@ func (c *Client) start() {
 		defer c.wg.Done()
 		defer c.close()
 		defer c.cfg.Log.Info("TDP input streaming finished")
+
+		c.cfg.Log.Info("TDP input streaming starting")
 
 		// Remember mouse coordinates to send them with all CGOPointer events.
 		var mouseX, mouseY uint32
@@ -519,26 +524,35 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 	return C.ErrCodeSuccess
 }
 
-// close frees the memory of the cgo.Handle,
-// closes the RDP client connection,
-// and frees the Rust client.
+// close closes the RDP client connection and
+// the TDP connection to the browser.
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
 		}
-
-		// Let the Rust side free its data
-		C.free_rdp(c.rustClient)
-
-		// Release the memory of the cgo.Handle
-		c.handle.Delete()
+		c.cfg.Log.Debug(("RDP connection closed successfully"))
 
 		// Ensure the TDP connection is closed
 		if err := c.cfg.Conn.Close(); err != nil {
 			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
 		}
+		c.cfg.Log.Debug(("TDP connection closed successfully"))
+	})
+}
+
+// cleanup frees the Rust client and
+// frees the memory of the cgo.Handle.
+func (c *Client) cleanup() {
+	c.cleanupOnce.Do(func() {
+		// Let the Rust side free its data
+		C.free_rdp(c.rustClient)
+		c.cfg.Log.Debug(("Rust client memory freed"))
+
+		// Release the memory of the cgo.Handle
+		c.handle.Delete()
+		c.cfg.Log.Debug(("CGO handle deleted"))
 	})
 }
 
