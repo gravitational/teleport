@@ -3,15 +3,16 @@ title: Machine ID Getting Started Guide
 description: Getting started with Teleport Machine ID
 ---
 
-In this getting started guide, you will use Machine ID to create a bot user for
-a machine and use that identity to connect to said machine.
+In this getting started guide, you will configure Machine ID to issue
+certificates that enable a bot user to connect to a remote host.
 
 Here's an overview of what you will do:
 
-1. Download and install Teleport (=teleport.version=)
-2. Create a bot user
-3. Start Machine ID
-4. Use certificates issued by Machine ID to connect to a remote machine
+1. Download and install `tbot` (=teleport.version=) on the host that will run
+   Machine ID.
+2. Create a bot user.
+3. Start Machine ID.
+4. Use certificates issued by Machine ID to connect to a remote machine.
 
 ## Prerequisites
 
@@ -21,10 +22,15 @@ Here's an overview of what you will do:
 
 (!/docs/pages/includes/tctl.mdx!)
 
-<Admonition type="note" title="Machine ID and TLS Routing">
-TLS Routing support will be added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). Until
-that time, the Teleport Proxy Server will need to be configured with a
+<Admonition 
+type="note" 
+title="Machine ID and TLS Routing" 
+scopeOnly scope={["oss", "enterprise"]}
+>
+
+TLS Routing support was added to Machine ID in [Teleport
+9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). For
+earlier versions, the Teleport Proxy Server will need to be configured with a
 dedicated SSH listener.
 
 ```yaml
@@ -147,26 +153,64 @@ the foreground to better understand how it works.
 
 <Tabs>
   <TabItem label="Token-based Joining">
+
+  <ScopedBlock scope={["oss", "enterprise"]}>
+
   ```code
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
-     --token=00000000000000000000000000000000 \
+     --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=auth.example.com:3025
   ```
+
+  </ScopedBlock>
+  <ScopedBlock scope={["cloud"]}>
+
+  ```code
+  $ tbot start \
+     --data-dir=/var/lib/teleport/bot \
+     --destination-dir=/opt/machine-id \
+     --token=(=presets.tokens.first=) \
+     --join-method=token \
+     --ca-pin=(=presets.ca_pin=) \
+     --auth-server=example.teleport.sh:443
+  ```
+
+  </ScopedBlock>
+
   </TabItem>
   <TabItem label="IAM Method">
+
+  <ScopedBlock scope={["oss", "enterprise"]}>
+
   ```code
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
+     --ca-pin=(=presets.ca_pin=) \
      --auth-server=auth.example.com:3025
   ```
+
+  </ScopedBlock>
+  <ScopedBlock scope={["cloud"]}>
+
+  ```code
+  $ tbot start \
+     --data-dir=/var/lib/teleport/bot \
+     --destination-dir=/opt/machine-id \
+     --token=iam-token \
+     --join-method=iam \
+     --ca-pin=(=presets.ca_pin=) \
+     --auth-server=example.teleport.sh:443
+  ```
+
+  </ScopedBlock>
+
   </TabItem>
 </Tabs>
 
@@ -188,7 +232,7 @@ Replace the following fields with values from your own cluster.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Auth Server, for example
-  `auth.example.com:3025`. If your Machine ID host is in a different network
+  `auth.example.com:3025`. If your Machine ID hosst is in a different network
   than your Auth Server, use the public web address of your Proxy Service
   instead (e.g., `auth.example.com:443`). 
 

@@ -758,7 +758,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 	return servers, trace.Wrap(err)
 }
 
-// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
+// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
 	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.ClusterAccessPoint(ctx, cluster, false)
@@ -788,6 +788,30 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 		return nil, trace.Wrap(err)
 	}
 	return servers, nil
+}
+
+// FindDatabasesByFilters returns registered databases that match the provided
+// filter in the current cluster.
+func (proxy *ProxyClient) FindDatabasesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Database, error) {
+	cluster, err := proxy.currentCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, err := proxy.FindDatabasesByFiltersForCluster(ctx, req, cluster.Name)
+	return databases, trace.Wrap(err)
+}
+
+// FindDatabasesByFiltersForCluster returns registered databases that match the provided
+// filter in the provided cluster.
+func (proxy *ProxyClient) FindDatabasesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Database, error) {
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases := types.DatabaseServers(servers).ToDatabases()
+	return types.DeduplicateDatabases(databases), nil
 }
 
 // ListResources returns a paginated list of resources.
