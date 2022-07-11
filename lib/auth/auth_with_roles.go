@@ -743,19 +743,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	upstreamHello.Services = filteredServices
 
-	// send downstream hello (note: in theory we could send hellos simultaneously to slightly
-	// improve perf, but there is a potential benefit to having the downstream hello serve
-	// double-duty as an indicator of successful auth).
-	downstreamHello := proto.DownstreamInventoryHello{
-		Version:  teleport.Version,
-		ServerID: a.authServer.ServerID,
-	}
-	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
-	return nil
+	return a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
@@ -2049,6 +2037,20 @@ func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error
 	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
 }
 
+// GetCurrentUserRoles returns current user's roles.
+func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	roleNames := a.context.User.GetRoles()
+	roles := make([]types.Role, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		role, err := a.GetRole(ctx, roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
@@ -3225,6 +3227,15 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, verbsToReplaceResourceWithOrigin(storedNetConfig)...); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	tst, err := newNetConfig.GetTunnelStrategyType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)

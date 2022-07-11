@@ -24,7 +24,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -60,8 +59,6 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 
 	config.Clock = fakeClock
 	config.UIDGenerator = utils.NewFakeUID()
-	config.RetryPeriod = defaults.HighResPollingPeriod
-	config.PurgeExpiredDocumentsPollInterval = time.Second
 
 	log, err := New(config)
 
