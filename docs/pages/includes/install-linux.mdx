@@ -12,7 +12,7 @@
         # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
         # and the codename your distro was forked from instead
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-          https://apt.releases.teleport.dev/$ID $VERSION_CODENAME stable/v(=teleport.major_version=)" \
+          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
         $ sudo apt-get update
@@ -71,6 +71,9 @@
 
   <TabItem label="Debian/Ubuntu Legacy (DEB)">
         ```code
+        # Using this APT repo may result in breaking upgrades upon "apt upgrade" as all major versions will be
+        # published under the same component. It is recommended that the new APT repos (see "Debian/Ubuntu (DEB)")
+        # are used instead.
         # Download Teleport's PGP public key
         $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
           -o /usr/share/keyrings/teleport-archive-keyring.asc
