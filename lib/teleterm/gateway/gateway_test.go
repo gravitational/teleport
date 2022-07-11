@@ -32,18 +32,18 @@ import (
 type mockCLICommandProvider struct{}
 
 func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
-	command := fmt.Sprintf("%s/%s", gateway.TargetName, gateway.TargetSubresourceName)
+	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
 	return command, nil
 }
 
 func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 	gateway := Gateway{
-		Config: Config{
+		cfg: &Config{
 			TargetName:            "foo",
 			TargetSubresourceName: "bar",
 			Protocol:              defaults.ProtocolPostgres,
+			CLICommandProvider:    mockCLICommandProvider{},
 		},
-		cliCommandProvider: mockCLICommandProvider{},
 	}
 
 	command, err := gateway.CLICommand()
@@ -60,20 +60,20 @@ func TestGatewayStart(t *testing.T) {
 
 	gateway, err := New(
 		Config{
-			TargetName:   "foo",
-			TargetURI:    uri.NewClusterURI("bar").AppendDB("foo").String(),
-			TargetUser:   "alice",
-			Protocol:     defaults.ProtocolPostgres,
-			CertPath:     "../../../fixtures/certs/proxy1.pem",
-			KeyPath:      "../../../fixtures/certs/proxy1-key.pem",
-			Insecure:     true,
-			WebProxyAddr: hs.Listener.Addr().String(),
+			TargetName:         "foo",
+			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
+			TargetUser:         "alice",
+			Protocol:           defaults.ProtocolPostgres,
+			CertPath:           "../../../fixtures/certs/proxy1.pem",
+			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
+			Insecure:           true,
+			WebProxyAddr:       hs.Listener.Addr().String(),
+			CLICommandProvider: mockCLICommandProvider{},
 		},
-		mockCLICommandProvider{},
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { gateway.Close() })
-	gatewayAddress := net.JoinHostPort(gateway.LocalAddress, gateway.LocalPort)
+	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
 	serveErr := make(chan error)
 

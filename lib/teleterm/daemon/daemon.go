@@ -157,7 +157,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log.WithError(err).Warn("Failed to open a connection.")
+			gateway.Log().WithError(err).Warn("Failed to open a connection.")
 		}
 	}()
 
@@ -227,7 +227,7 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 		}
 	}
 
-	return trace.NotFound("gateway %v not found in gateway list", gateway.URI.String())
+	return trace.NotFound("gateway %v not found in gateway list", gateway.URI().String())
 }
 
 // RestartGateway stops a gateway and starts a new one with identical parameters.
@@ -247,16 +247,16 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	}
 
 	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             gateway.TargetURI,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		LocalPort:             gateway.LocalPort,
+		TargetURI:             gateway.TargetURI(),
+		TargetUser:            gateway.TargetUser(),
+		TargetSubresourceName: gateway.TargetSubresourceName(),
+		LocalPort:             gateway.LocalPort(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	newGateway.URI = gateway.URI
+	newGateway.SetURI(gateway.URI())
 
 	return nil
 }
@@ -272,7 +272,7 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.TargetSubresourceName = targetSubresourceName
+	gateway.SetTargetSubresourceName(targetSubresourceName)
 
 	return gateway, nil
 }
@@ -308,7 +308,7 @@ func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
 // findGateway assumes that mu is already held by a public method.
 func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	for _, gateway := range s.gateways {
-		if gateway.URI.String() == gatewayURI {
+		if gateway.URI().String() == gatewayURI {
 			return gateway, nil
 		}
 	}

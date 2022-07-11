@@ -55,6 +55,8 @@ type Config struct {
 	WebProxyAddr string
 	// Log is a component logger
 	Log *logrus.Entry
+	// CLICommandProvider returns a CLI command for the gateway
+	CLICommandProvider CLICommandProvider
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -81,6 +83,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.TargetURI == "" {
 		return trace.BadParameter("missing target URI")
+	}
+
+	if c.CLICommandProvider == nil {
+		return trace.BadParameter("missing CLICommandProvider")
 	}
 
 	return nil

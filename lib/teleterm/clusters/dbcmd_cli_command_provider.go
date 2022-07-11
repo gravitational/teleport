@@ -44,16 +44,16 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 }
 
 func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
-	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI)
+	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
-		ServiceName: gateway.TargetName,
-		Protocol:    gateway.Protocol,
-		Username:    gateway.TargetUser,
-		Database:    gateway.TargetSubresourceName,
+		ServiceName: gateway.TargetName(),
+		Protocol:    gateway.Protocol(),
+		Username:    gateway.TargetUser(),
+		Database:    gateway.TargetSubresourceName(),
 	}
 
 	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, &routeToDb,
@@ -64,8 +64,8 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
 		cluster.GetActualName(),
-		dbcmd.WithLogger(gateway.Log),
-		dbcmd.WithLocalProxy(gateway.LocalAddress, gateway.LocalPortInt(), ""),
+		dbcmd.WithLogger(gateway.Log()),
+		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
 		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
