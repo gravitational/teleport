@@ -133,15 +133,13 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
+type GatewayCreator interface {
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
+}
+
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cluster, err := s.ResolveCluster(params.TargetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
@@ -150,7 +148,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		CLICommandProvider:    cliCommandProvider,
 	}
 
-	gateway, err := cluster.CreateGateway(ctx, clusterCreateGatewayParams)
+	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

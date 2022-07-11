@@ -29,13 +29,18 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log *logrus.Entry
+	Log            *logrus.Entry
+	GatewayCreator GatewayCreator
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Storage == nil {
 		return trace.BadParameter("missing cluster storage")
+	}
+
+	if c.GatewayCreator == nil {
+		return trace.BadParameter("missing GatewayCreator")
 	}
 
 	if c.Log == nil {
