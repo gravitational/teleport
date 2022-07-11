@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -118,6 +119,29 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
+var (
+	// authenticateWebauthnError is the generic error returned for failed WebAuthn
+	// authentication attempts.
+	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
+	// invalidU2FError is the error returned for failed U2F authentication attempts.
+	invalidU2FError = trace.AccessDenied("invalid U2F response")
+	// invalidUserPassError is the error for when either the provided username or
+	// password is incorrect.
+	invalidUserPassError = trace.AccessDenied("invalid username or password")
+	// invalidUserpass2FError is the error for when either the provided username,
+	// password, or second factor is incorrect.
+	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+)
+
+// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
+// password, or second factor.
+func IsInvalidLocalCredentialError(err error) bool {
+	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
+}
+
+// authenticateUser authenticates a user through various methods (password, MFA,
+// passwordless)
+// Returns the device used to authenticate (if applicable) and the username.
 func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -126,7 +150,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
-	var failMsg string // failMsg kept obscure on purpose, use logging for details
+	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
 	case req.Webauthn != nil:
@@ -138,7 +162,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
 		}
-		failMsg = "invalid Webauthn response"
+		authErr = authenticateWebauthnError
 	case req.U2F != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			mfaResponse := &proto.MFAAuthenticateResponse{
@@ -152,7 +176,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			return s.validateMFAAuthResponse(ctx, user, mfaResponse, s.Identity /* u2fStorage */)
 		}
-		failMsg = "invalid U2F response"
+		authErr = invalidU2FError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -163,7 +187,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			return res.mfaDev, nil
 		}
-		failMsg = "invalid username, password or second factor"
+		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
@@ -179,12 +203,12 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 				return nil, trace.Wrap(fieldErr)
 			}
 
-			return nil, trace.AccessDenied(failMsg)
+			return nil, trace.Wrap(authErr)
 		case dev == nil:
 			log.Debugf(
 				"MFA authentication returned nil device (Webauthn = %v, U2F = %v, TOTP = %v): %v.",
 				req.Webauthn != nil, req.U2F != nil, req.OTP != nil, err)
-			return nil, trace.AccessDenied(failMsg)
+			return nil, trace.Wrap(authErr)
 		default:
 			return dev, nil
 		}
@@ -232,7 +256,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, trace.AccessDenied("invalid username or password")
+		return nil, trace.Wrap(invalidUserPassError)
 	}
 	return nil, nil
 }
