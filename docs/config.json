@@ -354,21 +354,7 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Local Demo Cluster",
-              "slug": "/kubernetes-access/getting-started/local/"
-            },
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
-            },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
-            }
-          ]
+          "slug": "/kubernetes-access/getting-started/"
         },
         {
           "title": "Guides",
@@ -463,7 +449,7 @@
               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "AWS ElastiCache",
+              "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
             },
             {
