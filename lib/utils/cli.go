@@ -287,6 +287,9 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
 	app.Terminate(nil)
 
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
+
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
