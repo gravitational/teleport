@@ -2822,9 +2822,9 @@ func formatConnectToProxyErr(err error) error {
 	// and the Proxy does not have a correct `public_addr` configured, and the
 	// system is configured with non-multiplexed ports.
 	if utils.IsHandshakeFailedError(err) {
-		principalStr := "not in the set of valid principals for given certificate"
-		if strings.Contains(trace.Unwrap(err).Error(), principalStr) {
-			return trace.WrapWithMessage(err, unconfiguredPublicAddrMsg)
+		const principalStr = "not in the set of valid principals for given certificate"
+		if strings.Contains(err.Error(), principalStr) {
+			return trace.Wrap(err, unconfiguredPublicAddrMsg)
 		}
 	}
 
