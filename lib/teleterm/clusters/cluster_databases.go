@@ -63,19 +63,12 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 	}
 	defer proxyClient.Close()
 
-	dbservers, err := proxyClient.FindDatabaseServersByFilters(ctx, proto.ListResourcesRequest{
+	dbs, err := proxyClient.FindDatabasesByFilters(ctx, proto.ListResourcesRequest{
 		Namespace: defaults.Namespace,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var dbs []types.Database
-	for _, server := range dbservers {
-		dbs = append(dbs, server.GetDatabase())
-	}
-
-	dbs = types.DeduplicateDatabases(dbs)
 
 	var responseDbs []Database
 	for _, db := range dbs {
@@ -137,7 +130,18 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	roleSet, err := services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
+	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
