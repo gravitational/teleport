@@ -743,19 +743,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	upstreamHello.Services = filteredServices
 
-	// send downstream hello (note: in theory we could send hellos simultaneously to slightly
-	// improve perf, but there is a potential benefit to having the downstream hello serve
-	// double-duty as an indicator of successful auth).
-	downstreamHello := proto.DownstreamInventoryHello{
-		Version:  teleport.Version,
-		ServerID: a.authServer.ServerID,
-	}
-	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
-	return nil
+	return a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
