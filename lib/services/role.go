@@ -732,6 +732,50 @@ type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
+// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchAllClusterRoles.
+type CurrentUserRoleGetter interface {
+	GetCurrentUser(context.Context) (types.User, error)
+	GetCurrentUserRoles(context.Context) ([]types.Role, error)
+	RoleGetter
+}
+
+// FetchAllClusterRoles fetches all roles available to the user on the
+// specified cluster, applies traits, and adds runtime roles like the default
+// implicit role to RoleSet.
+func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoleNames []string, defaultTraits wrappers.Traits) (RoleSet, error) {
+	user, err := access.GetCurrentUser(ctx)
+	if err != nil {
+		// DELETE IN 12.0.
+		if trace.IsNotImplemented(err) {
+			// get the role definition for all roles of user.
+			// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+			// example scenario when this may happen:
+			// 1. we have set of roles [foo bar] from profile.
+			// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+			// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+			// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+			roleSet, err := FetchRoles(defaultRoleNames, access, defaultTraits)
+			return roleSet, trace.Wrap(err)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := access.GetCurrentUserRoles(ctx)
+	if err != nil {
+		// DELETE IN 12.0.
+		if trace.IsNotImplemented(err) {
+			roleSet, err := FetchRoles(user.GetRoles(), access, user.GetTraits())
+			return roleSet, trace.Wrap(err)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	for i := range roles {
+		roles[i] = ApplyTraits(roles[i], user.GetTraits())
+	}
+	return NewRoleSet(roles...), nil
+}
+
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
 func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
 	roles, err := ExtractRolesFromCert(cert)

@@ -1475,6 +1475,8 @@ service AuthService {
     // GetCurrentUser returns current user as seen by the server.
     // Useful especially in the context of remote clusters which perform role and trait mapping.
     rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+    // GetCurrentUserRoles returns current user's roles.
+    rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV4);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.

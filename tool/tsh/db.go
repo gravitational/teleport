@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -42,64 +44,40 @@ import (
 
 // onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cluster.Close()
-
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// get roles and traits. default to the set from profile, try to get up-to-date version from server point of view.
-	roles := profile.Roles
-	traits := profile.Traits
-
-	// GetCurrentUser() may not be implemented, fail gracefully.
-	user, err := cluster.GetCurrentUser(cf.Context)
-	if err == nil {
-		roles = user.GetRoles()
-		traits = user.GetTraits()
-	} else {
-		log.Debugf("Failed to fetch current user information: %v.", err)
-	}
-
-	// get the role definition for all roles of user.
-	// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
-	// example scenario when this may happen:
-	// 1. we have set of roles [foo bar] from profile.
-	// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
-	// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
-	// 4. services.FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-	roleSet, err := services.FetchRoles(roles, cluster, traits)
+	tc, err := makeClient(cf, false)
 	if err != nil {
-		log.Debugf("Failed to fetch user roles: %v.", err)
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(databases, func(i, j int) bool {
-		return databases[i].GetName() < databases[j].GetName()
+	var proxy *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxy, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dbServers, err := proxy.GetDatabaseServers(cf.Context, tc.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databases := types.DatabaseServers(dbServers).ToDatabases()
+	sort.Sort(types.Databases(databases))
+
+	var roleSet services.RoleSet
+	if isRoleSetRequiredForShowDatabases(cf) {
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, profile.Cluster)
+		if err != nil {
+			log.Debugf("Failed to fetch user roles: %v.", err)
+		}
+	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -108,6 +86,24 @@ func onListDatabases(cf *CLIConf) error {
 
 	showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Verbose)
 	return nil
+}
+
+func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
+	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
+}
+
+func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
+	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roleSet, nil
 }
 
 // onDatabaseLogin implements "tsh db login" command.
