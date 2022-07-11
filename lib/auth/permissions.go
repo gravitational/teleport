@@ -623,6 +623,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:           []string{types.Wildcard},
 					Logins:               []string{},
 					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
