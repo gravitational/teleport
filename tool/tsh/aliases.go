@@ -157,7 +157,7 @@ func expandAliasDefinition(aliasDef string, runtimeArgs []string) ([]string, err
 
 	split, err := shlex.Split(aliasDef)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	out := append(split, appendArgs...)
