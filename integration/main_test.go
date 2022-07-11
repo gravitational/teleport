@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -33,7 +34,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 

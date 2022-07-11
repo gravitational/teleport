@@ -26,10 +26,12 @@ import (
 	"io"
 	"io/fs"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -60,15 +62,12 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -171,7 +170,7 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.DisableCreateHostUser = true
 
-	teleport := suite.NewTeleportInstance()
+	teleport := suite.NewTeleportInstance(t)
 
 	role := services.NewImplicitRole()
 	ro := role.GetOptions()
@@ -5784,7 +5783,7 @@ func TestWebProxyInsecure(t *testing.T) {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rc := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -5814,7 +5813,7 @@ func TestWebProxyInsecure(t *testing.T) {
 
 	// Web proxy endpoint should just respond with 200 when called over http://,
 	// content doesn't matter.
-	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", net.JoinHostPort(Loopback, rc.GetPortWeb())))
+	resp, err := http.Get(fmt.Sprintf("http://%v/webapi/ping", rc.Web))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NoError(t, resp.Body.Close())
@@ -5829,7 +5828,7 @@ func TestTraitsPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create root cluster.
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rc := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -5839,7 +5838,7 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Create leaf cluster.
-	lc := helpers.NewInstance(helpers.InstanceConfig{
+	lc := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -5857,7 +5856,7 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf.Proxy.DisableWebService = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = true
-	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+	rcConf.SSH.Addr.Addr = rc.SSH
 	rcConf.SSH.Labels = map[string]string{"env": "integration"}
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -5869,7 +5868,7 @@ func TestTraitsPropagation(t *testing.T) {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = true
-	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+	lcConf.SSH.Addr.Addr = lc.SSH
 	lcConf.SSH.Labels = map[string]string{"env": "integration"}
 	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -5918,7 +5917,7 @@ func TestTraitsPropagation(t *testing.T) {
 		Login:   me.Username,
 		Cluster: "root.example.com",
 		Host:    Loopback,
-		Port:    rc.GetPortSSHInt(),
+		Port:    helpers.Port(t, rc.SSH),
 	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello root", strings.TrimSpace(outputRoot))
@@ -5928,7 +5927,7 @@ func TestTraitsPropagation(t *testing.T) {
 		Login:   me.Username,
 		Cluster: "leaf.example.com",
 		Host:    Loopback,
-		Port:    lc.GetPortSSHInt(),
+		Port:    helpers.Port(t, lc.SSH),
 	}, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello leaf", strings.TrimSpace(outputLeaf))
