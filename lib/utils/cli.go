@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -211,39 +212,43 @@ func formatErrorWriter(err error, w io.Writer) {
 }
 
 func formatCertError(err error) string {
-	switch innerError := trace.Unwrap(err).(type) {
-	case x509.HostnameError:
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
 		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			innerError.Host,
-			innerError.Error(),
+			hostnameErr.Host,
+			hostnameErr.Error(),
 			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError:
+	}
+
+	var unknownAuthorityErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthorityErr) {
 		return `WARNING:
 
-  The proxy you are connecting to has presented a certificate signed by a
-  unknown authority. This is most likely due to either being presented
-  with a self-signed certificate or the certificate was truly signed by an
-  authority not known to the client.
+		The proxy you are connecting to has presented a certificate signed by a
+		unknown authority. This is most likely due to either being presented
+		with a self-signed certificate or the certificate was truly signed by an
+		authority not known to the client.
+	  
+		If you know the certificate is self-signed and would like to ignore this
+		error use the --insecure flag.
+	  
+		If you have your own certificate authority that you would like to use to
+		validate the certificate chain presented by the proxy, set the
+		SSL_CERT_FILE and SSL_CERT_DIR environment variables respectively and try
+		again.
+	  
+		If you think something malicious may be occurring, contact your Teleport
+		system administrator to resolve this issue.
+	  `
+	}
 
-  If you know the certificate is self-signed and would like to ignore this
-  error use the --insecure flag.
-
-  If you have your own certificate authority that you would like to use to
-  validate the certificate chain presented by the proxy, set the
-  SSL_CERT_FILE and SSL_CERT_DIR environment variables respectively and try
-  again.
-
-  If you think something malicious may be occurring, contact your Teleport
-  system administrator to resolve this issue.
-`
-	case x509.CertificateInvalidError:
+	var certificateInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &certificateInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
 
-  Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
+  Contact your Teleport system administrator to resolve this issue.`, certificateInvalidErr)
 	}
 }
 

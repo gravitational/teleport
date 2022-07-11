@@ -156,6 +156,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
+	errors := []error{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -182,6 +183,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				log.Debugf("Address %s succeeded. Selected as canonical proxy address", r.addr)
 				return r.addr, nil
 			}
+			errors = append(errors, r.err)
 
 			// the ping failed. This could be for any number of reasons. All we
 			// really care about is whether _all_ of the ping attempts have
@@ -192,10 +194,11 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				// to decide what it should do next. This is not so much the case for other
 				// types of error.
 				overallError := ctx.Err()
-				if overallError == nil {
-					overallError = r.err
+				if overallError != nil {
+					return "", overallError
 				}
-				return "", overallError
+
+				return "", trace.NewAggregate(errors...)
 			}
 		}
 	}
