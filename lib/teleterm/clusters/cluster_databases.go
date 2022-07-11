@@ -58,7 +58,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 
 // GetDatabases returns databases
 func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
-	var dbservers []types.DatabaseServer
+	var dbs []types.Database
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -66,7 +66,7 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 		}
 		defer proxyClient.Close()
 
-		dbservers, err = proxyClient.FindDatabaseServersByFilters(ctx, proto.ListResourcesRequest{
+		dbs, err = proxyClient.FindDatabasesByFilters(ctx, proto.ListResourcesRequest{
 			Namespace: defaults.Namespace,
 		})
 		if err != nil {
@@ -78,13 +78,6 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var dbs []types.Database
-	for _, server := range dbservers {
-		dbs = append(dbs, server.GetDatabase())
-	}
-
-	dbs = types.DeduplicateDatabases(dbs)
 
 	var responseDbs []Database
 	for _, db := range dbs {
