@@ -1055,16 +1055,6 @@ deb:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
-# update Helm chart versions
-# this isn't a 'proper' semver regex but should cover most cases
-# the order of parameters in sed's extended regex mode matters; the
-# dash (-) must be the last character for this to work as expected
-.PHONY: update-helm-charts
-update-helm-charts:
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-auto-trustedcluster/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-daemonset/values.yaml
-
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
