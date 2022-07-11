@@ -40,27 +40,26 @@ type Client struct {
 
 	// notImplementedFlag is set to indicate that the server does
 	// accept traces.
-	notImplementedFlag *int32
+	notImplementedFlag int32
 }
 
 // NewClient returns a new Client that uses the provided grpc.ClientConn to
 // connect to the OpenTelemetry exporter.
 func NewClient(conn *grpc.ClientConn) *Client {
 	return &Client{
-		Client:             otlptracegrpc.NewClient(otlptracegrpc.WithGRPCConn(conn)),
-		conn:               conn,
-		notImplementedFlag: new(int32),
+		Client: otlptracegrpc.NewClient(otlptracegrpc.WithGRPCConn(conn)),
+		conn:   conn,
 	}
 }
 
 func (c *Client) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
-	if len(protoSpans) == 0 || atomic.LoadInt32(c.notImplementedFlag) == 1 {
+	if len(protoSpans) == 0 || atomic.LoadInt32(&c.notImplementedFlag) == 1 {
 		return nil
 	}
 
 	err := c.Client.UploadTraces(ctx, protoSpans)
 	if err != nil && trace.IsNotImplemented(err) {
-		atomic.CompareAndSwapInt32(c.notImplementedFlag, 0, 1)
+		atomic.StoreInt32(&c.notImplementedFlag, 1)
 		return nil
 	}
 
