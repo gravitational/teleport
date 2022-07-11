@@ -33,7 +33,9 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.13.0
+# Newer version of protoc have removed JS support that breaks our Teleterm build.
+# Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
+PROTOC_VER ?= 3.20.1
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)

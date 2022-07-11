@@ -278,6 +278,10 @@ const (
 	SCPActionUpload   = "upload"
 	SCPActionDownload = "download"
 
+	// SFTPEvent means a user attempted a file operation
+	SFTPEvent = "sftp"
+	SFTPPath  = "path"
+
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
