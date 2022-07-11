@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,10 +28,6 @@ import (
 type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
-	// Clock is a clock for time-related operations
-	Clock clockwork.Clock
-	// InsecureSkipVerify is an option to skip HTTPS cert check
-	InsecureSkipVerify bool
 	// Log is a component logger
 	Log *logrus.Entry
 }
@@ -41,10 +36,6 @@ type Config struct {
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Storage == nil {
 		return trace.BadParameter("missing cluster storage")
-	}
-
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
 	}
 
 	if c.Log == nil {
