@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/user"
 	"strings"
@@ -73,12 +74,6 @@ type HostUsersBackend interface {
 	WriteSudoersFile(user string, entries []byte) error
 	// RemoveSudoersFile deletes a user's sudoers file.
 	RemoveSudoersFile(user string) error
-}
-
-// HostUsersProvisioningBackend is used to implement HostUsersBackend
-type HostUsersProvisioningBackend struct {
-	sudoersPath string
-	hostUUID    string
 }
 
 type userCloser struct {
@@ -151,6 +146,9 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
+			if errors.Is(err, user.UnknownGroupError(types.TeleportServiceGroup)) {
+				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+			}
 			return nil, nil, trace.Wrap(err)
 		}
 		var found bool
@@ -221,8 +219,11 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		backend:  u.backend,
 	}
 	if len(ui.Sudoers) != 0 {
-		contents := []byte(strings.Join(ui.Sudoers, "\n") + "\n")
-		err := u.backend.WriteSudoersFile(name, contents)
+		var sudoers strings.Builder
+		for _, entry := range ui.Sudoers {
+			sudoers.WriteString(fmt.Sprintf("%s %s\n", name, entry))
+		}
+		err := u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 		if err != nil {
 			return tempUser, closer, trace.Wrap(err)
 		}

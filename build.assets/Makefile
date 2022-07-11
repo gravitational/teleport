@@ -33,7 +33,9 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.13.0
+# Newer version of protoc have removed JS support that breaks our Teleterm build.
+# Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
+PROTOC_VER ?= 3.20.1
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=quay.io/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
@@ -121,7 +123,7 @@ build-binaries-fips: buildbox-fips
 buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
-		docker build --platform=linux/$(RUNTIME_ARCH) \
+		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -155,7 +157,7 @@ buildbox-fips:
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
-	docker build \
+	DOCKER_BUILDKIT=1 docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -177,6 +179,7 @@ buildbox-centos7-fips:
 		--build-arg GID=$(GID) \
 		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
 
@@ -396,7 +399,7 @@ release-fips: buildbox-fips
 .PHONY:release-centos7
 release-centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) REPRODUCIBLE=no
+		/usr/bin/scl enable devtoolset-11 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) REPRODUCIBLE=no'
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
@@ -405,7 +408,7 @@ release-centos7: buildbox-centos7
 .PHONY:release-centos7-fips
 release-centos7-fips:
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no
+		/usr/bin/scl enable devtoolset-11 '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
 #
 # Create a Windows Teleport package using the build container.
@@ -462,3 +465,11 @@ print-node-version:
 .PHONY:print-buildbox-version
 print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
+
+#
+# Build CentOS 7 assets such as clang.
+#
+.PHONY:build-centos7-assets
+build-centos7-assets:
+	docker build --build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) -t buildbox-centos7-assets -f Dockerfile-centos7-assets .
+	docker run -v $$(pwd):/centos7.assets -it buildbox-centos7-assets cp /centos7-assets.tar.gz /centos7.assets

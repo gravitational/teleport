@@ -155,6 +155,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
@@ -912,7 +913,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -963,7 +964,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
-			teleport.TraitLogins: {req.Username},
+			constants.TraitLogins: {req.Username},
 		},
 		routeToCluster: req.Cluster,
 		dbService:      req.RouteToDatabase.ServiceName,
@@ -1089,7 +1090,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
-	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
@@ -2256,8 +2257,44 @@ func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID s
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
+	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
+	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
+	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
+	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: a.ServerID,
+	}
+	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
+		return trace.Wrap(err)
+	}
 	a.inventory.RegisterControlStream(ics, hello)
+	return nil
+}
+
+// MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
+// server upon hello exchange.
+func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe()
+	go func() {
+		select {
+		case msg := <-upstream.Recv():
+			hello, ok := msg.(proto.UpstreamInventoryHello)
+			if !ok {
+				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
+				return
+			}
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+				upstream.CloseWithError(err)
+				return
+			}
+		case <-upstream.Done():
+		case <-a.CloseContext().Done():
+			upstream.Close()
+		}
+	}()
+	return downstream
 }
 
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {

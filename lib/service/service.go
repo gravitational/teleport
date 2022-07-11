@@ -718,6 +718,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 	var err error
 
+	// auth and proxy benefit from precomputing keys since they can experience spikes in key
+	// generation due to web session creation and recorded session creation respectively.
+	// for all other agents precomputing keys consumes excess resources.
+	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
+		native.PrecomputeKeys()
+	}
+
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()
 
@@ -907,12 +914,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if process.Config.Auth.Enabled && len(process.Config.AuthServers) == 0 {
-		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.SSHAddr}
+		process.Config.AuthServers = []utils.NetAddr{process.Config.Auth.ListenAddr}
 	}
 
 	if len(process.Config.AuthServers) != 0 && process.Config.AuthServers[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
-		listener, err := process.importOrCreateListener(listenerAuthSSH, process.Config.Auth.SSHAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
 			process.Config.AuthServers = []utils.NetAddr{utils.FromAddr(listener.Addr())}
 		}
@@ -1177,22 +1184,7 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		upstream, downstream := client.InventoryControlStreamPipe()
-		go func() {
-			select {
-			case msg := <-upstream.Recv():
-				hello, ok := msg.(proto.UpstreamInventoryHello)
-				if !ok {
-					upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
-					return
-				}
-				auth.RegisterInventoryControlStream(upstream, hello)
-			case <-upstream.Done():
-			case <-auth.CloseContext().Done():
-				upstream.Close()
-			}
-		}()
-		return downstream, nil
+		return auth.MakeLocalInventoryControlStream(), nil
 	}
 
 	// fallback to using the instance client
@@ -1254,10 +1246,12 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{}
+		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
+
 		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		handler, err := s3sessions.NewHandler(ctx, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1306,6 +1300,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 			loggers = append(loggers, logger)
 		case dynamo.GetName():
 			hasNonFileLog = true
+
 			cfg := dynamoevents.Config{
 				Tablename:               uri.Host,
 				Region:                  auditConfig.Region(),
@@ -1318,7 +1313,9 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
 				WriteTargetValue:        auditConfig.WriteTargetValue(),
 				RetentionPeriod:         auditConfig.RetentionPeriod(),
+				UseFIPSEndpoint:         auditConfig.GetUseFIPSEndpoint(),
 			}
+
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1409,9 +1406,12 @@ func (process *TeleportProcess) initAuthService() error {
 			process.log.Warn(warningMessage)
 		}
 
-		auditConfig := cfg.Auth.AuditConfig
+		if cfg.FIPS {
+			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
+		}
+
 		uploadHandler, err = initUploadHandler(
-			process.ExitContext(), auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1425,7 +1425,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), auditConfig, process.log, process.backend)
+		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1597,14 +1597,13 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// auth server listens on SSH and TLS, reusing the same socket
-	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerAuth, cfg.Auth.ListenAddr.Addr)
 	if err != nil {
-		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
+		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.ListenAddr.Addr, err)
 		return trace.Wrap(err)
 	}
 
-	// use listener addr instead of cfg.Auth.SSHAddr in order to support
+	// use listener addr instead of cfg.Auth.ListenAddr in order to support
 	// binding to a random port (e.g. `127.0.0.1:0`).
 	authAddr := listener.Addr().String()
 
@@ -1613,6 +1612,8 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.EnableProxyProtocol {
 		log.Infof("Starting Auth service with PROXY protocol support.")
 	}
+
+	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:            listener,
@@ -2276,6 +2277,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2986,28 +2988,44 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		listeners.kube = listener
 	}
 
-	if !cfg.Proxy.MySQLAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
-		process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
-		listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if !cfg.Proxy.DisableDatabaseProxy {
+		if !cfg.Proxy.MySQLAddr.IsEmpty() {
+			process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.db.mysql = listener
 		}
-		listeners.db.mysql = listener
-	}
 
-	if !cfg.Proxy.MongoAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
-		process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
-		listener, err := process.importOrCreateListener(listenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if !cfg.Proxy.MongoAddr.IsEmpty() {
+			process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.db.mongo = listener
 		}
-		listeners.db.mongo = listener
+
+		if !cfg.Proxy.PostgresAddr.IsEmpty() {
+			process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.db.postgres = listener
+		}
 	}
 
 	tunnelStrategy, err := networkingConfig.GetTunnelStrategyType()
 	if err != nil {
 		process.log.WithError(err).Warn("Failed to get tunnel strategy. Falling back to agent mesh strategy.")
 		tunnelStrategy = types.AgentMesh
+	}
+
+	if tunnelStrategy == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
@@ -3046,9 +3064,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		if !cfg.Proxy.DisableWebService {
 			listeners.web = listeners.mux.TLS()
 		}
-		if err := process.setPostgresListener(cfg, &listeners); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		process.muxPostgresOnWebPort(cfg, &listeners)
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
@@ -3070,9 +3086,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		if err := process.setPostgresListener(cfg, &listeners); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		process.muxPostgresOnWebPort(cfg, &listeners)
 		if !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -3114,9 +3128,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					return nil, trace.Wrap(err)
 				}
 				listeners.web = listeners.mux.TLS()
-				if err := process.setPostgresListener(cfg, &listeners); err != nil {
-					return nil, trace.Wrap(err)
-				}
+				process.muxPostgresOnWebPort(cfg, &listeners)
 				go listeners.mux.Serve()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
@@ -3135,27 +3147,12 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 }
 
-// setPostgresListener start Postgres proxy listener based on configuration settings. By default, Postgres service is
-// multiplexed on Teleport Proxy web port but if the postgres_listen_addr flag was provided, the
-// Postgres service runs on a separate port taken from it.
-func (process *TeleportProcess) setPostgresListener(cfg *Config, listeners *proxyListeners) error {
-	if cfg.Proxy.DisableDatabaseProxy {
-		return nil
-	}
-	if cfg.Proxy.PostgresAddr.IsEmpty() {
-		// Postgres service is multiplexed on Proxy Web port.
+// muxPostgresOnWebPort starts Postgres proxy listener multiplexed on Teleport Proxy web port,
+// unless postgres_listen_addr was specified.
+func (process *TeleportProcess) muxPostgresOnWebPort(cfg *Config, listeners *proxyListeners) {
+	if !cfg.Proxy.DisableDatabaseProxy && cfg.Proxy.PostgresAddr.IsEmpty() {
 		listeners.db.postgres = listeners.mux.DB()
-		return nil
 	}
-	// If cfg.Proxy.PostgresAddr address was provided start Postgres service on separate listener without
-	// multiplexing it on webPort.
-	process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
-	listener, err := process.importOrCreateListener(listenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	listeners.db.postgres = listener
-	return nil
 }
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
@@ -3329,7 +3326,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Reverse tunnel service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
-			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr, process.Config.CachePolicy)
+			log.Infof("Starting %s:%s on %v using %v", teleport.Version, teleport.Gitref, listeners.reverseTunnel.Addr(), process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
 				log.Error(err)
 				return trace.Wrap(err)
@@ -3496,7 +3493,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
-		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, listeners.ssh.Addr())
 		go sshProxy.Serve(listeners.ssh)
 		// broadcast that the proxy ssh server has started
 		process.BroadcastEvent(Event{Name: ProxySSHReady, Payload: nil})
@@ -3584,7 +3581,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				trace.Component: component,
 			})
 
-			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
+			log.Infof("Starting Kube proxy on %v.", listeners.kube.Addr())
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
@@ -3655,7 +3652,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
 		if listeners.db.postgres != nil {
 			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
-				log.Infof("Starting Postgres proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				log.Infof("Starting Database Postgres proxy server on %v.", listeners.db.postgres.Addr())
 				if err := dbProxyServer.ServePostgres(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
@@ -3664,7 +3661,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if listeners.db.mysql != nil {
 			process.RegisterCriticalFunc("proxy.db.mysql", func() error {
-				log.Infof("Starting MySQL proxy server on %v.", cfg.Proxy.MySQLAddr.Addr)
+				log.Infof("Starting Database MySQL proxy server on %v.", listeners.db.mysql.Addr())
 				if err := dbProxyServer.ServeMySQL(listeners.db.mysql); err != nil {
 					log.WithError(err).Warn("MySQL proxy server exited with error.")
 				}
@@ -3673,7 +3670,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		if listeners.db.tls != nil {
 			process.RegisterCriticalFunc("proxy.db.tls", func() error {
-				log.Infof("Starting Database TLS proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+				log.Infof("Starting Database TLS proxy server on %v.", listeners.db.tls.Addr())
 				if err := dbProxyServer.ServeTLS(listeners.db.tls); err != nil {
 					log.WithError(err).Warn("Database TLS proxy server exited with error.")
 				}
@@ -3683,7 +3680,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if listeners.db.mongo != nil {
 			process.RegisterCriticalFunc("proxy.db.mongo", func() error {
-				log.Infof("Starting Database Mongo proxy server on %v.", cfg.Proxy.MongoAddr.Addr)
+				log.Infof("Starting Database Mongo proxy server on %v.", listeners.db.mongo.Addr())
 				if err := dbProxyServer.ServeMongo(listeners.db.mongo, tlsConfigWeb.Clone()); err != nil {
 					log.WithError(err).Warn("Database Mongo proxy server exited with error.")
 				}

@@ -17,6 +17,7 @@ package webauthncli
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -38,16 +39,9 @@ const (
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
-	// If empty, Login may either choose a credential or error due to ambiguity.
+	// If empty, Login may either choose a credential or prompt the user for input
+	// (via LoginPrompt).
 	User string
-	// OptimisticAssertion allows Login to skip credential listing and attempt
-	// to assert directly. The drawback of an optimistic assertion is that the
-	// authenticator chooses the login credential, so Login can't guarantee that
-	// the User field will be respected. The upside is that it saves a touch for
-	// some devices.
-	// Login may decide to forego optimistic assertions if it wouldn't save a
-	// touch.
-	OptimisticAssertion bool
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment AuthenticatorAttachment
 }
@@ -67,6 +61,17 @@ func Login(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
+	// origin vs RPID sanity check.
+	// Doesn't necessarily means a failure, but it's likely to be one.
+	switch {
+	case origin == "", assertion == nil: // let downstream handle empty/nil
+	case !strings.HasPrefix(origin, "https://"+assertion.Response.RelyingPartyID):
+		log.Warnf(""+
+			"WebAuthn: origin and RPID mismatch, "+
+			"if you are having authentication problems double check your proxy address "+
+			"(%q vs %q)", origin, assertion.Response.RelyingPartyID)
+	}
+
 	var attachment AuthenticatorAttachment
 	var user string
 	if opts != nil {
