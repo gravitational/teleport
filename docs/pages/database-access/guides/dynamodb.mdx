@@ -3,14 +3,22 @@ title: Database Access with AWS DynamoDB
 description: How to access AWS DynamoDB with Teleport.
 ---
 
+<Admonition type="note" title="Important">
+Access to AWS DynamoDB is provided by [**Teleport Application Access**](../../application-access/introduction.mdx) for AWS Console and API.
+</Admonition>
+
 This guide will help you to:
 - Install Teleport Application Service.
 - Set up Teleport to access AWS Console and API.
 - Connect to your DynamoDB through Teleport.
 
-<Admonition type="note">
-Access to AWS DynamoDB is provided by [**Teleport Application Access**](../../application-access/introduction.mdx) for AWS Console and API.
-</Admonition>
+<ScopedBlock scope={["oss", "enterprise"]}>
+![DynamoDB Self-Hosted](../../../img/database-access/guides/dynamodb_selfhosted.png)
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+![DynamoDB Cloud](../../../img/database-access/guides/dynamodb_cloud.png)
+</ScopedBlock>
 
 ## Prerequisites
 
@@ -45,18 +53,19 @@ Select the "AWS account" option which creates a default [trust
 policy](https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/)
 to allow other entities in this account to assume this role.
 
-![Create Role Step 1](../../../img/database-access/dynamodb-create-role-1.png)
+![Create Role Step 1](../../../img/database-access/guides/dynamodb-create-role-1.png)
 
 Press Next. Find the AWS managed policy `AmazonDynamoDBFullAccess` by Filter and then select the policy.
 
-![Create Role Step 2](../../../img/database-access/dynamodb-create-role-2.png)
+![Create Role Step 2](../../../img/database-access/guides/dynamodb-create-role-2.png)
 
 Press Next. Enter a role name and press Create role.
 
-![Create Role Step 3](../../../img/database-access/dynamodb-create-role-3.png)
+![Create Role Step 3](../../../img/database-access/guides/dynamodb-create-role-3.png)
 
 ## Step 2/5. Configure Teleport IAM role mapping
-The next step is to give your Teleport users permissions to assume IAM roles.
+The next step is to give your Teleport users permissions to assume IAM roles in
+your Teleport cluster.
 
 You can do this by creating a role with the `aws_role_arns` field listing all IAM
 role ARNs this particular role permits its users to assume:
@@ -134,7 +143,7 @@ the IAM roles:
 }
 ```
 
-<Admonition type="note">
+<Admonition type="tip">
 You can make the policy more strict by providing specific IAM role resource
 ARNs in the Resource field instead of using a wildcard.
 </Admonition>
@@ -153,7 +162,7 @@ Navigate to the Applications tab in your Teleport cluster's control panel and
 click on the Launch button for the AWS DynamoDB application which will bring up
 an IAM role selector:
 
-![IAM role selector](../../../img/database-access/dynamodb-select-iam-role.png)
+![IAM role selector](../../../img/database-access/guides/dynamodb-select-iam-role.png)
 
 Click on the role you want to assume and you will get redirected to the AWS
 management console, signed in with the selected role.
@@ -161,14 +170,14 @@ management console, signed in with the selected role.
 In the console's top-right corner you should see that you're logged in through
 federated login and the name of your assumed IAM role:
 
-![Federated login](../../../img/database-access/dynamodb-federated-login.png)
+![Federated login](../../../img/database-access/guides/dynamodb-federated-login.png)
 
 Note that your federated login session is marked with your Teleport username.
 
 ### Using AWS CLI
 Before beginning this step, make sure that the `aws` command line interface (CLI) tool is installed in PATH. For more information, read [Installing or updating the latest version of the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
 
-First, log into the previously configured AWS console app on your desktop:
+Now, log into the previously configured AWS DynamoDB app on your desktop:
 
 ```code
 $ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
@@ -191,13 +200,13 @@ $ tsh aws dynamodb list-tables
 To log out of the aws application and remove credentials:
 
 ```code
-$ tsh app logout aws
+$ tsh app logout aws-dynamodb
 ```
 
 ### Using other DynamoDB applications
 
-First, log into the previously configured console app if you haven't already
-done so.
+First, log into the previously configured AWS DynamoDB app if you haven't
+already done so.
 
 ```code
 $ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb

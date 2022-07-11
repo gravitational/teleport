@@ -503,12 +503,12 @@
               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/dynamodb/"
-            },
-            {
               "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
