@@ -42,7 +42,7 @@ We will assume your Teleport cluster is accessible at `teleport.example.com` and
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
-## Step 1/5. Create an IAM role for DynamoDB access.
+## Step 1/5. Create an IAM role for DynamoDB access
 
 The first step is to create an IAM role with desired IAM permissions that you wish to grant to a Teleport user. In this example, you will create an IAM role with full DynamoDB access. **Skip this step** if you already have the roles you want to provide access to.
 
@@ -109,7 +109,9 @@ The output should contain a `teleport app start` command that can be used to
 start the Teleport Application Service in the next step.
 
 ### Install and Start Teleport
-Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
+Install Teleport on the host where you will run the Teleport Application
+Service. See our [Installation](../../installation.mdx) page for options
+besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
