@@ -19,10 +19,6 @@
               "slug": "/getting-started/docker-compose/"
             },
             {
-              "title": "DigitalOcean",
-              "slug": "/getting-started/digitalocean/"
-            },
-            {
               "title": "Local Kubernetes Lab",
               "slug": "/getting-started/local-kubernetes/"
             },
@@ -94,6 +90,10 @@
             {
               "title": "IBM",
               "slug": "/setup/deployments/ibm/"
+            },
+            {
+              "title": "Digital Ocean",
+              "slug": "/setup/deployments/digitalocean/"
             }
           ]
         },
@@ -916,7 +916,11 @@
     },
     {
       "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/setup/helm-deployments/migration/",
+      "destination": "/setup/helm-deployments/migration/"
+    },
+    {
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
       "permanent": true
     }
   ]
