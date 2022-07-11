@@ -431,7 +431,7 @@ func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAML
 		return nil
 	}
 
-	err := a.RecognizeSSOAssertion(ctx, assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
+	err := a.unstable.RecognizeSSOAssertion(ctx, assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
 	return trace.Wrap(err)
 }
 

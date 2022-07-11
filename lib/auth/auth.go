@@ -191,23 +191,22 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend),
+		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services: Services{
-			Trust:                  cfg.Trust,
-			Presence:               cfg.Presence,
-			Provisioner:            cfg.Provisioner,
-			Identity:               cfg.Identity,
-			Access:                 cfg.Access,
-			DynamicAccessExt:       cfg.DynamicAccessExt,
-			ClusterConfiguration:   cfg.ClusterConfiguration,
-			Restrictions:           cfg.Restrictions,
-			Apps:                   cfg.Apps,
-			Databases:              cfg.Databases,
-			IAuditLog:              cfg.AuditLog,
-			Events:                 cfg.Events,
-			WindowsDesktops:        cfg.WindowsDesktops,
-			SessionTrackerService:  cfg.SessionTrackerService,
-			AssertionReplayService: cfg.AssertionReplayService,
+			Trust:                 cfg.Trust,
+			Presence:              cfg.Presence,
+			Provisioner:           cfg.Provisioner,
+			Identity:              cfg.Identity,
+			Access:                cfg.Access,
+			DynamicAccessExt:      cfg.DynamicAccessExt,
+			ClusterConfiguration:  cfg.ClusterConfiguration,
+			Restrictions:          cfg.Restrictions,
+			Apps:                  cfg.Apps,
+			Databases:             cfg.Databases,
+			IAuditLog:             cfg.AuditLog,
+			Events:                cfg.Events,
+			WindowsDesktops:       cfg.WindowsDesktops,
+			SessionTrackerService: cfg.SessionTrackerService,
 		},
 		keyStore:     keyStore,
 		getClaimsFun: getClaims,
@@ -238,7 +237,6 @@ type Services struct {
 	services.SessionTrackerService
 	types.Events
 	events.IAuditLog
-	*local.AssertionReplayService
 }
 
 // GetWebSession returns existing web session described by req.

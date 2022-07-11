@@ -44,7 +44,8 @@ func TestSystemRoleAssertions(t *testing.T) {
 
 	defer backend.Close()
 
-	unstable := NewUnstableService(backend)
+	assertion := NewAssertionReplayService(backend)
+	unstable := NewUnstableService(backend, assertion)
 
 	_, err = unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	require.True(t, trace.IsNotFound(err))
