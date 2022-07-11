@@ -15,7 +15,6 @@
 package teleterm
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,6 +30,8 @@ type Config struct {
 	ShutdownSignals []os.Signal
 	// HomeDir is the directory to store cluster profiles
 	HomeDir string
+	// CertsDir is the directory where the certs are stored
+	CertsDir string
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 }
@@ -41,8 +42,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing home directory")
 	}
 
+	if c.CertsDir == "" {
+		return trace.BadParameter("missing certs directory")
+	}
+
 	if c.Addr == "" {
-		c.Addr = fmt.Sprintf("unix://%v/tshd.socket", c.HomeDir)
+		return trace.BadParameter("missing network address")
 	}
 
 	addr, err := utils.ParseAddr(c.Addr)
