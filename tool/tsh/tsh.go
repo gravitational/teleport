@@ -1319,6 +1319,9 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
+		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
+		}
 		return trace.Wrap(err)
 	}
 	tc.AllowStdinHijack = false
@@ -1731,8 +1734,14 @@ func listNodesAllClusters(cf *CLIConf) error {
 		}
 		fmt.Println(out)
 	default:
-
+		return trace.BadParameter("unsupported format %q", format)
 	}
+
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(listings) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+	}
+
 	return nil
 }
 
@@ -1896,6 +1905,11 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
+	}
+
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(nodes) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
 	}
 
 	return nil

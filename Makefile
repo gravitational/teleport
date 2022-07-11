@@ -283,7 +283,7 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	cargo install cbindgen
+	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
@@ -747,7 +747,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**'
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'docs/pages/includes/**/*.go'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)

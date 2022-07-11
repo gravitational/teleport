@@ -2292,6 +2292,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetAWSMatchers(cfg.SSH.AWSMatchers),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3035,6 +3036,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	if err != nil {
 		process.log.WithError(err).Warn("Failed to get tunnel strategy. Falling back to agent mesh strategy.")
 		tunnelStrategy = types.AgentMesh
+	}
+
+	if tunnelStrategy == types.ProxyPeering &&
+		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {

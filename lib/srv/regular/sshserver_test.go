@@ -109,6 +109,23 @@ func newFixture(t *testing.T) *sshTestFixture {
 	return newCustomFixture(t, func(*auth.TestServerConfig) {})
 }
 
+func newFixtureWithoutDiskBasedLogging(t *testing.T) *sshTestFixture {
+	t.Helper()
+
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err := f.testSrv.Auth().SetSessionRecordingConfig(context.Background(), recConfig)
+	require.NoError(t, err)
+
+	return f
+}
+
 func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
@@ -493,9 +510,7 @@ func TestAdvertiseAddr(t *testing.T) {
 func TestAgentForwardPermission(t *testing.T) {
 	t.Parallel()
 
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	// make sure the role does not allow agent forwarding
@@ -507,13 +522,6 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
 	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -606,9 +614,7 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
 	t.Parallel()
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
@@ -618,13 +624,6 @@ func TestAgentForward(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
@@ -716,9 +715,7 @@ func TestX11Forward(t *testing.T) {
 	}
 
 	t.Parallel()
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
@@ -733,13 +730,6 @@ func TestX11Forward(t *testing.T) {
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Open two x11 sessions, the server should handle multiple
@@ -1145,8 +1135,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 func TestProxyRoundRobin(t *testing.T) {
 	t.Parallel()
 
-	log.Infof("[TEST START] TestProxyRoundRobin")
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	proxyClient, _ := newProxyClient(t, f.testSrv)
@@ -1395,7 +1384,8 @@ func TestPasswordAuth(t *testing.T) {
 
 func TestClientDisconnect(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	config := &ssh.ClientConfig{
 		User:            f.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(f.up.certSigner)},
