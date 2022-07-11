@@ -53,6 +53,7 @@ func Start(ctx context.Context, cfg Config) error {
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr: cfg.Addr,
 		Daemon:   daemonService,
+		CertsDir: cfg.CertsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)
