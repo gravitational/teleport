@@ -122,7 +122,7 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRoleV3(RoleNameForUser(u.GetName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -149,6 +149,14 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
+			},
+			JoinSessions: []*types.SessionJoinPolicy{
+				{
+					Name:  "foo",
+					Roles: []string{"*"},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionPeerMode)},
+				},
 			},
 		},
 	})
@@ -345,6 +353,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		// apply templates to windows desktop labels
+		inLabels = r.GetWindowsDesktopLabels(condition)
+		if inLabels != nil {
+			r.SetWindowsDesktopLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
 		r.SetHostGroups(condition,
 			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
 
@@ -448,10 +462,10 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	// verify that internal traits match the supported variables
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
-		case teleport.TraitLogins, teleport.TraitWindowsLogins,
-			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
-			teleport.TraitDBNames, teleport.TraitDBUsers,
-			teleport.TraitAWSRoleARNs, teleport.TraitJWT:
+		case constants.TraitLogins, constants.TraitWindowsLogins,
+			constants.TraitKubeGroups, constants.TraitKubeUsers,
+			constants.TraitDBNames, constants.TraitDBUsers,
+			constants.TraitAWSRoleARNs, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
@@ -633,13 +647,18 @@ type HostUsersInfo struct {
 	Sudoers []string
 }
 
-// FromSpec returns new RoleSet created from spec
-func FromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+// RoleFromSpec returns new Role created from spec
+func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
 	role, err := types.NewRoleV3(name, spec)
+	return role, trace.Wrap(err)
+}
+
+// RoleSetFromSpec returns a new RoleSet from spec
+func RoleSetFromSpec(name string, spec types.RoleSpecV5) (RoleSet, error) {
+	role, err := RoleFromSpec(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return NewRoleSet(role), nil
 }
 
@@ -726,6 +745,50 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	roles, err := FetchRoleList(roleNames, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	return NewRoleSet(roles...), nil
+}
+
+// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchAllClusterRoles.
+type CurrentUserRoleGetter interface {
+	GetCurrentUser(context.Context) (types.User, error)
+	GetCurrentUserRoles(context.Context) ([]types.Role, error)
+	RoleGetter
+}
+
+// FetchAllClusterRoles fetches all roles available to the user on the
+// specified cluster, applies traits, and adds runtime roles like the default
+// implicit role to RoleSet.
+func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoleNames []string, defaultTraits wrappers.Traits) (RoleSet, error) {
+	user, err := access.GetCurrentUser(ctx)
+	if err != nil {
+		// DELETE IN 12.0.
+		if trace.IsNotImplemented(err) {
+			// get the role definition for all roles of user.
+			// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
+			// example scenario when this may happen:
+			// 1. we have set of roles [foo bar] from profile.
+			// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
+			// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
+			// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
+			roleSet, err := FetchRoles(defaultRoleNames, access, defaultTraits)
+			return roleSet, trace.Wrap(err)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := access.GetCurrentUserRoles(ctx)
+	if err != nil {
+		// DELETE IN 12.0.
+		if trace.IsNotImplemented(err) {
+			roleSet, err := FetchRoles(user.GetRoles(), access, user.GetTraits())
+			return roleSet, trace.Wrap(err)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	for i := range roles {
+		roles[i] = ApplyTraits(roles[i], user.GetTraits())
 	}
 	return NewRoleSet(roles...), nil
 }
@@ -2035,8 +2098,8 @@ func (set RoleSet) DesktopClipboard() bool {
 }
 
 // DesktopDirectorySharing returns true if the role set has directory sharing
-// enabled. This setting is enabled if one or more of the roles in the set has
-// enabled it.
+// enabled. This setting is disabled if one or more of the roles in the set has
+// disabled it.
 func (set RoleSet) DesktopDirectorySharing() bool {
 	for _, role := range set {
 		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {

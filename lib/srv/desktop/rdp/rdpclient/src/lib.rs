@@ -36,6 +36,7 @@ use rdp::core::tpkt;
 use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
+use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
@@ -120,8 +121,8 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 #[no_mangle]
 pub unsafe extern "C" fn connect_rdp(
     go_ref: usize,
-    go_addr: *mut c_char,
-    go_username: *mut c_char,
+    go_addr: *const c_char,
+    go_username: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -253,6 +254,7 @@ fn connect_rdp_inner(
     );
 
     let tdp_sd_acknowledge = Box::new(move |ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
+        debug!("sending: {:?}", ack);
         unsafe {
             if tdp_sd_acknowledge(go_ref, &mut CGOSharedDirectoryAcknowledge::from(ack))
                 != CGOErrCode::ErrCodeSuccess
@@ -265,6 +267,38 @@ fn connect_rdp_inner(
         Ok(())
     });
 
+    let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
+        debug!("sending: {:?}", req);
+        // Create C compatible string from req.path
+        match CString::new(req.path.clone()) {
+            Ok(c_string) => {
+                unsafe {
+                    let err = tdp_sd_info_request(
+                        go_ref,
+                        &mut CGOSharedDirectoryInfoRequest {
+                            completion_id: req.completion_id,
+                            directory_id: req.directory_id,
+                            path: c_string.as_ptr(),
+                        },
+                    );
+                    if err != CGOErrCode::ErrCodeSuccess {
+                        return Err(RdpError::TryError(String::from(
+                            "call to tdp_sd_info_request failed",
+                        )));
+                    };
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
+                return Err(RdpError::TryError(format!(
+                    "path contained characters that couldn't be converted to a C string: {}",
+                    req.path
+                )));
+            }
+        }
+    });
+
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(
         params.cert_der,
@@ -272,6 +306,7 @@ fn connect_rdp_inner(
         pin,
         params.allow_directory_sharing,
         tdp_sd_acknowledge,
+        tdp_sd_info_request,
     );
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -357,6 +392,13 @@ impl<S: Read + Write> RdpClient<S> {
     ) -> RdpResult<()> {
         self.rdpdr
             .write_client_device_list_announce(req, &mut self.mcs)
+    }
+
+    pub fn handle_tdp_sd_info_response(
+        &mut self,
+        res: SharedDirectoryInfoResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -513,6 +555,34 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
     }
 }
 
+/// handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+/// message
+///
+/// # Safety
+///
+/// The caller must ensure that res.fso.path points to a valid buffer.
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_info_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryInfoResponse,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_info_response(SharedDirectoryInfoResponse::from(res)) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Info Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
 /// handle_bitmap.
 ///
@@ -539,40 +609,44 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode 
 fn read_rdp_output_inner(client: &Client) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
+
     // Read incoming events.
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
     while wait_for_fd(tcp_fd as usize) {
         let mut err = CGOErrCode::ErrCodeSuccess;
-        let res = client
-            .rdp_client
-            .lock()
-            .unwrap()
-            .read(|rdp_event| match rdp_event {
-                RdpEvent::Bitmap(bitmap) => {
-                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
-                        Ok(cb) => cb,
-                        Err(e) => {
-                            error!(
-                                "failed to convert RDP bitmap to CGO representation: {:?}",
-                                e
-                            );
-                            return;
-                        }
-                    };
-                    unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
-                    };
+        let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
+            // This callback can be called multiple times per rdp_client.read()
+            // (if multiple messages were received since the last call). Therefore,
+            // we check that the previous call to handle_bitmap succeeded, so we don't
+            // have a situation where handle_bitmap fails repeatedly and creates a
+            // bunch of repetitive error messages in the logs. If it fails once,
+            // we assume the connection is broken and stop trying to send bitmaps.
+            if err == CGOErrCode::ErrCodeSuccess {
+                match rdp_event {
+                    RdpEvent::Bitmap(bitmap) => {
+                        let mut cbitmap = match CGOBitmap::try_from(bitmap) {
+                            Ok(cb) => cb,
+                            Err(e) => {
+                                error!(
+                                    "failed to convert RDP bitmap to CGO representation: {:?}",
+                                    e
+                                );
+                                return;
+                            }
+                        };
+                        unsafe {
+                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                        };
+                    }
+                    // No other events should be sent by the server to us.
+                    _ => {
+                        debug!("got unexpected pointer event from RDP server, ignoring");
+                    }
                 }
-                // These should never really be sent by the server to us.
-                RdpEvent::Pointer(_) => {
-                    debug!("got unexpected pointer event from RDP server, ignoring");
-                }
-                RdpEvent::Key(_) => {
-                    debug!("got unexpected keyboard event from RDP server, ignoring");
-                }
-            });
+            }
+        });
         match res {
             Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
             Err(e) => {
@@ -746,18 +820,10 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 
 /// # Safety
 ///
-/// The passed pointer must point to a C-style string allocated by Rust.
-#[no_mangle]
-pub unsafe extern "C" fn free_rust_string(s: *mut c_char) {
-    let _ = CString::from_raw(s);
-}
-
-/// # Safety
-///
 /// s must be a C-style null terminated string.
-/// s is copied here, and the caller is responsible for ensuring
-/// that the original memory is freed
-unsafe fn from_go_string(s: *mut c_char) -> String {
+/// s is cloned here, and the caller is responsible for
+/// ensuring its memory is freed.
+unsafe fn from_go_string(s: *const c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
@@ -769,7 +835,7 @@ unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
@@ -778,27 +844,107 @@ pub enum CGOErrCode {
 #[repr(C)]
 pub struct CGOSharedDirectoryAnnounce {
     pub directory_id: u32,
-    pub name: *mut c_char,
+    pub name: *const c_char,
 }
 
+/// SharedDirectoryAcknowledge is a CGO-compatible version of
+/// the TDP Shared Directory Knowledge message that we pass back to Go.
+#[derive(Debug)]
 pub struct SharedDirectoryAcknowledge {
-    pub err: u32,
+    pub err_code: u32,
     pub directory_id: u32,
 }
 
-/// CGOSharedDirectoryAcknowledge is a CGO-compatible version of
-/// the TDP Shared Directory Knowledge message that we pass back to Go.
 #[repr(C)]
 pub struct CGOSharedDirectoryAcknowledge {
-    pub err: u32,
+    pub err_code: u32,
     pub directory_id: u32,
 }
 
 impl From<SharedDirectoryAcknowledge> for CGOSharedDirectoryAcknowledge {
     fn from(ack: SharedDirectoryAcknowledge) -> CGOSharedDirectoryAcknowledge {
         CGOSharedDirectoryAcknowledge {
-            err: ack.err,
+            err_code: ack.err_code,
             directory_id: ack.directory_id,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SharedDirectoryInfoRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryInfoRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
+
+impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
+    fn from(req: ServerCreateDriveRequest) -> SharedDirectoryInfoRequest {
+        SharedDirectoryInfoRequest {
+            completion_id: req.device_io_request.completion_id,
+            directory_id: req.device_io_request.device_id,
+            path: req.path,
+        }
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct SharedDirectoryInfoResponse {
+    completion_id: u32,
+    err_code: u32,
+    fso: FileSystemObject,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryInfoResponse {
+    pub completion_id: u32,
+    pub err_code: u32,
+    pub fso: CGOFileSystemObject,
+}
+
+impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
+    fn from(cgo_res: CGOSharedDirectoryInfoResponse) -> SharedDirectoryInfoResponse {
+        SharedDirectoryInfoResponse {
+            completion_id: cgo_res.completion_id,
+            err_code: cgo_res.err_code,
+            fso: FileSystemObject::from(cgo_res.fso),
+        }
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct FileSystemObject {
+    last_modified: u64,
+    size: u64,
+    file_type: u32, // TODO(isaiah): make an enum
+    path: String,
+}
+
+#[repr(C)]
+pub struct CGOFileSystemObject {
+    pub last_modified: u64,
+    pub size: u64,
+    pub file_type: u32, // TODO(isaiah): make an enum
+    pub path: *const c_char,
+}
+
+impl From<CGOFileSystemObject> for FileSystemObject {
+    fn from(cgo_fso: CGOFileSystemObject) -> FileSystemObject {
+        unsafe {
+            FileSystemObject {
+                last_modified: cgo_fso.last_modified,
+                size: cgo_fso.size,
+                file_type: cgo_fso.file_type,
+                path: from_go_string(cgo_fso.path),
+            }
         }
     }
 }
@@ -809,9 +955,12 @@ extern "C" {
     fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
-    /// Shared Directory Acknowledge
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
+    fn tdp_sd_info_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryInfoRequest,
+    ) -> CGOErrCode;
 }
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.

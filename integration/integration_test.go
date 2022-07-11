@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -69,9 +70,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -152,10 +155,13 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+	t.Run("SFTP", suite.bind(testSFTP))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -615,10 +621,9 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	helpers.SetTestTimeouts(100 * time.Millisecond)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
+	// If the test is re-executing itself, handle the appropriate sub-command.
 	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 
@@ -731,7 +736,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		return ident.ID.HostID()
+		return ident.ID.HostID(), nil
 	}
 
 	// add two nodes with the same hostname.
@@ -1620,8 +1625,8 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
 	// start the http proxy, we need to make sure this was not used
-	ps := &helpers.ProxyServer{}
-	ts := httptest.NewServer(ps)
+	ph := &helpers.ProxyHandler{}
+	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
 	// clear out any proxy environment variables
@@ -1677,7 +1682,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	)
 
 	// make sure the direct dialer was used and not the proxy dialer
-	require.Zero(t, ps.Count())
+	require.Zero(t, ph.Count())
 
 	// if we got here, it means two sites are cross-connected. lets execute SSH commands
 	sshPort := a.GetPortSSHInt()
@@ -1788,7 +1793,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	// start the http proxy
-	ps := &helpers.ProxyServer{}
+	ps := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ps)
 	defer ts.Close()
 
@@ -3266,6 +3271,28 @@ func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 		time.Sleep(1 * time.Second)
 	}
 	require.Len(t, conns, expectedCount)
+}
+
+// waitAppServerTunnel waits for application server tunnel connections.
+func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
+	t.Helper()
+	cluster, err := tunnel.GetSite(clusterName)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		conn, err := cluster.Dial(reversetunnel.DialParams{
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
+			ConnType: types.AppTunnel,
+		})
+		if err != nil {
+			return false
+		}
+
+		require.NoError(t, conn.Close())
+		return true
+	}, 10*time.Second, time.Second)
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
@@ -6406,4 +6433,95 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testSFTP(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport instance.
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	client, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// Create SFTP session.
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
+
+	// Create file that will be uploaded and downloaded.
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "testfile")
+	testFile, err := os.Create(testFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
+
+	_, err = testFile.WriteString("This is test data.")
+	require.NoError(t, err)
+	require.NoError(t, testFile.Sync())
+
+	// Test stat'ing a file.
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
+
+	// Test downloading a file.
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
+
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
+
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
+
+	// Test uploading a file.
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
+
+	// Ensure SFTP audit events are present.
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+	require.NoError(t, err)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }

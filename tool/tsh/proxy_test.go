@@ -29,11 +29,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -210,18 +210,39 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
-	err = Run(context.Background(), []string{
-		"ssh",
-		"--insecure",
-		"-J", s.leaf.Config.Proxy.WebAddr.Addr,
-		s.leaf.Config.Hostname,
-		"echo", "hello",
-	}, func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
-		return nil
+	t.Run("root cluster online", func(t *testing.T) {
+		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
+		err = Run(context.Background(), []string{
+			"ssh",
+			"--insecure",
+			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+			return nil
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
+
+	t.Run("root cluster offline", func(t *testing.T) {
+		// Terminate root cluster.
+		err = s.root.Close()
+		require.NoError(t, err)
+
+		// Check JumpHost flow when root cluster is offline.
+		err = Run(context.Background(), []string{
+			"ssh",
+			"--insecure",
+			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
+			return nil
+		})
+		require.NoError(t, err)
+	})
 }
 
 // TestProxySSHDial verifies "tsh proxy ssh" command.
@@ -587,5 +608,5 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, av []apievents.AuditEvent, nod
 			return
 		}
 	}
-	t.Error("failed to find AuthAttemptFailureCode event")
+	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
 }

@@ -487,6 +487,75 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 	return certs, nil
 }
 
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *proto.UnstableSystemRoleAssertion) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UnstableAssertSystemRole(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) InventoryControlStream(stream proto.AuthService_InventoryControlStreamServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	p, ok := peer.FromContext(stream.Context())
+	if !ok {
+		return trace.BadParameter("unable to find peer")
+	}
+
+	ics := client.NewUpstreamInventoryControlStream(stream, p.Addr.String())
+
+	if err := auth.RegisterInventoryControlStream(ics); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// hold open the stream until it completes
+	<-ics.Done()
+
+	if trace.IsEOF(ics.Error()) {
+		return nil
+	}
+
+	return trail.ToGRPC(ics.Error())
+}
+
+func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
+func (g *GRPCServer) PingInventory(ctx context.Context, req *proto.InventoryPingRequest) (*proto.InventoryPingResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.PingInventory(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -519,6 +588,28 @@ func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*typ
 		return nil, trace.Errorf("encountered unexpected user type")
 	}
 	return v2, nil
+}
+
+func (g *GRPCServer) GetCurrentUserRoles(_ *empty.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roles, err := auth.ServerWithRoles.GetCurrentUserRoles(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, role := range roles {
+		v5, ok := role.(*types.RoleV5)
+		if !ok {
+			log.Warnf("expected type RoleV5, got %T for role %q", role, role.GetName())
+			return trace.Errorf("encountered unexpected role type")
+		}
+		if err := stream.Send(v5); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthService_GetUsersServer) error {
@@ -3139,7 +3230,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
@@ -62,6 +63,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
+
+const sftpSubsystem = "sftp"
 
 var (
 	log = logrus.WithFields(logrus.Fields{
@@ -94,6 +97,8 @@ type Server struct {
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
 	limiter       *limiter.Limiter
+
+	inventoryHandle inventory.DownstreamHandle
 
 	// labels are static labels.
 	labels map[string]string
@@ -160,7 +165,7 @@ type Server struct {
 
 	// heartbeat sends updates about this server
 	// back to auth server
-	heartbeat *srv.Heartbeat
+	heartbeat srv.HeartbeatI
 
 	// useTunnel is used to inform other components that this server is
 	// requesting connections to it come over a reverse tunnel.
@@ -209,6 +214,8 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
+	// awsMatchers are used to match EC2 instances
+	awsMatchers []services.AWSMatcher
 }
 
 // GetClock returns server clock implementation
@@ -301,6 +308,9 @@ func (s *Server) isAuditedAtProxy() bool {
 type ServerOption func(s *Server) error
 
 func (s *Server) close() {
+	s.Lock()
+	defer s.Unlock()
+
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
@@ -335,55 +345,48 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // Start starts server
 func (s *Server) Start() error {
-	// If the server has dynamic labels defined, start a loop that will
-	// asynchronously keep them updated.
-	if s.dynamicLabels != nil {
-		go s.dynamicLabels.Start()
+	// Only call srv.Start() which listens on a socket if the server did not
+	// request connections to it arrive over a reverse tunnel.
+	if !s.useTunnel {
+		if err := s.srv.Start(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-
-	if s.users != nil {
-		go s.users.UserCleanup()
-	}
-
-	// If the server requested connections to it arrive over a reverse tunnel,
-	// don't call Start() which listens on a socket, return right away.
-	if s.useTunnel {
-		go s.heartbeat.Run()
-		return nil
-	}
-	if err := s.srv.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Heartbeat should start only after s.srv.Start.
 	// If the server is configured to listen on port 0 (such as in tests),
 	// it'll only populate its actual listening address during s.srv.Start.
 	// Heartbeat uses this address to announce. Avoid announcing an empty
 	// address on first heartbeat.
-	go s.heartbeat.Run()
-
+	s.startPeriodicOperations()
 	return nil
 }
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	s.startPeriodicOperations()
+	return trace.Wrap(s.srv.Serve(l))
+}
+
+func (s *Server) startPeriodicOperations() {
+	s.Lock()
+	defer s.Unlock()
+
 	// If the server has dynamic labels defined, start a loop that will
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
 		go s.dynamicLabels.Start()
 	}
-	// if the server allows host user provisioning, this will start an
-	// automatic cleanup process for any temporary leftover users
+	// If the server allows host user provisioning, this will start an
+	// automatic cleanup process for any temporary leftover users.
 	if s.users != nil {
 		go s.users.UserCleanup()
 	}
-
 	if s.cloudLabels != nil {
 		s.cloudLabels.Start(s.Context())
 	}
-
-	go s.heartbeat.Run()
-	return s.srv.Serve(l)
+	if s.heartbeat != nil {
+		go s.heartbeat.Run()
+	}
 }
 
 // Wait waits until server stops
@@ -648,6 +651,23 @@ func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerO
 	}
 }
 
+// SetInventoryControlHandle sets the server's downstream inventory control
+// handle.
+func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
+	return func(s *Server) error {
+		s.inventoryHandle = handle
+		return nil
+	}
+}
+
+// SetAWSMatchers sets the matchers used for matching EC2 instances
+func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
+	return func(s *Server) error {
+		s.awsMatchers = matchers
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -788,19 +808,32 @@ func New(addr utils.NetAddr,
 	} else {
 		heartbeatMode = srv.HeartbeatModeNode
 	}
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Mode:            heartbeatMode,
-		Context:         ctx,
-		Component:       component,
-		Announcer:       s.authService,
-		GetServerInfo:   s.getServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		Clock:           s.clock,
-		OnHeartbeat:     s.onHeartbeat,
-	})
+
+	var heartbeat srv.HeartbeatI
+	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
+		log.Info("debug -> starting control-stream based heartbeat.")
+		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
+			InventoryHandle: s.inventoryHandle,
+			GetServer:       s.getServerInfo,
+			Announcer:       s.authService,
+			OnHeartbeat:     s.onHeartbeat,
+		})
+	} else {
+		log.Info("debug -> starting legacy heartbeat.")
+		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
+			Mode:            heartbeatMode,
+			Context:         ctx,
+			Component:       component,
+			Announcer:       s.authService,
+			GetServerInfo:   s.getServerResource,
+			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+			ServerTTL:       apidefaults.ServerAnnounceTTL,
+			CheckPeriod:     defaults.HeartbeatCheckPeriod,
+			Clock:           s.clock,
+			OnHeartbeat:     s.onHeartbeat,
+		})
+	}
 	if err != nil {
 		s.srv.Close()
 		return nil, trace.Wrap(err)
@@ -918,6 +951,10 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
+	return s.getBasicInfo()
+}
+
+func (s *Server) getBasicInfo() *types.ServerV2 {
 	// Only set the address for non-tunnel nodes.
 	var addr string
 	if !s.useTunnel {
@@ -943,8 +980,8 @@ func (s *Server) GetInfo() types.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (types.Resource, error) {
-	server := s.GetInfo()
+func (s *Server) getServerInfo() *types.ServerV2 {
+	server := s.getBasicInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
 		if err != nil {
@@ -959,7 +996,11 @@ func (s *Server) getServerInfo() (types.Resource, error) {
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	server.SetPeerAddr(s.peerAddr)
-	return server, nil
+	return server
+}
+
+func (s *Server) getServerResource() (types.Resource, error) {
+	return s.getServerInfo(), nil
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
@@ -1561,6 +1602,22 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
+		case sshutils.AgentForwardRequest:
+			// This happens when SSH client has agent forwarding enabled, in this case
+			// client sends a special request, in return SSH server opens new channel
+			// that uses SSH protocol for agent drafted here:
+			// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
+			// the open ssh proto spec that we implement is here:
+			// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
+
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, all errors should be logged and we should continue
+			// processing requests.
+			err := s.handleAgentForwardNode(req, serverContext)
+			if err != nil {
+				log.Warn(err)
+			}
+			return nil
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1936,13 +1993,17 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
 	}
-	if s.proxyMode && strings.HasPrefix(r.Name, "proxy:") {
+
+	switch {
+	case s.proxyMode && strings.HasPrefix(r.Name, "proxy:"):
 		return parseProxySubsys(r.Name, s, ctx)
-	}
-	if s.proxyMode && strings.HasPrefix(r.Name, "proxysites") {
+	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	case r.Name == sftpSubsystem:
+		return newSFTPSubsys()
+	default:
+		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}
-	return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 }
 
 func writeStderr(ch ssh.Channel, msg string) {

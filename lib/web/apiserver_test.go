@@ -1278,7 +1278,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	n, err := authClient.GetClusterName()
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
-	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "")
+	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
 	require.NoError(t, err)
 
 	tlsConfig, err := identity.TLSConfig(nil)
@@ -3310,6 +3310,10 @@ func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Se
 
 func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
+}
+
+func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, trace.NotFound("foo")
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
