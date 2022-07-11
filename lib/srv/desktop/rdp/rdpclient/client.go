@@ -531,14 +531,16 @@ func (c *Client) close() {
 		// Ensure the RDP connection is closed
 		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
+		} else {
+			c.cfg.Log.Debug("RDP connection closed successfully")
 		}
-		c.cfg.Log.Debug(("RDP connection closed successfully"))
 
 		// Ensure the TDP connection is closed
 		if err := c.cfg.Conn.Close(); err != nil {
 			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
+		} else {
+			c.cfg.Log.Debug("TDP connection closed successfully")
 		}
-		c.cfg.Log.Debug(("TDP connection closed successfully"))
 	})
 }
 
@@ -548,11 +550,9 @@ func (c *Client) cleanup() {
 	c.cleanupOnce.Do(func() {
 		// Let the Rust side free its data
 		C.free_rdp(c.rustClient)
-		c.cfg.Log.Debug(("Rust client memory freed"))
 
 		// Release the memory of the cgo.Handle
 		c.handle.Delete()
-		c.cfg.Log.Debug(("CGO handle deleted"))
 	})
 }
 
