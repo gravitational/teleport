@@ -649,7 +649,7 @@ type HostUsersInfo struct {
 
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRoleV3(name, spec)
+	role, err := types.NewRole(name, spec)
 	return role, trace.Wrap(err)
 }
 

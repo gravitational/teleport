@@ -301,7 +301,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		string(types.RoleRemoteProxy),
 		types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces: []string{types.Wildcard},
+				Namespaces:     []string{types.Wildcard},
+				AppLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -390,6 +392,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
@@ -420,6 +423,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
+					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -449,7 +453,8 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:     []string{types.Wildcard},
+					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -480,8 +485,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				role.String(),
 				types.RoleSpecV5{
 					Allow: types.RoleConditions{
-						Namespaces:    []string{types.Wildcard},
-						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						Namespaces:     []string{types.Wildcard},
+						ClusterLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						AppLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							types.NewRule(types.KindProxy, services.RW()),
 							types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -543,8 +550,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces:    []string{types.Wildcard},
-					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:     []string{types.Wildcard},
+					ClusterLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindProxy, services.RW()),
 						types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -623,6 +632,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:           []string{types.Wildcard},
 					Logins:               []string{},
 					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
@@ -644,7 +656,8 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:       []string{types.Wildcard},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
