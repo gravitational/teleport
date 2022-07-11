@@ -62,18 +62,21 @@ func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, error) {
 
 func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 	testCases := []struct {
+		name                  string
 		targetSubresourceName string
 	}{
 		{
+			name:                  "empty name",
 			targetSubresourceName: "",
 		},
 		{
+			name:                  "with name",
 			targetSubresourceName: "bar",
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.targetSubresourceName, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			cluster := Cluster{
 				URI:  uri.NewClusterURI("quux"),
 				Name: "quux",
@@ -83,49 +86,61 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					},
 				},
 			}
-			localPort := "1337"
-			gateway := gateway.Gateway{
-				Config: gateway.Config{
+			fakeStorage := fakeStorage{
+				clusters: []*Cluster{&cluster},
+			}
+			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+			gateway, err := gateway.New(
+				gateway.Config{
 					TargetURI:             cluster.URI.AppendDB("foo").String(),
 					TargetName:            "foo",
 					TargetSubresourceName: tc.targetSubresourceName,
 					Protocol:              defaults.ProtocolPostgres,
 					LocalAddress:          "localhost",
-					LocalPort:             localPort,
+					WebProxyAddr:          "localhost:1337",
+					Insecure:              true,
+					CertPath:              "../../../fixtures/certs/proxy1.pem",
+					KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+					CLICommandProvider:    dbcmdCLICommandProvider,
 				},
-			}
-			fakeStorage := fakeStorage{
-				clusters: []*Cluster{&cluster},
-			}
-			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { gateway.Close() })
 
-			command, err := dbcmdCLICommandProvider.GetCommand(&gateway)
+			command, err := dbcmdCLICommandProvider.GetCommand(gateway)
 
 			require.NoError(t, err)
 			require.NotEmpty(t, command)
 			require.Contains(t, command, tc.targetSubresourceName)
-			require.Contains(t, command, localPort)
+			require.Contains(t, command, gateway.LocalPort())
 		})
 	}
 }
 
 func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *testing.T) {
-	gateway := gateway.Gateway{
-		Config: gateway.Config{
-			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
-			TargetName:            "foo",
-			TargetSubresourceName: "",
-			Protocol:              defaults.ProtocolPostgres,
-			LocalAddress:          "localhost",
-			LocalPort:             "12345",
-		},
-	}
 	fakeStorage := fakeStorage{
 		clusters: []*Cluster{},
 	}
 	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+	gateway, err := gateway.New(
+		gateway.Config{
+			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
+			TargetName:            "foo",
+			TargetUser:            "alice",
+			TargetSubresourceName: "",
+			Protocol:              defaults.ProtocolPostgres,
+			LocalAddress:          "localhost",
+			WebProxyAddr:          "localhost:1337",
+			Insecure:              true,
+			CertPath:              "../../../fixtures/certs/proxy1.pem",
+			KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+			CLICommandProvider:    dbcmdCLICommandProvider,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { gateway.Close() })
 
-	_, err := dbcmdCLICommandProvider.GetCommand(&gateway)
+	_, err = dbcmdCLICommandProvider.GetCommand(gateway)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
 }

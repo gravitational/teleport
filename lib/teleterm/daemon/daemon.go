@@ -156,11 +156,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log.WithError(err).Warn("Failed to open a connection.")
+			gateway.Log().WithError(err).Warn("Failed to open a connection.")
 		}
 	}()
 
-	s.gateways[gateway.URI.String()] = gateway
+	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
 }
@@ -196,7 +196,7 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 		return trace.Wrap(err)
 	}
 
-	delete(s.gateways, gateway.URI.String())
+	delete(s.gateways, gateway.URI().String())
 
 	return nil
 }
@@ -218,10 +218,10 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	}
 
 	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             oldGateway.TargetURI,
-		TargetUser:            oldGateway.TargetUser,
-		TargetSubresourceName: oldGateway.TargetSubresourceName,
-		LocalPort:             oldGateway.LocalPort,
+		TargetURI:             oldGateway.TargetURI(),
+		TargetUser:            oldGateway.TargetUser(),
+		TargetSubresourceName: oldGateway.TargetSubresourceName(),
+		LocalPort:             oldGateway.LocalPort(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -229,9 +229,9 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 
 	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
 	// the URI of the old gateway.
-	delete(s.gateways, newGateway.URI.String())
-	newGateway.URI = oldGateway.URI
-	s.gateways[oldGateway.URI.String()] = newGateway
+	delete(s.gateways, newGateway.URI().String())
+	newGateway.SetURI(oldGateway.URI())
+	s.gateways[oldGateway.URI().String()] = newGateway
 
 	return nil
 }
@@ -269,7 +269,7 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.TargetSubresourceName = targetSubresourceName
+	gateway.SetTargetSubresourceName(targetSubresourceName)
 
 	return gateway, nil
 }
