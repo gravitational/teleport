@@ -20,6 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// messageByteBuckets creates buckets ranging from 32-65536 bytes.
+var messageByteBuckets = prometheus.ExponentialBuckets(32, 2, 12)
+
 type metrics interface {
 	getConnectionGauge() *prometheus.GaugeVec
 	getRPCGauge() *prometheus.GaugeVec

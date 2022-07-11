@@ -18,11 +18,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1301,11 +1304,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 // PruneResourceRequestGetter is the access interface necessary for PruneResourceRequestRoles.
 type PruneResourceRequestGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	GetNode(ctx context.Context, namespace string, name string) (types.Server, error)
-	GetKubeServices(ctx context.Context) ([]types.Server, error)
-	GetDatabase(ctx context.Context, name string) (types.Database, error)
-	GetApp(ctx context.Context, name string) (types.Application, error)
-	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // PruneResourceRequestRoles takes an access request and does one of two things:
@@ -1450,55 +1449,85 @@ func roleAllowsResource(
 }
 
 func getResources(ctx context.Context, getter PruneResourceRequestGetter, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
-	var resources []types.ResourceWithLabels
+	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
-		switch resourceID.Kind {
-		case types.KindNode:
-			node, err := getter.GetNode(ctx, apidefaults.Namespace, resourceID.Name)
+		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
+	}
+	var resources []types.ResourceWithLabels
+	for kind, resourceNames := range resourceNamesByKind {
+		req := proto.ListResourcesRequest{
+			ResourceType:        MapResourceKindToListResourcesType(kind),
+			PredicateExpression: anyNameMatcher(resourceNames),
+			Limit:               int32(len(resourceNames)),
+		}
+		resp, err := getter.ListResources(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, result := range resp.Resources {
+			leafResources, err := MapListResourcesResultToLeafResource(result, kind)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			resources = append(resources, node)
-		case types.KindKubernetesCluster:
-			kubeServices, err := getter.GetKubeServices(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, kubeService := range kubeServices {
-				for _, kubeCluster := range kubeService.GetKubernetesClusters() {
-					if kubeCluster.Name != resourceID.Name {
-						continue
-					}
-					kubeV3, err := types.NewKubernetesClusterV3FromLegacyCluster(kubeService.GetNamespace(), kubeCluster)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					resources = append(resources, kubeV3)
-				}
-			}
-		case types.KindDatabase:
-			db, err := getter.GetDatabase(ctx, resourceID.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resources = append(resources, db)
-		case types.KindApp:
-			app, err := getter.GetApp(ctx, resourceID.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resources = append(resources, app)
-		case types.KindWindowsDesktop:
-			desktops, err := getter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{
-				Name: resourceID.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, desktop := range desktops {
-				resources = append(resources, desktop)
-			}
+			resources = append(resources, leafResources...)
 		}
 	}
 	return resources, nil
+}
+
+// anyNameMatcher returns a PredicateExpression which matches any of a given list
+// of names. Given names will be escaped and quoted when building the expression.
+func anyNameMatcher(names []string) string {
+	matchers := make([]string, len(names))
+	for i := range names {
+		matchers[i] = fmt.Sprintf(`name == %q`, names[i])
+	}
+	return strings.Join(matchers, " || ")
+}
+
+// MapResourceKindToListResourcesType returns the value to use for ResourceType in a
+// ListResourcesRequest based on the kind of resource you're searching for.
+// Necessary because some resource kinds don't support ListResources directly,
+// so you have to list the parent kind. Use MapListResourcesResultToLeafResource to map back
+// to the given kind.
+func MapResourceKindToListResourcesType(kind string) string {
+	switch kind {
+	case types.KindApp:
+		return types.KindAppServer
+	case types.KindDatabase:
+		return types.KindDatabaseServer
+	case types.KindKubernetesCluster:
+		return types.KindKubeService
+	default:
+		return kind
+	}
+}
+
+// MapListResourcesResultToLeafResource is the inverse of
+// MapResourceKindToListResourcesType, after the ListResources call it maps the
+// result back to the kind we really want. `hint` should be the name of the
+// desired resource kind, used to disambiguate normal SSH nodes and kubernetes
+// services which are both returned as `types.Server`.
+func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
+	switch r := resource.(type) {
+	case types.AppServer:
+		return types.ResourcesWithLabels{r.GetApp()}, nil
+	case types.DatabaseServer:
+		return types.ResourcesWithLabels{r.GetDatabase()}, nil
+	case types.Server:
+		if hint == types.KindKubernetesCluster {
+			kubeClusters := r.GetKubernetesClusters()
+			resources := make(types.ResourcesWithLabels, len(kubeClusters))
+			for i := range kubeClusters {
+				resource, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, kubeClusters[i])
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				resources[i] = resource
+			}
+			return resources, nil
+		}
+	default:
+	}
+	return types.ResourcesWithLabels{resource}, nil
 }

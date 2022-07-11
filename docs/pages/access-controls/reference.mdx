@@ -214,8 +214,8 @@ RBAC lets teams limit what resources are available to Teleport users. This can b
 you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
 (`role`).
 
-Below is an example `allow` section that illustrates commonly used `rules`. 
-Each rule includes a list of Teleport resources and the CRUD 
+Below is an example `allow` section that illustrates commonly used `rules`.
+Each rule includes a list of Teleport resources and the CRUD
 operations that a user is allowed to execute on them:
 
 ```yaml
@@ -334,8 +334,8 @@ spec:
 
 ## Second Factor - U2F
 
-Refer to the [Second Factor - U2F guide](./guides/u2f.mdx) if you have a cluster
-using the legacy U2F support.
+Refer to the [Second Factor - WebAuthn](./guides/webauthn.mdx#u2f) guide if you
+have a cluster using the legacy U2F support.
 
 ## Filter fields
 
@@ -348,5 +348,5 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 | `ssh_session.participants` | The list of participants from an SSH session       |
 | `user.metadata.name`       | The user's name                                     |
 
-Check out our [predicate language](../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources) 
+Check out our [predicate language](../setup/reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.

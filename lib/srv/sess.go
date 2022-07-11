@@ -210,10 +210,10 @@ func (s *SessionRegistry) tryCreateHostUser(ctx *ServerContext) (*user.User, err
 	return tempUser, nil
 }
 
-// OpenSession either joins an existing session or starts a new session.
+// OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error {
 	session := ctx.getSession()
-	if session != nil {
+	if session != nil && !session.isStopped() {
 		ctx.Infof("Joining existing session %v.", session.id)
 
 		mode := types.SessionParticipantMode(ctx.env[teleport.EnvSSHJoinMode])
@@ -652,10 +652,6 @@ func (s *session) Stop() {
 	// close io copy loops
 	s.io.Close()
 
-	// remove session from server context to prevent new requests
-	// from attempting to join the session during cleanup
-	s.scx.setSession(nil)
-
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
@@ -1075,10 +1071,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser 
 		}()
 	}
 
-	if err := s.addParty(p, types.SessionPeerMode); err != nil {
-		return trace.Wrap(err)
-	}
-
 	ctx.Debug("Waiting for continue signal")
 
 	if tempUser != nil {
@@ -1390,6 +1382,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	return nil
 }
 
+// isStopped does not need to be called under sessionLock
 func (s *session) isStopped() bool {
 	select {
 	case <-s.stopC:

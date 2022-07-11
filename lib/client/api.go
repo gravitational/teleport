@@ -1357,6 +1357,16 @@ func (c *Config) ProxySpecified() bool {
 	return c.WebProxyAddr != ""
 }
 
+// DefaultResourceFilter returns the default list resource request.
+func (c *Config) DefaultResourceFilter() *proto.ListResourcesRequest {
+	return &proto.ListResourcesRequest{
+		Namespace:           c.Namespace,
+		Labels:              c.Labels,
+		SearchKeywords:      c.SearchKeywords,
+		PredicateExpression: c.PredicateExpression,
+	}
+}
+
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
@@ -1582,12 +1592,7 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		})
+		nodes, err = proxy.FindNodesByFilters(ctx, *tc.DefaultResourceFilter())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2370,12 +2375,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer proxyClient.Close()
 
-	servers, err := proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-		Namespace:           tc.Namespace,
-		Labels:              tc.Labels,
-		SearchKeywords:      tc.SearchKeywords,
-		PredicateExpression: tc.PredicateExpression,
-	})
+	servers, err := proxyClient.FindNodesByFilters(ctx, *tc.DefaultResourceFilter())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2397,12 +2397,7 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 	}
 	servers := make(map[string][]types.Server, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}, cluster.Name)
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2428,12 +2423,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 
 	filter := customFilter
 	if filter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
@@ -2454,12 +2444,7 @@ func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Conte
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -2565,12 +2550,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 
 	filter := customFilter
 	if filter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
@@ -2591,12 +2571,7 @@ func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -3230,7 +3205,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	var response *auth.SSHLoginResponse
-
+	var username string
 	switch authType := pr.Auth.Type; {
 	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
 		// Sanity check settings.
@@ -3241,7 +3216,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.Username = response.Username
+		username = response.Username
 	case authType == constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
@@ -3252,33 +3227,28 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.SAML:
 		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.Github:
 		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
+	// Use proxy identity?
+	if username != "" {
+		tc.Username = username
+		if tc.localAgent != nil {
+			tc.localAgent.username = username
+		}
 	}
 
 	// Check that a host certificate for at least one cluster was returned.
@@ -3334,10 +3304,16 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+
 	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
-		User:                    tc.Username,
-		OptimisticAssertion:     !tc.ExplicitUsername,
+		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 	})
 	if err != nil {
