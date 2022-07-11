@@ -123,6 +123,18 @@ func SeparateMongoPortSetup() *InstancePorts {
 		Mongo:         NewInstancePort(),
 	}
 }
+func SeparateMongoAndPostgresPortSetup() *InstancePorts {
+	return &InstancePorts{
+		Web:           NewInstancePort(),
+		SSH:           NewInstancePort(),
+		Auth:          NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		ReverseTunnel: NewInstancePort(),
+		MySQL:         NewInstancePort(),
+		Mongo:         NewInstancePort(),
+		Postgres:      NewInstancePort(),
+	}
+}
 
 type InstancePorts struct {
 	Host string
