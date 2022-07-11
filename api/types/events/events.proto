@@ -2075,6 +2075,7 @@ message OneOf {
         events.SFTP SFTP = 91;
         events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
         events.AppSessionEnd AppSessionEnd = 93;
+        events.SessionRecordingView SessionRecordingView = 94;
     }
 }
 
@@ -2552,5 +2553,18 @@ message UpgradeWindowStartUpdate {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // UpgradeWindowStartMetadata contains upgrade window related metadata.
     UpgradeWindowStartMetadata UpgradeWindowStart = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// SessionRecordingView is emitted when a session is viewed in the web UI, allowing
+// session views to be included in the audit log
+message SessionRecordingView {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionID is the ID of the application session.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+    // UserMetadata is a common user event metadata.
+    UserMetadata UserMetadata = 3
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
