@@ -483,10 +483,6 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		return nil, trace.Wrap(err)
 	}
 
-	if !authPref.GetAllowLocalAuth() {
-		return nil, trace.AccessDenied("local auth needs to be enabled")
-	}
-
 	// For a user to add a device, second factor must be enabled.
 	// A nil request will be interpreted as a user who has second factor enabled
 	// but does not have any MFA registered, as can be the case with second factor optional.
