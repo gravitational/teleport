@@ -53,7 +53,8 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
-	}, params.CLICommandProvider)
+		CLICommandProvider:    params.CLICommandProvider,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +79,7 @@ func TestGatewayCRUD(t *testing.T) {
 				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
 			) {
 				createdGateway := nameToGateway["gateway"]
-				foundGateway, err := daemon.findGateway(createdGateway.URI.String())
+				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
 				require.NoError(t, err)
 				require.Equal(t, createdGateway, foundGateway)
 			},
@@ -93,12 +94,12 @@ func TestGatewayCRUD(t *testing.T) {
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
 
 				for _, gateway := range gateways {
-					gatewayURIs[gateway.URI] = struct{}{}
+					gatewayURIs[gateway.URI()] = struct{}{}
 				}
 
 				require.Equal(t, 2, len(gateways))
-				require.Contains(t, gatewayURIs, nameToGateway["gateway1"].URI)
-				require.Contains(t, gatewayURIs, nameToGateway["gateway2"].URI)
+				require.Contains(t, gatewayURIs, nameToGateway["gateway1"].URI())
+				require.Contains(t, gatewayURIs, nameToGateway["gateway2"].URI())
 			},
 		},
 		{
@@ -109,13 +110,13 @@ func TestGatewayCRUD(t *testing.T) {
 			) {
 				gatewayToRemove := nameToGateway["gatewayToRemove"]
 				gatewayToKeep := nameToGateway["gatewayToKeep"]
-				err := daemon.RemoveGateway(gatewayToRemove.URI.String())
+				err := daemon.RemoveGateway(gatewayToRemove.URI().String())
 				require.NoError(t, err)
 
-				_, err = daemon.findGateway(gatewayToRemove.URI.String())
+				_, err = daemon.findGateway(gatewayToRemove.URI().String())
 				require.True(t, trace.IsNotFound(err), "gatewayToRemove wasn't removed")
 
-				_, err = daemon.findGateway(gatewayToKeep.URI.String())
+				_, err = daemon.findGateway(gatewayToKeep.URI().String())
 				require.NoError(t, err)
 			},
 		},
@@ -128,13 +129,13 @@ func TestGatewayCRUD(t *testing.T) {
 				gateway := nameToGateway["gateway"]
 				require.Equal(t, 1, mockGatewayCreator.callCount)
 
-				err := daemon.RestartGateway(context.Background(), gateway.URI.String())
+				err := daemon.RestartGateway(context.Background(), gateway.URI().String())
 				require.NoError(t, err)
 				require.Equal(t, 2, mockGatewayCreator.callCount)
 				require.Equal(t, 1, len(daemon.gateways))
 
 				// Check if the restarted gateway is still available under the same URI.
-				_, err = daemon.findGateway(gateway.URI.String())
+				_, err = daemon.findGateway(gateway.URI().String())
 				require.NoError(t, err)
 			},
 		},

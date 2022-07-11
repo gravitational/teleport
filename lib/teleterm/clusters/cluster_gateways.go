@@ -60,7 +60,8 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	}, params.CLICommandProvider)
+		CLICommandProvider:    params.CLICommandProvider,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

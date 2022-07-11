@@ -25,13 +25,15 @@ import (
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // New creates an instance of Gateway
-func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
+func New(cfg Config) (*Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,11 +94,10 @@ func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 	cfg.LocalPort = port
 
 	gateway := &Gateway{
-		Config:             cfg,
-		closeContext:       closeContext,
-		closeCancel:        closeCancel,
-		localProxy:         localProxy,
-		cliCommandProvider: cliCommandProvider,
+		cfg:          &cfg,
+		closeContext: closeContext,
+		closeCancel:  closeCancel,
+		localProxy:   localProxy,
 	}
 
 	ok = true
@@ -116,15 +117,59 @@ func (g *Gateway) Close() error {
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
 func (g *Gateway) Serve() error {
-	g.Log.Info("Gateway is open.")
+	g.cfg.Log.Info("Gateway is open.")
 
 	if err := g.localProxy.Start(g.closeContext); err != nil {
 		return trace.Wrap(err)
 	}
 
-	g.Log.Info("Gateway has closed.")
+	g.cfg.Log.Info("Gateway has closed.")
 
 	return nil
+}
+
+func (g *Gateway) URI() uri.ResourceURI {
+	return g.cfg.URI
+}
+
+func (g *Gateway) SetURI(newURI uri.ResourceURI) {
+	g.cfg.URI = newURI
+}
+
+func (g *Gateway) TargetURI() string {
+	return g.cfg.TargetURI
+}
+
+func (g *Gateway) TargetName() string {
+	return g.cfg.TargetName
+}
+
+func (g *Gateway) Protocol() string {
+	return g.cfg.Protocol
+}
+
+func (g *Gateway) TargetUser() string {
+	return g.cfg.TargetUser
+}
+
+func (g *Gateway) TargetSubresourceName() string {
+	return g.cfg.TargetSubresourceName
+}
+
+func (g *Gateway) SetTargetSubresourceName(value string) {
+	g.cfg.TargetSubresourceName = value
+}
+
+func (g *Gateway) Log() *logrus.Entry {
+	return g.cfg.Log
+}
+
+func (g *Gateway) LocalAddress() string {
+	return g.cfg.LocalAddress
+}
+
+func (g *Gateway) LocalPort() string {
+	return g.cfg.LocalPort
 }
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
@@ -132,13 +177,13 @@ func (g *Gateway) LocalPortInt() int {
 	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
 	// it'll always be a random integer value, not a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
-	port, _ := strconv.Atoi(g.LocalPort)
+	port, _ := strconv.Atoi(g.cfg.LocalPort)
 	return port
 }
 
 // CLICommand returns a command which launches a CLI client pointed at the given gateway.
 func (g *Gateway) CLICommand() (string, error) {
-	cliCommand, err := g.cliCommandProvider.GetCommand(g)
+	cliCommand, err := g.cfg.CLICommandProvider.GetCommand(g)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -148,14 +193,12 @@ func (g *Gateway) CLICommand() (string, error) {
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
 type Gateway struct {
-	Config
-
+	cfg        *Config
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
 	closeContext       context.Context
 	closeCancel        context.CancelFunc
-	cliCommandProvider CLICommandProvider
 }
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.

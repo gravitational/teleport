@@ -81,14 +81,14 @@ func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 	}
 
 	return &api.Gateway{
-		Uri:                   gateway.URI.String(),
-		TargetUri:             gateway.TargetURI,
-		TargetName:            gateway.TargetName,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		Protocol:              gateway.Protocol,
-		LocalAddress:          gateway.LocalAddress,
-		LocalPort:             gateway.LocalPort,
+		Uri:                   gateway.URI().String(),
+		TargetUri:             gateway.TargetURI(),
+		TargetName:            gateway.TargetName(),
+		TargetUser:            gateway.TargetUser(),
+		TargetSubresourceName: gateway.TargetSubresourceName(),
+		Protocol:              gateway.Protocol(),
+		LocalAddress:          gateway.LocalAddress(),
+		LocalPort:             gateway.LocalPort(),
 		CliCommand:            command,
 	}, nil
 }
