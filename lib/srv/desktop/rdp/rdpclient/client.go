@@ -177,7 +177,7 @@ func (c *Client) Run(ctx context.Context) error {
 	// goroutines both finish.
 	c.wg.Wait()
 
-	// Both goroutines have finished, its now
+	// Both goroutines have finished, it's now
 	// safe to clean up the memory.
 	c.cleanup()
 
