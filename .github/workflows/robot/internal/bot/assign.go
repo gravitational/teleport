@@ -56,7 +56,7 @@ func (b *Bot) Assign(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		log.Printf("Assign: Dismissing reviews for: %v", strings.Join(r))
+		log.Printf("Assign: Dismissing reviews for: %v", strings.Join(r, ", "))
 		return trace.Wrap(b.c.GitHub.DismissReviewers(ctx,
 			b.c.Environment.Organization,
 			b.c.Environment.Repository,
