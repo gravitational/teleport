@@ -1,0 +1,23 @@
+#!/bin/sh
+
+( flock -n 9 || exit 1; 
+  sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+  sudo yum install -y 'teleport-{}' jq
+
+  INSTANCE_INFO="$(curl http://169.254.169.254/latest/dynamic/instance-identity/document)"
+
+  ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
+  INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)" 
+
+  # generate teleport ssh config
+  sudo /usr/local/bin/teleport node configure \
+	   --auth-server="{{ .AuthServer }}" \
+	   --join-method=iam \
+	   --token="{{ .Token }}" \
+	   --node-name="${ACCOUNT_ID}-${INSTANCE_ID}" \
+	   --output="/etc/teleport.yml"
+
+  # enable and start teleport service
+  sudo systemctl enable --now teleport
+
+) 9>/var/lock/teleport_install.lock

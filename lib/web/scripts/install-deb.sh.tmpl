@@ -1,0 +1,28 @@
+#!/bin/sh
+
+( flock -n 9 || exit 1; 
+  sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+	   -o /usr/share/keyrings/teleport-archive-keyring.asc
+  echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
+	  | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+
+  sudo apt-get update
+  sudo apt-get install -y teleport jq
+
+  INSTANCE_INFO="$(curl http://169.254.169.254/latest/dynamic/instance-identity/document)"
+
+  ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
+  INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)" 
+  
+  # generate teleport ssh config
+  sudo teleport node configure \
+	   --auth-server="{{ .AuthServer }}" \
+	   --join-method=iam \
+	   --token="{{ .Token }}" \
+	   --node-name="${ACCOUNT_ID}-${INSTANCE_ID}" \
+	   --output="/etc/teleport.yml"
+  
+  # enable and start teleport service
+  sudo systemctl enable --now teleport
+
+) 9>/var/lock/teleport_install.lock
