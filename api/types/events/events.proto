@@ -2563,7 +2563,7 @@ message SessionRecordingView {
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
     // SessionID is the ID of the application session.
-    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+    string SessionID = 2 [ (gogoproto.jsontag) = "sid" ];
     // UserMetadata is a common user event metadata.
     UserMetadata UserMetadata = 3
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
