@@ -2257,8 +2257,44 @@ func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID s
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
+	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
+	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
+	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
+	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: a.ServerID,
+	}
+	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
+		return trace.Wrap(err)
+	}
 	a.inventory.RegisterControlStream(ics, hello)
+	return nil
+}
+
+// MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
+// server upon hello exchange.
+func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe()
+	go func() {
+		select {
+		case msg := <-upstream.Recv():
+			hello, ok := msg.(proto.UpstreamInventoryHello)
+			if !ok {
+				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
+				return
+			}
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+				upstream.CloseWithError(err)
+				return
+			}
+		case <-upstream.Done():
+		case <-a.CloseContext().Done():
+			upstream.Close()
+		}
+	}()
+	return downstream
 }
 
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {

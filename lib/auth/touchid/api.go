@@ -24,7 +24,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -42,14 +44,29 @@ import (
 var (
 	ErrCredentialNotFound = errors.New("credential not found")
 	ErrNotAvailable       = errors.New("touch ID not available")
+
+	// PromptPlatformMessage is the message shown before Touch ID prompts.
+	PromptPlatformMessage = "Using platform authenticator, follow the OS prompt"
+	// PromptWriter is the writer used for prompt messages.
+	PromptWriter io.Writer = os.Stderr
 )
+
+func promptPlatform() {
+	if PromptPlatformMessage != "" {
+		fmt.Fprintln(PromptWriter, PromptPlatformMessage)
+	}
+}
 
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	Diag() (*DiagResult, error)
 
+	// Register creates a new credential in the Secure Enclave.
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
+
+	// Authenticate authenticates using the specified credential.
+	// Requires user interaction.
 	Authenticate(credentialID string, digest []byte) ([]byte, error)
 
 	// FindCredentials finds credentials without user interaction.
@@ -263,6 +280,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, trace.Wrap(err)
 	}
 
+	promptPlatform()
 	sig, err := native.Authenticate(credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -446,7 +464,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", trace.Wrap(err)
 	}
 
-	log.Debug("Prompting for Touch ID")
+	promptPlatform()
 	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -495,6 +513,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 		return nil, ErrNotAvailable
 	}
 
+	promptPlatform()
 	infos, err := native.ListCredentials()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -521,5 +540,6 @@ func DeleteCredential(credentialID string) error {
 		return ErrNotAvailable
 	}
 
+	promptPlatform()
 	return native.DeleteCredential(credentialID)
 }
