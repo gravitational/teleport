@@ -148,7 +148,7 @@ type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
-	// You should use Token() instead - this has to be an accessible property for YAML unmarshalling
+	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
 	TokenValue string `yaml:"token"`
 
