@@ -271,14 +271,26 @@ func TestSSODiagnostic(t *testing.T) {
 				return cc, nil
 			}
 
-			diagCtx := ssoDiagContext{}
-
-			resp, err := s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
+			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
 			if tc.wantValidateErr != nil {
 				require.ErrorIs(t, err, tc.wantValidateErr)
 				return
 			}
 
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, &OIDCAuthResponse{
+				Username: "superuser@example.com",
+				Identity: types.ExternalIdentity{
+					ConnectorID: "-sso-test-okta",
+					Username:    "superuser@example.com",
+				},
+				Req: *request,
+			}, resp)
+
+			diagCtx := ssoDiagContext{}
+
+			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, &OIDCAuthResponse{
