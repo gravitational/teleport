@@ -1515,6 +1515,9 @@ type IdentityService interface {
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
 	GetCurrentUser(ctx context.Context) (types.User, error)
 
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
+
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
 
