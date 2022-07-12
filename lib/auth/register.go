@@ -152,6 +152,13 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if !utils.IsEC2NodeID(params.ID.HostUUID) {
+			return nil, trace.BadParameter(
+				`host ID %q is not valid when using the EC2 join method, `+
+					`try removing the "host_uuid" file in your teleport data dir `+
+					`(e.g. /var/lib/teleport/host_uuid)`,
+				params.ID.HostUUID)
+		}
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
