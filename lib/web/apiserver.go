@@ -2090,6 +2090,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	}
 
 	return session.Session{
+		Kind:      tracker.GetSessionKind(),
 		ID:        session.ID(tracker.GetSessionID()),
 		Namespace: apidefaults.Namespace,
 		Parties:   parties,
@@ -2097,13 +2098,14 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
 		},
-		Login:          tracker.GetLogin(),
-		Created:        tracker.GetCreated(),
-		LastActive:     tracker.GetLastActive(),
-		ServerID:       tracker.GetAddress(),
-		ServerHostname: tracker.GetHostname(),
-		ServerAddr:     tracker.GetAddress(),
-		ClusterName:    clusterName,
+		Login:                 tracker.GetLogin(),
+		Created:               tracker.GetCreated(),
+		LastActive:            tracker.GetLastActive(),
+		ServerID:              tracker.GetAddress(),
+		ServerHostname:        tracker.GetHostname(),
+		ServerAddr:            tracker.GetAddress(),
+		ClusterName:           clusterName,
+		KubernetesClusterName: tracker.GetKubeCluster(),
 	}
 }
 
@@ -2128,7 +2130,9 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 
 	sessions := make([]session.Session, 0, len(trackers))
 	for _, tracker := range trackers {
-		if tracker.GetSessionKind() == types.SSHSessionKind && tracker.GetState() != types.SessionState_SessionStateTerminated {
+		// Only return ssh and k8s session type.
+		isSSHOrK8s := tracker.GetSessionKind() == types.SSHSessionKind || tracker.GetSessionKind() == types.KubernetesSessionKind
+		if isSSHOrK8s && tracker.GetState() != types.SessionState_SessionStateTerminated {
 			sessions = append(sessions, trackerToLegacySession(tracker, p.ByName("site")))
 		}
 	}
