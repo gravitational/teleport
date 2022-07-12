@@ -1212,7 +1212,7 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 			Expiry:  time.Hour,
 			Params: types.AcquireSemaphoreRequest{
 				SemaphoreKind: types.SemaphoreKindConnection,
-				SemaphoreName: "alice",
+				SemaphoreName: fmt.Sprintf("sem-%d", i), // avoid overlap between iterations
 				MaxLeases:     locks,
 			},
 		}
@@ -1220,22 +1220,21 @@ func (s *ServicesTestSuite) SemaphoreContention(t *testing.T) {
 		// context-based cancellation is needed to cleanup the
 		// background keepalive activity.
 		cancelCtx, cancel := context.WithCancel(ctx)
-		var wg sync.WaitGroup
+		acquireErrs := make(chan error, locks)
 		for i := int64(0); i < locks; i++ {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
 				_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
-				require.NoError(t, err)
+				acquireErrs <- err
 			}()
 		}
-		wg.Wait()
+		for i := int64(0); i < locks; i++ {
+			require.NoError(t, <-acquireErrs)
+		}
 		cancel()
 		require.NoError(t, s.PresenceS.DeleteSemaphore(ctx, types.SemaphoreFilter{
 			SemaphoreKind: cfg.Params.SemaphoreKind,
 			SemaphoreName: cfg.Params.SemaphoreName,
 		}))
-
 	}
 }
 
