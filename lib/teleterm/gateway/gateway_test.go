@@ -75,6 +75,9 @@ func TestGatewayStart(t *testing.T) {
 	t.Cleanup(func() { gateway.Close() })
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
+	require.NotEmpty(t, gateway.LocalPort())
+	require.NotEqual(t, "0", gateway.LocalPort())
+
 	serveErr := make(chan error)
 
 	go func() {
