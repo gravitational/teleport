@@ -721,11 +721,11 @@ func TestFromString(t *testing.T) {
 	require.NoError(t, err)
 
 	require.EqualValues(t, r.c.CodeReviewers, map[string]Reviewer{
-		"1": Reviewer{
+		"1": {
 			Team:  "Core",
 			Owner: true,
 		},
-		"2": Reviewer{
+		"2": {
 			Team:  "Core",
 			Owner: false,
 		},
@@ -734,11 +734,11 @@ func TestFromString(t *testing.T) {
 		"3": true,
 	})
 	require.EqualValues(t, r.c.DocsReviewers, map[string]Reviewer{
-		"4": Reviewer{
+		"4": {
 			Team:  "Core",
 			Owner: true,
 		},
-		"5": Reviewer{
+		"5": {
 			Team:  "Core",
 			Owner: false,
 		},
