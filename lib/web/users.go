@@ -127,7 +127,7 @@ func updateUserTraits(req *saveUserRequest, user types.User) {
 		user.SetDatabaseUsers(*req.DatabaseUsers)
 	}
 	if req.DatabaseNames != nil {
-		user.SetDatabaseNames(*req.DatabaseUsers)
+		user.SetDatabaseNames(*req.DatabaseNames)
 	}
 	if req.KubeUsers != nil {
 		user.SetKubeUsers(*req.KubeUsers)
