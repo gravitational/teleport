@@ -146,14 +146,14 @@ information about the cluster.
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `-l, --login` | none | an identity name | the login identity that the Teleport User should use |
-| `--proxy` | none | `host:https_port[,ssh_proxy_port]` | set SSH proxy address |
-| `--user` | `$USER` | none | the Teleport User name |
-| `--ttl` | none | relative duration like 5s, 2m, or 3h | set time to live for a SSH session, session ttl unrestricted if unset {/* TODO Check this */} |
+| `-l, --login` | none | an identity name | The login identity that the Teleport user will use |
+| `--proxy` | none | `host:https_port[,ssh_proxy_port]` | Teleport Proxy Service address |
+| `--user` | `$USER` | none | The Teleport username |
+| `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
-| `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
+| `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto` or `otp` | Preferred MFA method for `tsh`. Useful to force `otp` in constrained environments. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
