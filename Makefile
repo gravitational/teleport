@@ -990,7 +990,7 @@ publish: image
 publish-ecr: image
 	docker tag $(DOCKER_IMAGE) $(DOCKER_IMAGE_ECR)
 	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) _C e publish-ecr; fi
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
