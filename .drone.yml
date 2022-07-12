@@ -859,13 +859,13 @@ steps:
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (10)
+      # CURRENT_VERSION
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (9)
+      # PREVIOUS_VERSION_ONE
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (8)
+      # PREVIOUS_VERSION_TWO
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -1034,13 +1034,13 @@ steps:
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (10)
+      # CURRENT_VERSION
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (9)
+      # PREVIOUS_VERSION_ONE
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (8)
+      # PREVIOUS_VERSION_TWO
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -1055,9 +1055,13 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
+      PROD_AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
@@ -1065,10 +1069,19 @@ steps:
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
-      - export OSS_IMAGE_NAME="public.ecr.aws/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      - export CURRENT_DATE=$(date '+%Y%m%d')
+      # Staging image names
+      - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
@@ -1078,15 +1091,32 @@ steps:
       # Enterprise FIPS
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
     image: docker
     environment:
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
+      PROD_AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
@@ -1094,10 +1124,19 @@ steps:
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
-      - export OSS_IMAGE_NAME="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      - export CURRENT_DATE=$(date '+%Y%m%d')
+      # Staging image names
+      - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
@@ -1107,26 +1146,52 @@ steps:
       # Enterprise FIPS
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
     image: docker
     environment:
       OS: linux
       ARCH: amd64
-      AWS_ACCESS_KEY_ID:
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
-      AWS_SECRET_ACCESS_KEY:
+      PROD_AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d')
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
-      - export OSS_IMAGE_NAME="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
-      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Staging image names
+      - export OSS_IMAGE_NAME="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
@@ -1136,6 +1201,19 @@ steps:
       # Enterprise FIPS
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
 ---
 kind: pipeline
@@ -5878,6 +5956,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 7dc1fb898e4fc748749ecb7ab7cebf206961c6675b765a846cb300a2bd33627d
+hmac: da65877b4a3477160c76392204ea1f0e02cb3ffc892604db6da5d44416ab6b98
 
 ...
