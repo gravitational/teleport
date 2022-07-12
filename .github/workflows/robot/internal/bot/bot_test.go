@@ -20,69 +20,56 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/.github/workflows/robot/internal/env"
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestParseChanges checks that PR contents are correctly parsed for docs and
+// TestClassifyChanges checks that PR contents are correctly parsed for docs and
 // code changes.
-func TestParseChanges(t *testing.T) {
+func TestClassifyChanges(t *testing.T) {
 	tests := []struct {
 		desc  string
-		files []string
+		files []github.PullRequestFile
 		docs  bool
 		code  bool
 	}{
 		{
 			desc: "code-only",
-			files: []string{
-				"file.go",
-				"examples/README.md",
+			files: []github.PullRequestFile{
+				{Name: "file.go"},
+				{Name: "examples/README.md"},
 			},
 			docs: false,
 			code: true,
 		},
 		{
 			desc: "docs-only",
-			files: []string{
-				"docs/docs.md",
+			files: []github.PullRequestFile{
+				{Name: "docs/docs.md"},
 			},
 			docs: true,
 			code: false,
 		},
 		{
 			desc: "code-and-code",
-			files: []string{
-				"file.go",
-				"docs/docs.md",
+			files: []github.PullRequestFile{
+				{Name: "file.go"},
+				{Name: "docs/docs.md"},
 			},
 			docs: true,
 			code: true,
 		},
 		{
 			desc:  "no-docs-no-code",
-			files: []string{},
+			files: nil,
 			docs:  false,
 			code:  false,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			b := &Bot{
-				c: &Config{
-					Environment: &env.Environment{
-						Organization: "foo",
-						Repository:   "bar",
-						Number:       0,
-					},
-					GitHub: &fakeGithub{
-						files: test.files,
-					},
-				},
-			}
-			docs, code, err := b.parseChanges(context.Background())
+			docs, code, err := classifyChanges(test.files)
 			require.NoError(t, err)
 			require.Equal(t, docs, test.docs)
 			require.Equal(t, code, test.code)
@@ -90,14 +77,65 @@ func TestParseChanges(t *testing.T) {
 	}
 }
 
+func TestIsLargePR(t *testing.T) {
+	tests := []struct {
+		desc    string
+		files   []github.PullRequestFile
+		isLarge bool
+	}{
+		{
+			desc: "single file large",
+			files: []github.PullRequestFile{
+				{Name: "file.go", Additions: 5555},
+			},
+			isLarge: true,
+		},
+		{
+			desc: "single file not large",
+			files: []github.PullRequestFile{
+				{Name: "file.go", Additions: 5, Deletions: 2},
+			},
+			isLarge: false,
+		},
+		{
+			desc: "multiple files large",
+			files: []github.PullRequestFile{
+				{Name: "file.go", Additions: 502, Deletions: 2},
+				{Name: "file2.go", Additions: 10000, Deletions: 2000},
+			},
+			isLarge: true,
+		},
+		{
+			desc: "with autogen, not large",
+			files: []github.PullRequestFile{
+				{Name: "file.go", Additions: 502, Deletions: 2},
+				{Name: "file2.pb.go", Additions: 10000, Deletions: 2000},
+				{Name: "file_pb.js", Additions: 10000, Deletions: 2000},
+				{Name: "file2_pb.d.ts", Additions: 10000, Deletions: 2000},
+				{Name: "webassets/12345/app.js", Additions: 10000, Deletions: 2000},
+			},
+			isLarge: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			require.Equal(t, test.isLarge, isLargePR(test.files))
+		})
+	}
+}
+
 type fakeGithub struct {
-	files     []string
+	files     []github.PullRequestFile
 	pull      github.PullRequest
 	reviewers []string
 	reviews   []github.Review
 }
 
 func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+	return nil
+}
+
+func (f *fakeGithub) DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
 	return nil
 }
 
@@ -117,7 +155,7 @@ func (f *fakeGithub) ListPullRequests(ctx context.Context, organization string, 
 	return nil, nil
 }
 
-func (f *fakeGithub) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+func (f *fakeGithub) ListFiles(ctx context.Context, organization string, repository string, number int) ([]github.PullRequestFile, error) {
 	return f.files, nil
 }
 

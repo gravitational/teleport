@@ -301,7 +301,9 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		}
 		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
 	}
-	cfg.CAPins = filteredPins
+	if len(filteredPins) > 0 {
+		cfg.CAPins = filteredPins
+	}
 	return nil
 }
 
@@ -599,6 +601,9 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
+
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service

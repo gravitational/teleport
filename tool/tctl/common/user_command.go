@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -50,8 +51,10 @@ type UserCommand struct {
 
 	ttl time.Duration
 
-	// updateRoles is used for update users command
+	// updateRoles contains new roles for update users command
 	updateRoles string
+	// updateLogins contains new logins for update users command
+	updateLogins string
 
 	// format is the output format, e.g. text or json
 	format string
@@ -93,6 +96,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		Default("").StringVar(&u.updateRoles)
+	u.userUpdate.Flag("set-logins", "List of SSH logins for the user, replaces current logins").
+		Default("").StringVar(&u.updateLogins)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -206,13 +211,13 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	}
 
 	traits := map[string][]string{
-		teleport.TraitLogins:        u.allowedLogins,
-		teleport.TraitWindowsLogins: u.allowedWindowsLogins,
-		teleport.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
-		teleport.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
-		teleport.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
-		teleport.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
-		teleport.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitLogins:        u.allowedLogins,
+		constants.TraitWindowsLogins: u.allowedWindowsLogins,
+		constants.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
+		constants.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -277,21 +282,38 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 
 // Update updates existing user
 func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
+	if u.updateRoles == "" && u.updateLogins == "" {
+		return trace.BadParameter("Nothing to update. Please provide --set-roles or --set-logins flag.")
+	}
 	user, err := client.GetUser(u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	roles := flattenSlice([]string{u.updateRoles})
-	for _, role := range roles {
-		if _, err := client.GetRole(ctx, role); err != nil {
-			return trace.Wrap(err)
+
+	var updateMessages []string
+	if u.updateRoles != "" {
+		roles := flattenSlice([]string{u.updateRoles})
+		for _, role := range roles {
+			if _, err := client.GetRole(ctx, role); err != nil {
+				return trace.Wrap(err)
+			}
 		}
+		user.SetRoles(roles)
+		updateMessages = append(updateMessages, "with roles "+strings.Join(user.GetRoles(), ","))
 	}
-	user.SetRoles(roles)
+
+	if u.updateLogins != "" {
+		logins := flattenSlice([]string{u.updateLogins})
+		traits := user.GetTraits()
+		traits[constants.TraitLogins] = logins
+		user.SetTraits(traits)
+		updateMessages = append(updateMessages, "with logins "+strings.Join(logins, ","))
+	}
+
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%v has been updated with roles %v\n", user.GetName(), strings.Join(user.GetRoles(), ","))
+	fmt.Printf("%v has been updated %v\n", user.GetName(), strings.Join(updateMessages, " and "))
 	return nil
 }
 

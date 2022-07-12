@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -517,8 +518,9 @@ func (p *pack) appServersHA(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		packInfo        func(pack *pack) packInfo
-		startAppServers func(pack *pack, count int) []*service.TeleportProcess
+		packInfo          func(pack *pack) packInfo
+		startAppServers   func(pack *pack, count int) []*service.TeleportProcess
+		waitForTunnelConn func(t *testing.T, pack *pack, count int)
 	}{
 		"RootServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -532,6 +534,9 @@ func (p *pack) appServersHA(t *testing.T) {
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startRootAppServers(t, count, []service.App{})
 			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
+			},
 		},
 		"LeafServer": {
 			packInfo: func(pack *pack) packInfo {
@@ -544,6 +549,9 @@ func (p *pack) appServersHA(t *testing.T) {
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
 				return pack.startLeafAppServers(t, count, []service.App{})
+			},
+			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
+				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
 			},
 		},
 	}
@@ -580,7 +588,6 @@ func (p *pack) appServersHA(t *testing.T) {
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			// t.Parallel()
 			info := test.packInfo(p)
 			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
 			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
@@ -590,6 +597,7 @@ func (p *pack) appServersHA(t *testing.T) {
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
@@ -602,13 +610,17 @@ func (p *pack) appServersHA(t *testing.T) {
 			}
 
 			servers := test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 1)
 			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
 			test.startAppServers(p, 1)
+			test.waitForTunnelConn(t, p, 2)
+
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
@@ -1479,6 +1491,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers
@@ -1593,6 +1606,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/profile"
@@ -212,6 +213,8 @@ func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
 
 	args := []string{
 		"-A",
+		// TODO: remove once we finish deprecating SHA1
+		"-o", fmt.Sprintf("PubkeyAcceptedKeyTypes=+%s", ssh.CertAlgoRSAv01),
 		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
 		"-p", params.proxyPort,
 		params.proxyHost,
@@ -306,7 +309,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
 			"database": routeToDatabase.ServiceName,
 			"type":     dbProtocolToText(routeToDatabase.Protocol),
-			"cluster":  profile.Cluster,
+			"cluster":  client.SiteName,
 			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
 		})

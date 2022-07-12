@@ -120,9 +120,12 @@ func (r *Assignments) IsInternal(author string) bool {
 	return code || docs
 }
 
-// Get will return a list of code reviewers a given author.
+// Get will return a list of code reviewers for a given author.
 func (r *Assignments) Get(author string, docs bool, code bool) []string {
 	var reviewers []string
+
+	// TODO: consider existing review assignments here
+	// https://github.com/gravitational/teleport/issues/10420
 
 	switch {
 	case docs && code:
@@ -209,12 +212,19 @@ func (r *Assignments) CheckExternal(author string, reviews []github.Review) erro
 // CheckInternal will verify if required reviewers have approved. Checks if
 // docs and if each set of code reviews have approved. Admin approvals bypass
 // all checks.
-func (r *Assignments) CheckInternal(author string, reviews []github.Review, docs bool, code bool) error {
+func (r *Assignments) CheckInternal(author string, reviews []github.Review, docs bool, code bool, large bool) error {
 	log.Printf("Check: Found internal author %v.", author)
 
 	// Skip checks if admins have approved.
 	if check(r.getAdminReviewers(author), reviews) {
 		return nil
+	}
+
+	if code && large {
+		log.Println("Check: Detected large PR, requiring admin approval")
+		if !check(r.getAdminReviewers(author), reviews) {
+			return trace.BadParameter("this PR is large and requires admin approval to merge")
+		}
 	}
 
 	switch {
