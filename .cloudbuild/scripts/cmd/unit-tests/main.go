@@ -100,7 +100,7 @@ func parseCommandLine() (commandlineArgs, error) {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return args, trace.Wrap(err, "Bad artefact search path")
+			return args, trace.Wrap(err, "Bad artifact search path")
 		}
 	}
 
@@ -135,7 +135,7 @@ func run() error {
 		}
 	}
 
-	log.Println("Analysing code changes")
+	log.Println("Analyzing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
