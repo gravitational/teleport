@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http/httpproxy"
 )
@@ -106,20 +108,69 @@ func TestGetProxyAddress(t *testing.T) {
 		},
 	}
 
+	// used to augment test cases with auth credentials
+	authTests := []struct {
+		info     string
+		user     string
+		password string
+	}{
+		{info: "no credentials", user: "", password: ""},
+		{info: "plain password", user: "alice", password: "password"},
+		{info: "special characters in password", user: "alice", password: " !@#$%^&*()_+-=[]{};:,.<>/?`~\"\\ abc123"},
+	}
+
 	for i, tt := range tests {
-		t.Run(fmt.Sprintf("%v: %v", i, tt.info), func(t *testing.T) {
-			for _, env := range tt.env {
-				t.Setenv(env.name, env.val)
-			}
-			p := GetProxyAddress(tt.targetAddr)
-			if tt.proxyAddr == "" {
-				require.Nil(t, p)
-			} else {
+		for j, authTest := range authTests {
+			t.Run(fmt.Sprintf("%v %v: %v with %v", i, j, tt.info, authTest.info), func(t *testing.T) {
+				for _, env := range tt.env {
+					switch strings.ToLower(env.name) {
+					case "http_proxy", "https_proxy":
+						// add auth test credentials into http(s)_proxy env vars
+						val, err := buildProxyAddr(env.val, authTest.user, authTest.password)
+						require.NoError(t, err)
+						t.Setenv(env.name, val)
+					case "no_proxy":
+						t.Setenv(env.name, env.val)
+					}
+				}
+				p := GetProxyURL(tt.targetAddr)
+
+				// is a proxy expected?
+				if tt.proxyAddr == "" {
+					require.Nil(t, p)
+					return
+				}
 				require.NotNil(t, p)
 				require.Equal(t, tt.proxyAddr, p.Host)
-			}
-		})
+
+				// are auth credentials expected?
+				if authTest.user == "" && authTest.password == "" {
+					require.Nil(t, p.User)
+					return
+				}
+				require.NotNil(t, p.User)
+				require.Equal(t, authTest.user, p.User.Username())
+				password, _ := p.User.Password()
+				require.Equal(t, authTest.password, password)
+			})
+		}
 	}
+}
+
+func buildProxyAddr(addr, user, pass string) (string, error) {
+	if user == "" && pass == "" {
+		return addr, nil
+	}
+	userInfo := url.UserPassword(user, pass)
+	if strings.HasPrefix(addr, "http") {
+		u, err := url.Parse(addr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		u.User = userInfo
+		return u.String(), nil
+	}
+	return fmt.Sprintf("%v@%v", userInfo.String(), addr), nil
 }
 
 func TestProxyAwareRoundTripper(t *testing.T) {
