@@ -66,6 +66,10 @@ func (kc *KubernetesCluster) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+func (kc *KubernetesCluster) MarshalYAML() (interface{}, error) {
+	return kc.ClusterName, nil
+}
+
 func (kc *KubernetesCluster) CheckAndSetDefaults() error {
 	if kc.ClusterName == "" {
 		return trace.BadParameter("Kubernetes cluster name must not be empty")
