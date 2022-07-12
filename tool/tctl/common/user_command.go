@@ -304,7 +304,7 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	if u.updateLogins != "" {
 		logins := flattenSlice([]string{u.updateLogins})
 		traits := user.GetTraits()
-		traits[constants.TraitLogins] = logins
+		traits[teleport.TraitLogins] = logins
 		user.SetTraits(traits)
 		updateMessages = append(updateMessages, "with logins "+strings.Join(logins, ","))
 	}
