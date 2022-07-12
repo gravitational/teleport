@@ -231,6 +231,13 @@ func TestProxySSH(t *testing.T) {
 				require.NoError(t, err)
 			})
 
+			t.Run("re-login", func(t *testing.T) {
+				t.Parallel()
+
+				err := runProxySSH(proxyRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
+				require.NoError(t, err)
+			})
+
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
 

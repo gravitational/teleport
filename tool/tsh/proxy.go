@@ -58,19 +58,21 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyParams, err := getSSHProxyParams(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(tc.JumpHosts) > 0 {
-		err := setupJumpHost(cf, tc, *proxyParams)
+	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		proxyParams, err := getSSHProxyParams(cf, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
 
-	return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+		if len(tc.JumpHosts) > 0 {
+			err := setupJumpHost(cf, tc, *proxyParams)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+	})
+	return trace.Wrap(err)
 }
 
 // sshProxyParams combines parameters for establishing an SSH proxy used
