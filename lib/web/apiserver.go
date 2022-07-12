@@ -317,6 +317,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
+	//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
+	//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
 
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
@@ -572,9 +574,6 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 // Using `GET /webapi/users/:username` invalidates the `GET /webapi/users/password/token/:token` route
 // An alternative would be using the resource's singular name `GET /webapi/user/:username` but it invalidates the `GET /webapi/user/status` route
 // So, instead we'll use `GET /webapi/users/*wildcard`, parse the path/params and call the appropriate handler
-
-//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
-//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	// do we have multiple path fields or just one
 	relativePath := p.ByName("wildcard")
