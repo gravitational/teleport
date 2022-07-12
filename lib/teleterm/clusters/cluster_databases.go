@@ -145,15 +145,11 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Data
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
 	var authClient auth.ClientI
+	var proxyClient *client.ProxyClient
+	var err error
 
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -163,7 +159,12 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
 
+	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer authClient.Close()
 
 	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
