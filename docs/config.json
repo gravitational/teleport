@@ -916,7 +916,8 @@
     },
     {
       "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/setup/helm-deployments/migration/"
+      "destination": "/setup/helm-deployments/migration/",
+      "permanent": true
     },
     {
       "source": "/getting-started/digitalocean/",
