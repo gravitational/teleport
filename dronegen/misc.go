@@ -34,14 +34,15 @@ const (
 
 func promoteBuildPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
-	dockerPipeline := promoteDockerPipeline()
-	return []pipeline{aptPipeline, dockerPipeline}
+	dockerPipelineECR := buildDockerPromotionPipelineECR()
+	dockerPipelineQuay := buildDockerPromotionPipelineQuay()
+	return []pipeline{aptPipeline, dockerPipelineECR, dockerPipelineQuay}
 }
 
-func promoteDockerPipeline() pipeline {
-	dockerPipeline := newKubePipeline("promote-docker")
+func buildDockerPromotionPipelineECR() pipeline {
+	dockerPipeline := newKubePipeline("promote-docker-ecr")
 	dockerPipeline.Trigger = triggerPromote
-	dockerPipeline.Trigger.Target.Include = append(dockerPipeline.Trigger.Target.Include, "promote-docker")
+	dockerPipeline.Trigger.Target.Include = append(dockerPipeline.Trigger.Target.Include, "promote-docker", "promote-docker-ecr")
 	dockerPipeline.Workspace = workspace{Path: "/go"}
 
 	// Add docker service
@@ -58,44 +59,89 @@ func promoteDockerPipeline() pipeline {
 		Name:  "Pull/retag Docker images",
 		Image: "docker",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":          {fromSecret: "TELEPORT_BUILD_USER_KEY"},
-			"AWS_SECRET_ACCESS_KEY":      {fromSecret: "TELEPORT_BUILD_USER_SECRET"},
-			"DOCKER_PRODUCTION_USERNAME": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
-			"DOCKER_PRODUCTION_PASSWORD": {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
+			"AWS_ACCESS_KEY_ID":     {fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY"},
+			"AWS_SECRET_ACCESS_KEY": {fromSecret: "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET"},
 		},
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
 			"apk add --no-cache aws-cli",
 			"export VERSION=${DRONE_TAG##v}",
 			// authenticate with staging credentials
-			"aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com",
-			// pull 'temporary' CI-built images
+			"aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin " + STAGING_REGISTRY,
+			// pull staging images
 			"echo \"---> Pulling images for $${VERSION}\"",
-			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}",
-			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}",
-			"docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips",
+			fmt.Sprintf("docker pull %s/gravitational/teleport:$${VERSION}", STAGING_REGISTRY),
+			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}", STAGING_REGISTRY),
+			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}-fips", STAGING_REGISTRY),
 			// retag images to production naming
 			"echo \"---> Tagging images for $${VERSION}\"",
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION} quay.io/gravitational/teleport:$${VERSION}",
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}",
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips",
-			//retag ECR images
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION} public.ecr.aws/gravitational/teleport:$${VERSION}",
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION} public.ecr.aws/gravitational/teleport-ent:$${VERSION}",
-			"docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips",
+			fmt.Sprintf("docker tag %s/gravitational/teleport:$${VERSION} %s/gravitational/teleport:$${VERSION}", STAGING_REGISTRY, PRODUCTION_REGISTRY),
+			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION} %s/gravitational/teleport-ent:$${VERSION}", STAGING_REGISTRY, PRODUCTION_REGISTRY),
+			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION}-fips %s/gravitational/teleport-ent:$${VERSION}-fips", STAGING_REGISTRY, PRODUCTION_REGISTRY),
 			// authenticate with production credentials
-			"docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com",
-			"docker login -u=\"$DOCKER_PRODUCTION_USERNAME\" -p=\"$DOCKER_PRODUCTION_PASSWORD\" quay.io",
+			"docker logout " + STAGING_REGISTRY,
+			"aws ecr-public get-login-password --region=us-east-1 | docker login -u=\"AWS\" --password-stdin " + PRODUCTION_REGISTRY,
 			// push production images
 			"echo \"---> Pushing images for $${VERSION}\"",
-			"docker push quay.io/gravitational/teleport:$${VERSION}",
-			"docker push quay.io/gravitational/teleport-ent:$${VERSION}",
-			"docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips",
 			// push production images ECR
-			"aws ecr-public get-login-password --region=us-east-1 | docker login -u=\"AWS\" --password-stdin public.ecr.aws",
-			"docker push public.ecr.aws/gravitational/teleport:$${VERSION}",
-			"docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}",
-			"docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips",
+			fmt.Sprintf("docker push %s/gravitational/teleport:$${VERSION}", PRODUCTION_REGISTRY),
+			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}", PRODUCTION_REGISTRY),
+			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}-fips", PRODUCTION_REGISTRY),
+		},
+	})
+
+	return dockerPipeline
+}
+
+func buildDockerPromotionPipelineQuay() pipeline {
+	dockerPipeline := newKubePipeline("promote-docker-quay")
+	dockerPipeline.Trigger = triggerPromote
+	dockerPipeline.Trigger.Target.Include = append(dockerPipeline.Trigger.Target.Include, "promote-docker", "promote-docker-quay")
+	dockerPipeline.Workspace = workspace{Path: "/go"}
+
+	// Add docker service
+	dockerPipeline.Services = []service{
+		dockerService(),
+	}
+	dockerPipeline.Volumes = dockerVolumes()
+
+	dockerPipeline.Steps = append(dockerPipeline.Steps, verifyTaggedBuildStep())
+	dockerPipeline.Steps = append(dockerPipeline.Steps, waitForDockerStep())
+
+	// Pull/Push Steps
+	dockerPipeline.Steps = append(dockerPipeline.Steps, step{
+		Name:  "Pull/retag Docker images",
+		Image: "docker",
+		Environment: map[string]value{
+			"AWS_ACCESS_KEY_ID":     {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_KEY"},
+			"AWS_SECRET_ACCESS_KEY": {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_SECRET"},
+			"QUAY_USERNAME":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
+			"QUAY_PASSWORD":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
+		},
+		Volumes: dockerVolumeRefs(),
+		Commands: []string{
+			"apk add --no-cache aws-cli",
+			"export VERSION=${DRONE_TAG##v}",
+			// authenticate with staging credentials
+			"aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin " + STAGING_REGISTRY,
+			// pull staging images
+			"echo \"---> Pulling images for $${VERSION}\"",
+			fmt.Sprintf("docker pull %s/gravitational/teleport:$${VERSION}", STAGING_REGISTRY),
+			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}", STAGING_REGISTRY),
+			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}-fips", STAGING_REGISTRY),
+			// retag images to production naming
+			"echo \"---> Tagging images for $${VERSION}\"",
+			fmt.Sprintf("docker tag %s/gravitational/teleport:$${VERSION} %s/gravitational/teleport:$${VERSION}", STAGING_REGISTRY, PRODUCTION_REGISTRY_QUAY),
+			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION} %s/gravitational/teleport-ent:$${VERSION}", STAGING_REGISTRY, PRODUCTION_REGISTRY_QUAY),
+			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION}-fips %s/gravitational/teleport-ent:$${VERSION}-fips", STAGING_REGISTRY, PRODUCTION_REGISTRY_QUAY),
+			// authenticate with production credentials
+			"docker logout " + STAGING_REGISTRY,
+			"docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" " + PRODUCTION_REGISTRY_QUAY,
+			// push production images
+			"echo \"---> Pushing images for $${VERSION}\"",
+			fmt.Sprintf("docker push %s/gravitational/teleport:$${VERSION}", PRODUCTION_REGISTRY_QUAY),
+			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}", PRODUCTION_REGISTRY_QUAY),
+			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}-fips", PRODUCTION_REGISTRY_QUAY),
 		},
 	})
 
