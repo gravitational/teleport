@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os/user"
+	"regexp"
 	"strings"
 	"time"
 
@@ -131,6 +132,15 @@ type HostUserManagement struct {
 }
 
 var _ HostUsers = &HostUserManagement{}
+
+var sudoersSanitizationMatcher = regexp.MustCompile(`\.|~`)
+
+// sanitizeSudoersName replaces occurrences of `.` and `~` with
+// underscores as `sudo` will not read files including these
+// characters
+func sanitizeSudoersName(username string) string {
+	return sudoersSanitizationMatcher.ReplaceAllString(username, "_")
+}
 
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (*user.User, io.Closer, error) {
