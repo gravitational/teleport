@@ -317,11 +317,11 @@ func Test_runAliasCommand(t *testing.T) {
 
 	ar := &aliasRunner{
 		runTshMain: func(ctx context.Context, args []string, opts ...cliOption) error {
-			mainCalls += 1
+			mainCalls++
 			return nil
 		},
 		runExternalCommand: func(cmd *exec.Cmd) error {
-			externalCalls += 1
+			externalCalls++
 			return nil
 		},
 	}
