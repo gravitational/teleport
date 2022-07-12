@@ -78,8 +78,12 @@ const js = `
         }).then(response => {
           if (response.ok) {
             try {
-              var redirectUrl = new URL(path, url.origin)
-              window.location.replace(redirectUrl.toString());
+              if (path) {
+                var redirectUrl = new URL(path, url.origin)
+                window.location.replace(redirectUrl.toString());
+              } else {
+                window.location.replace(url.origin);
+              }
             } catch (error) {
                 // in case of malformed url, return to origin
                 window.location.replace(url.origin)
