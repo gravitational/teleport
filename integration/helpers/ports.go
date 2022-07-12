@@ -126,6 +126,18 @@ func SeparateMongoPortSetup(t *testing.T, fds *[]service.FileDescriptor) *Instan
 		Mongo:         NewListener(t, service.ListenerProxyMongo, fds),
 	}
 }
+func SeparateMongoAndPostgresPortSetup() *InstancePorts {
+	return &InstancePorts{
+		Web:           NewInstancePort(),
+		SSH:           NewInstancePort(),
+		Auth:          NewInstancePort(),
+		SSHProxy:      NewInstancePort(),
+		ReverseTunnel: NewInstancePort(),
+		MySQL:         NewInstancePort(),
+		Mongo:         NewInstancePort(),
+		Postgres:      NewInstancePort(),
+	}
+}
 
 func PortStr(t *testing.T, addr string) string {
 	t.Helper()

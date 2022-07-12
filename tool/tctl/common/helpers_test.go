@@ -196,7 +196,8 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
-		auth.Close()
+		require.NoError(t, auth.Close())
+		require.NoError(t, auth.Wait())
 	})
 
 	eventCh := make(chan service.Event, 1)
