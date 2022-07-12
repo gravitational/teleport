@@ -302,6 +302,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{types.Wildcard},
+				AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -482,6 +483,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Allow: types.RoleConditions{
 						Namespaces:    []string{types.Wildcard},
 						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						AppLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							types.NewRule(types.KindProxy, services.RW()),
 							types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -545,6 +547,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				Allow: types.RoleConditions{
 					Namespaces:    []string{types.Wildcard},
 					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindProxy, services.RW()),
 						types.NewRule(types.KindOIDCRequest, services.RW()),
