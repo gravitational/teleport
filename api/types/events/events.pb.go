@@ -7190,7 +7190,7 @@ func (m *UpgradeWindowStartMetadata) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UpgradeWindowStartMetadata proto.InternalMessageInfo
 
-// UpgradeWindowStartUpdate is emitted when a user updates the cloud upgrade window.
+// UpgradeWindowStartUpdate is emitted when a user updates the cloud upgrade window start time.
 type UpgradeWindowStartUpdate struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`

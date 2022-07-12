@@ -2490,7 +2490,7 @@ message UpgradeWindowStartMetadata {
     string UpgradeWindow = 1 [ (gogoproto.jsontag) = "upgrade_window,omitempty" ];
 }
 
-// UpgradeWindowStartUpdate is emitted when a user updates the cloud upgrade window.
+// UpgradeWindowStartUpdate is emitted when a user updates the cloud upgrade window start time.
 message UpgradeWindowStartUpdate {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
