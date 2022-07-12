@@ -23,9 +23,9 @@ The `teleport-cluster` chart can be deployed in four different modes. Get starte
 | `chartMode` | Guide |
 | - | - |
 | `standalone` | [Getting started with Kubernetes Access](../../../getting-started.mdx) |
-| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx) |
-| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
-| `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
+| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../../../setup/helm-deployments/aws.mdx) |
+| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../setup/helm-deployments/gcp.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](../../../setup/helm-deployments/custom.mdx) |
 
 This reference details available values for the `teleport-cluster` chart.
 
@@ -395,9 +395,9 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `chartMode` | Guide |
 | - | - |
 | `standalone` | [Getting started with Kubernetes Access](../../../getting-started.mdx) |
-| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx) |
-| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
-| `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
+| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../../../setup/helm-deployments/aws.mdx) |
+| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../setup/helm-deployments/gcp.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](../../../setup/helm-deployments/custom.mdx) |
 
 ## `persistence`
 
@@ -479,7 +479,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 | - | - |
 | ❌ | See [Using DynamoDB](../../../setup/reference/backends.mdx#dynamodb) and [Using Amazon S3](../../../setup/reference/backends.mdx#s3) for details |
 
-`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx)
+`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../../setup/helm-deployments)
 
 ## `gcp`
 
@@ -487,7 +487,7 @@ You can set `volumeSize` to request a different size of persistent volume when i
 | - | - |
 | ❌ | See [Using Firestore](../../../setup/reference/backends.mdx#dynamodb) and [Using GCS](../../../setup/reference/backends.mdx#gcs) for details |
 
-`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx)
+`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../../setup/helm-deployments/gcp.mdx)
 
 ### `highAvailability`
 
@@ -639,7 +639,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../guides/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../../setup/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../../setup/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -654,7 +654,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../guides/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../../setup/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../../setup/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -688,7 +688,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../guides/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../../setup/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../../setup/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
