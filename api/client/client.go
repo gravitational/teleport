@@ -651,6 +651,22 @@ func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
 	return currentUser, nil
 }
 
+// GetCurrentUserRoles returns current user's roles.
+func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	stream, err := c.grpc.GetCurrentUserRoles(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	var roles []types.Role
+	for role, err := stream.Recv(); err != io.EOF; role, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
