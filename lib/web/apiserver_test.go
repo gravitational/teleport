@@ -3320,6 +3320,14 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	pack := env.proxies[0].authPack(t, "foo")
 
+	// the default roles of foo don't have users read but we need it on our tests
+	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
+	require.NoError(t, err)
+	fooAllowRules := fooRole.GetRules(types.Allow)
+	fooAllowRules = append(fooAllowRules, types.NewRule(types.KindUser, services.RO()))
+	fooRole.SetRules(types.Allow, fooAllowRules)
+	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+
 	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
 	require.NoError(t, err)
 	require.Contains(t, string(resp.Bytes()), "login1")
