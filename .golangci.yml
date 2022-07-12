@@ -36,7 +36,8 @@ linters-settings:
     - io/ioutil: 'use "io" or "os" packages instead'
     - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
     - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
-
+  misspell:
+    locale: US
 output:
   uniq-by-line: false
 
