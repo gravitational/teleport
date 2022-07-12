@@ -115,6 +115,9 @@ type CLIConf struct {
 	Approve, Deny bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
+	// ExplicitUsername is true if Username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
 	// Proxy keeps the hostname:port of the SSH proxy to use
 	Proxy string
 	// TTL defines how long a session must be active (in minutes)
@@ -705,6 +708,8 @@ func Run(args []string, opts ...cliOption) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	// Did we initially get the Username from flags/env?
+	cf.ExplicitUsername = cf.Username != ""
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -1095,6 +1100,9 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
+		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
+		}
 		return trace.Wrap(err)
 	}
 	tc.AllowStdinHijack = false
