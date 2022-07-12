@@ -133,7 +133,11 @@ type HostUserManagement struct {
 
 var _ HostUsers = &HostUserManagement{}
 
-var sudoersSanitizationMatcher = regexp.MustCompile(`\.|~`)
+// Under the section "Including other files from within sudoers":
+//           https://man7.org/linux/man-pages/man5/sudoers.5.html
+// ., ~ will cause a file not to be read and these can be included in
+// a username, removing slash to avoid escaping a directory
+var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
 
 // sanitizeSudoersName replaces occurrences of `.` and `~` with
 // underscores as `sudo` will not read files including these
