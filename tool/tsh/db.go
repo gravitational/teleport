@@ -254,8 +254,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		Database:    cf.DatabaseName,
 	}
 
-	err = databaseLogin(cf, tc, routeToDatabase)
-	if err != nil {
+	if err := databaseLogin(cf, tc, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
 

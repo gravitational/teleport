@@ -301,7 +301,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, cf.SiteName,
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -313,7 +313,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
 			"database": routeToDatabase.ServiceName,
 			"type":     dbProtocolToText(routeToDatabase.Protocol),
-			"cluster":  profile.Cluster,
+			"cluster":  tc.SiteName,
 			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
 		})
