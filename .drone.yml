@@ -1056,9 +1056,9 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_KEY
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_SECRET
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
@@ -1085,9 +1085,9 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_KEY
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_SECRET
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
@@ -1114,9 +1114,9 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_KEY
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_USER_PRODUCTION_SECRET
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
@@ -4871,9 +4871,9 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_USER_STAGING_KEY
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_USER_STAGING_SECRET
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
