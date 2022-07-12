@@ -150,7 +150,6 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cfg:           cfg,
 		readyForInput: 0,
 	}
-	c.handle = cgo.NewHandle(c)
 
 	if err := c.readClientUsername(); err != nil {
 		return nil, trace.Wrap(err)
@@ -167,6 +166,10 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
+	defer c.cleanup()
+
+	c.handle = cgo.NewHandle(c)
+
 	if err := c.connect(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -177,8 +180,8 @@ func (c *Client) Run(ctx context.Context) error {
 	c.wg.Wait()
 
 	// Both goroutines have finished, it's now
-	// safe to clean up the memory.
-	c.cleanup()
+	// safe for the deferred c.cleanup() call to
+	// clean up the memory.
 
 	return nil
 }
@@ -251,6 +254,7 @@ func (c *Client) connect(ctx context.Context) error {
 		return trace.ConnectionProblem(nil, "RDP connection failed")
 	}
 	c.rustClient = res.client
+
 	return nil
 }
 
@@ -545,12 +549,19 @@ func (c *Client) close() {
 
 // cleanup frees the Rust client and
 // frees the memory of the cgo.Handle.
+// This function should only be called
+// once per Client.
 func (c *Client) cleanup() {
 	// Let the Rust side free its data
-	C.free_rdp(c.rustClient)
+	if c.rustClient != nil {
+		C.free_rdp(c.rustClient)
+	}
 
 	// Release the memory of the cgo.Handle
-	c.handle.Delete()
+	if c.handle != 0 {
+		c.handle.Delete()
+	}
+
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
