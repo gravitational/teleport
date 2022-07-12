@@ -32,15 +32,7 @@ import (
 )
 
 func TestRotatingFileClient(t *testing.T) {
-	dir := t.TempDir()
-
-	client, err := NewRotatingFileClient(dir, 10)
-	require.NoError(t, err)
-
-	// verify that creating the client creates a file
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
+	t.Parallel()
 
 	// create a span to test with
 	span := &otlp.ResourceSpans{
@@ -88,43 +80,80 @@ func TestRotatingFileClient(t *testing.T) {
 		},
 	}
 
-	// upload spans a bunch of spans
+	const uploadCount = 10
 	testSpans := []*otlp.ResourceSpans{span, span, span}
-	for i := 0; i < 10; i++ {
-		require.NoError(t, client.UploadTraces(context.Background(), testSpans))
+
+	cases := []struct {
+		name         string
+		limit        uint64
+		filesCreated int
+	}{
+		{
+			name:         "small limit forces rotations",
+			limit:        10,
+			filesCreated: uploadCount * len(testSpans),
+		},
+		{
+			name:         "larger limit has no rotations",
+			limit:        DefaultFileLimit,
+			filesCreated: 1,
+		},
 	}
 
-	// stop the client to close and flush the files
-	require.NoError(t, client.Stop(context.Background()))
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
 
-	// get the names of all the files created and verify that files were rotated
-	entries, err = os.ReadDir(dir)
-	require.NoError(t, err)
-	// the +1 here is because there should be an empty active file waiting for more writes
-	require.Len(t, entries, 10*len(testSpans)+1)
+			client, err := NewRotatingFileClient(dir, tt.limit)
+			require.NoError(t, err)
 
-	// read in all the spans that we just exported
-	var spans []*otlp.ResourceSpans
-	for _, entry := range entries {
-		spans = append(spans, readFileTraces(t, filepath.Join(dir, entry.Name()))...)
-	}
+			// verify that creating the client creates a file
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
 
-	// ensure that the number read matches the number of spans we uploaded
-	require.Len(t, spans, 10*len(testSpans))
+			// upload spans a bunch of spans
+			for i := 0; i < uploadCount; i++ {
+				require.NoError(t, client.UploadTraces(context.Background(), testSpans))
+			}
 
-	// confirm that all spans are equivalent to our test span
-	for _, fileSpan := range spans {
-		require.Empty(t, cmp.Diff(span, fileSpan,
-			cmpopts.IgnoreUnexported(
-				otlp.ResourceSpans{},
-				otlp.ScopeSpans{},
-				otlp.Span{},
-				otlp.Status{},
-				resourcev1.Resource{},
-				commonv1.KeyValue{},
-				commonv1.AnyValue{},
-			),
-		))
+			// stop the client to close and flush the files
+			require.NoError(t, client.Stop(context.Background()))
+
+			// ensure that if we try to upload more spans we get back ErrShutdown
+			err = client.UploadTraces(context.Background(), testSpans)
+			require.ErrorIs(t, err, ErrShutdown)
+
+			// get the names of all the files created and verify that files were rotated
+			entries, err = os.ReadDir(dir)
+			require.NoError(t, err)
+			require.Len(t, entries, tt.filesCreated)
+
+			// read in all the spans that we just exported
+			var spans []*otlp.ResourceSpans
+			for _, entry := range entries {
+				spans = append(spans, readFileTraces(t, filepath.Join(dir, entry.Name()))...)
+			}
+
+			// ensure that the number read matches the number of spans we uploaded
+			require.Len(t, spans, uploadCount*len(testSpans))
+
+			// confirm that all spans are equivalent to our test span
+			for _, fileSpan := range spans {
+				require.Empty(t, cmp.Diff(span, fileSpan,
+					cmpopts.IgnoreUnexported(
+						otlp.ResourceSpans{},
+						otlp.ScopeSpans{},
+						otlp.Span{},
+						otlp.Status{},
+						resourcev1.Resource{},
+						commonv1.KeyValue{},
+						commonv1.AnyValue{},
+					),
+				))
+			}
+		})
 	}
 }
 

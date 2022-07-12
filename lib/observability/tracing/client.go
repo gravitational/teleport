@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -34,17 +33,15 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var _ otlptrace.Client = (*noopClient)(nil)
-
 type noopClient struct{}
 
-func (n noopClient) Start(context.Context) error                               { return nil }
-func (n noopClient) Stop(context.Context) error                                { return nil }
-func (n noopClient) UploadTraces(context.Context, []*otlp.ResourceSpans) error { return nil }
+func (noopClient) Start(context.Context) error                               { return nil }
+func (noopClient) Stop(context.Context) error                                { return nil }
+func (noopClient) UploadTraces(context.Context, []*otlp.ResourceSpans) error { return nil }
 
 // NewNoopClient returns an oltptrace.Client that does nothing
 func NewNoopClient() otlptrace.Client {
-	return &noopClient{}
+	return noopClient{}
 }
 
 // NewStartedClient either returns the provided Config.Client or constructs
@@ -135,8 +132,8 @@ type RotatingFileClient struct {
 	limit   uint64
 	written uint64
 
-	lock   sync.Mutex
-	writer io.WriteCloser
+	lock sync.Mutex
+	file *os.File
 }
 
 func fileName() string {
@@ -150,7 +147,7 @@ const DefaultFileLimit uint64 = 1048576 * 100 // 100MB
 // NewRotatingFileClient returns a new RotatingFileClient that will store files in the
 // provided directory. The files will be rotated when they reach the provided limit.
 func NewRotatingFileClient(dir string, limit uint64) (*RotatingFileClient, error) {
-	if err := os.Mkdir(dir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := os.MkdirAll(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -160,9 +157,9 @@ func NewRotatingFileClient(dir string, limit uint64) (*RotatingFileClient, error
 	}
 
 	return &RotatingFileClient{
-		dir:    dir,
-		limit:  limit,
-		writer: f,
+		dir:   dir,
+		limit: limit,
+		file:  f,
 	}, nil
 }
 
@@ -171,19 +168,29 @@ func (f *RotatingFileClient) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop closes the active file and stops the client.
+// Stop closes the active file and sets it to nil to indicate to UploadTraces
+// that no more traces should be written.
 func (f *RotatingFileClient) Stop(ctx context.Context) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	return trace.Wrap(f.writer.Close())
+
+	err := f.file.Close()
+	f.file = nil
+	return trace.Wrap(err)
 }
+
+var ErrShutdown = errors.New("the client is shutdown")
 
 // UploadTraces writes the provided spans to a file in the configured directory. If writing another span
 // to the file would cause it to exceed the limit, then the file is first rotated before the write is
-// attempted.
+// attempted. In the event that Stop has already been called this will always return ErrShutdown.
 func (f *RotatingFileClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
+
+	if f.file == nil {
+		return ErrShutdown
+	}
 
 	for _, span := range protoSpans {
 		msg, err := protojson.Marshal(span)
@@ -191,23 +198,26 @@ func (f *RotatingFileClient) UploadTraces(ctx context.Context, protoSpans []*otl
 			return trace.Wrap(err)
 		}
 
-		if uint64(len(msg))+f.written >= f.limit {
+		// Open a new file if this write would exceed the configured limit
+		// *IF* we have already written data. Otherwise, we'll allow this
+		// write to exceed the limit to prevent any empty files from existing.
+		if uint64(len(msg))+f.written >= f.limit && f.written != 0 {
 			newFile, err := os.CreateTemp(f.dir, fileName())
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
 
-			var oldWriter io.Closer
-			oldWriter, f.writer = f.writer, newFile
-			_ = oldWriter.Close()
+			var oldFile *os.File
+			oldFile, f.file, f.written = f.file, newFile, 0
+			_ = oldFile.Close()
 		}
 
-		n, err := f.writer.Write(msg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+		msg = append(msg, '\n')
+		n, err := f.file.Write(msg)
 		f.written += uint64(n)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
 	}
 
 	return nil
