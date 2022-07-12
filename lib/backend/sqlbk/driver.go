@@ -63,11 +63,11 @@ type Driver interface {
 type DB interface {
 	io.Closer
 
-	// Begin a read/write transaction. Cancelling context will rollback the
+	// Begin a read/write transaction. Canceling context will rollback the
 	// transaction.
 	Begin(context.Context) Tx
 
-	// ReadOnly begins a read-only transaction. Cancelling context will rollback
+	// ReadOnly begins a read-only transaction. Canceling context will rollback
 	// the transaction. Calling a mutating Tx method will result in a failed
 	// transaction.
 	ReadOnly(context.Context) Tx

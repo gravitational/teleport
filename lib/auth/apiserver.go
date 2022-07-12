@@ -1570,7 +1570,7 @@ func (s *APIServer) deleteAllTunnelConnections(auth ClientI, w http.ResponseWrit
 }
 
 type createRemoteClusterRawReq struct {
-	// RemoteCluster is marshalled remote cluster resource
+	// RemoteCluster is marshaled remote cluster resource
 	RemoteCluster json.RawMessage `json:"remote_cluster"`
 }
 

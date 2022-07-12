@@ -166,7 +166,7 @@ func stsClientFromContext(ctx context.Context) stsClient {
 func executeStsIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
 	client := stsClientFromContext(ctx)
 
-	// set the http request context so it can be cancelled
+	// set the http request context so it can be canceled
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {

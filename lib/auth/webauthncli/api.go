@@ -48,7 +48,7 @@ type LoginOpts struct {
 
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Login without a deadline or cancel condition
+// context is canceled. Calling Login without a deadline or cancel condition
 // may cause it to block forever.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
@@ -126,7 +126,7 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Register without a deadline or cancel condition
+// context is canceled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
 // The caller is expected to react to RegisterPrompt in order to prompt the user
 // at appropriate times. Register may choose different flows depending on the

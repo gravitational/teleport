@@ -74,7 +74,7 @@ func TestSessionTracker(t *testing.T) {
 		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
-		// cancelling the goroutine's ctx should halt the update loop
+		// canceling the goroutine's ctx should halt the update loop
 		cancel()
 		_, ok := <-done
 		require.False(t, ok)

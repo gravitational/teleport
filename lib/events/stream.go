@@ -424,7 +424,7 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 		s.cancel()
 		return s.getCompleteResult()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -443,7 +443,7 @@ func (s *ProtoStream) Close(ctx context.Context) error {
 	case <-s.uploadLoopDoneCh:
 		return ctx.Err()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -987,7 +987,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				if ctx.Err() != nil {
 					return nil, trace.Wrap(ctx.Err())
 				}
-				return nil, trace.LimitExceeded("context has been cancelled")
+				return nil, trace.LimitExceeded("context has been canceled")
 			default:
 			}
 		}

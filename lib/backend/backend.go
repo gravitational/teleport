@@ -161,7 +161,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -235,7 +235,7 @@ func (p Params) GetString(key string) string {
 
 // Cleanse fixes an issue with yamlv2 decoding nested sections to
 // map[interface{}]interface{} rather than map[string]interface{}.
-// ObjectToStruct will fail on the former. yamlv3 corrects this behaviour.
+// ObjectToStruct will fail on the former. yamlv3 corrects this behavior.
 // All non-string keys are dropped.
 func (p Params) Cleanse() {
 	for key, value := range p {

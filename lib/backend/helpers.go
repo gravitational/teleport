@@ -80,7 +80,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 				continue
 
 			case <-ctx.Done():
-				// Context has been cancelled externally, time to go
+				// Context has been canceled externally, time to go
 				return Lock{}, trace.Wrap(ctx.Err())
 			}
 		}

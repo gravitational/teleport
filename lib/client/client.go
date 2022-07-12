@@ -1754,7 +1754,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 					continue
 				}
 			default:
-				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
 					log.Warnf("Unable to reply to %v request.", r.Type)

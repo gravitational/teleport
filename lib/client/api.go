@@ -2802,7 +2802,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 
 const unconfiguredPublicAddrMsg = `WARNING:
 
-The following error has occurred as Teleport does not recognise the address
+The following error has occurred as Teleport does not recognize the address
 that is being used to connect to it. This usually indicates that the
 'public_addr' configuration option of the 'proxy_service' has not been
 set to match the address you are hosting the proxy on.

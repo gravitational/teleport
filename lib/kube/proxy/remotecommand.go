@@ -106,7 +106,7 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
 		case <-req.context.Done():
-			return trace.BadParameter("request has been cancelled")
+			return trace.BadParameter("request has been canceled")
 		}
 	})
 	// from this point on, we can no longer call methods on response

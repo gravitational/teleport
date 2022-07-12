@@ -229,7 +229,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }

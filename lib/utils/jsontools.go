@@ -79,7 +79,7 @@ var SafeConfig = jsoniter.Config{
 	SortMapKeys:                   true,
 }.Froze()
 
-// FastMarshal uses the json-iterator library for fast JSON marshalling.
+// FastMarshal uses the json-iterator library for fast JSON marshaling.
 // Note, this function unmarshals floats with 6 digits precision.
 func FastMarshal(v interface{}) ([]byte, error) {
 	data, err := SafeConfig.Marshal(v)
@@ -90,7 +90,7 @@ func FastMarshal(v interface{}) ([]byte, error) {
 	return data, nil
 }
 
-// FastMarshal uses the json-iterator library for fast JSON marshalling
+// FastMarshal uses the json-iterator library for fast JSON marshaling
 // with indentation. Note, this function unmarshals floats with 6 digits precision.
 func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	data, err := SafeConfig.MarshalIndent(v, prefix, indent)

@@ -106,7 +106,7 @@ func (a *NetAddr) Network() string {
 	return a.AddrNetwork
 }
 
-// MarshalYAML defines how a network address should be marshalled to a string
+// MarshalYAML defines how a network address should be marshaled to a string
 func (a *NetAddr) MarshalYAML() (interface{}, error) {
 	url := url.URL{Scheme: a.AddrNetwork, Host: a.Addr, Path: a.Path}
 	return strings.TrimLeft(url.String(), "/"), nil

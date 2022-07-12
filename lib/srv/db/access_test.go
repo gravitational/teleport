@@ -997,7 +997,7 @@ func TestRedisPubSub(t *testing.T) {
 			require.NoError(t, err)
 
 			var fooSub *goredis.PubSub
-			// Create a synchronisation channel between publisher and subscriber
+			// Create a synchronization channel between publisher and subscriber
 			syncChan := make(chan bool)
 
 			go func() {
@@ -1151,7 +1151,7 @@ func TestRedisTransaction(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	// use just 2 concurrent connections as we want to test our proxy/protocol behaviour not Redis concurrency.
+	// use just 2 concurrent connections as we want to test our proxy/protocol behavior not Redis concurrency.
 	const concurrentConnections = 2
 
 	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.

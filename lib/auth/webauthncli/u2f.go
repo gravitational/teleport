@@ -61,7 +61,7 @@ type deviceKey struct {
 
 // RunOnU2FDevices polls for new U2F/CTAP1 devices and invokes the callbacks
 // against them in regular intervals, running until either one callback succeeds
-// or the context is cancelled.
+// or the context is canceled.
 // Typically, each callback represents a {credential,rpid} pair to check against
 // the device.
 // Calling this method using a context without a cancel or deadline means it

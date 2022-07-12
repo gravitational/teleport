@@ -41,7 +41,7 @@ import (
 
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
-	// Context is a signalling context
+	// Context is a signaling context
 	Context context.Context
 	// ID is the ID of this server proxy
 	ID string

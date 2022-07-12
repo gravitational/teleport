@@ -187,7 +187,7 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 

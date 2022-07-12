@@ -181,7 +181,7 @@ func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurablePara
 		defaultRes := p.withDefaults(t, &conf)
 		authServer = initAuthServer(t, conf)
 
-		// Verify the stored resource is now labelled as originating from defaults.
+		// Verify the stored resource is now labeled as originating from defaults.
 		stored = p.getStored(t, authServer)
 		require.Equal(t, types.OriginDefaults, stored.Origin())
 		require.Empty(t, resourceDiff(defaultRes, stored))

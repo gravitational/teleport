@@ -806,7 +806,7 @@ func convertErr(err error) error {
 		return nil
 	}
 	if err == context.Canceled {
-		return trace.ConnectionProblem(err, "operation has been cancelled")
+		return trace.ConnectionProblem(err, "operation has been canceled")
 	} else if err == context.DeadlineExceeded {
 		return trace.ConnectionProblem(err, "operation has timed out")
 	} else if err == rpctypes.ErrEmptyKey {

@@ -68,7 +68,7 @@ func TestClientConn(t *testing.T) {
 	require.Nil(t, stream)
 }
 
-// TestClientUpdate checks the client's watcher update behaviour
+// TestClientUpdate checks the client's watcher update behavior
 func TestClientUpdate(t *testing.T) {
 	ca := newSelfSignedCA(t)
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2020 Leonid Titov. All rights reserved.
-// MIT licence.
+// MIT license.
 // Version 2020-12-23
 
 package tncon
@@ -29,7 +29,7 @@ func newBufferedChannelPipe(len int) *bufferedChannelPipe {
 func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
 	for n = 0; n < len(p); n++ {
 		select {
-		// blocking behaviour
+		// blocking behavior
 		case b.ch <- p[n]:
 		case <-b.closed:
 			return n, io.EOF
@@ -44,7 +44,7 @@ func (b *bufferedChannelPipe) Read(p []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	// blocking behaviour
+	// blocking behavior
 	select {
 	case p[0] = <-b.ch:
 	case <-b.closed:

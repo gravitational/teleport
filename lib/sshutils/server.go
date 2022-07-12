@@ -328,8 +328,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context cancelled wait, returning.")
-			return trace.ConnectionProblem(err, "context cancelled")
+			s.log.Infof("Context canceled wait, returning.")
+			return trace.ConnectionProblem(err, "context canceled")
 		}
 	}
 }
