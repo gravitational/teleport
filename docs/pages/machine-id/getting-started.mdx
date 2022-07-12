@@ -47,9 +47,8 @@ proxy_service:
 In this step, you will be downloading and installing Teleport binaries onto the
 machine you wish to assign an identity to.
 
-Each Teleport package hosted on our
-downloads page ships with several useful binaries, including `teleport`,
-`tctl`, `tsh`, and `tbot`:
+Each Teleport package hosted on our downloads page ships with several useful
+binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
 
 - `teleport` is the daemon used to initialize a Teleport cluster; this binary is not used in this guide
 - `tctl` is the administrative tool you will use to create the bot user (step 1/4)
@@ -221,8 +220,8 @@ Replace the following fields with values from your own cluster.
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `destination-dir` is where Machine ID writes renewable certificates, which are only used by Machine ID and should not be used by applications and tools.
-- `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools.
+- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
+- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
 
 </ScopedBlock>
@@ -230,8 +229,8 @@ Replace the following fields with values from your own cluster.
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
-- `destination-dir` is where Machine ID writes renewable certificates, which are only used by Machine ID and should not be used by applications and tools.
-- `data-dir` is where Machine ID writes the short-lived certificate. This certificate should be used by applications and tools.
+- `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
+- `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Auth Server, for example
   `auth.example.com:3025`. If your Machine ID host is in a different network
   than your Auth Server, use the public web address of your Proxy Service
@@ -316,3 +315,4 @@ use-case, for example:
 
 - [Machine ID with Ansible](./guides/ansible.mdx)
 - [Machine ID with Jenkins](./guides/jenkins.mdx)
+- [Machine ID with Databases](./guides/databases.mdx)
