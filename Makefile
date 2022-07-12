@@ -13,9 +13,9 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-DOCKER_IMAGE ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
-DOCKER_IMAGE_CI ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -978,17 +978,17 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
 
 .PHONY: publish-ecr
 publish-ecr: image
-	docker tag $(DOCKER_IMAGE) $(DOCKER_IMAGE_ECR)
+	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
 	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
@@ -1000,12 +1000,12 @@ publish-ecr: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version
