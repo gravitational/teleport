@@ -46,10 +46,10 @@ type User interface {
 	GetRoles() []string
 	// GetLogins gets the list of server logins/principals for the user
 	GetLogins() []string
-	// GetDBUsers gets the list of DB Users for the user
-	GetDBUsers() []string
-	// GetDBNames gets the list of DB Names for the user
-	GetDBNames() []string
+	// GetDatabaseUsers gets the list of Database Users for the user
+	GetDatabaseUsers() []string
+	// GetDatabaseNames gets the list of Database Names for the user
+	GetDatabaseNames() []string
 	// GetKubeUsers gets the list of Kubernetes Users for the user
 	GetKubeUsers() []string
 	// GetKubeGroups gets the list of Kubernetes Groups for the user
@@ -74,10 +74,10 @@ type User interface {
 	AddRole(name string)
 	// SetLogins sets a list of server logins/principals for user
 	SetLogins(logins []string)
-	// SetDBUsers sets a list of DB Users for user
-	SetDBUsers(dbUsers []string)
-	// SetDBNames sets a list of DB Names for user
-	SetDBNames(dbNames []string)
+	// SetDatabaseUsers sets a list of Database Users for user
+	SetDatabaseUsers(databaseUsers []string)
+	// SetDatabaseNames sets a list of Database Names for user
+	SetDatabaseNames(databaseNames []string)
 	// SetKubeUsers sets a list of Kubernetes Users for user
 	SetKubeUsers(kubeUsers []string)
 	// SetKubeGroups sets a list of Kubernetes Groups for user
@@ -248,14 +248,14 @@ func (u *UserV2) SetLogins(logins []string) {
 	u.setTrait(constants.TraitLogins, logins)
 }
 
-// SetDBUsers sets the DBUsers trait for the user
-func (u *UserV2) SetDBUsers(dbUsers []string) {
-	u.setTrait(constants.TraitDBUsers, dbUsers)
+// SetDatabaseUsers sets the DatabaseUsers trait for the user
+func (u *UserV2) SetDatabaseUsers(databaseUsers []string) {
+	u.setTrait(constants.TraitDBUsers, databaseUsers)
 }
 
-// SetDBNames sets the DBNames trait for the user
-func (u *UserV2) SetDBNames(dbNames []string) {
-	u.setTrait(constants.TraitDBNames, dbNames)
+// SetDatabaseNames sets the DatabaseNames trait for the user
+func (u *UserV2) SetDatabaseNames(databaseNames []string) {
+	u.setTrait(constants.TraitDBNames, databaseNames)
 }
 
 // SetKubeUsers sets the KubeUsers trait for the user
@@ -335,13 +335,13 @@ func (u UserV2) GetLogins() []string {
 	return u.getTrait(constants.TraitLogins)
 }
 
-// GetDBUsers gets the list of DB Users for the user
-func (u UserV2) GetDBUsers() []string {
+// GetDatabaseUsers gets the list of DB Users for the user
+func (u UserV2) GetDatabaseUsers() []string {
 	return u.getTrait(constants.TraitDBUsers)
 }
 
-// GetDBNames gets the list of DB Names for the user
-func (u UserV2) GetDBNames() []string {
+// GetDatabaseNames gets the list of DB Names for the user
+func (u UserV2) GetDatabaseNames() []string {
 	return u.getTrait(constants.TraitDBNames)
 }
 

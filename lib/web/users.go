@@ -123,11 +123,11 @@ func updateUserTraits(req *saveUserRequest, user types.User) {
 	if req.Logins != nil {
 		user.SetLogins(*req.Logins)
 	}
-	if req.DBUsers != nil {
-		user.SetDBUsers(*req.DBUsers)
+	if req.DatabaseUsers != nil {
+		user.SetDatabaseUsers(*req.DatabaseUsers)
 	}
-	if req.DBNames != nil {
-		user.SetDBNames(*req.DBNames)
+	if req.DatabaseNames != nil {
+		user.SetDatabaseNames(*req.DatabaseUsers)
 	}
 	if req.KubeUsers != nil {
 		user.SetKubeUsers(*req.KubeUsers)
@@ -284,8 +284,8 @@ type saveUserRequest struct {
 	Name          string    `json:"name"`
 	Roles         []string  `json:"roles"`
 	Logins        *[]string `json:"logins,omitempty"`
-	DBUsers       *[]string `json:"db_users,omitempty"`
-	DBNames       *[]string `json:"db_names,omitempty"`
+	DatabaseUsers *[]string `json:"database_users,omitempty"`
+	DatabaseNames *[]string `json:"database_names,omitempty"`
 	KubeUsers     *[]string `json:"kube_users,omitempty"`
 	KubeGroups    *[]string `json:"kube_groups,omitempty"`
 	WindowsLogins *[]string `json:"windows_logins,omitempty"`

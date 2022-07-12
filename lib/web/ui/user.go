@@ -36,10 +36,10 @@ type User struct {
 	UserListEntry
 	// Logins is the list of Logins Trait for the user
 	Logins []string `json:"logins,omitempty"`
-	// DBUsers is the list of DBUsers Trait for the user
-	DBUsers []string `json:"db_users,omitempty"`
-	// DBNames is the list of DBNames Trait for the user
-	DBNames []string `json:"db_names,omitempty"`
+	// DatabaseUsers is the list of DatabaseUsers Trait for the user
+	DatabaseUsers []string `json:"database_users,omitempty"`
+	// DatabaseNames is the list of DatabaseNames Trait for the user
+	DatabaseNames []string `json:"database_names,omitempty"`
 	// KubeUsers is the list of KubeUsers Trait for the user
 	KubeUsers []string `json:"kube_users,omitempty"`
 	// KubeGroups is the list of KubeGroups Trait for the user
@@ -79,8 +79,8 @@ func NewUser(teleUser types.User) (*User, error) {
 	return &User{
 		UserListEntry: *userListEntry,
 		Logins:        teleUser.GetLogins(),
-		DBUsers:       teleUser.GetDBUsers(),
-		DBNames:       teleUser.GetDBNames(),
+		DatabaseUsers: teleUser.GetDatabaseUsers(),
+		DatabaseNames: teleUser.GetDatabaseNames(),
 		KubeUsers:     teleUser.GetKubeUsers(),
 		KubeGroups:    teleUser.GetKubeGroups(),
 		WindowsLogins: teleUser.GetWindowsLogins(),
