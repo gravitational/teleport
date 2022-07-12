@@ -1579,7 +1579,7 @@ func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	return fmt.Sprintf("%v, except: %v", allowed, denied)
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"})
 		for _, database := range databases {
@@ -1604,7 +1604,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 				database.Expiry().Format(constants.HumanDateFormatSeconds),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(w, t.AsBuffer().String())
 	} else {
 		var rows [][]string
 		for _, database := range databases {
@@ -1625,7 +1625,7 @@ func showDatabases(clusterFlag string, databases []types.Database, active []tlsc
 			})
 		}
 		t := makeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(w, t.AsBuffer().String())
 	}
 }
 
