@@ -64,6 +64,8 @@ more in the following guide:
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
   installed.
+- AWS EC2 node should not have an existing data dir (e.g. `/var/lib/teleport`). 
+  Remove if this had a previous joining method.
 
 </TabItem>
 <TabItem
@@ -83,6 +85,8 @@ more in the following guide:
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
   installed.
+- AWS EC2 node should not have an existing data dir (e.g. `/var/lib/teleport`).
+  Remove if this had a previous joining method.
 </TabItem>
 </Tabs>
 
@@ -207,7 +211,17 @@ proxy_service:
 
 ## Step 4/4. Launch your Teleport Node
 
-Start Teleport on the Node and confirm that it is able to connect to and join
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+  The data directory used (e.g. `/var/lib/teleport` by default) should be empty prior to launching
+  node.  An error will occur if this node had attached by another method, such as IAM and now switching to
+  EC2 Joining. 
+  </Admonition>
+
+
+Start Teleport on the node and confirm that it is able to connect to and join
 your cluster. You're all set!
 
 ## Configuring the EC2 join method for Multiple AWS Accounts
