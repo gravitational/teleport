@@ -4959,7 +4959,6 @@ steps:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
       - make publish-operator-ci
@@ -4984,7 +4983,6 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       # VERSION needs to be set manually when running in the e directory.
       # Normally, the version is set and exported by the root Makefile and then inherited,
@@ -5999,10 +5997,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-<<<<<<< HEAD
 hmac: 5a84f1468c34f05ab0815842e8760c683908b0eee7d5b431b26da434bf81f97f
-=======
-hmac: da65877b4a3477160c76392204ea1f0e02cb3ffc892604db6da5d44416ab6b98
->>>>>>> 16ee1cd9dc (Added promotion step to cronjob for ecr)
 
 ...
