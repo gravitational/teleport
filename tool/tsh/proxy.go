@@ -250,9 +250,9 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 func proxySubsystemName(userHost, cluster string) string {
 	subsystem := fmt.Sprintf("proxy:%s", userHost)
 	if cluster != "" {
-		subsystem = fmt.Sprintf("%s@%s", subsystem, cluster)
+		return fmt.Sprintf("%s@%s", subsystem, cluster)
 	}
-	return subsystem
+	return fmt.Sprintf("proxy:%s", userHost)
 }
 
 func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
