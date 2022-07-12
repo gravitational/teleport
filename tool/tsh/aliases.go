@@ -28,82 +28,32 @@ import (
 
 const tshAliasEnvKey = "TSH_ALIAS"
 
-// tryRunAlias inspects the arguments to see if the alias command should be run, and does so if required.
-func tryRunAlias(ctx context.Context, currentExecPath string, aliases map[string]string, args []string, setEnv func(key, value string) error, getEnv func(key string) string) (bool, string, error) {
-	// find the alias to use
-	aliasCmd, aliasIx := findCommand(args)
+// aliasRunner coordinates alias running as well as provides a suitable testing target.
+type aliasRunner struct {
+	getEnv func(key string) string
+	setEnv func(key, value string) error
 
-	// ignore aliases found in TSH_ALIAS list
-	aliasesSeen := getSeenAliases(getEnv)
-	for _, usedAlias := range aliasesSeen {
-		if usedAlias == aliasCmd {
-			return false, aliasCmd, nil
-		}
-	}
-	aliasesSeen = append(aliasesSeen, aliasCmd)
+	aliases map[string]string
 
-	// match?
-	aliasDef, ok := aliases[aliasCmd]
-	if !ok {
-		return false, "", nil
-	}
-
-	runtimeArgs := append(args[:aliasIx], args[aliasIx+1:]...)
-	aliasExpanded, err := expandAliasDefinition(aliasDef, runtimeArgs)
-	if err != nil {
-		return true, aliasCmd, trace.Wrap(err)
-	}
-
-	if len(aliasExpanded) == 0 {
-		return true, aliasCmd, trace.BadParameter("invalid alias: expanded to empty list.")
-	}
-
-	executable := aliasExpanded[0]
-	aliasArgs := aliasExpanded[1:]
-
-	return true, aliasCmd, runAliasCommand(ctx, currentExecPath, setEnv, aliasesSeen, executable, aliasArgs)
+	runTshMain         func(ctx context.Context, args []string, opts ...cliOption) error
+	runExternalCommand func(cmd *exec.Cmd) error
 }
 
-// runAliasCommand actually runs requested alias command.
-func runAliasCommand(ctx context.Context, currentExecPath string, setEnv func(key, value string) error, aliasesSeen []string, executable string, arguments []string) error {
-	execPath, err := exec.LookPath(executable)
-	if err != nil {
-		return trace.Wrap(err, "failed to find a executable %q", executable)
+// newAliasRunner returns regular alias runner; the tests are using a different function.
+func newAliasRunner(aliases map[string]string) *aliasRunner {
+	return &aliasRunner{
+		getEnv:     os.Getenv,
+		setEnv:     os.Setenv,
+		aliases:    aliases,
+		runTshMain: Run,
+		runExternalCommand: func(cmd *exec.Cmd) error {
+			return cmd.Run()
+		},
 	}
-
-	err = setEnv(tshAliasEnvKey, strings.Join(aliasesSeen, ","))
-	if err != nil {
-		return trace.Wrap(err, "failed to set env variable %q", tshAliasEnvKey)
-	}
-
-	// if execPath is our path, skip re-execution and run main directly instead.
-	// this makes for better error messages in case of failures.
-	if execPath == currentExecPath {
-		log.Debugf("self re-exec command: tsh %v", arguments)
-		return trace.Wrap(Run(ctx, arguments))
-	}
-
-	cmd := exec.Command(execPath, arguments...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	log.Debugf("running external command: %v", cmd)
-
-	err = cmd.Run()
-	if err == nil {
-		return nil
-	}
-
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		return trace.Wrap(exitErr)
-	}
-
-	return trace.Wrap(err, "failed to run command: %v %v", execPath, strings.Join(arguments, " "))
 }
 
-// findCommand inspects the argument list to find first non-option (i.e. command), returning it along with the index it was found at.
-func findCommand(args []string) (string, int) {
+// findAliasCommand inspects the argument list to find first non-option (i.e. command). The command is returned along with the argument list from which the command was removed.
+func findAliasCommand(args []string) (string, []string) {
 	aliasCmd := ""
 	aliasIx := -1
 
@@ -121,20 +71,13 @@ func findCommand(args []string) (string, int) {
 		break
 	}
 
-	return aliasCmd, aliasIx
-}
-
-// getSeenAliases fetches TSH_ALIAS env variable and parses it, to produce the list of already executed aliases.
-func getSeenAliases(getEnv func(key string) string) []string {
-	var aliasesSeen []string
-
-	for _, val := range strings.Split(getEnv(tshAliasEnvKey), ",") {
-		if strings.TrimSpace(val) != "" {
-			aliasesSeen = append(aliasesSeen, val)
-		}
+	if aliasCmd == "" {
+		return "", args
 	}
 
-	return aliasesSeen
+	runtimeArgs := append(args[:aliasIx], args[aliasIx+1:]...)
+
+	return aliasCmd, runtimeArgs
 }
 
 // expandAliasDefinition expands $0, $1, ... within alias definition. Arguments not referenced in alias are appended at the end.
@@ -162,4 +105,70 @@ func expandAliasDefinition(aliasDef string, runtimeArgs []string) ([]string, err
 
 	out := append(split, appendArgs...)
 	return out, nil
+}
+
+// getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
+func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (bool, string) {
+	// ignore aliases found in TSH_ALIAS list
+	for _, usedAlias := range ar.getSeenAliases() {
+		if usedAlias == aliasCmd {
+			return false, ""
+		}
+	}
+
+	// match?
+	aliasDef, ok := ar.aliases[aliasCmd]
+	return ok, aliasDef
+}
+
+// markAliasSeen adds another alias to the list of aliases seen.
+func (ar *aliasRunner) markAliasSeen(alias string) error {
+	aliasesSeen := ar.getSeenAliases()
+	aliasesSeen = append(aliasesSeen, alias)
+	return ar.setEnv(tshAliasEnvKey, strings.Join(aliasesSeen, ","))
+}
+
+// getSeenAliases fetches TSH_ALIAS env variable and parses it, to produce the list of already executed aliases.
+func (ar *aliasRunner) getSeenAliases() []string {
+	var aliasesSeen []string
+
+	for _, val := range strings.Split(ar.getEnv(tshAliasEnvKey), ",") {
+		if strings.TrimSpace(val) != "" {
+			aliasesSeen = append(aliasesSeen, val)
+		}
+	}
+
+	return aliasesSeen
+}
+
+// runAliasCommand actually runs requested alias command. If the executable resolves to the process itself it will directly call `Run()`, otherwise a new process will be spawned.
+func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath string, executable string, arguments []string) error {
+	execPath, err := exec.LookPath(executable)
+	if err != nil {
+		return trace.Wrap(err, "failed to find the executable %q", executable)
+	}
+
+	// if execPath is our path, skip re-execution and run main directly instead.
+	// this makes for better error messages in case of failures.
+	if execPath == currentExecPath {
+		log.Debugf("self re-exec command: tsh %v", arguments)
+		return trace.Wrap(ar.runTshMain(ctx, arguments))
+	}
+
+	cmd := exec.Command(execPath, arguments...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	log.Debugf("running external command: %v", cmd)
+	err = ar.runExternalCommand(cmd)
+	if err == nil {
+		return nil
+	}
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return trace.Wrap(exitErr)
+	}
+
+	return trace.Wrap(err, "failed to run command: %v %v", execPath, strings.Join(arguments, " "))
 }

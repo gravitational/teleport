@@ -797,8 +797,20 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf.TshConfig = *confOptions
 
 	// aliases
-	actionRun, aliasMatch, err := tryRunAlias(ctx, cf.executablePath, cf.TshConfig.Aliases, args, os.Setenv, os.Getenv)
-	if actionRun {
+	ar := newAliasRunner(cf.TshConfig.Aliases)
+	aliasCommand, runtimeArgs := findAliasCommand(args)
+	if ok, aliasDefinition := ar.getAliasDefinition(aliasCommand); ok {
+		err = ar.markAliasSeen(aliasCommand)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newArgs, err := expandAliasDefinition(aliasDefinition, runtimeArgs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = ar.runAliasCommand(ctx, cf.executablePath, newArgs[0], newArgs[1:])
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -810,9 +822,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
-		if aliasMatch != "" {
-			log.Debugf("failing due to recursive alias. aliases seen: %v", getSeenAliases(os.Getenv))
-			return trace.Wrap(fmt.Errorf("recursive alias %q; correct alias definition and try again", aliasMatch))
+		if aliasCommand != "" {
+			log.Debugf("failing due to recursive alias %q. aliases seen: %v", aliasCommand, ar.getSeenAliases())
+			return trace.Wrap(fmt.Errorf("recursive alias %q; correct alias definition and try again", aliasCommand))
 		}
 	}
 

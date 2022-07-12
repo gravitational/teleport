@@ -15,10 +15,36 @@
 package main
 
 import (
+	"context"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func newTestAliasRunner(t *testing.T) *aliasRunner {
+	return &aliasRunner{
+		getEnv: func(key string) string {
+			t.Fatalf("calling uninitialized function 'getEnv(key=%q)'", key)
+			return ""
+		},
+		setEnv: func(key, value string) error {
+			t.Fatalf("calling uninitialized function 'setEnv(key=%q,value=%q)'", key, value)
+			return nil
+		},
+		runTshMain: func(ctx context.Context, args []string, opts ...cliOption) error {
+			t.Fatalf("calling uninitialized function 'runTshMain(ctx=%v,args=%v,opts=%v)'", ctx, args, opts)
+			return nil
+		},
+		runExternalCommand: func(cmd *exec.Cmd) error {
+			t.Fatalf("calling uninitialized function 'runExternalCommand(cmd=%v)'", cmd)
+			return nil
+		},
+		aliases: nil,
+	}
+}
 
 func Test_expandAliasDefinition(t *testing.T) {
 	tests := []struct {
@@ -96,49 +122,55 @@ func Test_expandAliasDefinition(t *testing.T) {
 	}
 }
 
-func Test_findCommand(t *testing.T) {
+func Test_findAliasCommand(t *testing.T) {
 	tests := []struct {
 		name      string
 		args      []string
 		wantAlias string
-		wantIndex int
+		wantArgs  []string
 	}{
 		{
 			name:      "empty args not found",
 			args:      nil,
 			wantAlias: "",
-			wantIndex: -1,
+			wantArgs:  nil,
 		},
 		{
 			name:      "only options, not found",
 			args:      []string{"--foo", "--bar", "-baz", "--"},
 			wantAlias: "",
-			wantIndex: -1,
+			wantArgs:  []string{"--foo", "--bar", "-baz", "--"},
 		},
 		{
 			name:      "first place",
 			args:      []string{"login", "--foo", "--bar"},
 			wantAlias: "login",
-			wantIndex: 0,
+			wantArgs:  []string{"--foo", "--bar"},
 		},
 		{
 			name:      "second place",
 			args:      []string{"--foo", "login", "--bar"},
 			wantAlias: "login",
-			wantIndex: 1,
+			wantArgs:  []string{"--foo", "--bar"},
 		},
 		{
 			name:      "last place",
 			args:      []string{"--foo", "--bar", "login"},
 			wantAlias: "login",
-			wantIndex: 2,
+			wantArgs:  []string{"--foo", "--bar"},
+		},
+		{
+			name:      "last place, empty arg thrown in",
+			args:      []string{"--foo", "--bar", "", "login"},
+			wantAlias: "login",
+			wantArgs:  []string{"--foo", "--bar", ""},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a, i := findCommand(tt.args)
-			require.Equal(t, tt.wantAlias, a)
-			require.Equal(t, tt.wantIndex, i)
+			alias, args := findAliasCommand(tt.args)
+			require.Equal(t, tt.wantAlias, alias)
+			require.Equal(t, tt.wantArgs, args)
 		})
 	}
 }
@@ -168,13 +200,141 @@ func Test_getSeenAliases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			getEnv := func(key string) string {
+			ar := newTestAliasRunner(t)
+			ar.getEnv = func(key string) string {
 				val := tt.env[key]
 				return val
 			}
-
-			require.Equal(t, tt.want, getSeenAliases(getEnv))
+			require.Equal(t, tt.want, ar.getSeenAliases())
 		})
 	}
+}
+
+func Test_markAliasSeen(t *testing.T) {
+	tests := []struct {
+		name   string
+		envIn  map[string]string
+		alias  string
+		envOut map[string]string
+	}{
+		{
+			name:   "empty",
+			envIn:  map[string]string{},
+			alias:  "foo",
+			envOut: map[string]string{tshAliasEnvKey: "foo"},
+		},
+		{
+			name:   "commas",
+			envIn:  map[string]string{tshAliasEnvKey: ",,,"},
+			alias:  "foo",
+			envOut: map[string]string{tshAliasEnvKey: "foo"},
+		},
+		{
+			name:   "a few values",
+			envIn:  map[string]string{tshAliasEnvKey: "foo,bar,baz,,,"},
+			alias:  "foo",
+			envOut: map[string]string{tshAliasEnvKey: "foo,bar,baz,foo"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ar := newTestAliasRunner(t)
+			ar.getEnv = func(key string) string {
+				val := tt.envIn[key]
+				return val
+			}
+			ar.setEnv = func(key, value string) error {
+				tt.envIn[key] = value
+				return nil
+			}
+
+			require.NoError(t, ar.markAliasSeen(tt.alias))
+			require.Equal(t, tt.envOut, tt.envIn)
+		})
+	}
+}
+
+func Test_getAliasDefinition(t *testing.T) {
+	tests := []struct {
+		name      string
+		seen      []string
+		aliasDefs map[string]string
+		alias     string
+		wantOk    bool
+		wantDef   string
+	}{
+		{
+			name:      "empty env, no match",
+			seen:      []string{},
+			aliasDefs: map[string]string{},
+			alias:     "foo",
+			wantOk:    false,
+			wantDef:   "",
+		},
+		{
+			name:      "empty env, match",
+			seen:      []string{},
+			aliasDefs: map[string]string{"foo": "bar baz"},
+			alias:     "foo",
+			wantOk:    true,
+			wantDef:   "bar baz",
+		},
+		{
+			name:      "seen alias, ignored",
+			seen:      []string{"foo"},
+			aliasDefs: map[string]string{"foo": "bar baz"},
+			alias:     "foo",
+			wantOk:    false,
+			wantDef:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ar := newTestAliasRunner(t)
+			ar.getEnv = func(key string) string {
+				if key == tshAliasEnvKey {
+					return strings.Join(tt.seen, ",")
+				}
+				return ""
+			}
+			ar.aliases = tt.aliasDefs
+
+			gotOk, gotDefinition := ar.getAliasDefinition(tt.alias)
+			require.Equal(t, tt.wantOk, gotOk)
+			require.Equal(t, tt.wantDef, gotDefinition)
+		})
+	}
+}
+
+func Test_runAliasCommand(t *testing.T) {
+	selfExe, err := os.Executable()
+	require.NoError(t, err)
+
+	mainCalls := 0
+	externalCalls := 0
+
+	ar := &aliasRunner{
+		runTshMain: func(ctx context.Context, args []string, opts ...cliOption) error {
+			mainCalls += 1
+			return nil
+		},
+		runExternalCommand: func(cmd *exec.Cmd) error {
+			externalCalls += 1
+			return nil
+		},
+	}
+
+	// Run() call
+	err = ar.runAliasCommand(context.Background(), selfExe, selfExe, []string{"--debug", "login"})
+	require.NoError(t, err)
+	require.Equal(t, 1, mainCalls)
+	require.Equal(t, 0, externalCalls)
+
+	// external command
+	err = ar.runAliasCommand(context.Background(), selfExe, "sh", []string{"echo", "hello world"})
+	require.NoError(t, err)
+	require.Equal(t, 1, mainCalls)
+	require.Equal(t, 1, externalCalls)
 }
