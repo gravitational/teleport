@@ -69,25 +69,20 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
-	cluster := profile.Cluster
-	if cf.SiteName != "" {
-		cluster = cf.SiteName
-	}
-
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), cluster)
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
-		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, cluster)
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
 		if err != nil {
 			log.Debugf("Failed to fetch user roles: %v.", err)
 		}
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(cluster)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
