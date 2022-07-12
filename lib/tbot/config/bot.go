@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package bot
+package config
 
 import (
 	"context"
@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-// B is an interface covering various public Bot methods to circumvent
+// Bot is an interface covering various public tbot.Bot methods to circumvent
 // import cycle issues.
-type B interface {
+type Bot interface {
 	// AuthPing pings the auth server and returns the (possibly cached) response.
 	AuthPing(ctx context.Context) (*proto.PingResponse, error)
 

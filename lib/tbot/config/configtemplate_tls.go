@@ -108,7 +108,7 @@ func (t *TemplateTLS) Describe(destination bot.Destination) []FileDescription {
 	}
 }
 
-func (t *TemplateTLS) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateTLS) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)

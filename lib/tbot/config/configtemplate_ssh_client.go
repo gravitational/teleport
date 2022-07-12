@@ -155,7 +155,7 @@ func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescript
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)

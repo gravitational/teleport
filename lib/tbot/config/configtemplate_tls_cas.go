@@ -104,7 +104,7 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 	return caCerts
 }
 
-func (t *TemplateTLSCAs) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateTLSCAs) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)

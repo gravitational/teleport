@@ -165,7 +165,7 @@ func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath st
 	return config, nil
 }
 
-func (t *TemplateKubernetes) Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if destination.KubernetesCluster == nil {
 		dest, err := destination.GetDestination()
 		if err != nil {

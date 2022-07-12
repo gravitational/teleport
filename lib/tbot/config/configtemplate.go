@@ -96,7 +96,7 @@ type Template interface {
 	Describe(destination bot.Destination) []FileDescription
 
 	// Render writes the config template to the destination.
-	Render(ctx context.Context, bot bot.B, currentIdentity *identity.Identity, destination *DestinationConfig) error
+	Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error
 }
 
 // TemplateConfig contains all possible config template variants. Exactly one
