@@ -120,7 +120,7 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 }
 
 // NewAuthPreferenceFromConfigFile is a convenience method to create
-// AuthPreferenceV2 labelled as originating from config file.
+// AuthPreferenceV2 labeled as originating from config file.
 func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 	return newAuthPreferenceWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,

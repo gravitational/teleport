@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestResourceIDs tests that ResourceIDs are correctly marshalled to and from
+// TestResourceIDs tests that ResourceIDs are correctly marshaled to and from
 // their string representation.
 func TestResourceIDs(t *testing.T) {
 	testCases := []struct {
