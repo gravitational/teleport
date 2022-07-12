@@ -1184,22 +1184,7 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		upstream, downstream := client.InventoryControlStreamPipe()
-		go func() {
-			select {
-			case msg := <-upstream.Recv():
-				hello, ok := msg.(proto.UpstreamInventoryHello)
-				if !ok {
-					upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
-					return
-				}
-				auth.RegisterInventoryControlStream(upstream, hello)
-			case <-upstream.Done():
-			case <-auth.CloseContext().Done():
-				upstream.Close()
-			}
-		}()
-		return downstream, nil
+		return auth.MakeLocalInventoryControlStream(), nil
 	}
 
 	// fallback to using the instance client
@@ -4135,9 +4120,16 @@ func (process *TeleportProcess) initApps() {
 		if tunnelAddrResolver == nil {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
+			// run the resolver. this will check configuration for errors.
+			_, err := tunnelAddrResolver(process.ExitContext())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
 			process.waitForAppDepend()
+			log.Debugf("Application service dependencies have started, continuing.")
 		}
 
 		// Start uploader that will scan a path on disk and upload completed
