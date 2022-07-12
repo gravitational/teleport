@@ -1613,6 +1613,15 @@ message RoleOptions {
     // Kubernetes sessions a user may hold.
     int64 MaxKubernetesConnections = 18
         [ (gogoproto.jsontag) = "max_kubernetes_connections,omitempty" ];
+
+    // DesktopDirectorySharing indicates whether directory sharing is allowed between the user's
+    // workstation and the remote desktop. It defaults to false unless explicitly set to
+    // true.
+    BoolValue DesktopDirectorySharing = 19 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "desktop_directory_sharing",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {
