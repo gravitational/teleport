@@ -20,6 +20,18 @@ import (
 	"strings"
 )
 
+const (
+	// STAGING_REGISTRY is the staging registry images are pushed to before being promoted to the production registry.
+	STAGING_REGISTRY = "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+
+	// PRODUCTION_REGISTRY is the production image registry that hosts are customer facing container images.
+	PRODUCTION_REGISTRY = "public.ecr.aws"
+
+	// PRODUCTION_REGISTRY_QUAY is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	PRODUCTION_REGISTRY_QUAY = "quay.io"
+)
+
 func promoteBuildPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
 	dockerPipeline := promoteDockerPipeline()
