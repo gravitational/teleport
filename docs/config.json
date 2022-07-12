@@ -113,6 +113,32 @@
           ]
         },
         {
+          "title": "Helm Deployments",
+          "slug": "/setup/helm-deployments/",
+          "entries": [
+            {
+              "title": "AWS EKS Cluster",
+              "slug": "/setup/helm-deployments/aws/"
+            },
+            {
+              "title": "Google Cloud GKE Cluster",
+              "slug": "/setup/helm-deployments/gcp/"
+            },
+            {
+              "title": "DigitalOcean Kubernetes Cluster",
+              "slug": "/setup/helm-deployments/digitalocean/"
+            },
+            {
+              "title": "Customize Deployment Config",
+              "slug": "/setup/helm-deployments/custom/"
+            },
+            {
+              "title": "Migrating From Older Charts",
+              "slug": "/setup/helm-deployments/migration/"
+            }
+          ]
+        },
+        {
           "title": "Operations",
           "slug": "/setup/operations/",
           "entries": [
@@ -354,21 +380,7 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Local Demo Cluster",
-              "slug": "/kubernetes-access/getting-started/local/"
-            },
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
-            },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
-            }
-          ]
+          "slug": "/kubernetes-access/getting-started/"
         },
         {
           "title": "Guides",
@@ -389,32 +401,6 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Guides",
-          "slug": "/kubernetes-access/helm/guides/",
-          "entries": [
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/"
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/"
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/"
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/"
-            },
-            {
-              "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/"
             }
           ]
         },
@@ -463,7 +449,7 @@
               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "AWS ElastiCache",
+              "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
             },
             {
@@ -791,16 +777,16 @@
         {
           "title": "Access Requests",
           "slug": "/enterprise/workflow/",
-		  "entries": [
-			{
-			  "title": "Resource Access Requests",
-			  "slug": "/enterprise/workflow/resource-requests/"
-			},
-			{
-			  "title": "Role Access Requests",
-			  "slug": "/enterprise/workflow/role-requests/"
-			}
-		  ]
+          "entries": [
+            {
+              "title": "Resource Access Requests",
+              "slug": "/enterprise/workflow/resource-requests/"
+            },
+            {
+              "title": "Role Access Requests",
+              "slug": "/enterprise/workflow/role-requests/"
+            }
+          ]
         },
         {
           "title": "FedRAMP",
@@ -910,7 +896,7 @@
     }
   ],
   "variables": {
-    "version": "7.0",
+    "version": "10.0",
     "terraform": {
       "version": "1.0.0"
     },
@@ -929,7 +915,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "8.3.4",
+      "version": "9.3.8",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -958,14 +944,14 @@
       "min_version": "3.6"
     },
     "teleport": {
-      "version": "9.0.4",
-      "golang": "1.17",
+      "version": "10.0.0",
+      "golang": "1.18",
       "plugin": {
-        "version": "9.0.4"
+        "version": "10.0.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:9.1.2",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:9.1.2"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.0.0",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.0.0"
     }
   },
   "redirects": [
@@ -1247,6 +1233,36 @@
     {
       "source": "/getting-started/digitalocean/",
       "destination": "/setup/deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/setup/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/setup/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/custom/",
+      "destination": "/setup/helm-deployments/custom/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/digitalocean/",
+      "destination": "/setup/helm-deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/gcp/",
+      "destination": "/setup/helm-deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/migration/",
+      "destination": "/setup/helm-deployments/migration/",
       "permanent": true
     }
   ]
