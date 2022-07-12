@@ -95,9 +95,21 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate = users.Command("update", "Update user account")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
-		Default("").StringVar(&u.updateRoles)
-	u.userUpdate.Flag("set-logins", "List of SSH logins for the user, replaces current logins").
-		Default("").StringVar(&u.updateLogins)
+		StringsVar(&u.createRoles)
+	u.userUpdate.Flag("set-logins", "List of allowed SSH logins for the user, replaces current logins").
+		StringsVar(&u.allowedLogins)
+	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
+		StringsVar(&u.allowedWindowsLogins)
+	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
+		StringsVar(&u.allowedKubeUsers)
+	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
+		StringsVar(&u.allowedKubeGroups)
+	u.userUpdate.Flag("set-db-users", "List of allowed database users for the user, replaces current database users").
+		StringsVar(&u.allowedDatabaseUsers)
+	u.userUpdate.Flag("set-db-names", "List of allowed database names for the user, replaces current database names").
+		StringsVar(&u.allowedDatabaseNames)
+	u.userUpdate.Flag("set-aws-role-arns", "List of allowed AWS role ARNs for the user, replaces current AWS role ARNs").
+		StringsVar(&u.allowedAWSRoleARNs)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -282,38 +294,69 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 
 // Update updates existing user
 func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
-	if u.updateRoles == "" && u.updateLogins == "" {
-		return trace.BadParameter("Nothing to update. Please provide --set-roles or --set-logins flag.")
-	}
 	user, err := client.GetUser(u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var updateMessages []string
-	if u.updateRoles != "" {
-		roles := flattenSlice([]string{u.updateRoles})
+	updateMessages := make(map[string][]string)
+	if len(u.createRoles) > 0 {
+		roles := flattenSlice(u.createRoles)
 		for _, role := range roles {
 			if _, err := client.GetRole(ctx, role); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 		user.SetRoles(roles)
-		updateMessages = append(updateMessages, "with roles "+strings.Join(user.GetRoles(), ","))
+		updateMessages["roles"] = roles
+	}
+	if len(u.allowedLogins) > 0 {
+		logins := flattenSlice(u.allowedLogins)
+		user.SetLogins(logins)
+		updateMessages[constants.TraitLogins] = logins
+	}
+	if len(u.allowedWindowsLogins) > 0 {
+		windowsLogins := flattenSlice(u.allowedWindowsLogins)
+		user.SetWindowsLogins(windowsLogins)
+		updateMessages[constants.TraitWindowsLogins] = windowsLogins
+	}
+	if len(u.allowedKubeUsers) > 0 {
+		kubeUsers := flattenSlice(u.allowedKubeUsers)
+		user.SetKubeUsers(kubeUsers)
+		updateMessages[constants.TraitKubeUsers] = kubeUsers
+	}
+	if len(u.allowedKubeGroups) > 0 {
+		kubeGroups := flattenSlice(u.allowedKubeGroups)
+		user.SetKubeGroups(kubeGroups)
+		updateMessages[constants.TraitKubeGroups] = kubeGroups
+	}
+	if len(u.allowedDatabaseUsers) > 0 {
+		dbUsers := flattenSlice(u.allowedDatabaseUsers)
+		user.SetDBUsers(dbUsers)
+		updateMessages[constants.TraitDBUsers] = dbUsers
+	}
+	if len(u.allowedDatabaseNames) > 0 {
+		dbNames := flattenSlice(u.allowedDatabaseNames)
+		user.SetDBNames(dbNames)
+		updateMessages[constants.TraitDBNames] = dbNames
+	}
+	if len(u.allowedAWSRoleARNs) > 0 {
+		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)
+		user.SetAWSRoleARNs(awsRoleARNs)
+		updateMessages[constants.TraitAWSRoleARNs] = awsRoleARNs
 	}
 
-	if u.updateLogins != "" {
-		logins := flattenSlice([]string{u.updateLogins})
-		traits := user.GetTraits()
-		traits[constants.TraitLogins] = logins
-		user.SetTraits(traits)
-		updateMessages = append(updateMessages, "with logins "+strings.Join(logins, ","))
+	if len(updateMessages) == 0 {
+		return trace.BadParameter("Nothing to update. Please provide at least one --set-x flag.")
 	}
 
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%v has been updated %v\n", user.GetName(), strings.Join(updateMessages, " and "))
+	fmt.Printf("User %v has been updated:\n", user.GetName())
+	for field, values := range updateMessages {
+		fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
+	}
 	return nil
 }
 
