@@ -1,5 +1,5 @@
 import api from 'teleport/services/api';
-import sessionService, { RenewSessionRequest } from 'teleport/services/session';
+import session, { RenewSessionRequest } from 'teleport/services/websession';
 import cfg from 'e-teleport/config';
 import makeAccessRequest from './makeAccessRequest';
 import {
@@ -36,7 +36,7 @@ class WorkflowService {
   }
 
   applyPermission(req: RenewSessionRequest) {
-    return sessionService.renewSession(req);
+    return session.renewSession(req);
   }
 }
 

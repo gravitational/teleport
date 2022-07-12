@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { intervalToDuration, differenceInMilliseconds } from 'date-fns';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import TeleportContext from 'e-teleport/teleportContextE';
 

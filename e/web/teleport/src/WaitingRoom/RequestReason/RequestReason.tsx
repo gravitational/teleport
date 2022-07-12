@@ -1,5 +1,5 @@
 import React from 'react';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import {
   ButtonPrimary,
   ButtonSecondary,

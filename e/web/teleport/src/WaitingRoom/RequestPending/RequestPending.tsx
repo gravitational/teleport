@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import { Text, ButtonLink, Flex } from 'design';
 import { ShieldCheck } from 'design/Icon';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
