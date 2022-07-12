@@ -120,9 +120,12 @@ func (r *Assignments) IsInternal(author string) bool {
 	return code || docs
 }
 
-// Get will return a list of code reviewers a given author.
+// Get will return a list of code reviewers for a given author.
 func (r *Assignments) Get(author string, docs bool, code bool) []string {
 	var reviewers []string
+
+	// TODO: consider existing review assignments here
+	// https://github.com/gravitational/teleport/issues/10420
 
 	switch {
 	case docs && code:
