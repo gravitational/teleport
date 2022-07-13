@@ -1305,8 +1305,46 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
-		// otherwise just passthrough to standard login
+
+		// check to see if the proxy given is already in the list of active profiles
 		default:
+
+			for _, p := range profiles {
+				if host(cf.Proxy) == host(p.ProxyURL.Host) {
+					if !p.IsExpired(clockwork.NewRealClock()) {
+						_, err := tc.PingAndShowMOTD(cf.Context)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+
+						// make a client for the currently logged in profile
+						oldTc, err := makeClientForProxy(cf, fmt.Sprintf("%s:%s", profile.ProxyURL.Hostname(), profile.ProxyURL.Port()), true)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+
+						// trigger reissue for the currently active profile, preserving any active requests.
+						err = oldTc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
+							AccessRequests: profile.ActiveRequests.AccessRequests,
+							RouteToCluster: oldTc.SiteName,
+						})
+
+						if err != nil {
+							return trace.Wrap(err)
+						}
+
+						if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+							return trace.Wrap(err)
+						}
+						if err := updateKubeConfig(cf, tc, ""); err != nil {
+							return trace.Wrap(err)
+						}
+
+						return trace.Wrap(onStatus(cf))
+					}
+				}
+			}
+			// otherwise just passthrough to standard login
 		}
 	}
 
