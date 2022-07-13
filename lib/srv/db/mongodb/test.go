@@ -46,15 +46,15 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		return nil, trace.Wrap(err)
 	}
 	sm := &event.ServerMonitor{
-		ServerDescriptionChanged:   func(e *event.ServerDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		ServerOpening:              func(e *event.ServerOpeningEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		ServerClosed:               func(e *event.ServerClosedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		TopologyDescriptionChanged: func(e *event.TopologyDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		TopologyOpening:            func(e *event.TopologyOpeningEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		TopologyClosed:             func(e *event.TopologyClosedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		ServerHeartbeatStarted:     func(e *event.ServerHeartbeatStartedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		ServerHeartbeatSucceeded:   func(e *event.ServerHeartbeatSucceededEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
-		ServerHeartbeatFailed:      func(e *event.ServerHeartbeatFailedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerDescriptionChanged:   func(e *event.ServerDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		ServerOpening:              func(e *event.ServerOpeningEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		ServerClosed:               func(e *event.ServerClosedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		TopologyDescriptionChanged: func(e *event.TopologyDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		TopologyOpening:            func(e *event.TopologyOpeningEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		TopologyClosed:             func(e *event.TopologyClosedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		ServerHeartbeatStarted:     func(e *event.ServerHeartbeatStartedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		ServerHeartbeatSucceeded:   func(e *event.ServerHeartbeatSucceededEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+		ServerHeartbeatFailed:      func(e *event.ServerHeartbeatFailedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
 	}
 	client, err := mongo.Connect(ctx, append(
 		[]*options.ClientOptions{
