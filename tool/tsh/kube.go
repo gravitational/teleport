@@ -204,7 +204,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	session.Wait()
-	return nil
+	return trace.Wrap(session.Detach())
 }
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
