@@ -259,15 +259,13 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 }
 
 // ListGateways lists gateways
-func (s *Service) ListGateways() []*gateway.Gateway {
+func (s *Service) ListGateways() []gateway.Gateway {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	gws := make([]*gateway.Gateway, 0, len(s.gateways))
+	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
-		gateway := gateway
-
-		gws = append(gws, gateway)
+		gws = append(gws, *gateway)
 	}
 
 	return gws

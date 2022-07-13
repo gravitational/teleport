@@ -90,9 +90,15 @@ func TestGatewayCRUD(t *testing.T) {
 				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
 			) {
 				gateways := daemon.ListGateways()
+				gatewayURIs := map[uri.ResourceURI]struct{}{}
+
+				for _, gateway := range gateways {
+					gatewayURIs[gateway.URI] = struct{}{}
+				}
+
 				require.Equal(t, 2, len(gateways))
-				require.Contains(t, gateways, nameToGateway["gateway1"])
-				require.Contains(t, gateways, nameToGateway["gateway2"])
+				require.Contains(t, gatewayURIs, nameToGateway["gateway1"].URI)
+				require.Contains(t, gatewayURIs, nameToGateway["gateway2"].URI)
 			},
 		},
 		{
