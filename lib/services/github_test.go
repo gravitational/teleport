@@ -85,12 +85,23 @@ func TestMapClaims(t *testing.T) {
 				Logins:       []string{"dev", "test"},
 				KubeGroups:   []string{"kube-devs"},
 			},
+			{
+				Organization: "gravitational",
+				Team:         "*",
+				Logins:       []string{"catch-all-login"},
+				KubeGroups:   []string{"kube-devs"},
+			},
 		},
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "gravitational",
 				Team:         "admins",
 				Roles:        []string{"system"},
+			},
+			{
+				Organization: "gravitational",
+				Team:         "*",
+				Roles:        []string{"catch-all-role"},
 			},
 		},
 	})
@@ -101,7 +112,7 @@ func TestMapClaims(t *testing.T) {
 			"gravitational": {"admins"},
 		},
 	})
-	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "system"}))
+	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "catch-all-login", "system", "catch-all-role"}))
 	require.Empty(t, cmp.Diff(kubeGroups, []string{"system:masters", "kube-devs"}))
 	require.Empty(t, cmp.Diff(kubeUsers, []string{"alice@example.com"}))
 
@@ -111,7 +122,7 @@ func TestMapClaims(t *testing.T) {
 		},
 	})
 
-	require.Empty(t, cmp.Diff(roles, []string{"dev", "test"}))
+	require.Empty(t, cmp.Diff(roles, []string{"dev", "test", "catch-all-login", "catch-all-role"}))
 	require.Empty(t, cmp.Diff(kubeGroups, []string{"kube-devs"}))
 	require.Empty(t, cmp.Diff(kubeUsers, []string(nil)))
 
@@ -120,7 +131,16 @@ func TestMapClaims(t *testing.T) {
 			"gravitational": {"admins", "devs"},
 		},
 	})
-	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "test", "system"}))
+	require.Empty(t, cmp.Diff(roles, []string{"admin", "dev", "test", "catch-all-login", "system", "catch-all-role"}))
 	require.Empty(t, cmp.Diff(kubeGroups, []string{"system:masters", "kube-devs"}))
 	require.Empty(t, cmp.Diff(kubeUsers, []string{"alice@example.com"}))
+
+	roles, kubeGroups, kubeUsers = connector.MapClaims(types.GithubClaims{
+		OrganizationToTeams: map[string][]string{
+			"gravitational": {"LOL"},
+		},
+	})
+	require.Empty(t, cmp.Diff(roles, []string{"catch-all-login", "catch-all-role"}))
+	require.Empty(t, cmp.Diff(kubeGroups, []string{"kube-devs"}))
+	require.Empty(t, cmp.Diff(kubeUsers, []string(nil)))
 }
