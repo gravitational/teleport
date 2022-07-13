@@ -1909,7 +1909,7 @@ func TestX11ProxySupport(t *testing.T) {
 func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
