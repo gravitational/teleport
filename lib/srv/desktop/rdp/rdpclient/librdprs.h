@@ -57,7 +57,7 @@ typedef enum CGOPointerWheel {
  * - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
  * - most other exported rdp functions take the raw pointer, convert it to a reference for use
  *   without dropping the Client
- * - close_rdp takes the raw pointer and drops it
+ * - free_rdp takes the raw pointer and drops it
  *
  * All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
  * tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
