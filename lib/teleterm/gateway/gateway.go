@@ -32,19 +32,46 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// New creates an instance of Gateway
+// New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
+// start the proxy – that's the job of Serve.
 func New(cfg Config) (*Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", cfg.LocalAddress, cfg.LocalPort))
+	result, err := newListenerAndLocalProxy(cfg, cfg.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.LocalPort = result.LocalPort
+
+	gateway := &Gateway{
+		cfg:          &cfg,
+		closeContext: result.closeContext,
+		closeCancel:  result.closeCancel,
+		localProxy:   result.localProxy,
+	}
+
+	return gateway, nil
+}
+
+type newListenerAndLocalProxyResult struct {
+	LocalPort    string
+	listener     net.Listener
+	closeContext context.Context
+	closeCancel  context.CancelFunc
+	localProxy   *alpn.LocalProxy
+}
+
+func newListenerAndLocalProxy(cfg Config, port string) (*newListenerAndLocalProxyResult, error) {
+	listener, err := cfg.TCPPortAllocator.Listen(cfg.LocalAddress, port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	closeContext, closeCancel := context.WithCancel(context.Background())
-	// make sure the listener is closed if gateway creation failed
+	// make sure the listener is closed if proxy creation failed
 	ok := false
 	defer func() {
 		if ok {
@@ -58,11 +85,21 @@ func New(cfg Config) (*Gateway, error) {
 	}()
 
 	// retrieve automatically assigned port number
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	_, localPort, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	localProxy, err := newLocalProxy(cfg, listener, closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ok = true
+	return &newListenerAndLocalProxyResult{localPort, listener, closeContext, closeCancel, localProxy}, nil
+}
+
+func newLocalProxy(cfg Config, listener net.Listener, closeContext context.Context) (*alpn.LocalProxy, error) {
 	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,21 +124,8 @@ func New(cfg Config) (*Gateway, error) {
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{cert},
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	cfg.LocalPort = port
-
-	gateway := &Gateway{
-		cfg:          &cfg,
-		closeContext: closeContext,
-		closeCancel:  closeCancel,
-		localProxy:   localProxy,
-	}
-
-	ok = true
-	return gateway, nil
+	return localProxy, trace.Wrap(err)
 }
 
 // Close terminates gateway connection
@@ -172,6 +196,39 @@ func (g *Gateway) LocalPort() string {
 	return g.cfg.LocalPort
 }
 
+// SetLocalPort attempts to create a listener on the specified port. If successful, it stops
+// g.localProxy and starts a new one with the new listener and then updates the fields on gateway.
+//
+// If it fails it's imperative that the current proxy is kept intact and the fields on gateway are
+// not changed. This way if the user attempts to change the port to one that cannot be obtained,
+// they're able to correct that mistake and choose a different port.
+func (g *Gateway) SetLocalPort(port string) error {
+	result, err := newListenerAndLocalProxy(*g.cfg, port)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	previousPort := g.cfg.LocalPort
+
+	g.closeCancel()
+	if err = g.localProxy.Close(); err != nil {
+		g.cfg.Log.WithError(err).Warnf("Failed to close the previous proxy on port %s.", previousPort)
+	}
+
+	g.cfg.LocalPort = result.LocalPort
+	g.localProxy = result.localProxy
+	g.closeCancel = result.closeCancel
+	g.closeContext = result.closeContext
+
+	go func() {
+		if err := g.Serve(); err != nil {
+			g.cfg.Log.WithError(err).Warn("Failed to restart the gateway after changing the port.")
+		}
+	}()
+
+	return nil
+}
+
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
 func (g *Gateway) LocalPortInt() int {
 	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
@@ -197,11 +254,26 @@ type Gateway struct {
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
-	closeContext       context.Context
-	closeCancel        context.CancelFunc
+	closeContext context.Context
+	closeCancel  context.CancelFunc
 }
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
 	GetCommand(gateway *Gateway) (string, error)
+}
+
+type TCPPortAllocator interface {
+	Listen(localAddress, port string) (net.Listener, error)
+}
+
+type NetTCPPortAllocator struct{}
+
+func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listener, nil
 }

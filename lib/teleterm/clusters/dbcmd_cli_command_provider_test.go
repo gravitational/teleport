@@ -102,6 +102,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					CertPath:              "../../../fixtures/certs/proxy1.pem",
 					KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
 					CLICommandProvider:    dbcmdCLICommandProvider,
+					TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 				},
 			)
 			require.NoError(t, err)
@@ -135,6 +136,7 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 			CertPath:              "../../../fixtures/certs/proxy1.pem",
 			KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
 			CLICommandProvider:    dbcmdCLICommandProvider,
+			TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 		},
 	)
 	require.NoError(t, err)

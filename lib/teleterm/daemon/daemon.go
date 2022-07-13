@@ -277,6 +277,24 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 	return gateway, nil
 }
 
+// SetGatewayLocalPort updates the LocalPort field of a gateway stored in s.gateways and restarts
+// the gateway under the new port without fetching new certs.
+func (s *Service) SetGatewayLocalPort(ctx context.Context, gatewayURI, localPort string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = gateway.SetLocalPort(localPort); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return gateway, nil
+}
+
 // ListKubes lists kubernetes clusters
 func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)

@@ -61,6 +61,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
 		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
