@@ -61,6 +61,21 @@ func (c *Client) RequestReviewers(ctx context.Context, organization string, repo
 	return nil
 }
 
+// DismissReviewers is used to remove the review request from a Pull Request.
+func (c *Client) DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+	_, err := c.client.PullRequests.RemoveReviewers(ctx,
+		organization,
+		repository,
+		number,
+		go_github.ReviewersRequest{
+			Reviewers: reviewers,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // Review is a GitHub PR review.
 type Review struct {
 	// Author is the GitHub login of the user that created the PR.
