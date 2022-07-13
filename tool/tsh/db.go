@@ -908,9 +908,11 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 			"Use `tsh db ls` to see available logins. "+dbAccessHint, dbRoute.ServiceName, dbRoute.Username)
 	}
 
-	// we only enforce db_names access for postgres and mongo, so check access for those protocols
 	switch dbRoute.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolMongoDB:
+	case defaults.ProtocolMySQL, defaults.ProtocolCockroachDB:
+		// we dont enforce db_names access for MySQL and CockroachDB
+		return nil
+	default:
 		dbNames := roleSet.EnumerateDatabaseNames(db)
 		// catch the cases where a user will be denied no matter what.
 		if dbNames.WildcardDenied() {
@@ -927,8 +929,8 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 			return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q with db name %q (db_names RBAC is used for %q protocol). "+
 				dbAccessHint, dbRoute.ServiceName, dbRoute.Database, dbRoute.Protocol)
 		}
+		return nil
 	}
-	return nil
 }
 
 // fetchCurrentClusterRoleSet fetches a user's roles for the active cluster
