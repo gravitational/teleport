@@ -85,6 +85,26 @@ func NewSeventhJitter() Jitter {
 	}
 }
 
+// NewFullJitter builds a new jitter on the range (0,n]. Most use-cases
+// are better served by a jitter with a meaningful minimum value, but if
+// the *only* purpose of the jitter is to spread out retries to the greatest
+// extent possible (e.g. when retrying a CompareAndSwap operation), a full jitter
+// may be appropriate.
+func NewFullJitter() Jitter {
+	var mu sync.Mutex
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return func(d time.Duration) time.Duration {
+		// values less than 1 cause rng to panic, and some logic
+		// relies on treating zero duration as non-blocking case.
+		if d < 1 {
+			return 0
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		return time.Duration(1) + time.Duration(rng.Int63n(int64(d)))
+	}
+}
+
 // Retry is an interface that provides retry logic
 type Retry interface {
 	// Reset resets retry state
