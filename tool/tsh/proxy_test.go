@@ -488,6 +488,58 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 	}
 }
 
+func TestEnvVarCommand(t *testing.T) {
+	tests := []struct {
+		inputFormat  string
+		inputKey     string
+		inputValue   string
+		expectOutput string
+		expectError  bool
+	}{
+		{
+			inputFormat:  envVarFormatText,
+			inputKey:     "key",
+			inputValue:   "value",
+			expectOutput: "key=value",
+		},
+		{
+			inputFormat:  envVarFormatUnix,
+			inputKey:     "key",
+			inputValue:   "value",
+			expectOutput: "export key=value",
+		},
+		{
+			inputFormat:  envVarFormatWindowsCommandPrompt,
+			inputKey:     "key",
+			inputValue:   "value",
+			expectOutput: "set key=value",
+		},
+		{
+			inputFormat:  envVarFormatWindowsPowershell,
+			inputKey:     "key",
+			inputValue:   "value",
+			expectOutput: "$Env:key=\"value\"",
+		},
+		{
+			inputFormat: "unknown",
+			inputKey:    "key",
+			inputValue:  "value",
+			expectError: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.inputFormat, func(t *testing.T) {
+			actualOutput, err := envVarCommand(test.inputFormat, test.inputKey, test.inputValue)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectOutput, actualOutput)
+			}
+		})
+	}
+}
+
 func createAgent(t *testing.T) string {
 	t.Helper()
 
