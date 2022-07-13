@@ -12,6 +12,18 @@ proxyAddr: ""
 roles: "kube"
 
 ################################################################
+# Values that must be provided if IAM or EC2 joining is enabled.
+################################################################
+
+# Join Parameters for EC2 or IAM usage. Example:
+# joinParams:
+#   tokenName: "iam-token"
+#   method: "iam"
+joinParams:
+  tokenName: ""
+  method: ""
+
+################################################################
 # Values that must be provided if Kubernetes access is enabled.
 ################################################################
 
