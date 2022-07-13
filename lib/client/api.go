@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/tool/common"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
@@ -4346,21 +4347,27 @@ func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.Sessio
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int) ([]apievents.AuditEvent, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/SearchSessionEvents",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer authClient.Close()
-	decodedEvents, lastKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
-		limit, order, startKey, nil /* where condition */, "" /* session ID */)
+	sessions, err := common.GetPaginatedSessions(ctx, fromUTC, toUTC,
+		pageSize, order, max, authClient)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return decodedEvents, lastKey, nil
+	return sessions, nil
 }

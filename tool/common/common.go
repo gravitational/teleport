@@ -14,58 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package common
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
-// DefaultFormats is the default set of formats to use for commands that have the --format flag.
-var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
-
-// FormatFlagDescription creates the description for the --format flag.
-func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
-}
-
-func DefaultSearchSessionRange(fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
-	from = time.Now().Add(time.Hour * -24)
-	to = time.Now()
-	if fromUTC != "" {
-		from, err = time.Parse(time.RFC3339, fromUTC)
-		if err != nil {
-			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
-		}
-	}
-	if toUTC != "" {
-		to, err = time.Parse(time.RFC3339, toUTC)
-		if err != nil {
-			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
-		}
-	}
-	return from, to, nil
-}
-
-// GetPaginatedSessions wraps the given sessionGetter function with the required logic to use it's pagination. Returns up to 'max' sessions.
-func GetPaginatedSessions(max int, sessionGetter func(startKey string) ([]apievents.AuditEvent, string, error)) ([]apievents.AuditEvent, error) {
+// GetPaginatedSessions grabs up to 'max' sessions.
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]events.AuditEvent, error) {
 	prevEventKey := ""
-	sessions := []apievents.AuditEvent{}
+	sessions := []events.AuditEvent{}
 	for {
-		nextEvents, eventKey, err := sessionGetter(prevEventKey)
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
+			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -119,7 +94,7 @@ func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 }
 
 // ShowSessions is s helper function for displaying listed sessions via tsh or tctl
-func ShowSessions(events []apievents.AuditEvent, format string, w io.Writer) error {
+func ShowSessions(events []events.AuditEvent, format string, w io.Writer) error {
 	sessions := &SessionsCollection{SessionEvents: events}
 	switch format {
 	case teleport.Text, "":

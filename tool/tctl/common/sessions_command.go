@@ -26,12 +26,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 // SessionsCommand implements "tctl sessions" group of commands.
@@ -55,7 +55,7 @@ func (c *SessionsCommand) Initialize(app *kingpin.Application, config *service.C
 	c.config = config
 	sessions := app.Command("sessions", "View and control recorded sessions.")
 	c.sessionsList = sessions.Command("ls", "List recorded sessions.")
-	c.sessionsList.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.sessionsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.sessionsList.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&c.fromUTC)
 	c.sessionsList.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&c.toUTC)
 	c.sessionsList.Flag("limit", fmt.Sprintf("Maximum number of sessions to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxSessionsToShow)
@@ -73,18 +73,14 @@ func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 }
 
 func (c *SessionsCommand) ListSessions(tc auth.ClientI) error {
-	fromUTC, toUTC, err := client.DefaultSearchSessionRange(c.fromUTC, c.toUTC)
+	fromUTC, toUTC, err := defaults.DefaultSearchSessionRange(c.fromUTC, c.toUTC)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sessionGetter := func(startKey string) ([]apievents.AuditEvent, string, error) {
-		return tc.SearchSessionEvents(fromUTC, toUTC,
-			defaults.TshTctlSessionSearchPageSize, types.EventOrderAscending, startKey,
-			nil /* where condition */, "" /* session ID */)
-	}
-	sessions, err := client.GetPaginatedSessions(c.maxSessionsToShow, sessionGetter)
+	sessions, err := common.GetPaginatedSessions(context.Background(), fromUTC, toUTC,
+		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxSessionsToShow, tc)
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)
 	}
-	return trace.Wrap(client.ShowSessions(sessions, c.format, os.Stdout))
+	return trace.Wrap(common.ShowSessions(sessions, c.format, os.Stdout))
 }

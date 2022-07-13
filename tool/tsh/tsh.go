@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/common"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -524,7 +525,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version of your tsh binary")
-	ver.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -566,7 +567,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	lsApps.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -583,7 +584,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Sessions.
 	sessions := app.Command("sessions", "View and control recorded sessions.").Alias("session")
 	lsSessions := sessions.Command("ls", "List recorded sessions.")
-	lsSessions.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	lsSessions.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	lsSessions.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&cf.FromUTC)
 	lsSessions.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&cf.ToUTC)
 	lsSessions.Flag("limit", fmt.Sprintf("Maximum number of sessions to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxSessionsToShow)
@@ -619,7 +620,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbList.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
@@ -629,7 +630,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	dbEnv.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
@@ -654,7 +655,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	play.Flag("format", client.FormatFlagDescription(
+	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
@@ -671,7 +672,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
-	ls.Flag("format", client.FormatFlagDescription(
+	ls.Flag("format", defaults.FormatFlagDescription(
 		teleport.Text, teleport.JSON, teleport.YAML, teleport.Names,
 	)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, teleport.Text, teleport.JSON, teleport.YAML, teleport.Names)
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
@@ -680,7 +681,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
-	clusters.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
@@ -728,26 +729,26 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
-	status.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
 	environment := app.Command("env", "Print commands to set Teleport session environment variables")
-	environment.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
 	req := app.Command("request", "Manage access requests").Alias("requests")
 
 	reqList := req.Command("ls", "List access requests").Alias("list")
-	reqList.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
 	reqShow := req.Command("show", "Show request details").Alias("details")
-	reqShow.Flag("format", client.FormatFlagDescription(client.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, client.DefaultFormats...)
+	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
@@ -3888,7 +3889,7 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 }
 
 func onSessions(cf *CLIConf) error {
-	fromUTC, toUTC, err := client.DefaultSearchSessionRange(cf.FromUTC, cf.ToUTC)
+	fromUTC, toUTC, err := defaults.DefaultSearchSessionRange(cf.FromUTC, cf.ToUTC)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3899,18 +3900,15 @@ func onSessions(cf *CLIConf) error {
 
 	var sessions []apievents.AuditEvent
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		sessionGetter := func(startKey string) ([]apievents.AuditEvent, string, error) {
-			return tc.SearchSessionEvents(cf.Context,
-				fromUTC, toUTC, defaults.TshTctlSessionSearchPageSize,
-				types.EventOrderAscending, startKey)
-		}
-		sessions, err = client.GetPaginatedSessions(cf.maxSessionsToShow, sessionGetter)
+		sessions, err = tc.SearchSessionEvents(cf.Context,
+			fromUTC, toUTC, apidefaults.DefaultChunkSize,
+			types.EventOrderAscending, cf.maxSessionsToShow)
 		return err
 	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := client.ShowSessions(sessions, cf.Format, os.Stdout); err != nil {
+	if err := common.ShowSessions(sessions, cf.Format, os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

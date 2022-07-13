@@ -22,8 +22,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -770,6 +772,33 @@ const (
 
 // Default values for TSH and TCTL commands.
 const (
-	TshTctlSessionListLimit      = "50"
-	TshTctlSessionSearchPageSize = 50
+	TshTctlSessionListLimit = "50"
 )
+
+// DefaultFormats is the default set of formats to use for commands that have the --format flag.
+var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
+
+// FormatFlagDescription creates the description for the --format flag.
+func FormatFlagDescription(formats ...string) string {
+	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+}
+
+func DefaultSearchSessionRange(fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
+	from = time.Now().Add(time.Hour * -24)
+	to = time.Now()
+	if fromUTC != "" {
+		from, err = time.Parse(time.RFC3339, fromUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
+		}
+	}
+	if toUTC != "" {
+		to, err = time.Parse(time.RFC3339, toUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
+		}
+	}
+	return from, to, nil
+}

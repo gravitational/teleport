@@ -64,6 +64,15 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/common"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
+	yamlv2 "gopkg.in/yaml.v2"
 )
 
 const (
@@ -3070,7 +3079,7 @@ func TestShowSessions(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	err := client.ShowSessions(sessions, teleport.JSON, &buf)
+	err := common.ShowSessions(sessions, teleport.JSON, &buf)
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
 }
