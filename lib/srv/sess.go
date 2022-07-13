@@ -210,10 +210,10 @@ func (s *SessionRegistry) tryCreateHostUser(ctx *ServerContext) (*user.User, err
 	return tempUser, nil
 }
 
-// OpenSession either joins an existing session or starts a new session.
+// OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error {
 	session := ctx.getSession()
-	if session != nil {
+	if session != nil && !session.isStopped() {
 		ctx.Infof("Joining existing session %v.", session.id)
 
 		mode := types.SessionParticipantMode(ctx.env[teleport.EnvSSHJoinMode])
@@ -544,7 +544,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if existing.Login != rsess.Login {
+			if existing.Login != rsess.Login && rsess.Login != teleport.SSHSessionJoinPrincipal {
 				return nil, trace.AccessDenied(
 					"can't switch users from %v to %v for session %v",
 					rsess.Login, existing.Login, id)
@@ -570,7 +570,7 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 		stopC:                          make(chan struct{}),
 		startTime:                      startTime,
 		serverCtx:                      ctx.srv.Context(),
-		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind),
+		access:                         auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, ctx.Identity.TeleportUser),
 		scx:                            ctx,
 		presenceEnabled:                ctx.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified] != "",
 		io:                             NewTermManager(),
@@ -651,10 +651,6 @@ func (s *session) Stop() {
 
 	// close io copy loops
 	s.io.Close()
-
-	// remove session from server context to prevent new requests
-	// from attempting to join the session during cleanup
-	s.scx.setSession(nil)
 
 	// Close and kill terminal
 	if s.term != nil {
@@ -1075,10 +1071,6 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser 
 		}()
 	}
 
-	if err := s.addParty(p, types.SessionPeerMode); err != nil {
-		return trace.Wrap(err)
-	}
-
 	ctx.Debug("Waiting for continue signal")
 
 	if tempUser != nil {
@@ -1390,6 +1382,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	return nil
 }
 
+// isStopped does not need to be called under sessionLock
 func (s *session) isStopped() bool {
 	select {
 	case <-s.stopC:
@@ -1544,7 +1537,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.login != p.login {
+	if s.login != p.login && p.login != teleport.SSHSessionJoinPrincipal {
 		return trace.AccessDenied(
 			"can't switch users from %v to %v for session %v",
 			s.login, p.login, s.id)
@@ -1637,7 +1630,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionParticipantMode) (*party, error) {
 	if ctx.Identity.TeleportUser != s.initiator {
 		accessContext := auth.SessionAccessContext{
-			Roles: ctx.Identity.AccessChecker.Roles(),
+			Username: ctx.Identity.TeleportUser,
+			Roles:    ctx.Identity.AccessChecker.Roles(),
 		}
 
 		modes := s.access.CanJoin(accessContext)
@@ -1761,18 +1755,13 @@ func (p *party) closeUnderSessionLock() {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:   s.id.String(),
-		Kind:        string(types.SSHSessionKind),
-		State:       types.SessionState_SessionStatePending,
-		Hostname:    s.registry.Srv.GetInfo().GetHostname(),
-		Address:     s.scx.srv.ID(),
-		ClusterName: s.scx.ClusterName,
-		Login:       s.login,
-		Participants: []types.Participant{{
-			ID:         teleportUser,
-			User:       teleportUser,
-			LastActive: s.registry.clock.Now(),
-		}},
+		SessionID:    s.id.String(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStatePending,
+		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
+		Address:      s.scx.srv.ID(),
+		ClusterName:  s.scx.ClusterName,
+		Login:        s.login,
 		HostUser:     teleportUser,
 		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,

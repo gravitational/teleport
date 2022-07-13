@@ -278,6 +278,10 @@ const (
 	SCPActionUpload   = "upload"
 	SCPActionDownload = "download"
 
+	// SFTPEvent means a user attempted a file operation
+	SFTPEvent = "sftp"
+	SFTPPath  = "path"
+
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
@@ -733,7 +737,7 @@ type IAuditLog interface {
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.

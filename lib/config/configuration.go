@@ -538,7 +538,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.SSHAddr = *addr
+		cfg.Auth.ListenAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -995,7 +995,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
 		cfg.SSH.DisableCreateHostUser = true
 		if runtime.GOOS != constants.LinuxOS {
-			log.Warnln("Disabling host user creation as this feature is only available on Linux")
+			log.Debugln("Disabling host user creation as this feature is only available on Linux")
 		}
 	}
 	if fc.SSH.PAM != nil {
@@ -1042,6 +1042,16 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, matcher := range fc.SSH.AWSMatchers {
+		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+			services.AWSMatcher{
+				Types:       matcher.Types,
+				Regions:     matcher.Regions,
+				Tags:        matcher.Tags,
+				SSMDocument: matcher.SSMDocument,
+			})
 	}
 
 	return nil
@@ -1962,7 +1972,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2069,8 +2079,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.SSHAddr,
-		&cfg.Auth.SSHAddr,
+		&cfg.Auth.ListenAddr,
+		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,

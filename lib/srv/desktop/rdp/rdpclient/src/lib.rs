@@ -57,7 +57,7 @@ pub extern "C" fn init() {
 /// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
 /// - most other exported rdp functions take the raw pointer, convert it to a reference for use
 ///   without dropping the Client
-/// - close_rdp takes the raw pointer and drops it
+/// - free_rdp takes the raw pointer and drops it
 ///
 /// All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
 /// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
@@ -609,40 +609,44 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode 
 fn read_rdp_output_inner(client: &Client) -> Option<String> {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
+
     // Read incoming events.
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
     while wait_for_fd(tcp_fd as usize) {
         let mut err = CGOErrCode::ErrCodeSuccess;
-        let res = client
-            .rdp_client
-            .lock()
-            .unwrap()
-            .read(|rdp_event| match rdp_event {
-                RdpEvent::Bitmap(bitmap) => {
-                    let mut cbitmap = match CGOBitmap::try_from(bitmap) {
-                        Ok(cb) => cb,
-                        Err(e) => {
-                            error!(
-                                "failed to convert RDP bitmap to CGO representation: {:?}",
-                                e
-                            );
-                            return;
-                        }
-                    };
-                    unsafe {
-                        err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
-                    };
+        let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
+            // This callback can be called multiple times per rdp_client.read()
+            // (if multiple messages were received since the last call). Therefore,
+            // we check that the previous call to handle_bitmap succeeded, so we don't
+            // have a situation where handle_bitmap fails repeatedly and creates a
+            // bunch of repetitive error messages in the logs. If it fails once,
+            // we assume the connection is broken and stop trying to send bitmaps.
+            if err == CGOErrCode::ErrCodeSuccess {
+                match rdp_event {
+                    RdpEvent::Bitmap(bitmap) => {
+                        let mut cbitmap = match CGOBitmap::try_from(bitmap) {
+                            Ok(cb) => cb,
+                            Err(e) => {
+                                error!(
+                                    "failed to convert RDP bitmap to CGO representation: {:?}",
+                                    e
+                                );
+                                return;
+                            }
+                        };
+                        unsafe {
+                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                        };
+                    }
+                    // No other events should be sent by the server to us.
+                    _ => {
+                        debug!("got unexpected pointer event from RDP server, ignoring");
+                    }
                 }
-                // These should never really be sent by the server to us.
-                RdpEvent::Pointer(_) => {
-                    debug!("got unexpected pointer event from RDP server, ignoring");
-                }
-                RdpEvent::Key(_) => {
-                    debug!("got unexpected keyboard event from RDP server, ignoring");
-                }
-            });
+            }
+        });
         match res {
             Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
             Err(e) => {
@@ -796,11 +800,9 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
             return cgo_error;
         }
     };
-    if let Err(e) = client.rdp_client.lock().unwrap().shutdown() {
-        error!("failed writing RDP keyboard event: {:?}", e);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
+    match client.rdp_client.lock().unwrap().shutdown() {
+        Err(_) => CGOErrCode::ErrCodeFailure,
+        Ok(_) => CGOErrCode::ErrCodeSuccess,
     }
 }
 
@@ -831,7 +833,7 @@ unsafe fn from_go_array(len: u32, ptr: *mut u8) -> Vec<u8> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,

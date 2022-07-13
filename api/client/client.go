@@ -651,6 +651,22 @@ func (c *Client) GetCurrentUser(ctx context.Context) (types.User, error) {
 	return currentUser, nil
 }
 
+// GetCurrentUserRoles returns current user's roles.
+func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	stream, err := c.grpc.GetCurrentUserRoles(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	var roles []types.Role
+	for role, err := stream.Recv(); err != io.EOF; role, err = stream.Recv() {
+		if err != nil {
+			return nil, trail.FromGRPC(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // GetUsers returns a list of users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
@@ -1859,7 +1875,10 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 // the Auth server and get a signed certificate and private key.
 func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
-	return resp.Token, trail.FromGRPC(err)
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+	return resp.Token, nil
 }
 
 // DeleteToken deletes a provision token by name.
@@ -2684,7 +2703,10 @@ func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTrack
 func (c *Client) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	req := &proto.GetSessionTrackerRequest{SessionID: sessionID}
 	resp, err := c.grpc.GetSessionTracker(ctx, req, c.callOpts...)
-	return resp, trail.FromGRPC(err)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // GetActiveSessionTrackers returns a list of active session trackers.

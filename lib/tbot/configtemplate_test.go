@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -84,16 +85,22 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	t.Parallel()
 
 	// Make a new auth server.
+	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test")
+	const roleName = "dummy-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	storage, err := botConfig.Storage.GetDestination()
 	require.NoError(t, err)
-	b := New(botConfig, utils.NewLoggerForTests(), nil)
+	b := New(botConfig, log, nil)
 
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)

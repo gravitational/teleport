@@ -461,7 +461,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
-	tconf.Auth.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
+	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -507,7 +507,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
 		}
 	}
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.SSHAddr)
+	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
@@ -1179,6 +1179,8 @@ type ClientConfig struct {
 	Interactive bool
 	// Source IP to used in generated SSH cert
 	SourceIP string
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
+	EnableEscapeSequences bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1228,20 +1230,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:           cfg.Login,
-		Host:               cfg.Host,
-		HostPort:           cfg.Port,
-		HostLogin:          cfg.Login,
-		InsecureSkipVerify: true,
-		KeysDir:            keyDir,
-		SiteName:           cfg.Cluster,
-		ForwardAgent:       fwdAgentMode,
-		Labels:             cfg.Labels,
-		WebProxyAddr:       webProxyAddr,
-		SSHProxyAddr:       sshProxyAddr,
-		Interactive:        cfg.Interactive,
-		TLSRoutingEnabled:  i.isSinglePortSetup,
-		Tracer:             tracing.NoopProvider().Tracer("test"),
+		Username:              cfg.Login,
+		Host:                  cfg.Host,
+		HostPort:              cfg.Port,
+		HostLogin:             cfg.Login,
+		InsecureSkipVerify:    true,
+		KeysDir:               keyDir,
+		SiteName:              cfg.Cluster,
+		ForwardAgent:          fwdAgentMode,
+		Labels:                cfg.Labels,
+		WebProxyAddr:          webProxyAddr,
+		SSHProxyAddr:          sshProxyAddr,
+		Interactive:           cfg.Interactive,
+		TLSRoutingEnabled:     i.isSinglePortSetup,
+		Tracer:                tracing.NoopProvider().Tracer("test"),
+		EnableEscapeSequences: cfg.EnableEscapeSequences,
 	}
 
 	// JumpHost turns on jump host mode

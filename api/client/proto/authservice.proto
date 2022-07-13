@@ -278,6 +278,10 @@ message UserCertsRequest {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
+
+    // UseRoleRequests is used to ensure a certificate request is intended to
+    // use role impersonation, even if the list of role requests is empty.
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2015,6 +2019,8 @@ service AuthService {
     // GetCurrentUser returns current user as seen by the server.
     // Useful especially in the context of remote clusters which perform role and trait mapping.
     rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+    // GetCurrentUserRoles returns current user's roles.
+    rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV5);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.

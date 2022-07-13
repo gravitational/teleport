@@ -14,6 +14,8 @@ covered by accompanying designs.
 
 This is a part of the [Passwordless RFD][passwordless rfd].
 
+Passwordless is available as a preview in Teleport 10.
+
 ## Why
 
 See the [Passwordless RFD][passwordless rfd].
@@ -148,17 +150,10 @@ CLI-native passwordless relies on
 interaction with FIDO2 resident keys. (The official Go wrapper is
 [github.com/keys-pub/go-libfido2](https://github.com/keys-pub/go-libfido2/).)
 
-One of the issues for passwordless interaction is that the client (`tsh`) gets
-no information about registered credentials. The usual tactic of attempting an
-assertion on all hardware keys falls short, as an authenticator may hold
-multiple keys for the same Relying Party - in this case, the authenticator picks
-the account, not the user!
-
-The solution is similar to the one used by browsers - we make all hardware keys
-blink and ask the user to choose the desired key by touching it. Authentication
-proceeds by enumerating the credentials from that key and letting the user,
-again, pick the desired one. (See libfido2's [examples/select.c](
-https://github.com/Yubico/libfido2/blob/master/examples/select.c).)
+The solution provides a UX similar to the one seen in browsers: we request
+assertions of all hardware keys, making them blink. The user then chooses the
+desired key by touching it. If there are multiple resulting assertions, we then
+ask the user to choose the desired credential.
 
 Authentication diagram below:
 
@@ -169,106 +164,83 @@ Authentication diagram below:
                                 ║"│
                                 └┬┘
                                 ┌┼┐
-     ┌─────────────┐             │                   ┌───┐                                       ┌────────┐
-     │authenticator│            ┌┴┐                  │tsh│                                       │Teleport│
-     └──────┬──────┘           user                  └─┬─┘                                       └───┬────┘
-            │                   │       tsh login      │                                             │
-            │                   │ ─────────────────────>                                             │
-            │                   │                      │                                             │
-            │                   │                      │        CreateAuthenticateChallenge()        │
-            │                   │                      │        (no user or password informed)       │
-            │                   │                      │ ────────────────────────────────────────────>
-            │                   │                      │                                             │
-            │                   │                      │                  challenge                  │
-            │                   │                      │ <────────────────────────────────────────────
-            │                   │                      │                                             │
-            │          wait for touch (1)              │                                             │
-            │          (all authenticators)            │                                             │
-            │<─────────────────────────────────────────│                                             │
-            │                   │                      │                                             │
-            │                   │ choose authenticator?│                                             │
-            │                   │ <─────────────────────                                             │
-            │                   │                      │                                             │
-            │      *taps*       │                      │                                             │
-            │<──────────────────│                      │                                             │
-            │                   │                      │                                             │
-            │                 touched                  │                                             │
-            │─────────────────────────────────────────>│                                             │
-            │                   │                      │                                             │
-            │                   │    enter PIN? (2)    │                                             │
-            │                   │ <─────────────────────                                             │
-            │                   │                      │                                             │
-            │                   │     *enters PIN*     │                                             │
-            │                   │ ─────────────────────>                                             │
-            │                   │                      │                                             │
-            │       Credentials(RPID, pin) (3)         │                                             │
-            │<─────────────────────────────────────────│                                             │
-            │                   │                      │                                             │
-            │        authenticator credentials         │                                             │
-            │        (includes user handle)            │                                             │
-            │─────────────────────────────────────────>│                                             │
-            │                   │                      │                                             │
-            │                   │  choose credential?  │                                             │
-            │                   │ <─────────────────────                                             │
-            │                   │                      │                                             │
-            │                   │       *chooses*      │                                             │
-            │                   │ ─────────────────────>                                             │
-            │                   │                      │                                             │
-            │   Assertion (4)   │                      │                                             │
-            │   (RPID, challenge, credential, pin)     │                                             │
-            │<─────────────────────────────────────────│                                             │
-            │                   │                      │                                             │
-            │                   │  tap authenticator?  │                                             │
-            │                   │ <─────────────────────                                             │
-            │                   │                      │                                             │
-            │      *taps*       │                      │                                             │
-            │<──────────────────│                      │                                             │
-            │                   │                      │                                             │
-            │            signed challenge              │                                             │
-            │─────────────────────────────────────────>│                                             │
-            │                   │                      │                                             │
-            │                   │                      │ AuthenticateSSH(userHandle, signedChallenge)│
-            │                   │                      │ ────────────────────────────────────────────>
-            │                   │                      │                                             │
-            │                   │                      │               SSH credentials               │
-            │                   │                      │ <────────────────────────────────────────────
-            │                   │                      │                                             │
-            │                   │          ok          │                                             │
-            │                   │ <─────────────────────                                             │
-     ┌──────┴──────┐           user                  ┌─┴─┐                                       ┌───┴────┐
-     │authenticator│            ┌─┐                  │tsh│                                       │Teleport│
-     └─────────────┘            ║"│                  └───┘                                       └────────┘
+     ┌─────────────┐             │                    ┌───┐                                       ┌────────┐
+     │authenticator│            ┌┴┐                   │tsh│                                       │Teleport│
+     └──────┬──────┘           user                   └─┬─┘                                       └───┬────┘
+            │                   │       tsh login       │                                             │
+            │                   │ ──────────────────────>                                             │
+            │                   │                       │                                             │
+            │                   │                       │        CreateAuthenticateChallenge()        │
+            │                   │                       │        (no user or password informed)       │
+            │                   │                       │ ────────────────────────────────────────────>
+            │                   │                       │                                             │
+            │                   │                       │                  challenge                  │
+            │                   │                       │ <────────────────────────────────────────────
+            │                   │                       │                                             │
+            │     get_assertion(challenge, "") (1)      │                                             │
+            │     (all authenticators)                  │                                             │
+            │<──────────────────────────────────────────│                                             │
+            │                   │                       │                                             │
+            │                   │ choose authenticator? │                                             │
+            │                   │ <──────────────────────                                             │
+            │                   │                       │                                             │
+            │      *taps*       │                       │                                             │
+            │<──────────────────│                       │                                             │
+            │                   │                       │                                             │
+            │                assertions                 │                                             │
+            │──────────────────────────────────────────>│                                             │
+            │                   │                       │                                             │
+            │                   │     enter PIN? (2)    │                                             │
+            │                   │ <──────────────────────                                             │
+            │                   │                       │                                             │
+            │                   │      *enters PIN*     │                                             │
+            │                   │ ──────────────────────>                                             │
+            │                   │                       │                                             │
+            │    get_assertion(challenge, pin) (3)      │                                             │
+            │<──────────────────────────────────────────│                                             │
+            │                   │                       │                                             │
+            │                   │   tap authenticator?  │                                             │
+            │                   │ <──────────────────────                                             │
+            │                   │                       │                                             │
+            │      *taps*       │                       │                                             │
+            │<──────────────────│                       │                                             │
+            │                   │                       │                                             │
+            │                assertions                 │                                             │
+            │──────────────────────────────────────────>│                                             │
+            │                   │                       │                                             │
+            │                   │ choose credential? (4)│                                             │
+            │                   │ <──────────────────────                                             │
+            │                   │                       │                                             │
+            │                   │       *chooses*       │                                             │
+            │                   │ ──────────────────────>                                             │
+            │                   │                       │                                             │
+            │                   │                       │ AuthenticateSSH(userHandle, signedChallenge)│
+            │                   │                       │ ────────────────────────────────────────────>
+            │                   │                       │                                             │
+            │                   │                       │               SSH credentials               │
+            │                   │                       │ <────────────────────────────────────────────
+            │                   │                       │                                             │
+            │                   │           ok          │                                             │
+            │                   │ <──────────────────────                                             │
+     ┌──────┴──────┐           user                   ┌─┴─┐                                       ┌───┴────┐
+     │authenticator│            ┌─┐                   │tsh│                                       │Teleport│
+     └─────────────┘            ║"│                   └───┘                                       └────────┘
                                 └┬┘
                                 ┌┼┐
                                  │
                                 ┌┴┐
 ```
 
-(As a side note, it's interesting to note the differences in interaction between
-Web and `tsh` and how it may provide clues as to how browsers work.)
+(1) is the assertion step explained above, requiring one touch from the user to
+choose the desired authenticator. Biometric capable authenticators skip directly
+to step (4), as PINs aren't required.
 
-(1) is the "key selection" step explained above, requiring one touch\* from the
-user to choose the desired authenticator.
+(2) and (3) are necessary for PIN-based authenticators. The first assertion
+fails due to lack of PIN, requiring the second assertion.
 
-(2) is the PIN-entering step. For biometric authenticators, we can "merge" steps
-(1), (2) and (3) by using [Credentials](
-https://github.com/keys-pub/go-libfido2/blob/9246c0bee502c5f2c2495557f07fa5f45da8cd1c/fido2.go#L770)
-as the method to choose the authenticator. This technique requires one user
-touch/verification and avoids the need for PINs with biometric authenticators.
-
-(3) is when we enumerate resident keys for the {authenticator, RPID} pair. We
-can skip user interaction if only a single key exists.
-
-(4) is the assertion step, where the authenticator signs the challenge. This
-step requires a final touch/verification from the user.
-
-\* currently go-libfido2 doesn't expose operations equivalent to
-[fido_dev_touch_begin](https://developers.yubico.com/libfido2/Manuals/fido_dev_get_touch_begin.html)/[
-fido_dev_touch_status](https://developers.yubico.com/libfido2/Manuals/fido_dev_get_touch_status.html),
-but we can make do by attempting an [Assertion](
-https://github.com/keys-pub/go-libfido2/blob/9246c0bee502c5f2c2495557f07fa5f45da8cd1c/fido2.go#L639).
-(We could fork it and add it ourselves; I have a local patch that does just
-that, but I'd rather keep light on forking if possible.)
+(4) is the credential picker step. It's skipped if there is only one resulting
+assertion, or if the user already picked a credential through other means (such
+as `tsh login --user=mylogin`).
 
 #### libfido2 and Teleport
 
@@ -466,23 +438,21 @@ user -> tsh: tsh login
 tsh -> server: CreateAuthenticateChallenge()\n(no user or password informed)
 server -> tsh: challenge
 
-tsh -> authenticator: wait for touch (1)\n(all authenticators)
+tsh -> authenticator: get_assertion(challenge, "") (1)\n(all authenticators)
 tsh -> user: choose authenticator?
 user -> authenticator: *taps*
-authenticator -> tsh: touched
+authenticator -> tsh: assertions
 
 tsh -> user: enter PIN? (2)
 user -> tsh: *enters PIN*
 
-tsh -> authenticator: Credentials(RPID, pin) (3)
-authenticator -> tsh: authenticator credentials\n(includes user handle)
-tsh -> user: choose credential?
-user -> tsh: *chooses*
-
-tsh -> authenticator: Assertion (4)\n(RPID, challenge, credential, pin)
+tsh -> authenticator: get_assertion(challenge, pin) (3)
 tsh -> user: tap authenticator?
 user -> authenticator: *taps*
-authenticator -> tsh: signed challenge
+authenticator -> tsh: assertions
+
+tsh -> user: choose credential? (4)
+user -> tsh: *chooses*
 
 tsh -> server: AuthenticateSSH(userHandle, signedChallenge)
 server -> tsh: SSH credentials

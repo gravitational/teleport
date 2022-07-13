@@ -203,7 +203,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	session.Wait()
-	return nil
+	return trace.Wrap(session.Detach())
 }
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
@@ -962,9 +962,6 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 					return trace.Wrap(err)
 				}
 				return nil
-			}
-			if utils.IsPredicateError(err) {
-				return trace.Wrap(utils.PredicateError{Err: err})
 			}
 			return trace.Wrap(err)
 		}
