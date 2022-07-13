@@ -50,6 +50,10 @@ const (
 	// rpID are domain names, so it's safe to assume they won't have spaces in them.
 	// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
 	labelSeparator = " "
+
+	// promptReason is the LAContext / Touch ID prompt.
+	// The final prompt is: "$binary is trying to authenticate user".
+	promptReason = "authenticate user"
 )
 
 type parsedLabel struct {
@@ -153,7 +157,7 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 		C.free(unsafe.Pointer(errMsgC))
 	}()
 
-	if res := C.Authenticate(req, &sigOutC, &errMsgC); res != 0 {
+	if res := C.Authenticate(nil /* actx */, req, &sigOutC, &errMsgC); res != 0 {
 		errMsg := C.GoString(errMsgC)
 		return nil, errors.New(errMsg)
 	}
@@ -163,6 +167,9 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 }
 
 func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
+	reasonC := C.CString(promptReason)
+	defer C.free(unsafe.Pointer(reasonC))
+
 	var filterC C.LabelFilter
 	if user == "" {
 		filterC.kind = C.LABEL_PREFIX
@@ -170,8 +177,11 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 	filterC.value = C.CString(makeLabel(rpID, user))
 	defer C.free(unsafe.Pointer(filterC.value))
 
+	var errMsgC *C.char
+	defer C.free(unsafe.Pointer(errMsgC))
+
 	infos, res := readCredentialInfos(func(infosC **C.CredentialInfo) C.int {
-		return C.FindCredentials(filterC, infosC)
+		return C.FindCredentials(nil /* actx */, reasonC, filterC, infosC, &errMsgC)
 	})
 	if res < 0 {
 		return nil, trace.BadParameter("failed to find credentials: status %d", res)
@@ -180,8 +190,7 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 }
 
 func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
-	// User prompt becomes: ""$binary" is trying to list credentials".
-	reasonC := C.CString("list credentials")
+	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
 	var errMsgC *C.char
@@ -283,8 +292,7 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 const errSecItemNotFound = -25300
 
 func (touchIDImpl) DeleteCredential(credentialID string) error {
-	// User prompt becomes: ""$binary" is trying to delete credential".
-	reasonC := C.CString("delete credential")
+	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
 	idC := C.CString(credentialID)

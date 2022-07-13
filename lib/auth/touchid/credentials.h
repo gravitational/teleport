@@ -15,6 +15,7 @@
 #ifndef CREDENTIALS_H_
 #define CREDENTIALS_H_
 
+#include "context.h"
 #include "credential_info.h"
 
 // LabelFilterKind is a way to filter by label.
@@ -30,8 +31,9 @@ typedef struct LabelFilter {
 // Returns the numbers of credentials assigned to the infos array, or negative
 // on failure (typically an OSStatus code). The caller is expected to free infos
 // (and their contents!).
-// User interaction is not required.
-int FindCredentials(LabelFilter filter, CredentialInfo **infosOut);
+// Requires user interaction.
+int FindCredentials(AuthContext *actx, const char *reason, LabelFilter filter,
+                    CredentialInfo **infosOut, char **errOut);
 
 // ListCredentials finds all registered credentials.
 // Returns the numbers of credentials assigned to the infos array, or negative

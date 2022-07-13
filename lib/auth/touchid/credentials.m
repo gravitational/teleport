@@ -28,6 +28,7 @@
 #include <dispatch/dispatch.h>
 
 #include "common.h"
+#include "context.h"
 
 BOOL matchesLabelFilter(LabelFilterKind kind, NSString *filter,
                         NSString *label) {
@@ -125,17 +126,9 @@ int findCredentials(BOOL applyFilter, LabelFilter filter,
   return infosLen;
 }
 
-int FindCredentials(LabelFilter filter, CredentialInfo **infosOut) {
-  return findCredentials(YES /* applyFilter */, filter, infosOut);
-}
-
-int ListCredentials(const char *reason, CredentialInfo **infosOut,
-                    char **errOut) {
-  LAContext *ctx = [[LAContext alloc] init];
-
-  __block LabelFilter filter;
-  filter.kind = LABEL_PREFIX;
-  filter.value = "";
+int findUsingCtx(AuthContext *actx, const char *reason, BOOL applyFilter,
+                 LabelFilter filter, CredentialInfo **infosOut, char **errOut) {
+  LAContext *laCtx = GetLAContextFromAuth(actx);
 
   __block int res;
   __block NSString *nsError = NULL;
@@ -143,19 +136,18 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
   // A semaphore is needed, otherwise we return before the prompt has a chance
   // to resolve.
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-  [ctx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
-      localizedReason:[NSString stringWithUTF8String:reason]
-                reply:^void(BOOL success, NSError *_Nullable error) {
-                  if (success) {
-                    res =
-                        findCredentials(NO /* applyFilter */, filter, infosOut);
-                  } else {
-                    res = -1;
-                    nsError = [error localizedDescription];
-                  }
+  [laCtx evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+        localizedReason:[NSString stringWithUTF8String:reason]
+                  reply:^void(BOOL success, NSError *_Nullable error) {
+                    if (success) {
+                      res = findCredentials(applyFilter, filter, infosOut);
+                    } else {
+                      res = -1;
+                      nsError = [error localizedDescription];
+                    }
 
-                  dispatch_semaphore_signal(sema);
-                }];
+                    dispatch_semaphore_signal(sema);
+                  }];
   dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
   // sema released by ARC.
 
@@ -163,6 +155,26 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
     *errOut = CopyNSString(nsError);
   }
 
+  return res;
+}
+
+int FindCredentials(AuthContext *actx, const char *reason, LabelFilter filter,
+                    CredentialInfo **infosOut, char **errOut) {
+  return findUsingCtx(actx, reason, YES /* applyFilter */, filter, infosOut,
+                      errOut);
+}
+
+int ListCredentials(const char *reason, CredentialInfo **infosOut,
+                    char **errOut) {
+  AuthContext actx = {};
+
+  LabelFilter filter;
+  filter.kind = LABEL_PREFIX;
+  filter.value = "";
+
+  int res = findUsingCtx(&actx, reason, NO /* applyFilter */, filter, infosOut,
+                         errOut);
+  AuthContextClose(&actx);
   return res;
 }
 

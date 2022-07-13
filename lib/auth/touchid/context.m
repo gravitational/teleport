@@ -1,3 +1,6 @@
+//go:build touchid
+// +build touchid
+
 // Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,25 +15,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AUTHENTICATE_H_
-#define AUTHENTICATE_H_
-
-#include <stddef.h>
-
 #include "context.h"
-#include "credential_info.h"
 
-typedef struct AuthenticateRequest {
-  const char *app_label;
-  const char *digest;
-  size_t digest_len;
-} AuthenticateRequest;
+#import <LocalAuthentication/LocalAuthentication.h>
 
-// Authenticate finds the key specified by app_label and signs the digest using
-// it. The digest is expected to be in SHA256.
-// Authenticate requires user interaction.
-// Returns zero if successful, non-zero otherwise.
-int Authenticate(AuthContext *actx, AuthenticateRequest req, char **sigB64Out,
-                 char **errOut);
+LAContext *GetLAContextFromAuth(AuthContext *ctx) {
+  if (ctx == NULL) {
+    return [[LAContext alloc] init];
+  }
+  if (ctx->la_ctx == NULL) {
+    ctx->la_ctx = [[LAContext alloc] init];
+    ctx->la_ctx.touchIDAuthenticationAllowableReuseDuration = 10; // seconds
+  }
+  return ctx->la_ctx;
+}
 
-#endif // AUTHENTICATE_H_
+void AuthContextClose(AuthContext *ctx) {
+  if (ctx == NULL) {
+    return;
+  }
+  ctx->la_ctx = NULL;
+}
