@@ -46,9 +46,13 @@ When a Proxy itself restarts, the new instance begins with zero reverse tunnels 
 
 In proxy peering mode, reverse tunnel agents become fully available as soon as they are connected to at least one proxy that's reachable by other proxies (and they heartbeat as such). It should be easy to maintain availability across a restart of an agent (as long as we add some grace period during the shutdown of the previous instance). Restarting a proxy in-place has the same problems that in-place restarting causes when in mesh mode, and should be avoided in this case as well. Spinning up a new proxy in proxy peering mode incurs no downtime, as the newly added proxy will be able to serve user connections immediately, by connecting to the other proxies - shutting down a proxy ungracefully will cause a loss of connectivity for all agents that are connected to just that proxy, however.
 
+Leaf clusters will always connect to their parent cluster in mesh mode, so the advantages of proxy peering mode are not relevant in that case.
+
 ### CA rotations
 
 The current implementation of CA rotations involves restarting every component in the cluster after each phase (other than `init`); as such, connectivity loss for reverse tunnel agents is inevitable (requiring potentially more effort than a full shutdown and startup, as newly restarted agents might initially connect to proxies that haven't restarted yet), and the fact that all Auths are restarted means that at least some disruption is to be expected, even for agents in direct connection mode. As most of the best practices around maintaining high availability and low downtime involve rolling upgrades and not restarting Auth and Proxy in place, it's clear that the current implementation of CA rotations is problematic. It should be possible to swap out credentials without a full restart on a rotation, and that would make most of the availability concerns around CA rotations disappear.
+
+In addition, reverse tunnel connections from leaf clusters are currently severed whenever any relevant CA is rotated on either end of the connection, ungracefully terminating all existing connections going through the tunnel at the time.
 
 ## Best practices
 
@@ -74,6 +78,7 @@ Any peripheral agent roles can be restarted/upgraded in place (this is often the
 * Don't close the proxy peering listeners when shutting down rather than restarting.
 * Deprecate in-place restarts for Proxies in proxy peering mode.
 * Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted.
+* Don't close and restart the reverse tunnel connection from leaf clusters after CA rotations.
 * Allow for multiple Auth replicas to be spun up at the same time, and have them all wait for some time instead of erroring out when failing to grab the migration lock.
 * Write user-facing docs regarding best practices around rollouts and upgrades with regards to downtime.
 * Add waiting for reverse tunnels before shutting down the old service for peripheral nodes - agent pool saturation plus a timeout?
