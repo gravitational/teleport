@@ -189,10 +189,10 @@ have workloads split across different networks or clouds.
 </Notice>
 
 Using the ports in Teleport's default configuration, the Node needs to be able
-to talk to ports `3080` and `3024` on the Proxy Service. Port `3080` is used to
-initially fetch the credentials (SSH and TLS certificates) and for discovering
-the reverse tunnel. Port `3024 `is used to establish a connection to the Auth
-Service through the Proxy.
+to talk to port `3024` on the Proxy Service, which is used to both fetch
+credentials (SSH and TLS certificates) and establish a connection to the Auth
+Service. Alternatively, port `3080` can be used to fetch credentials and discover
+the reverse tunnel.
 
 For those using ACME, port `443` is also required. 
 
