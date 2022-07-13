@@ -23,17 +23,17 @@ import (
 )
 
 type GatewayCreator struct {
-	clusterResolver ClusterResolver
+	resolver Resolver
 }
 
-func NewGatewayCreator(clusterResolver ClusterResolver) GatewayCreator {
+func NewGatewayCreator(resolver Resolver) GatewayCreator {
 	return GatewayCreator{
-		clusterResolver: clusterResolver,
+		resolver: resolver,
 	}
 }
 
 func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cluster, err := g.clusterResolver.ResolveCluster(params.TargetURI)
+	cluster, err := g.resolver.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -42,6 +42,6 @@ func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayP
 	return gateway, trace.Wrap(err)
 }
 
-type ClusterResolver interface {
+type Resolver interface {
 	ResolveCluster(string) (*Cluster, error)
 }
