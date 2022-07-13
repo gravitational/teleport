@@ -139,7 +139,7 @@ func Test_findAliasCommand(t *testing.T) {
 			name:      "only options, not found",
 			args:      []string{"--foo", "--bar", "-baz", "--"},
 			wantAlias: "",
-			wantArgs:  []string{"--foo", "--bar", "-baz", "--"},
+			wantArgs:  nil,
 		},
 		{
 			name:      "first place",
