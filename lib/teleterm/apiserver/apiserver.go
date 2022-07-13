@@ -21,11 +21,10 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
-	"net/url"
-
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"google.golang.org/grpc"
@@ -77,25 +76,18 @@ func (s *APIServer) Stop() {
 }
 
 func newListener(hostAddr string) (net.Listener, error) {
-	uri, err := url.Parse(hostAddr)
+	uri, err := utils.ParseAddr(hostAddr)
 
 	if err != nil {
 		return nil, trace.BadParameter("invalid host address: %s", hostAddr)
 	}
 
-	lis, err := net.Listen(uri.Scheme, getAddrByScheme(uri))
+	lis, err := net.Listen(uri.Network(), uri.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return lis, nil
-}
-
-func getAddrByScheme(uri *url.URL) string {
-	if uri.Scheme == "unix" {
-		return uri.Path
-	}
-	return uri.Host
 }
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.
