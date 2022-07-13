@@ -309,7 +309,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		err = dbProxyAuthTpl.Execute(os.Stdout, map[string]string{
 			"database": routeToDatabase.ServiceName,
 			"type":     dbProtocolToText(routeToDatabase.Protocol),
-			"cluster":  profile.Cluster,
+			"cluster":  client.SiteName,
 			"command":  fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()),
 			"address":  listener.Addr().String(),
 		})
