@@ -73,7 +73,7 @@ func onListDatabases(cf *CLIConf) error {
 
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
-		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, profile.Cluster)
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
 		if err != nil {
 			log.Debugf("Failed to fetch user roles: %v.", err)
 		}
@@ -84,7 +84,8 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Verbose)
+	sort.Sort(types.Databases(databases))
+	showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Verbose)
 	return nil
 }
 
