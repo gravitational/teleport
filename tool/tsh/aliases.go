@@ -72,10 +72,12 @@ func findAliasCommand(args []string) (string, []string) {
 	}
 
 	if aliasCmd == "" {
-		return "", args
+		return "", nil
 	}
 
-	runtimeArgs := append(args[:aliasIx], args[aliasIx+1:]...)
+	runtimeArgs := make([]string, 0)
+	runtimeArgs = append(runtimeArgs, args[:aliasIx]...)
+	runtimeArgs = append(runtimeArgs, args[aliasIx+1:]...)
 
 	return aliasCmd, runtimeArgs
 }

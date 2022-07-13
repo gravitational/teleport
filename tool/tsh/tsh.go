@@ -822,7 +822,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
-		if aliasCommand != "" {
+		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("failing due to recursive alias %q. aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.Wrap(fmt.Errorf("recursive alias %q; correct alias definition and try again", aliasCommand))
 		}
