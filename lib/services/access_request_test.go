@@ -1395,6 +1395,9 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
 				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
+			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
+				"Length of rtm does not match number of roles. rtm: %v roles %v",
+				req.GetRoleThresholdMapping(), req.GetRoles())
 		})
 	}
 }
