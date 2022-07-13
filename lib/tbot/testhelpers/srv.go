@@ -118,14 +118,14 @@ func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string 
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
 	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Log = log
 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
@@ -134,6 +134,7 @@ func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig, fds []service
 	require.NoError(t, auth.Start())
 
 	t.Cleanup(func() {
+		cfg.Log.Info("Cleaning up Auth Server.")
 		auth.Close()
 	})
 
@@ -173,7 +174,7 @@ func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Iden
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
-func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
+func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) auth.ClientI {
 	t.Helper()
 
 	cfg := service.MakeDefaultConfig()
@@ -191,7 +192,7 @@ func MakeDefaultAuthClient(t *testing.T, fc *config.FileConfig) auth.ClientI {
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServers
-	authConfig.Log = cfg.Log
+	authConfig.Log = log
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
@@ -244,7 +245,6 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 		AuthServer: authCfg.AuthServers[0].String(),
 		Onboarding: &botconfig.OnboardingConfig{
 			JoinMethod: botParams.JoinMethod,
-			Token:      botParams.TokenID,
 		},
 		Storage: &botconfig.StorageConfig{
 			DestinationMixin: botconfig.DestinationMixin{
@@ -259,6 +259,9 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 			},
 		},
 	}
+
+	cfg.Onboarding.SetToken(botParams.TokenID)
+
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
 	return cfg
