@@ -925,6 +925,13 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return set.enumerateEntities(database, getter, matchMaker, extraUsers...)
 }
 
+// EnumerateDatabaseNames works on a given role set to return a minimal description of allowed set of db names.
+// It is biased towards *allowed* db names; It is meant to describe what the user can do, rather than cannot do.
+// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
+//
+// In cases where * is listed in set of allowed db names, it may be hard for users to figure out the expected db name.
+// For this reason the parameter extraNames provides an extra set of db names to be checked against RoleSet.
+// This extra set of db names may be sourced e.g. from user connection history.
 func (set RoleSet) EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult {
 	getter := func(role types.Role, cond types.RoleConditionType) []string {
 		return role.GetDatabaseNames(cond)
