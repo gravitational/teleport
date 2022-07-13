@@ -894,15 +894,18 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 	dbUsers := roleSet.EnumerateDatabaseUsers(db)
 	// catch the cases where a user will be denied no matter what.
 	if dbUsers.WildcardDenied() {
-		return trace.AccessDenied("Your Teleport role(s) deny login as any db user (db_users wildcard %q is denied). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", types.Wildcard)
+		return trace.AccessDenied("Your Teleport role(s) deny login as any db user for database %q (db_users wildcard %q is denied). "+
+			dbAccessHint, dbRoute.ServiceName, types.Wildcard)
 	}
 	if !dbUsers.IsAnyAllowed() {
-		return trace.AccessDenied("Your Teleport role(s) do not allow login as any db user for database %q. Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName)
+		return trace.AccessDenied("Your Teleport role(s) do not allow login as any db user for database %q. "+
+			dbAccessHint, dbRoute.ServiceName)
 	}
 
 	// if the user asked for a specific --db-user we can check it here
 	if dbRoute.Username != "" && !dbUsers.IsAllowed(dbRoute.Username) {
-		return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q as db user %q. Use `tsh db ls` to see available logins or ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Username)
+		return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q as db user %q. "+
+			"Use `tsh db ls` to see available logins. "+dbAccessHint, dbRoute.ServiceName, dbRoute.Username)
 	}
 
 	// we only enforce db_names access for postgres and mongo, so check access for those protocols
@@ -911,15 +914,18 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 		dbNames := roleSet.EnumerateDatabaseNames(db)
 		// catch the cases where a user will be denied no matter what.
 		if dbNames.WildcardDenied() {
-			return trace.AccessDenied("Your Teleport role(s) deny db_names wildcard %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", types.Wildcard, dbRoute.Protocol)
+			return trace.AccessDenied("Your Teleport role(s) deny db_names wildcard %q (db_names RBAC is used for %q protocol). "+
+				dbAccessHint, types.Wildcard, dbRoute.Protocol)
 		}
 		if !dbNames.IsAnyAllowed() {
-			return trace.AccessDenied("Your Teleport role(s) do not allow login to any db name for database %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Protocol)
+			return trace.AccessDenied("Your Teleport role(s) do not allow login to any db name for database %q (db_names RBAC is used for %q protocol). "+
+				dbAccessHint, dbRoute.ServiceName, dbRoute.Protocol)
 		}
 
 		// if the user asked for a specific --db-name we can check it here
 		if dbRoute.Database != "" && !dbNames.IsAllowed(dbRoute.Database) {
-			return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q with db name %q (db_names RBAC is used for %q protocol). Ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/", dbRoute.ServiceName, dbRoute.Database, dbRoute.Protocol)
+			return trace.AccessDenied("Your Teleport role(s) do not allow login to database %q with db name %q (db_names RBAC is used for %q protocol). "+
+				dbAccessHint, dbRoute.ServiceName, dbRoute.Database, dbRoute.Protocol)
 		}
 	}
 	return nil
@@ -1037,4 +1043,6 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+	// dbAccessHint prompts the user to ask an admin for access and links reference docs for RBAC
+	dbAccessHint = "If you believe this is mistaken, ask your Teleport administrator to grant you access. See: https://goteleport.com/docs/database-access/rbac/"
 )
