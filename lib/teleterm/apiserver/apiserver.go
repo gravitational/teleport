@@ -16,11 +16,11 @@ package apiserver
 
 import (
 	"net"
+	"os"
 	"path/filepath"
 
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/url"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
@@ -114,7 +114,7 @@ func LoadKeyPair(certsDir string) (credentials.TransportCredentials, error) {
 		return nil, trace.Wrap(err, "failed to load server certificates")
 	}
 
-	caCert, err := ioutil.ReadFile(filepath.Join(certsDir, "ca.crt"))
+	caCert, err := os.ReadFile(filepath.Join(certsDir, "ca.crt"))
 
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to read CA file")
