@@ -32,12 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
+// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
 const sshConfigTemplate = `
 # Common flags for all {{ .ClusterName }} hosts
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
     UserKnownHostsFile "{{ .KnownHostsPath }}"
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
