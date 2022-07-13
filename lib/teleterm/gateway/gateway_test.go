@@ -211,7 +211,7 @@ func (m mockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
 }
 
-// serveGateway starts a gateway and block until it accepts connections.
+// serveGateway starts a gateway and blocks until it accepts connections.
 func serveGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 	t.Cleanup(func() {
