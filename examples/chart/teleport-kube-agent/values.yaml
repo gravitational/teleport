@@ -186,6 +186,10 @@ extraLabels:
   secret: {}
   # Labels for the ServiceAccount object
   serviceAccount: {}
+  # Annotations for the metrics-service
+  metricsService: {}
+  # Annotations for the ServiceMonitor object
+  serviceMonitor: {}
 
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -198,6 +202,22 @@ annotations:
   pod: {}
   # Annotations for the ServiceAccount object
   serviceAccount: {}
+
+metrics:
+  service:
+    # -- Deploy a Service for metric scraping
+    enabled: false
+  serviceMonitor:
+    # -- Enable a prometheus ServiceMonitor
+    enabled: false
+    # -- Prometheus ServiceMonitor interval
+    interval: 30s
+    # -- Additional labels for the ServiceMonitor object
+    additionalLabels: {}
+    # -- Metric relabeling configuration
+    metricRelabelings: {}
+    # -- Relabeling configuration
+    relabelings: {}
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
