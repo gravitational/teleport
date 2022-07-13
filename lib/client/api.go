@@ -2569,6 +2569,37 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	return proxyPrincipal
 }
 
+const unconfiguredPublicAddrMsg = `WARNING:
+
+The following error has occurred as Teleport does not recognise the address
+that is being used to connect to it. This usually indicates that the
+'public_addr' configuration option of the 'proxy_service' has not been
+set to match the address you are hosting the proxy on.
+
+If 'public_addr' is configured correctly, this could be an indicator of an
+attempted man-in-the-middle attack.
+`
+
+// formatConnectToProxyErr adds additional user actionable advice to errors
+// that are raised during ConnectToProxy.
+func formatConnectToProxyErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Handles the error that occurs when you connect to the Proxy SSH service
+	// and the Proxy does not have a correct `public_addr` configured, and the
+	// system is configured with non-multiplexed ports.
+	if utils.IsHandshakeFailedError(err) {
+		const principalStr = "not in the set of valid principals for given certificate"
+		if strings.Contains(err.Error(), principalStr) {
+			return trace.Wrap(err, unconfiguredPublicAddrMsg)
+		}
+	}
+
+	return err
+}
+
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
@@ -2587,7 +2618,7 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	select {
 	// ConnectToProxy returned a result, return that back to the caller.
 	case <-connectContext.Done():
-		return proxyClient, trace.Wrap(err)
+		return proxyClient, trace.Wrap(formatConnectToProxyErr(err))
 	// The passed in context timed out. This is often due to the network being
 	// down and the user hitting Ctrl-C.
 	case <-ctx.Done():
@@ -3043,7 +3074,8 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		Insecure:      tc.InsecureSkipVerify,
 		Pool:          loopbackPool(tc.WebProxyAddr),
 		ConnectorName: tc.AuthConnector,
-		ExtraHeaders:  tc.ExtraProxyHeaders})
+		ExtraHeaders:  tc.ExtraProxyHeaders,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3080,8 +3112,8 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 			ProxyAddr:    tc.WebProxyAddr,
 			Insecure:     tc.InsecureSkipVerify,
 			Pool:         loopbackPool(tc.WebProxyAddr),
-			ExtraHeaders: tc.ExtraProxyHeaders})
-
+			ExtraHeaders: tc.ExtraProxyHeaders,
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
