@@ -73,8 +73,14 @@ int findCredentials(BOOL applyFilter, LabelFilter filter,
   if (count > INT_MAX) {
     count = INT_MAX;
   }
-  *infosOut = calloc(count, sizeof(CredentialInfo));
+
+  // Are infosOut present?
+  // NULL means we only want to know if a valid credential exists.
+  if (infosOut != NULL) {
+    *infosOut = calloc(count, sizeof(CredentialInfo));
+  }
   int infosLen = 0;
+
   for (CFIndex i = 0; i < count; i++) {
     CFDictionaryRef attrs = CFArrayGetValueAtIndex(items, i);
 
@@ -82,6 +88,12 @@ int findCredentials(BOOL applyFilter, LabelFilter filter,
     NSString *nsLabel = (__bridge NSString *)label;
     if (applyFilter && !matchesLabelFilter(filter.kind, nsFilter, nsLabel)) {
       continue;
+    }
+
+    // Short-circuit loop if there are no infosOut.
+    if (infosOut == NULL) {
+      infosLen = 1;
+      break;
     }
 
     CFDataRef appTag = CFDictionaryGetValue(attrs, kSecAttrApplicationTag);
@@ -155,6 +167,14 @@ int findUsingCtx(AuthContext *actx, const char *reason, BOOL applyFilter,
     *errOut = CopyNSString(nsError);
   }
 
+  return res;
+}
+
+int HasCredentials(LabelFilter filter) {
+  int res = findCredentials(YES /* applyFilter */, filter, NULL /* infosOut */);
+  if (res > 0) {
+    return 1;
+  }
   return res;
 }
 

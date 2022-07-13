@@ -27,6 +27,12 @@ typedef struct LabelFilter {
   const char *value;
 } LabelFilter;
 
+// HasCredentials returns 1 if at least one known credential matches the filter,
+// otherwise it behaves like FindCredentials (zero means no credentials,
+// negative means failure / OSStatus).
+// Does not require user interaction.
+int HasCredentials(LabelFilter filter);
+
 // FindCredentials finds all credentials matching a certain label filter.
 // Returns the numbers of credentials assigned to the infos array, or negative
 // on failure (typically an OSStatus code). The caller is expected to free infos
