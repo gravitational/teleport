@@ -4663,9 +4663,9 @@ camelize@^1.0.0:
   integrity sha1-FkpUg+Yw+kMh5a8HAg5TGDGyYJs=
 
 caniuse-lite@^1.0.30001109, caniuse-lite@^1.0.30001125, caniuse-lite@^1.0.30001280:
-  version "1.0.30001283"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001283.tgz#8573685bdae4d733ef18f78d44ba0ca5fe9e896b"
-  integrity sha512-9RoKo841j1GQFSJz/nCXOj0sD7tHBtlowjYlrqIUS812x9/emfBLBt6IyMz1zIaYc/eRL8Cs6HPUVi2Hzq4sIg==
+  version "1.0.30001366"
+  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001366.tgz"
+  integrity sha512-yy7XLWCubDobokgzudpkKux8e0UOOnLHE6mlNJBzT3lZJz6s5atSEzjoL+fsCPkI0G8MP5uVdDx1ur/fXEWkZA==
 
 case-sensitive-paths-webpack-plugin@^2.3.0:
   version "2.4.0"
