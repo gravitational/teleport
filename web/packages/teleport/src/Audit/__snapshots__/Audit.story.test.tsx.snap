@@ -489,7 +489,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Recived Malfored packed from [alice] in [master] on database [sqlserver02]
+          Recived malformed packet from [alice] in [master] on database [sqlserver02]
         </td>
         <td
           style="min-width: 120px;"
