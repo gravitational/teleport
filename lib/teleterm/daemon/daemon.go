@@ -167,13 +167,13 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 // RemoveGateway removes cluster gateway
 func (s *Service) RemoveGateway(gatewayURI string) error {
-	gateway, err := s.FindGateway(gatewayURI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if err := s.removeGateway(gateway); err != nil {
 		return trace.Wrap(err)
@@ -205,13 +205,13 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 // It also keeps the original URI so that from the perspective of Connect it's still the same
 // gateway but with fresh certs.
 func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	oldGateway, err := s.FindGateway(gatewayURI)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if err := s.removeGateway(oldGateway); err != nil {
 		return trace.Wrap(err)
@@ -234,19 +234,6 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	s.gateways[oldGateway.URI.String()] = newGateway
 
 	return nil
-}
-
-// FindGateway finds a gateway by URI
-func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	gateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return gateway, nil
 }
 
 // findGateway assumes that mu is already held by a public method.

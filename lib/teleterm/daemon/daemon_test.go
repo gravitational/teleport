@@ -78,7 +78,7 @@ func TestGatewayCRUD(t *testing.T) {
 				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
 			) {
 				createdGateway := nameToGateway["gateway"]
-				foundGateway, err := daemon.FindGateway(createdGateway.URI.String())
+				foundGateway, err := daemon.findGateway(createdGateway.URI.String())
 				require.NoError(t, err)
 				require.Equal(t, createdGateway, foundGateway)
 			},
@@ -112,10 +112,10 @@ func TestGatewayCRUD(t *testing.T) {
 				err := daemon.RemoveGateway(gatewayToRemove.URI.String())
 				require.NoError(t, err)
 
-				_, err = daemon.FindGateway(gatewayToRemove.URI.String())
+				_, err = daemon.findGateway(gatewayToRemove.URI.String())
 				require.True(t, trace.IsNotFound(err), "gatewayToRemove wasn't removed")
 
-				_, err = daemon.FindGateway(gatewayToKeep.URI.String())
+				_, err = daemon.findGateway(gatewayToKeep.URI.String())
 				require.NoError(t, err)
 			},
 		},
@@ -134,7 +134,7 @@ func TestGatewayCRUD(t *testing.T) {
 				require.Equal(t, 1, len(daemon.gateways))
 
 				// Check if the restarted gateway is still available under the same URI.
-				_, err = daemon.FindGateway(gateway.URI.String())
+				_, err = daemon.findGateway(gateway.URI.String())
 				require.NoError(t, err)
 			},
 		},
