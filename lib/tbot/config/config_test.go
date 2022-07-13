@@ -65,7 +65,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 
 	require.NotNil(t, cfg.Onboarding)
 
-	token, _ := cfg.Onboarding.Token()
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
 	require.Equal(t, cf.Token, token)
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
@@ -103,7 +104,8 @@ func TestConfigFile(t *testing.T) {
 
 	require.NotNil(t, cfg.Onboarding)
 
-	token, _ := cfg.Onboarding.Token()
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
 	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
