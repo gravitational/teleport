@@ -40,7 +40,11 @@ export function Table<T>({
       if (customSort) {
         dir = customSort.fieldName == column.key ? customSort.dir : null;
       } else {
-        dir = state.sort?.key === column.key ? state.sort?.dir : null;
+        dir =
+          state.sort?.key === column.key ||
+          state.sort?.key === column.altSortKey
+            ? state.sort?.dir
+            : null;
       }
 
       const $cell = column.isSortable ? (

@@ -16,7 +16,7 @@ limitations under the License.
 
 import { useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
-import { Session } from 'teleport/services/ssh';
+import { Session } from 'teleport/services/session';
 import Ctx from 'teleport/teleportContext';
 
 export default function useSessions(ctx: Ctx, clusterId: string) {

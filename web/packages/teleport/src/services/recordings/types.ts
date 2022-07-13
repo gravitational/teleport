@@ -10,7 +10,7 @@ export type RecordingsResponse = {
   startKey: string;
 };
 
-export type RecordingType = 'ssh' | 'desktop';
+export type RecordingType = 'ssh' | 'desktop' | 'k8s';
 
 export type Recording = {
   duration: number;

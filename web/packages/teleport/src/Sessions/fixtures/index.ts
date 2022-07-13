@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,28 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const sessions = [
+import { Session } from 'teleport/services/session';
+
+export const sessions: Session[] = [
   {
-    id: 'BZ',
-    namespace: 'AG',
-    login: 'root',
-    active: 'AZ',
-    created: new Date('2019-04-22T00:00:51.543Z'),
-    durationText: '12 min',
-    serverId: '10_128_0_6.demo.gravitational.io',
-    clusterId: 'one',
-    hostname: 'localhost',
-    sid: 'sid0',
-    addr: '1.1.1.1',
+    kind: 'k8s',
+    sid: '7174aded-340a-4863-b661-7ba52aeb22c8',
+    namespace: 'default',
     parties: [
       {
-        user: 'hehwawe@aw.sg',
-        remoteAddr: '129.232.123.132',
-      },
-      {
-        user: 'ma@pewu.tz',
-        remoteAddr: '129.232.123.132',
+        user: 'lisa2',
       },
     ],
+    login: 'root',
+    created: new Date('2022-07-11T15:34:33.256697813Z'),
+    durationText: '59 minutes',
+    addr: '',
+    serverId: '',
+    clusterId: 'im-a-cluster-name',
+    resourceName: 'minikube',
+  },
+  {
+    kind: 'ssh',
+    sid: 'c7befbb4-3885-4d08-a466-de832a73c3d4',
+    namespace: 'default',
+    parties: [
+      {
+        user: 'lisa2',
+      },
+    ],
+    login: 'root',
+    created: new Date('2022-07-11T14:36:14.491402068Z'),
+    durationText: '5 seconds',
+    serverId: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    resourceName: 'im-a-nodename',
+    addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    clusterId: 'im-a-cluster-name',
   },
 ];

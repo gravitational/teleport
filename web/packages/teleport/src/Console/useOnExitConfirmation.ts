@@ -17,7 +17,7 @@
 import React from 'react';
 import ConsoleContext from './consoleContext';
 import * as stores from './stores/types';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 
 // TAB_MIN_AGE defines "active terminal" session in ms
 const TAB_MIN_AGE = 30000;

@@ -20,14 +20,12 @@ exports[`loaded 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
+  background: #512FC9;
   color: rgba(255,255,255,0.87);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
-  height: 24px;
+  width: 80px;
 }
 
 .c18:active {
@@ -36,13 +34,11 @@ exports[`loaded 1`] = `
 
 .c18:hover,
 .c18:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: #651FFF;
 }
 
 .c18:active {
-  opacity: 0.24;
+  background: #354AA4;
 }
 
 .c18:disabled {
@@ -57,23 +53,19 @@ exports[`loaded 1`] = `
   font-size: 16px;
 }
 
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
 .c17 {
   display: inline-block;
   transition: color 0.3s;
   margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;
-  background-color: #010B1C;
-  font-size: 14px;
-}
-
-.c19 {
-  display: inline-block;
-  transition: color 0.3s;
-  margin-left: 8px;
-  margin-right: -8px;
-  color: rgba(255,255,255,0.56);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .c9 {
@@ -310,12 +302,6 @@ exports[`loaded 1`] = `
   font-size: 12px;
 }
 
-.c16 {
-  display: flex;
-  align-items: center;
-  min-width: 130px;
-}
-
 .c15 tbody > tr > td {
   vertical-align: middle;
 }
@@ -364,12 +350,12 @@ exports[`loaded 1`] = `
           </strong>
            - 
           <strong>
-            1
+            2
           </strong>
            of
            
           <strong>
-            1
+            2
           </strong>
         </div>
       </div>
@@ -406,10 +392,23 @@ exports[`loaded 1`] = `
   >
     <thead>
       <tr>
-        <th
-          style="cursor: default;"
-        >
-          Description
+        <th>
+          <a>
+            Type
+            <span
+              class="c12 c16 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Name
+            <span
+              class="c12 c16 icon icon-chevrons-expand-vertical "
+              color="light"
+            />
+          </a>
         </th>
         <th
           style="cursor: default;"
@@ -421,15 +420,14 @@ exports[`loaded 1`] = `
         >
           Users
         </th>
-        <th
-          style="cursor: default;"
-        >
-          Node
-        </th>
-        <th
-          style="cursor: default;"
-        >
-          Duration
+        <th>
+          <a>
+            Duration
+            <span
+              class="c12 c16 icon icon-chevron-up "
+              color="light"
+            />
+          </a>
         </th>
         <th
           style="cursor: default;"
@@ -439,49 +437,62 @@ exports[`loaded 1`] = `
     <tbody>
       <tr>
         <td>
-          <div
-            class="c16"
-          >
-            <a
-              class="c12 c17 icon icon-terminal "
-              color="light"
-              font-size="2"
-              href="/web/cluster/one/console/session/sid0"
-              style="border-radius: 50%; border: 2px solid #00bfa5; text-decoration: none;"
-              target="_blank"
-            />
-            Session is in progress [root@localhost]
-          </div>
+          <span
+            class="c12 c17 icon icon-kubernetes c12 c17"
+            color="light"
+            font-size="3"
+          />
         </td>
         <td>
-          sid0
+          minikube
         </td>
         <td>
-          hehwawe@aw.sg [129.232.123.132], ma@pewu.tz [129.232.123.132]
+          7174aded-340a-4863-b661-7ba52aeb22c8
         </td>
         <td>
-          localhost
-           
-          [1.1.1.1]
+          lisa2
         </td>
         <td>
-          12 min
+          59 minutes
         </td>
         <td
           align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-terminal c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          im-a-nodename
+        </td>
+        <td>
+          c7befbb4-3885-4d08-a466-de832a73c3d4
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
         >
-          <button
+          <a
             class="c18"
-            height="24px"
-            kind="border"
+            href="/web/cluster/im-a-cluster-name/console/session/c7befbb4-3885-4d08-a466-de832a73c3d4"
+            kind="primary"
+            target="_blank"
+            width="80px"
           >
-            OPTIONS
-            <span
-              class="c12 c19 icon icon-caret-down "
-              color="text.secondary"
-              font-size="2"
-            />
-          </button>
+            Join
+          </a>
         </td>
       </tr>
     </tbody>

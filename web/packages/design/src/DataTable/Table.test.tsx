@@ -207,3 +207,140 @@ test('respects emptyText prop', () => {
 
   expect(target.textContent).toEqual(targetText);
 });
+
+describe('sorting by field defined in key and altSortKey', () => {
+  const sample = [
+    {
+      hostname: 'host-a',
+      created: new Date('2022-07-15T15:34:33.256697813Z'),
+      durationText: '1 hour',
+    },
+    {
+      hostname: 'host-b',
+      created: new Date('2022-07-05T15:34:33.256697813Z'),
+      durationText: '1 second',
+    },
+    {
+      hostname: 'host-c',
+      created: new Date('2022-07-10T15:34:33.256697813Z'),
+      durationText: '1 minute',
+    },
+  ];
+
+  // Sorted by string ASC.
+  const expectedSortedByKey = ['1 hour', '1 minute', '1 second'];
+  // Sorted by Date ASC.
+  const expectedSortedByAltKey = ['1 second', '1 minute', '1 hour'];
+
+  test('sort by key', () => {
+    const { container } = render(
+      <Table
+        data={sample}
+        columns={[
+          {
+            key: 'durationText',
+            headerText: 'duration',
+            isSortable: true,
+          },
+        ]}
+        emptyText=""
+      />
+    );
+
+    const cols = container.querySelectorAll('tbody > tr > td');
+    expect(cols).toHaveLength(sample.length);
+
+    const vals = [];
+    cols.forEach(c => vals.push(c.textContent));
+    expect(vals).toStrictEqual(expectedSortedByKey);
+  });
+
+  test('sort by key with initialSort', () => {
+    const { container } = render(
+      <Table
+        data={sample}
+        columns={[
+          // first column
+          {
+            key: 'hostname',
+            headerText: 'hostname',
+            isSortable: true,
+          },
+          // second column
+          {
+            key: 'durationText',
+            headerText: 'duration',
+            isSortable: true,
+          },
+        ]}
+        emptyText=""
+        initialSort={{ key: 'durationText', dir: 'ASC' }}
+      />
+    );
+
+    const cols = container.querySelectorAll('tbody > tr > td');
+    const vals = [];
+    // field durationText starts in the second column,
+    // which is every odd number per row.
+    cols.forEach((c, i) => i % 2 != 0 && vals.push(c.textContent));
+    expect(vals).toHaveLength(sample.length);
+    expect(vals).toStrictEqual(expectedSortedByKey);
+  });
+
+  test('sort by altSortKey', () => {
+    const { container } = render(
+      <Table
+        data={sample}
+        columns={[
+          {
+            key: 'durationText',
+            altSortKey: 'created',
+            headerText: 'duration',
+            isSortable: true,
+          },
+        ]}
+        emptyText=""
+      />
+    );
+
+    const cols = container.querySelectorAll('tbody > tr > td');
+    expect(cols).toHaveLength(sample.length);
+
+    const vals = [];
+    cols.forEach(c => vals.push(c.textContent));
+    expect(vals).toStrictEqual(expectedSortedByAltKey);
+  });
+
+  test('sort by altSortKey with initialSort', () => {
+    const { container } = render(
+      <Table
+        data={sample}
+        columns={[
+          // first column
+          {
+            key: 'hostname',
+            headerText: 'hostname',
+            isSortable: true,
+          },
+          // second column
+          {
+            key: 'durationText',
+            altSortKey: 'created',
+            headerText: 'duration',
+            isSortable: true,
+          },
+        ]}
+        emptyText=""
+        initialSort={{ altSortKey: 'created', dir: 'ASC' }}
+      />
+    );
+
+    const cols = container.querySelectorAll('tbody > tr > td');
+    const vals = [];
+    // field durationText starts in the second column,
+    // which is every odd number per row.
+    cols.forEach((c, i) => i % 2 != 0 && vals.push(c.textContent));
+    expect(vals).toHaveLength(sample.length);
+    expect(vals).toStrictEqual(expectedSortedByAltKey);
+  });
+});

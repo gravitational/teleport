@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { BearerToken } from 'teleport/services/session';
+import { BearerToken } from 'teleport/services/websession';
 import { KeysEnum } from './types';
 
 const storage = {

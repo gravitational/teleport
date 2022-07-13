@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { ButtonBorder } from 'design';
+import Icon, * as Icons from 'design/Icon/Icon';
 import cfg from 'teleport/config';
-import { Session, Participant } from 'teleport/services/ssh';
-import renderDescCell from './DescCell';
+import { Session, Participant, SessionKind } from 'teleport/services/session';
 
 export default function SessionList(props: Props) {
   const { sessions, pageSize = 100 } = props;
@@ -30,9 +30,15 @@ export default function SessionList(props: Props) {
       data={sessions}
       columns={[
         {
-          altKey: 'description',
-          headerText: 'Description',
-          render: renderDescCell,
+          key: 'kind',
+          headerText: 'Type',
+          isSortable: true,
+          render: ({ kind }) => renderIconCell(kind),
+        },
+        {
+          key: 'resourceName',
+          headerText: 'Name',
+          isSortable: true,
         },
         {
           key: 'sid',
@@ -44,29 +50,28 @@ export default function SessionList(props: Props) {
           render: renderUsersCell,
         },
         {
-          altKey: 'node',
-          headerText: 'Node',
-          render: renderNodeCell,
-        },
-        {
           key: 'durationText',
+          altSortKey: 'created',
           headerText: 'Duration',
+          isSortable: true,
+          onSort: (a, b) => b - a,
         },
         {
-          altKey: 'options-btn',
-          render: renderActionCell,
+          altKey: 'join-btn',
+          render: renderPlayCell,
         },
       ]}
       emptyText="No Active Sessions Found"
       pagination={{ pageSize }}
       customSearchMatchers={[participantMatcher]}
       isSearchable
+      initialSort={{ altSortKey: 'created', dir: 'ASC' }}
       searchableProps={[
         'addr',
         'sid',
         'clusterId',
+        'resourceName',
         'serverId',
-        'hostname',
         'parties',
         'durationText',
         'login',
@@ -77,34 +82,43 @@ export default function SessionList(props: Props) {
   );
 }
 
-function renderActionCell({ sid, clusterId }: Session) {
-  const url = cfg.getSshSessionRoute({ sid, clusterId });
-
-  return (
-    <Cell align="right">
-      <MenuButton>
-        <MenuItem as="a" href={url} target="_blank">
-          Join Session
-        </MenuItem>
-      </MenuButton>
-    </Cell>
-  );
-}
-
-function renderNodeCell({ hostname, addr }: Session) {
-  const nodeAddr = addr ? `[${addr}]` : '';
+const renderIconCell = (kind: SessionKind) => {
+  let icon = Icons.Cli;
+  if (kind === 'k8s') {
+    icon = Icons.Kubernetes;
+  }
 
   return (
     <Cell>
-      {hostname} {nodeAddr}
+      <Icon p={1} mr={3} fontSize={3} as={icon} />
     </Cell>
   );
-}
+};
+
+const renderPlayCell = ({ sid, clusterId, kind }: Session) => {
+  if (kind === 'k8s') {
+    return <Cell align="right" height="26px" />;
+  }
+
+  const url = cfg.getSshSessionRoute({ sid, clusterId });
+  return (
+    <Cell align="right" height="26px">
+      <ButtonBorder
+        kind="primary"
+        as="a"
+        href={url}
+        width="80px"
+        target="_blank"
+        size="small"
+      >
+        Join
+      </ButtonBorder>
+    </Cell>
+  );
+};
 
 function renderUsersCell({ parties }: Session) {
-  const users = parties
-    .map(({ user, remoteAddr }) => `${user} [${remoteAddr}]`)
-    .join(', ');
+  const users = parties.map(({ user }) => `${user}`).join(', ');
   return <Cell>{users}</Cell>;
 }
 
@@ -120,10 +134,6 @@ function participantMatcher(
 ) {
   if (propName === 'parties') {
     return targetValue.some((participant: Participant) => {
-      if (participant.remoteAddr.toLocaleUpperCase().includes(searchValue)) {
-        return true;
-      }
-
       return participant.user.toLocaleUpperCase().includes(searchValue);
     });
   }

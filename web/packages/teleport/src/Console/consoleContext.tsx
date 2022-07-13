@@ -16,13 +16,16 @@ limitations under the License.
 
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 import Logger from 'shared/libs/logger';
-import session from 'teleport/services/session';
+import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
-import serviceSsh, { Session, ParticipantList } from 'teleport/services/ssh';
+import serviceSession, {
+  Session,
+  ParticipantList,
+} from 'teleport/services/session';
 import serviceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
 
@@ -122,7 +125,7 @@ export default class ConsoleContext {
     const requests = unique.map(clusterId =>
       // Fetch parties for a given cluster and in case of an error
       // return an empty object.
-      serviceSsh.fetchParticipants({ clusterId }).catch(err => {
+      serviceSession.fetchParticipants({ clusterId }).catch(err => {
         logger.error('failed to refresh participants', err);
         const emptyResults: ParticipantList = {};
         return emptyResults;
@@ -154,11 +157,11 @@ export default class ConsoleContext {
   }
 
   fetchSshSession(clusterId: string, sid: string) {
-    return serviceSsh.fetchSession({ clusterId, sid });
+    return serviceSession.fetchSession({ clusterId, sid });
   }
 
   createSshSession(clusterId: string, serverId: string, login: string) {
-    return serviceSsh.create({
+    return serviceSession.createSession({
       serverId,
       clusterId,
       login,
@@ -166,7 +169,7 @@ export default class ConsoleContext {
   }
 
   logout() {
-    session.logout();
+    webSession.logout();
   }
 
   createTty(session: Session): Tty {

@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,40 +15,46 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
-import { map } from 'lodash';
 import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {
-  const clusterId = json.cluster_name;
-  const created = new Date(json.created);
-  const durationText = formatDistanceStrict(new Date(), created);
-  const login = json.login;
-  const namespace = json.namespace;
-  const parties = map(json.parties, makeParticipant);
-  const serverId = json.server_id;
-  const sid = json.id;
-  const hostname = json.server_hostname;
-  const addr = json.server_addr.replace(PORT_REGEX, '');
-
-  return {
-    sid,
+  const {
+    kind,
+    id,
     namespace,
     login,
     created,
-    durationText,
-    serverId,
-    hostname,
-    clusterId,
+    server_id,
+    server_hostname,
+    cluster_name,
+    kubernetes_cluster_name,
+    server_addr,
     parties,
-    addr,
+  } = json;
+
+  const createdDate = created ? new Date(created) : null;
+  const durationText = createdDate
+    ? formatDistanceStrict(new Date(), createdDate)
+    : '';
+
+  return {
+    kind,
+    sid: id,
+    namespace,
+    login,
+    created: createdDate,
+    durationText,
+    serverId: server_id,
+    resourceName: kind === 'k8s' ? kubernetes_cluster_name : server_hostname,
+    clusterId: cluster_name,
+    parties: parties ? parties.map(p => makeParticipant(p)) : [],
+    addr: server_addr ? server_addr.replace(PORT_REGEX, '') : '',
   };
 }
 
 export function makeParticipant(json): Participant {
-  const remoteAddr = json.remote_addr || '';
   return {
     user: json.user,
-    remoteAddr: remoteAddr.replace(PORT_REGEX, ''),
   };
 }
 

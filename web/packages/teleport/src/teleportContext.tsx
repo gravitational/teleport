@@ -21,7 +21,7 @@ import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
 import NodeService from './services/nodes';
 import clusterService from './services/clusters';
-import sshService from './services/ssh';
+import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
 import appService from './services/apps';
@@ -44,7 +44,7 @@ class TeleportContext implements types.Context {
   recordingsService = new RecordingsService();
   nodeService = new NodeService();
   clusterService = clusterService;
-  sshService = sshService;
+  sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
   appService = appService;

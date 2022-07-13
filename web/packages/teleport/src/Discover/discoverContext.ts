@@ -15,7 +15,7 @@
  */
 
 import Logger from 'shared/libs/logger';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import cfg from 'teleport/config';
 import serviceNodes from 'teleport/services/nodes';
 import userService from 'teleport/services/user';
