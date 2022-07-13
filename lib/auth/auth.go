@@ -2882,30 +2882,9 @@ type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err erro
 // IterateResourcePages can be used to iterate over pages of resources.
 func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
 	for {
-		var resp *types.ListResourcesResponse
-		switch {
-		case req.ResourceType == types.KindWindowsDesktop:
-			wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-				WindowsDesktopFilter: req.WindowsDesktopFilter,
-				Limit:                int(req.Limit),
-				StartKey:             req.StartKey,
-				PredicateExpression:  req.PredicateExpression,
-				Labels:               req.Labels,
-				SearchKeywords:       req.SearchKeywords,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = &types.ListResourcesResponse{
-				Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
-				NextKey:   wResp.NextKey,
-			}
-		default:
-			dResp, err := a.ListResources(ctx, req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = dResp
+		resp, err := a.ListResources(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		stop, err := f(resp.Resources)
@@ -3209,6 +3188,26 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 
 // ListResources returns paginated resources depending on the resource type..
 func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// Because WindowsDesktopService does not contain the desktop resources,
+	// this is not implemented at the cache level and requires the workaround
+	// here in order to support KindWindowsDesktop for ListResources.
+	if req.ResourceType == types.KindWindowsDesktop {
+		wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: req.WindowsDesktopFilter,
+			Limit:                int(req.Limit),
+			StartKey:             req.StartKey,
+			PredicateExpression:  req.PredicateExpression,
+			Labels:               req.Labels,
+			SearchKeywords:       req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ListResourcesResponse{
+			Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
+			NextKey:   wResp.NextKey,
+		}, nil
+	}
 	return a.GetCache().ListResources(ctx, req)
 }
 
