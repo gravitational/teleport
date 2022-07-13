@@ -3300,6 +3300,46 @@ func TestParseSSORequestParams(t *testing.T) {
 	}
 }
 
+func TestGetUserOrResetToken(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+	username := "someuser"
+
+	// Create a username.
+	teleUser, err := types.NewUser(username)
+	require.NoError(t, err)
+	teleUser.SetLogins([]string{"login1"})
+	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: username,
+		Type: auth.UserTokenTypeResetPasswordInvite,
+	})
+	require.NoError(t, err)
+
+	pack := env.proxies[0].authPack(t, "foo")
+
+	// the default roles of foo don't have users read but we need it on our tests
+	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
+	require.NoError(t, err)
+	fooAllowRules := fooRole.GetRules(types.Allow)
+	fooAllowRules = append(fooAllowRules, types.NewRule(types.KindUser, services.RO()))
+	fooRole.SetRules(types.Allow, fooAllowRules)
+	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
+	require.NoError(t, err)
+	require.Contains(t, string(resp.Bytes()), "login1")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, resp.Code(), http.StatusOK)
+
+	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
+	require.True(t, trace.IsNotFound(err))
+}
+
 type authProviderMock struct {
 	server types.ServerV2
 }

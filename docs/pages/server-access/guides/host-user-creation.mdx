@@ -101,7 +101,7 @@ spec:
   deny:
     host_sudoers: [
        "*" # ensure that users in this role never have sudoers files created on matching Nodes
-       "%wheel ALL=(ALL) NOPASSWD: ALL" # host_sudoers entries matching this are filtered out
+       "ALL=(ALL) NOPASSWD: ALL" # host_sudoers entries matching this are filtered out
     ]
     node_labels:
       'env': 'devel'
@@ -133,7 +133,7 @@ $ grep "other" /etc/group
 # other:x:1002:nginxrestarter
 $ exit
 $ tsh ssh admin@develnode # checking the user was deleted after logout
-$ grep "teleportuser" /etc/passwd
+$ grep "nginxrestarter" /etc/passwd
 $ echo $?
 # 1
 ```
@@ -147,8 +147,9 @@ A file will also be created in `/etc/sudoers.d` with the contents of the
 of the user that has logged in.
 
 The session can then proceed as usual, however once the SSH session ends, the user
-will be automatically removed and their home directory will be deleted. Groups that
-were created will remain on the system after the session ends.
+will be automatically removed and their home directory will be deleted. Files owned
+by the deleted user, created outside the home directory, will remain in place. Groups
+that were created will remain on the system after the session ends.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
