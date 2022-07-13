@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/review"
 	"github.com/gravitational/trace"
 )
 
@@ -138,14 +139,14 @@ func (b *Bot) reviewersToDismiss(ctx context.Context) ([]string, error) {
 
 	// only count each reviewer's latest review (so we start from the end)
 	for i := len(reviews) - 1; i >= 0; i-- {
-		review := reviews[i]
+		r := reviews[i]
 
 		// if we've already seen this reviewer then we're looking at an older review - skip it
-		if _, ok := reviewedBy[review.Author]; ok {
+		if _, ok := reviewedBy[r.Author]; ok {
 			continue
 		}
-		reviewedBy[review.Author] = struct{}{}
-		if review.State == "APPROVED" && b.c.Review.IsInternal(review.Author) {
+		reviewedBy[r.Author] = struct{}{}
+		if r.State == review.Approved && b.c.Review.IsInternal(r.Author) {
 			internalApprovals++
 		}
 	}
