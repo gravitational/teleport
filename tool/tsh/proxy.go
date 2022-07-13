@@ -277,7 +277,7 @@ func proxySession(ctx context.Context, sess *ssh.Session) error {
 		return trace.Wrap(err)
 	}
 
-	errC := make(chan error)
+	errC := make(chan error, 3)
 	go func() {
 		defer sess.Close()
 		_, err := io.Copy(os.Stdout, stdout)
