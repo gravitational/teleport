@@ -57,21 +57,38 @@ func promptPlatform() {
 	}
 }
 
+// AuthContext is an optional, shared authentication context.
+// Allows reusing a single authentication prompt/gesture between different
+// functions, provided the functions are invoked in a short time interval.
+// Only used by native touchid implementations.
+type AuthContext interface {
+	// Close closes the context, releasing any held resources.
+	Close()
+}
+
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	Diag() (*DiagResult, error)
+
+	// NewAuthContext creates a new AuthContext.
+	NewAuthContext() AuthContext
 
 	// Register creates a new credential in the Secure Enclave.
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
 
 	// Authenticate authenticates using the specified credential.
 	// Requires user interaction.
-	Authenticate(credentialID string, digest []byte) ([]byte, error)
+	Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error)
 
-	// FindCredentials finds credentials without user interaction.
-	// An empty user means "all users".
-	FindCredentials(rpID, user string) ([]CredentialInfo, error)
+	// HasCredentials returns if credentials exist for the RPID and (optionally)
+	// user pair.
+	// Does no require user interaction.
+	HasCredentials(rpID, user string) (bool, error)
+
+	// FindCredentials finds credentials by RPID and (optionally) by user.
+	// Requires user interaction.
+	FindCredentials(actx AuthContext, rpID, user string) ([]CredentialInfo, error)
 
 	// ListCredentials lists all registered credentials.
 	// Requires user interaction.
@@ -281,7 +298,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	}
 
 	promptPlatform()
-	sig, err := native.Authenticate(credentialID, attData.digest)
+	sig, err := native.Authenticate(nil /* actx */, credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -433,14 +450,28 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", errors.New("relying party ID required")
 	}
 
-	// TODO(codingllama): Share the same LAContext between search and
-	//  authentication, so we can protect both with user interaction.
+	// Is authentication possible? Fail fast if not.
+	// We rely on this property to fallback to FIDO2 authentication.
 	rpID := assertion.Response.RelyingPartyID
-	infos, err := native.FindCredentials(rpID, user)
+	switch ok, err := native.HasCredentials(rpID, user); {
+	case err != nil:
+		return nil, "", trace.Wrap(err)
+	case !ok:
+		return nil, "", ErrCredentialNotFound
+	}
+
+	// Use the same context for finding credentials and authenticating.
+	actx := native.NewAuthContext()
+	defer actx.Close()
+
+	promptPlatform()
+	infos, err := native.FindCredentials(actx, rpID, user)
 	switch {
 	case err != nil:
 		return nil, "", trace.Wrap(err)
 	case len(infos) == 0:
+		// Shouldn't happen given the HasCredentials check above, but let's check to
+		// be safe.
 		return nil, "", ErrCredentialNotFound
 	}
 
@@ -464,8 +495,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", trace.Wrap(err)
 	}
 
-	promptPlatform()
-	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
+	sig, err := native.Authenticate(actx, cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -34,6 +35,11 @@ import (
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
+
+func init() {
+	// Make tests silent.
+	touchid.PromptWriter = io.Discard
+}
 
 func TestRegisterAndLogin(t *testing.T) {
 	n := *touchid.Native
@@ -69,7 +75,8 @@ func TestRegisterAndLogin(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*touchid.Native = &fakeNative{}
+			fake := &fakeNative{}
+			*touchid.Native = fake
 
 			webUser := test.webUser
 			origin := test.origin
@@ -81,6 +88,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 			reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
 			require.NoError(t, err, "Register failed")
+			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registation prompts")
 
 			// We have to marshal and parse ccr due to an unavoidable quirk of the
 			// webauthn API.
@@ -106,6 +114,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			assertionResp, actualUser, err := touchid.Login(origin, user, assertion)
 			require.NoError(t, err, "Login failed")
 			assert.Equal(t, test.wantUser, actualUser, "actualUser mismatch")
+			assert.Equal(t, 2, fake.userPrompts, "unexpected number of Login prompts")
 
 			// Same as above: easiest way to validate the assertion is to marshal
 			// and then parse the body.
@@ -334,6 +343,29 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 	}
 }
 
+func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
+	n := *touchid.Native
+	t.Cleanup(func() {
+		*touchid.Native = n
+	})
+
+	fake := &fakeNative{}
+	*touchid.Native = fake
+
+	const origin = "https://goteleport.com"
+	const user = ""
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   "goteleport.com",
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+	_, _, err := touchid.Login(origin, user, assertion)
+	assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
+	assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
+}
+
 type credentialHandle struct {
 	rpID, user string
 	id         string
@@ -350,6 +382,10 @@ type fakeNative struct {
 	// lastAuthnCredential is the last credential ID used in a successful
 	// Authenticate call.
 	lastAuthnCredential string
+
+	// userPrompts counts the number of user-visible prompts that would be caused
+	// by various methods.
+	userPrompts int
 }
 
 func (f *fakeNative) Diag() (*touchid.DiagResult, error) {
@@ -363,7 +399,19 @@ func (f *fakeNative) Diag() (*touchid.DiagResult, error) {
 	}, nil
 }
 
-func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, error) {
+type fakeAuthContext struct {
+	prompted bool
+}
+
+func (c *fakeAuthContext) Close() {
+	c.prompted = false
+}
+
+func (f *fakeNative) NewAuthContext() touchid.AuthContext {
+	return &fakeAuthContext{}
+}
+
+func (f *fakeNative) Authenticate(actx touchid.AuthContext, credentialID string, data []byte) ([]byte, error) {
 	var key *ecdsa.PrivateKey
 	for _, cred := range f.creds {
 		if cred.id == credentialID {
@@ -375,12 +423,25 @@ func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, err
 		return nil, touchid.ErrCredentialNotFound
 	}
 
+	f.countPrompts(actx)
 	sig, err := key.Sign(rand.Reader, data, crypto.SHA256)
 	if err != nil {
 		return nil, err
 	}
 	f.lastAuthnCredential = credentialID
 	return sig, nil
+}
+
+func (f *fakeNative) countPrompts(actx touchid.AuthContext) {
+	switch c, ok := actx.(*fakeAuthContext); {
+	case ok && c.prompted:
+		return // Already prompted
+	case ok:
+		c.prompted = true
+		fallthrough
+	default:
+		f.userPrompts++
+	}
 }
 
 func (f *fakeNative) DeleteCredential(credentialID string) error {
@@ -399,7 +460,20 @@ func (f *fakeNative) DeleteNonInteractive(credentialID string) error {
 	return touchid.ErrCredentialNotFound
 }
 
-func (f *fakeNative) FindCredentials(rpID, user string) ([]touchid.CredentialInfo, error) {
+func (f *fakeNative) HasCredentials(rpID, user string) (bool, error) {
+	infos, err := f.findCredentials(rpID, user)
+	if err != nil {
+		return false, err
+	}
+	return len(infos) > 0, nil
+}
+
+func (f *fakeNative) FindCredentials(actx touchid.AuthContext, rpID, user string) ([]touchid.CredentialInfo, error) {
+	f.countPrompts(actx)
+	return f.findCredentials(rpID, user)
+}
+
+func (f *fakeNative) findCredentials(rpID, user string) ([]touchid.CredentialInfo, error) {
 	var resp []touchid.CredentialInfo
 	for _, cred := range f.creds {
 		if cred.rpID == rpID && (user == "" || cred.user == user) {

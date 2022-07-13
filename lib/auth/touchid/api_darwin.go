@@ -21,6 +21,7 @@ package touchid
 // #cgo LDFLAGS: -framework CoreFoundation -framework Foundation -framework LocalAuthentication -framework Security
 // #include <stdlib.h>
 // #include "authenticate.h"
+// #include "context.h"
 // #include "credential_info.h"
 // #include "credentials.h"
 // #include "diag.h"
@@ -29,7 +30,6 @@ import "C"
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -104,6 +104,33 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 	}, nil
 }
 
+// touchIDContext wraps C.AuthContext into an authContext shell.
+type touchIDContext struct {
+	ctx *C.AuthContext
+}
+
+func (c *touchIDContext) Close() {
+	if c.ctx == nil {
+		return
+	}
+	C.AuthContextClose(c.ctx)
+	c.ctx = nil
+}
+
+func (touchIDImpl) NewAuthContext() AuthContext {
+	return &touchIDContext{
+		ctx: &C.AuthContext{},
+	}
+}
+
+// getNativeContext returns the C.AuthContext within ctx, or nil.
+func getNativeContext(ctx AuthContext) *C.AuthContext {
+	if tctx, ok := ctx.(*touchIDContext); ok {
+		return tctx.ctx
+	}
+	return nil
+}
+
 func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
 	credentialID := uuid.NewString()
 	userHandleB64 := base64.RawURLEncoding.EncodeToString(userHandle)
@@ -126,7 +153,7 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 
 	if res := C.Register(req, &pubKeyC, &errMsgC); res != 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("register", int(res), errMsg)
 	}
 
 	pubKeyB64 := C.GoString(pubKeyC)
@@ -141,7 +168,9 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 	}, nil
 }
 
-func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
+func (touchIDImpl) Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error) {
+	authCtx := getNativeContext(actx)
+
 	var req C.AuthenticateRequest
 	req.app_label = C.CString(credentialID)
 	req.digest = (*C.char)(C.CBytes(digest))
@@ -157,16 +186,33 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 		C.free(unsafe.Pointer(errMsgC))
 	}()
 
-	if res := C.Authenticate(nil /* actx */, req, &sigOutC, &errMsgC); res != 0 {
+	if res := C.Authenticate(authCtx, req, &sigOutC, &errMsgC); res != 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("authenticate", int(res), errMsg)
 	}
 
 	sigB64 := C.GoString(sigOutC)
 	return base64.StdEncoding.DecodeString(sigB64)
 }
 
-func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
+func (touchIDImpl) HasCredentials(rpID, user string) (bool, error) {
+	var filterC C.LabelFilter
+	if user == "" {
+		filterC.kind = C.LABEL_PREFIX
+	}
+	filterC.value = C.CString(makeLabel(rpID, user))
+	defer C.free(unsafe.Pointer(filterC.value))
+
+	res := C.HasCredentials(filterC)
+	if res < 0 {
+		return false, errorFromStatus("finding credentials", int(res), "" /* msg */)
+	}
+	return res > 0, nil
+}
+
+func (touchIDImpl) FindCredentials(actx AuthContext, rpID, user string) ([]CredentialInfo, error) {
+	authCtx := getNativeContext(actx)
+
 	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
@@ -181,10 +227,11 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 	defer C.free(unsafe.Pointer(errMsgC))
 
 	infos, res := readCredentialInfos(func(infosC **C.CredentialInfo) C.int {
-		return C.FindCredentials(nil /* actx */, reasonC, filterC, infosC, &errMsgC)
+		return C.FindCredentials(authCtx, reasonC, filterC, infosC, &errMsgC)
 	})
 	if res < 0 {
-		return nil, trace.BadParameter("failed to find credentials: status %d", res)
+		errMsg := C.GoString(errMsgC)
+		return nil, errorFromStatus("finding credentials", res, errMsg)
 	}
 	return infos, nil
 }
@@ -206,7 +253,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	})
 	if res < 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("listing credentials", int(res), errMsg)
 	}
 
 	return infos, nil
@@ -301,14 +348,14 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	var errC *C.char
 	defer C.free(unsafe.Pointer(errC))
 
-	switch C.DeleteCredential(reasonC, idC, &errC) {
+	switch res := C.DeleteCredential(reasonC, idC, &errC); res {
 	case 0: // aka success
 		return nil
 	case errSecItemNotFound:
 		return ErrCredentialNotFound
 	default:
 		errMsg := C.GoString(errC)
-		return errors.New(errMsg)
+		return errorFromStatus("delete credential", int(res), errMsg)
 	}
 }
 
@@ -316,12 +363,19 @@ func (touchIDImpl) DeleteNonInteractive(credentialID string) error {
 	idC := C.CString(credentialID)
 	defer C.free(unsafe.Pointer(idC))
 
-	switch status := C.DeleteNonInteractive(idC); status {
+	switch res := C.DeleteNonInteractive(idC); res {
 	case 0: // aka success
 		return nil
 	case errSecItemNotFound:
 		return ErrCredentialNotFound
 	default:
-		return fmt.Errorf("non-interactive delete failed: status %d", status)
+		return errorFromStatus("non-interactive delete", int(res), "" /* msg */)
 	}
+}
+
+func errorFromStatus(prefix string, status int, msg string) error {
+	if msg != "" {
+		return fmt.Errorf("%v: %v", prefix, msg)
+	}
+	return fmt.Errorf("%v: status %d", prefix, status)
 }

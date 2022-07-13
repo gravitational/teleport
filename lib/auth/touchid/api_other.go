@@ -25,15 +25,27 @@ func (noopNative) Diag() (*DiagResult, error) {
 	return &DiagResult{}, nil
 }
 
+type noopAuthContext struct{}
+
+func (noopAuthContext) Close() {}
+
+func (noopNative) NewAuthContext() AuthContext {
+	return noopAuthContext{}
+}
+
 func (noopNative) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
 	return nil, ErrNotAvailable
 }
 
-func (noopNative) Authenticate(credentialID string, digest []byte) ([]byte, error) {
+func (noopNative) Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error) {
 	return nil, ErrNotAvailable
 }
 
-func (noopNative) FindCredentials(rpID, user string) ([]CredentialInfo, error) {
+func (noopNative) HasCredentials(rpID, user string) (bool, error) {
+	return false, ErrNotAvailable
+}
+
+func (noopNative) FindCredentials(actx AuthContext, rpID, user string) ([]CredentialInfo, error) {
 	return nil, ErrNotAvailable
 }
 
