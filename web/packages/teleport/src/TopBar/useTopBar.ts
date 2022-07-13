@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { matchPath, useHistory } from 'react-router';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import { StickyCluster } from 'teleport/types';

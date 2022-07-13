@@ -76,6 +76,43 @@ function render(ctx) {
 }
 
 const recordings = [
+  // kube session recording
+  {
+    'addr.local': '192.168.49.2:8443',
+    'addr.remote': '127.0.0.1:56636',
+    cluster_name: 'im-a-cluster-name',
+    code: 'T2004I',
+    ei: 47,
+    enhanced_recording: false,
+    event: 'session.end',
+    initial_command: ['/bin/sh'],
+    interactive: true,
+    kubernetes_cluster: 'minikube',
+    kubernetes_container_image: 'k8s.gcr.io/echoserver:1.4',
+    kubernetes_container_name: 'echoserver',
+    kubernetes_groups: [
+      'developer',
+      'system:authenticated',
+      'system:masters',
+      'view',
+    ],
+    kubernetes_node_name: 'minikube',
+    kubernetes_pod_name: 'hello-node-6b89d599b9-lsfjm',
+    kubernetes_pod_namespace: 'default',
+    kubernetes_users: ['minikube'],
+    login: 'lisa2',
+    namespace: 'default',
+    participants: ['lisa2'],
+    proto: 'kube',
+    server_id: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
+    session_recording: 'node',
+    session_start: '2022-07-11T14:39:23.895400582Z',
+    session_stop: '2022-07-11T14:39:33.372541895Z',
+    sid: '8efccedd-9633-473f-bfb3-fcc07e2af345',
+    time: '2022-07-11T14:39:33.373Z',
+    uid: '2256f3de-be3c-423e-96f9-d00b7e0016e5',
+    user: 'lisa2',
+  },
   // desktop recording
   {
     cluster_name: 'Isaiahs-MacBook-Pro.local',

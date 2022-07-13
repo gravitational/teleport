@@ -20,9 +20,13 @@ export default function useTable<T>({
     // Finds the first sortable column to use for the initial sorting
     let col: TableColumn<T>;
     if (!customSort) {
-      col = props.initialSort
-        ? columns.find(column => column.key === props.initialSort.key)
-        : columns.find(column => column.isSortable);
+      if (props.initialSort) {
+        col = props.initialSort.altSortKey
+          ? columns.find(col => col.altSortKey === props.initialSort.altSortKey)
+          : columns.find(col => col.key === props.initialSort.key);
+      } else {
+        col = columns.find(column => column.isSortable);
+      }
     }
 
     return {
@@ -30,7 +34,7 @@ export default function useTable<T>({
       searchValue: '',
       sort: col
         ? {
-            key: col.key as string,
+            key: (col.altSortKey || col.key) as string,
             onSort: col.onSort,
             dir: props.initialSort?.dir || 'ASC',
           }
@@ -108,7 +112,7 @@ export default function useTable<T>({
 
     updateData(
       {
-        key: column.key,
+        key: column.altSortKey || column.key,
         onSort: column.onSort,
         dir: state.sort?.dir === 'ASC' ? 'DESC' : 'ASC',
       },

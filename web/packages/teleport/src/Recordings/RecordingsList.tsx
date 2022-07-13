@@ -102,7 +102,12 @@ export default function RecordingsList(props: Props) {
 }
 
 const renderIconCell = (type: RecordingType) => {
-  const icon = type === 'ssh' ? Icons.Cli : Icons.Desktop;
+  let icon = Icons.Cli;
+  if (type === 'desktop') {
+    icon = Icons.Desktop;
+  } else if (type === 'k8s') {
+    icon = Icons.Kubernetes;
+  }
 
   return (
     <Cell>

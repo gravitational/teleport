@@ -654,12 +654,12 @@ exports[`rendering of Session Recordings 1`] = `
             </strong>
              - 
             <strong>
-              6
+              7
             </strong>
              of
              
             <strong>
-              6
+              7
             </strong>
           </div>
         </div>
@@ -752,6 +752,45 @@ exports[`rendering of Session Recordings 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <span
+              class="c14 c18 icon icon-kubernetes c14 c18"
+              color="light"
+              font-size="3"
+            />
+          </td>
+          <td>
+            minikube/default/hello-node-6b89d599b9-lsfjm
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            lisa2
+          </td>
+          <td>
+            9 seconds
+          </td>
+          <td>
+            2022-07-11 14:39:33
+          </td>
+          <td>
+            8efccedd-9633-473f-bfb3-fcc07e2af345
+          </td>
+          <td
+            align="right"
+          >
+            <a
+              class="c19"
+              href="/web/cluster/localhost/session/8efccedd-9633-473f-bfb3-fcc07e2af345?recordingType=k8s"
+              kind="primary"
+              target="_blank"
+              width="80px"
+            >
+              Play
+            </a>
+          </td>
+        </tr>
         <tr>
           <td>
             <span

@@ -22,7 +22,7 @@ import Tabs, { TabItem } from './PlayerTabs';
 import SshPlayer from './SshPlayer';
 import { DesktopPlayer } from './DesktopPlayer';
 import ActionBar from './ActionBar';
-import session from 'teleport/services/session';
+import session from 'teleport/services/websession';
 import { colors } from 'teleport/Console/colors';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
@@ -40,7 +40,9 @@ export default function Player() {
   const durationMs = Number(getUrlParameter('durationMs', search));
 
   const validRecordingType =
-    recordingType === 'ssh' || recordingType === 'desktop';
+    recordingType === 'ssh' ||
+    recordingType === 'k8s' ||
+    recordingType === 'desktop';
   const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
 
   document.title = `${clusterId} • Play ${sid}`;
@@ -91,16 +93,14 @@ export default function Player() {
           position: 'relative',
         }}
       >
-        {recordingType === 'ssh' && (
-          <SshPlayer sid={sid} clusterId={clusterId} />
-        )}
-
-        {recordingType === 'desktop' && (
+        {recordingType === 'desktop' ? (
           <DesktopPlayer
             sid={sid}
             clusterId={clusterId}
             durationMs={durationMs}
           />
+        ) : (
+          <SshPlayer sid={sid} clusterId={clusterId} />
         )}
       </Flex>
     </StyledPlayer>

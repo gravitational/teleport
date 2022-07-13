@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Participant } from 'teleport/services/ssh';
+import { Participant } from 'teleport/services/session';
 
 interface DocumentBase {
   id?: number;
