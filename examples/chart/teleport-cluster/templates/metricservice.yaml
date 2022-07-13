@@ -1,0 +1,22 @@
+{{- if .Values.metrics.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+  {{- if .Values.annotations.metricsService }}
+  annotations:
+    {{- toYaml .Values.annotations.metricsService | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: diag
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: {{ .Release.Name }}
+{{- end -}}

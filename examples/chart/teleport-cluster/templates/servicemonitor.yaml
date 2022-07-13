@@ -1,0 +1,37 @@
+{{- if and ( .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" ) .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+  {{- if .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml .Values.metrics.serviceMonitor.additionalLabels | indent 4 }}
+  {{- end }}
+  {{- if .Values.annotations.serviceMonitor }}
+  annotations:
+    {{- toYaml .Values.annotations.serviceMonitor | nindent 4 }}
+  {{- end }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  endpoints:
+  - port: diag
+    {{- if .Values.metrics.serviceMonitor.interval }}
+    interval: {{ .Values.metrics.serviceMonitor.interval }}
+    {{- end }}
+    path: /metrics
+    scheme: http
+    honorLabels: true
+{{- if .Values.metrics.serviceMonitor.metricRelabelings }}
+    metricRelabelings:
+{{ tpl (toYaml .Values.metrics.serviceMonitor.metricRelabelings | indent 4) . }}
+{{- end }}
+{{- if .Values.metrics.serviceMonitor.relabelings }}
+    relabelings:
+{{ toYaml .Values.metrics.serviceMonitor.relabelings | indent 4 }}
+{{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+{{- end }}
