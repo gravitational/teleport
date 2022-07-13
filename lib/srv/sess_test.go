@@ -403,7 +403,6 @@ func TestStopUnstarted(t *testing.T) {
 
 	roles := services.NewRoleSet(role)
 	t.Run("Stop", func(t *testing.T) {
-		t.Parallel()
 		sess, _ := testOpenSession(t, reg, roles)
 
 		// Stopping the session should trigger the session
