@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -586,13 +588,20 @@ func envVarFormatFlagDescription() string {
 	)
 }
 
+func envVarDefaultFormat() string {
+	if runtime.GOOS == constants.WindowsOS {
+		return envVarFormatWindowsPowershell
+	}
+	return envVarFormatUnix
+}
+
 // envVarCommand returns the command to set environment variables based on the
 // format.
 //
 // https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 func envVarCommand(format, key, value string) (string, error) {
 	switch format {
-	case envVarFormatUnix, "":
+	case envVarFormatUnix:
 		return fmt.Sprintf("export %s=%s", key, value), nil
 
 	case envVarFormatWindowsCommandPrompt:
