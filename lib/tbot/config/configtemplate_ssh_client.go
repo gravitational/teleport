@@ -312,7 +312,7 @@ func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterName, prox
 		for _, pubKey := range pubKeys {
 			bytes := ssh.MarshalAuthorizedKey(pubKey)
 			sb.WriteString(fmt.Sprintf(
-				"@cert-authority %s,%s,*.%s %s type=host",
+				"@cert-authority %s,%s,*.%s %s type=host\n",
 				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
 			))
 		}

@@ -394,21 +394,7 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Local Demo Cluster",
-              "slug": "/kubernetes-access/getting-started/local/"
-            },
-            {
-              "title": "Cluster",
-              "slug": "/kubernetes-access/getting-started/cluster/"
-            },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
-            }
-          ]
+          "slug": "/kubernetes-access/getting-started/"
         },
         {
           "title": "Guides",
@@ -689,6 +675,10 @@
             {
               "title": "Machine ID with Jenkins",
               "slug": "/machine-id/guides/jenkins/"
+            },
+            {
+              "title": "Machine ID with Databases",
+              "slug": "/machine-id/guides/databases/"
             }
           ]
         }
@@ -998,6 +988,7 @@
       "min_version": "3.6"
     },
     "teleport": {
+      "major_version": "11",
       "version": "9.0.4",
       "golang": "1.17",
       "plugin": {

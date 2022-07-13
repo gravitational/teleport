@@ -743,19 +743,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	upstreamHello.Services = filteredServices
 
-	// send downstream hello (note: in theory we could send hellos simultaneously to slightly
-	// improve perf, but there is a potential benefit to having the downstream hello serve
-	// double-duty as an indicator of successful auth).
-	downstreamHello := proto.DownstreamInventoryHello{
-		Version:  teleport.Version,
-		ServerID: a.authServer.ServerID,
-	}
-	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
-	return nil
+	return a.authServer.RegisterInventoryControlStream(ics, upstreamHello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
@@ -2049,6 +2037,20 @@ func (a *ServerWithRoles) GetCurrentUser(ctx context.Context) (types.User, error
 	return nil, trace.BadParameter("expected types.User when fetching current user information, got %T", usrRes)
 }
 
+// GetCurrentUserRoles returns current user's roles.
+func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	roleNames := a.context.User.GetRoles()
+	roles := make([]types.Role, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		role, err := a.GetRole(ctx, roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
@@ -3033,21 +3035,27 @@ func checkRoleFeatureSupport(role types.Role) error {
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
 
+	// source IP pinning doesn't have a dedicated feature flag,
+	// it is available to all enterprise users
+	if modules.GetModules().BuildType() != modules.BuildEnterprise && role.GetOptions().PinSourceIP {
+		return trace.AccessDenied("role option pin_source_ip is only available in enterprise subscriptions")
+	}
+
 	switch {
-	case features.AccessControls == false && options.MaxSessions > 0:
+	case !features.AccessControls && options.MaxSessions > 0:
 		return trace.AccessDenied(
 			"role option max_sessions is only available in enterprise subscriptions")
-	case features.AdvancedAccessWorkflows == false &&
+	case !features.AdvancedAccessWorkflows &&
 		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
 		return trace.AccessDenied(
 			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case features.AdvancedAccessWorkflows == false && len(allowReq.Thresholds) != 0:
+	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
 		return trace.AccessDenied(
 			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case features.AdvancedAccessWorkflows == false && !allowRev.IsZero():
+	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
 		return trace.AccessDenied(
 			"role field allow.review_requests is only available in enterprise subscriptions")
-	case features.ResourceAccessRequests == false && len(allowReq.SearchAsRoles) != 0:
+	case !features.ResourceAccessRequests && len(allowReq.SearchAsRoles) != 0:
 		return trace.AccessDenied(
 			"role field allow.search_as_roles is only available in enterprise subscriptions licensed for resource access requests")
 	default:
@@ -3619,7 +3627,7 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
 				a.context.User.GetName(), types.RoleDatabase)
-			return nil, trace.AccessDenied("access denied")
+			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
 		}
 	}
 	return a.authServer.GenerateDatabaseCert(ctx, req)
@@ -3633,7 +3641,7 @@ func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.S
 		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
 				a.context.User.GetName(), types.RoleDatabase)
-			return nil, trace.AccessDenied("access denied")
+			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
 		}
 	}
 	return a.authServer.GenerateSnowflakeJWT(ctx, req)
