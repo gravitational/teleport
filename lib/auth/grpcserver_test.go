@@ -2088,6 +2088,17 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.TotalCount)
 
+			// ListResources should also work when called on auth directly
+			resp, err = srv.Auth().ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: test.resourceType,
+				Namespace:    apidefaults.Namespace,
+				Limit:        100,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
 			// Test types.KindKubernetesCluster
 			if test.resourceType == types.KindKubeService {
 				test.resourceType = types.KindKubernetesCluster
