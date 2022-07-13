@@ -135,7 +135,15 @@ func (b *Bot) reviewersToDismiss(ctx context.Context) ([]string, error) {
 
 	internalApprovals := 0
 	reviewedBy := make(map[string]struct{})
-	for _, review := range reviews {
+
+	// only count each reviewer's latest review (so we start from the end)
+	for i := len(reviews) - 1; i >= 0; i-- {
+		review := reviews[i]
+
+		// if we've already seen this reviewer then we're looking at an older review - skip it
+		if _, ok := reviewedBy[review.Author]; ok {
+			continue
+		}
 		reviewedBy[review.Author] = struct{}{}
 		if review.State == "APPROVED" && b.c.Review.IsInternal(review.Author) {
 			internalApprovals++

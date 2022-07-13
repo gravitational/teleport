@@ -106,6 +106,17 @@ func TestDismissUnnecessaryReviewers(t *testing.T) {
 			assert:  require.NoError,
 			dismiss: nil,
 		},
+		{
+			desc:      "only-counts-latest-review",
+			reviewers: []string{"user1", "user2", "user3", "user4"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+				{Author: "user2", State: "CHANGES_REQUESTED"},
+			},
+			assert:  require.NoError,
+			dismiss: nil,
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			a, err := review.New(&review.Config{
