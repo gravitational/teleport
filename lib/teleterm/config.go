@@ -30,7 +30,7 @@ type Config struct {
 	ShutdownSignals []os.Signal
 	// HomeDir is the directory to store cluster profiles
 	HomeDir string
-	// CertsDir is the directory where the certs are stored
+	// Directory containing certs used to create secure gRPC connection with daemon service
 	CertsDir string
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool

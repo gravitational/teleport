@@ -30,7 +30,7 @@ type Config struct {
 	Daemon *daemon.Service
 	// Log is a component logger
 	Log logrus.FieldLogger
-	// Certs for the gRPC connection
+	// Directory containing certs used to create secure gRPC connection with daemon service
 	CertsDir string
 }
 
