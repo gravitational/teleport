@@ -117,8 +117,8 @@ func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, content
 	if err := u.CheckSudoers(contents); err != nil {
 		return trace.Wrap(err)
 	}
-	username = sanitizeSudoersName(username)
-	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, username))
+	fileUsername := sanitizeSudoersName(username)
+	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	tmpSudoers, err := writeSudoersFile(u.SudoersPath, username, contents)
 	if err != nil {
 		if tmpSudoers != "" {
@@ -134,8 +134,8 @@ func (u *HostUsersProvisioningBackend) WriteSudoersFile(username string, content
 
 // RemoveSudoersFile deletes a user's sudoers file.
 func (u *HostUsersProvisioningBackend) RemoveSudoersFile(username string) error {
-	username = sanitizeSudoersName(username)
-	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, username))
+	fileUsername := sanitizeSudoersName(username)
+	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
 		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
 			username,

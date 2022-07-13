@@ -286,6 +286,10 @@ func TestSudoersSanitization(t *testing.T) {
 			user:         "test.us~er",
 			userExpected: "test_us_er",
 		},
+		{
+			user:         "test../../us~er",
+			userExpected: "test______us_er",
+		},
 	} {
 		actual := sanitizeSudoersName(tc.user)
 		require.Equal(t, tc.userExpected, actual)
