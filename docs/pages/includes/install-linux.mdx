@@ -5,8 +5,15 @@
         # Download Teleport's PGP public key
         $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
           -o /usr/share/keyrings/teleport-archive-keyring.asc
-        # Add the Teleport APT repository
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
+        # Source variables about OS version
+        $ source /etc/os-release
+        # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
+        # file for each major release of Teleport.
+        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
+        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
         $ sudo apt-get update
@@ -60,6 +67,23 @@
         $ tar -xzf teleport-v(=teleport.version=)-linux-arm64-bin.tar.gz
         $ cd teleport
         $ sudo ./install
+        ```
+  </TabItem>
+
+  <TabItem label="Debian/Ubuntu Legacy (DEB)">
+        ```code
+        # Using this APT repo may result in breaking upgrades upon "apt upgrade" as all major versions will be
+        # published under the same component. We recommend following the instructions in the
+        # "Debian/Ubuntu (DEB)" tab instead.
+        # Download Teleport's PGP public key
+        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+          -o /usr/share/keyrings/teleport-archive-keyring.asc
+        # Add the Teleport APT repository
+        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main" \
+        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+
+        $ sudo apt-get update
+        $ sudo apt-get install teleport
         ```
   </TabItem>
 
