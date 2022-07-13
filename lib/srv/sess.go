@@ -981,38 +981,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
 	}()
 
-	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
-	// once it is received wait for the io.Copy above to finish, then broadcast
-	// the "exit-status" to the client.
-	go func() {
-		result, err := s.term.Wait()
-		if err != nil {
-			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
-		}
-
-		// wait for copying from the pty to be complete or a timeout before
-		// broadcasting the result (which will close the pty) if it has not been
-		// closed already.
-		select {
-		case <-time.After(defaults.WaitCopyTimeout):
-			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
-		case <-s.doneCh:
-		}
-
-		if ctx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
-		}
-
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
-		s.emitSessionEndEvent()
-		s.Close()
-	}()
-
 	return nil
 }
 
@@ -1092,6 +1060,39 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
 	go s.heartbeat(ctx)
+
+	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
+	// once it is received wait for the io.Copy above to finish, then broadcast
+	// the "exit-status" to the client.
+	go func() {
+		result, err := s.term.Wait()
+		if err != nil {
+			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+		}
+
+		// wait for copying from the pty to be complete or a timeout before
+		// broadcasting the result (which will close the pty) if it has not been
+		// closed already.
+		select {
+		case <-time.After(defaults.WaitCopyTimeout):
+			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
+		case <-s.doneCh:
+		}
+
+		if ctx.ExecRequest.GetCommand() != "" {
+			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
+		}
+
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
+		s.emitSessionEndEvent()
+		s.Close()
+	}()
+
 	return nil
 }
 
