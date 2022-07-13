@@ -20,73 +20,73 @@ import (
 	"io"
 	"os"
 	"strings"
+	"testing"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type StaticSuite struct {
-}
+func TestLocalFS(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&StaticSuite{})
-
-func (s *StaticSuite) TestLocalFS(c *check.C) {
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
-	c.Assert(err, check.IsNil)
-	c.Assert(fs, check.NotNil)
+	require.NoError(t, err)
+	require.NotNil(t, fs)
 
 	f, err := fs.Open("/index.html")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	bytes, err := io.ReadAll(f)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	html := string(bytes[:])
-	c.Assert(f.Close(), check.IsNil)
-	c.Assert(strings.Contains(html, `<script src="/web/config.js"></script>`), check.Equals, true)
-	c.Assert(strings.Contains(html, `content="{{ .XCSRF }}"`), check.Equals, true)
+	require.NoError(t, f.Close())
+	require.Equal(t, strings.Contains(html, `<script src="/web/config.js"></script>`), true)
+	require.Equal(t, strings.Contains(html, `content="{{ .XCSRF }}"`), true)
 }
 
-func (s *StaticSuite) TestZipFS(c *check.C) {
+func TestZipFS(t *testing.T) {
+	t.Parallel()
+
 	fs, err := readZipArchiveAt("../../fixtures/assets.zip")
-	c.Assert(err, check.IsNil)
-	c.Assert(fs, check.NotNil)
+	require.NoError(t, err)
+	require.NotNil(t, fs)
 
 	// test simple full read:
 	f, err := fs.Open("/index.html")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	bytes, err := io.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 813)
-	c.Assert(f.Close(), check.IsNil)
+	require.NoError(t, err)
+	require.Equal(t, len(bytes), 813)
+	require.NoError(t, f.Close())
 
 	// seek + read
 	f, err = fs.Open("/index.html")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer f.Close()
 
 	n, err := f.Seek(10, io.SeekStart)
-	c.Assert(err, check.IsNil)
-	c.Assert(n, check.Equals, int64(10))
+	require.NoError(t, err)
+	require.Equal(t, n, int64(10))
 
 	bytes, err = io.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 803)
+	require.NoError(t, err)
+	require.Equal(t, len(bytes), 803)
 
 	n, err = f.Seek(-50, io.SeekEnd)
-	c.Assert(err, check.IsNil)
-	c.Assert(n, check.Equals, int64(763))
+	require.NoError(t, err)
+	require.Equal(t, n, int64(763))
 	bytes, err = io.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 50)
+	require.NoError(t, err)
+	require.Equal(t, len(bytes), 50)
 
 	_, err = f.Seek(-50, io.SeekEnd)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	n, err = f.Seek(-50, io.SeekCurrent)
-	c.Assert(err, check.IsNil)
-	c.Assert(n, check.Equals, int64(713))
+	require.NoError(t, err)
+	require.Equal(t, n, int64(713))
 	bytes, err = io.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(bytes), check.Equals, 100)
+	require.NoError(t, err)
+	require.Equal(t, len(bytes), 100)
 }
 
 func readZipArchiveAt(path string) (ResourceMap, error) {

@@ -918,7 +918,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 	return servers, trace.Wrap(err)
 }
 
-// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the current cluster.
+// FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
@@ -962,6 +962,56 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 		return nil, trace.Wrap(err)
 	}
 	return servers, nil
+}
+
+// FindDatabasesByFilters returns registered databases that match the provided
+// filter in the current cluster.
+func (proxy *ProxyClient) FindDatabasesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Database, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindDatabasesByFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	cluster, err := proxy.currentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, err := proxy.FindDatabasesByFiltersForCluster(ctx, req, cluster.Name)
+	return databases, trace.Wrap(err)
+}
+
+// FindDatabasesByFiltersForCluster returns registered databases that match the provided
+// filter in the provided cluster.
+func (proxy *ProxyClient) FindDatabasesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Database, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindDatabasesByFiltersForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases := types.DatabaseServers(servers).ToDatabases()
+	return types.DeduplicateDatabases(databases), nil
 }
 
 // ListResources returns a paginated list of resources.
