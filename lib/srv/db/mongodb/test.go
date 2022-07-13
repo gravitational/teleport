@@ -19,6 +19,7 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -43,6 +45,17 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	sm := &event.ServerMonitor{
+		ServerDescriptionChanged:   func(e *event.ServerDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerOpening:              func(e *event.ServerOpeningEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerClosed:               func(e *event.ServerClosedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		TopologyDescriptionChanged: func(e *event.TopologyDescriptionChangedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		TopologyOpening:            func(e *event.TopologyOpeningEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		TopologyClosed:             func(e *event.TopologyClosedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerHeartbeatStarted:     func(e *event.ServerHeartbeatStartedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerHeartbeatSucceeded:   func(e *event.ServerHeartbeatSucceededEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+		ServerHeartbeatFailed:      func(e *event.ServerHeartbeatFailedEvent) { fmt.Printf("=== DEBUG === %+v\n", e) },
+	}
 	client, err := mongo.Connect(ctx, append(
 		[]*options.ClientOptions{
 			options.Client().
@@ -53,7 +66,8 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
 				SetHeartbeatInterval(500 * time.Millisecond).
-				SetServerSelectionTimeout(5 * time.Second),
+				SetServerMonitor(sm).
+				SetServerSelectionTimeout(1 * time.Second),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
