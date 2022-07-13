@@ -573,10 +573,10 @@ const (
 )
 
 var envVarFormats = []string{
-	envVarFormatText,
 	envVarFormatUnix,
 	envVarFormatWindowsCommandPrompt,
 	envVarFormatWindowsPowershell,
+	envVarFormatText,
 }
 
 func envVarFormatFlagDescription() string {
@@ -592,10 +592,7 @@ func envVarFormatFlagDescription() string {
 // https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 func envVarCommand(format, key, value string) (string, error) {
 	switch format {
-	case envVarFormatText, "":
-		return fmt.Sprintf("%s=%s", key, value), nil
-
-	case envVarFormatUnix:
+	case envVarFormatUnix, "":
 		return fmt.Sprintf("export %s=%s", key, value), nil
 
 	case envVarFormatWindowsCommandPrompt:
@@ -603,6 +600,9 @@ func envVarCommand(format, key, value string) (string, error) {
 
 	case envVarFormatWindowsPowershell:
 		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+
+	case envVarFormatText:
+		return fmt.Sprintf("%s=%s", key, value), nil
 
 	default:
 		return "", trace.BadParameter("unsupported format %q", format)
