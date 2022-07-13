@@ -17,6 +17,9 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +64,10 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.AuthServer, cfg.AuthServer)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, cf.Token, cfg.Onboarding.Token)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, cf.Token, token)
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
@@ -89,14 +95,18 @@ func TestConfigCLIOnlySample(t *testing.T) {
 }
 
 func TestConfigFile(t *testing.T) {
-	cfg, err := ReadConfig(strings.NewReader(exampleConfigFile))
+	configData := fmt.Sprintf(exampleConfigFile, "foo")
+	cfg, err := ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
 	require.Equal(t, time.Minute*5, cfg.RenewalInterval)
 
 	require.NotNil(t, cfg.Onboarding)
-	require.Equal(t, "foo", cfg.Onboarding.Token)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
 	storage, err := cfg.Storage.GetDestination()
@@ -121,6 +131,20 @@ func TestConfigFile(t *testing.T) {
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
+}
+
+func TestLoadTokenFromFile(t *testing.T) {
+	tokenDir := t.TempDir()
+	tokenFile := filepath.Join(tokenDir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
+
+	configData := fmt.Sprintf(exampleConfigFile, tokenFile)
+	cfg, err := ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	token, err := cfg.Onboarding.Token()
+	require.NoError(t, err)
+	require.Equal(t, token, "xxxyyy")
 }
 
 func TestParseSSHVersion(t *testing.T) {
@@ -171,7 +195,7 @@ const exampleConfigFile = `
 auth_server: auth.example.com
 renewal_interval: 5m
 onboarding:
-  token: foo
+  token: %s
   ca_pins:
     - sha256:abc123
 storage:
