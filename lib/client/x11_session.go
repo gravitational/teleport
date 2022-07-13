@@ -96,6 +96,14 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Close the file so that xauth (in Windows) can successfully edit the file.
+	// Otherwise, xauth will create a "<xauth>-n" new file and never transfers
+	// the generated data into the actual "<xauth>" file.
+	if err := xauthFile.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	defer func() {
 		if err := os.Remove(xauthFile.Name()); err != nil {
 			log.WithError(err).Debug("Failed to remove temporary xauth file")
