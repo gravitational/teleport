@@ -3131,10 +3131,10 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 		return nil, trace.Wrap(err)
 	}
 
-	if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingView{
+	if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 		Metadata: apievents.Metadata{
-			Type: events.SessionRecordingViewEvent,
-			Code: events.SessionRecordingViewCode,
+			Type: events.SessionRecordingAccessEvent,
+			Code: events.SessionRecordingAccessCode,
 		},
 		SessionID: sid.String(),
 		UserMetadata: apievents.UserMetadata{

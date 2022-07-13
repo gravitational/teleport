@@ -96,8 +96,8 @@ const (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
-	// SessionRecordingViewCode is the session recording view data event code.
-	SessionRecordingViewCode = "T2007I"
+	// SessionRecordingAccessCode is the session recording view data event code.
+	SessionRecordingAccessCode = "T2007I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
