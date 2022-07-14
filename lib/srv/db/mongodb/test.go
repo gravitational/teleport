@@ -198,6 +198,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 
 // handleMessage makes response for the provided command received from client.
 func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, error) {
+	fmt.Printf("\n\n=== TEST MONGODB RECEIVED MESSAGE: %v\n\n", message.String())
 	command, err := message.GetCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
