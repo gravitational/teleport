@@ -49,9 +49,6 @@ type Suite struct{}
 var _ = check.Suite(&Suite{})
 
 func TestRootBPF(t *testing.T) {
-	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
-	t.Skip("this test always fails when running inside a CGroup/Docker")
-
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
 	}
@@ -60,6 +57,9 @@ func TestRootBPF(t *testing.T) {
 }
 
 func (s *Suite) TestWatch(c *check.C) {
+	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
+	c.Skip("this test always fails when running inside a CGroup/Docker")
+
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !isRoot() {
