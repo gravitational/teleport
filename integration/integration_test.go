@@ -1141,13 +1141,13 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 			teleport := suite.newTeleport(t, nil, true)
 			defer teleport.StopAll()
 
-			site := teleport.GetSiteAPI(helpers.Site)
+			site := teleport.GetSiteAPI(Site)
 			require.NotNil(t, site)
 
 			terminal := NewTerminal(250)
-			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:                 suite.Me.Username,
-				Cluster:               helpers.Site,
+			cl, err := teleport.NewClient(ClientConfig{
+				Login:                 suite.me.Username,
+				Cluster:               Site,
 				Host:                  Host,
 				EnableEscapeSequences: testCase.enableEscapeSequences,
 			})
