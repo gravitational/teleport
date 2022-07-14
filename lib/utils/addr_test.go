@@ -252,7 +252,7 @@ func (s *AddrTestSuite) TestMarshal(c *C) {
 		bytes, err := yaml.Marshal(testCase.in)
 		c.Assert(err, IsNil)
 		c.Assert(strings.TrimSpace(string(bytes)), Equals, testCase.expected,
-			Commentf("test case %v, %v should be marshalled to: %v", i, testCase.in, testCase.expected))
+			Commentf("test case %v, %v should be marshaled to: %v", i, testCase.in, testCase.expected))
 	}
 }
 
