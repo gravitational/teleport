@@ -87,6 +87,8 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		fmt.Printf("\n\n== PING SUCCEEDED %v ==\n\n", i)
 		if i > 0 {
 			return client, trace.BadParameter("bam")
+		} else {
+			break
 		}
 	}
 	return client, nil
