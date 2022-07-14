@@ -486,7 +486,7 @@ func Run(args []string, opts ...cliOption) error {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
-	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local machine vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 
@@ -1843,17 +1843,17 @@ func getUsersForDb(database types.Database, roleSet services.RoleSet) string {
 	return fmt.Sprintf("%v, except: %v", allowed, denied)
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
+func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
+		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(w, out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -1928,7 +1928,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	return row
 }
 
-func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	var rows [][]string
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
@@ -1945,7 +1945,7 @@ func showDatabasesAsText(clusterFlag string, databases []types.Database, active 
 
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {

@@ -545,7 +545,7 @@ To enable these options you will need to update the IAM Role for Teleport.
   in Teleport Architecture documentation.
 </Admonition>
 
-Google Cloud Storage (GCS) can only be used as storage for the recorded
+Google Cloud Storage (GCS) can be used as storage for recorded
 sessions. GCS cannot store the audit log or the cluster state. Below is an
 example of how to configure a Teleport auth server to store the recorded
 sessions in a GCS bucket.
@@ -554,9 +554,24 @@ sessions in a GCS bucket.
 teleport:
   storage:
       # Path to GCS to store the recorded sessions in.
-      audit_sessions_uri: "gs://Example_TELEPORT_STORAGE/records"
-      credentials_path: /var/lib/teleport/gcs_creds
+      audit_sessions_uri: 'gs://$BUCKET_NAME/records?projectID=$PROJECT_ID&credentialsPath=$CREDENTIALS_PATH'
 ```
+
+We recommend creating a bucket in `Dual-Region` mode with the `Standard` storage class to ensure cluster performance and high availability.
+Replace the following variables in the above example with your own values:
+- `$BUCKET_NAME` with the name of the desired GCS bucket. If the bucket does not exist it will be created.
+  Please ensure the following permissions are granted for the given bucket:
+  - `storage.buckets.get`
+  - `storage.objects.create`
+  - `storage.objects.get`
+  - `storage.objects.list`
+  - `storage.objects.update`
+
+  If the bucket does not exist, please also ensure that the `storage.buckets.create` permission is granted.
+
+- `$PROJECT_ID` with a GCS-enabled GCP project.
+
+- `$CREDENTIALS_PATH` with the path to a JSON-formatted GCP credentials file configured for a service account applicable to the project.
 
 ## Firestore
 

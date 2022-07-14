@@ -629,6 +629,10 @@
             {
               "title": "Machine ID with Jenkins",
               "slug": "/machine-id/guides/jenkins/"
+            },
+            {
+              "title": "Machine ID with Databases",
+              "slug": "/machine-id/guides/databases/"
             }
           ]
         }
