@@ -9,6 +9,8 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	empty "github.com/golang/protobuf/ptypes/empty"
+	_ "github.com/golang/protobuf/ptypes/timestamp"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
 	types "github.com/gravitational/teleport/api/types"
 	events "github.com/gravitational/teleport/api/types/events"
@@ -18,8 +20,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	_ "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -12849,11 +12849,11 @@ type AuthServiceClient interface {
 	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(ctx context.Context, in *GetSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
-	GetActiveSessionTrackers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
+	GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
 	// RemoveSessionTracker removes a session tracker resource.
-	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
-	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (AuthService_SendKeepAlivesClient, error)
 	// WatchEvents returns a new stream of cluster events
@@ -12863,9 +12863,9 @@ type AuthServiceClient interface {
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(ctx context.Context, in *types.ServerV2, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteNode deletes an existing node in a backend described by the given request.
-	DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllNodes deletes all nodes.
-	DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(ctx context.Context, in *UserCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
@@ -12882,11 +12882,11 @@ type AuthServiceClient interface {
 	// GetAccessRequestsV2 gets all pending access requests.
 	GetAccessRequestsV2(ctx context.Context, in *types.AccessRequestFilter, opts ...grpc.CallOption) (AuthService_GetAccessRequestsV2Client, error)
 	// CreateAccessRequest creates a new access request.
-	CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*empty.Empty, error)
 	// SetAccessRequestState sets the state of an access request.
-	SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*empty.Empty, error)
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, in *types.AccessReviewSubmission, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilites of a user.
@@ -12894,7 +12894,7 @@ type AuthServiceClient interface {
 	// GetPluginData gets all plugin data matching the supplied filter.
 	GetPluginData(ctx context.Context, in *types.PluginDataFilter, opts ...grpc.CallOption) (*PluginDataSeq, error)
 	// UpdatePluginData updates a plugin's resource-specific datastore.
-	UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Ping gets basic info about the auth server. This method is intended
 	// to mimic the behavior of the proxy's Ping method, and may be used by
 	// clients for verification or configuration on startup.
@@ -12910,36 +12910,36 @@ type AuthServiceClient interface {
 	// CreateBot creates a new bot user.
 	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error)
 	// DeleteBot deletes a bot user.
-	DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetBotUsers gets all users with bot labels.
 	GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error)
 	// GetUser gets a user resource by name.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error)
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
-	GetCurrentUser(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UserV2, error)
+	GetCurrentUser(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.UserV2, error)
 	// GetCurrentUserRoles returns current user's roles.
-	GetCurrentUserRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error)
+	GetCurrentUserRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error)
 	// GetUsers gets all current user resources.
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (AuthService_GetUsersClient, error)
 	// CreateUser inserts a new user entry to a backend.
-	CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteUser deletes an existing user in a backend by username.
-	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(ctx context.Context, in *types.AcquireSemaphoreRequest, opts ...grpc.CallOption) (*types.SemaphoreLease, error)
 	// KeepAliveSemaphoreLease updates semaphore lease.
-	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
-	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
-	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error)
 	// EmitAuditEvent emits audit event
-	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error)
 	// GetApplicationServers gets all application servers.
@@ -12948,9 +12948,9 @@ type AuthServiceClient interface {
 	// UpsertApplicationServer adds an application server.
 	UpsertApplicationServer(ctx context.Context, in *UpsertApplicationServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteApplicationServer removes an application server.
-	DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllApplicationServers removes all application servers.
-	DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetAppServers gets all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
@@ -12962,76 +12962,76 @@ type AuthServiceClient interface {
 	// DeleteAppServer removes an application server.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllAppServers removes all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-	DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(ctx context.Context, in *GenerateAppTokenRequest, opts ...grpc.CallOption) (*GenerateAppTokenResponse, error)
 	// GetAppSession gets an application web session.
 	GetAppSession(ctx context.Context, in *GetAppSessionRequest, opts ...grpc.CallOption) (*GetAppSessionResponse, error)
 	// GetAppSessions gets all application web sessions.
-	GetAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error)
+	GetAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error)
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(ctx context.Context, in *CreateAppSessionRequest, opts ...grpc.CallOption) (*CreateAppSessionResponse, error)
 	// DeleteAppSession removes an application web session.
-	DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
-	DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
-	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	GetSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
-	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
-	DeleteAllSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
-	GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
+	GetWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
 	// DeleteWebSession deletes a web session.
-	DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWebSessions deletes all web sessions.
-	DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
-	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
+	GetWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
-	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
-	DeleteAllWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateRemoteCluster updates remote cluster
-	UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetKubeServices gets all kubernetes services.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(ctx context.Context, in *GetKubeServicesRequest, opts ...grpc.CallOption) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
 	UpsertKubeServiceV2(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(ctx context.Context, in *GetDatabaseServersRequest, opts ...grpc.CallOption) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(ctx context.Context, in *UpsertDatabaseServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
-	DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllDatabaseServers removes all registered database proxy servers.
-	DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.
 	SignDatabaseCSR(ctx context.Context, in *DatabaseCSRRequest, opts ...grpc.CallOption) (*DatabaseCSRResponse, error)
@@ -13043,11 +13043,11 @@ type AuthServiceClient interface {
 	// GetRole retrieves a role described by the given request.
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
-	GetRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
+	GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
-	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
 	// The RPC is streaming both ways and the message sequence is:
@@ -13071,7 +13071,7 @@ type AuthServiceClient interface {
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, in *AddMFADeviceSyncRequest, opts ...grpc.CallOption) (*AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
-	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(ctx context.Context, in *GetMFADevicesRequest, opts ...grpc.CallOption) (*GetMFADevicesResponse, error)
@@ -13085,9 +13085,9 @@ type AuthServiceClient interface {
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
-	DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateOIDCAuthRequest creates OIDCAuthRequest.
 	CreateOIDCAuthRequest(ctx context.Context, in *types.OIDCAuthRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found.
@@ -13097,9 +13097,9 @@ type AuthServiceClient interface {
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
 	// UpsertSAMLConnector upserts a SAML connector in a backend.
-	UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
-	DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateSAMLAuthRequest creates SAMLAuthRequest.
 	CreateSAMLAuthRequest(ctx context.Context, in *types.SAMLAuthRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetSAMLAuthRequest returns SAML auth request if found.
@@ -13109,9 +13109,9 @@ type AuthServiceClient interface {
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
 	// UpsertGithubConnector upserts a Github connector in a backend.
-	UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteGithubConnector deletes an existing Github connector in a backend by name.
-	DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateGithubAuthRequest creates GithubAuthRequest.
 	CreateGithubAuthRequest(ctx context.Context, in *types.GithubAuthRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found.
@@ -13121,41 +13121,41 @@ type AuthServiceClient interface {
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
+	GetTrustedClusters(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
-	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
-	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
+	GetTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateToken generates a new auth token.
 	GenerateToken(ctx context.Context, in *GenerateTokenRequest, opts ...grpc.CallOption) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
-	DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetClusterAuditConfig gets cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	GetClusterAuditConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
 	// GetClusterNetworkingConfig gets cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
+	GetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
 	// SetClusterNetworkingConfig sets cluster networking configuration.
-	SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-	ResetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetSessionRecordingConfig gets session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
+	GetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// SetSessionRecordingConfig sets session recording configuration.
-	SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
-	ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetAuthPreference gets cluster auth preference.
-	GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
+	GetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// SetAuthPreference sets cluster auth preference.
-	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
-	ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -13165,66 +13165,66 @@ type AuthServiceClient interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
 	// UpsertLock upserts a lock.
-	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteLock deletes a lock.
-	DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
-	ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// StreamSessionEvents streams audit events from a given session recording.
 	StreamSessionEvents(ctx context.Context, in *StreamSessionEventsRequest, opts ...grpc.CallOption) (AuthService_StreamSessionEventsClient, error)
 	// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
-	GetNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error)
+	GetNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error)
 	// SetNetworkRestrictions updates the network restrictions.
-	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
-	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetApps returns all registered applications.
-	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
+	GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// GetApp returns an application by name.
 	GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
-	CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateApp updates existing application resource.
-	UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteApp removes specified application resource.
-	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllApps removes all application resources.
-	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetDatabases returns all registered databases.
-	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
+	GetDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
-	CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateDatabase updates existing database resource.
-	UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteDatabase removes specified database resource.
-	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllDatabases removes all database resources.
-	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
-	GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
 	GetWindowsDesktopService(ctx context.Context, in *GetWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(ctx context.Context, in *types.WindowsDesktopServiceV3, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
-	DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
-	DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
-	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
-	UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
-	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
 	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
 	// To delete all desktops, use DeleteAllWindowsDesktops.
-	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
-	DeleteAllWindowsDesktops(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
 	// GenerateWindowsDesktopCert generates client smartcard certificate used
 	// by an RDP client to authenticate with Windows.
 	GenerateWindowsDesktopCert(ctx context.Context, in *WindowsDesktopCertRequest, opts ...grpc.CallOption) (*WindowsDesktopCertResponse, error)
@@ -13273,7 +13273,7 @@ type AuthServiceClient interface {
 	// password or adds a new mfa device, allowing the user to regain access to their account with
 	// the new credentials. When the new authentication is successfully set, any user lock is
 	// removed so the user can login immediately afterwards.
-	CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
 	// user, replacing and invalidating any previously owned codes. Users can only get recovery
 	// codes if their username is in a valid email format.
@@ -13295,15 +13295,15 @@ type AuthServiceClient interface {
 	// ListResources retrieves a paginated list of resources.
 	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
 	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error)
+	GetDomainName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error)
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
 	// without signing keys. If the cluster has multiple TLS certs, they will
 	// all be appended.
-	GetClusterCACert(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error)
+	GetClusterCACert(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error)
 	// UnstableAssertSystemRole is not a stable part of the public API. Used by older
 	// instances to prove that they hold a given system role.
 	// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-	UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
 type authServiceClient struct {
@@ -13412,7 +13412,7 @@ func (c *authServiceClient) GetSessionTracker(ctx context.Context, in *GetSessio
 	return out, nil
 }
 
-func (c *authServiceClient) GetActiveSessionTrackers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error) {
+func (c *authServiceClient) GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[2], "/proto.AuthService/GetActiveSessionTrackers", opts...)
 	if err != nil {
 		return nil, err
@@ -13444,8 +13444,8 @@ func (x *authServiceGetActiveSessionTrackersClient) Recv() (*types.SessionTracke
 	return m, nil
 }
 
-func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/RemoveSessionTracker", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13453,8 +13453,8 @@ func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *Remove
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateSessionTracker", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13473,7 +13473,7 @@ func (c *authServiceClient) SendKeepAlives(ctx context.Context, opts ...grpc.Cal
 
 type AuthService_SendKeepAlivesClient interface {
 	Send(*types.KeepAlive) error
-	CloseAndRecv() (*emptypb.Empty, error)
+	CloseAndRecv() (*empty.Empty, error)
 	grpc.ClientStream
 }
 
@@ -13485,11 +13485,11 @@ func (x *authServiceSendKeepAlivesClient) Send(m *types.KeepAlive) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*emptypb.Empty, error) {
+func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*empty.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(emptypb.Empty)
+	m := new(empty.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -13546,8 +13546,8 @@ func (c *authServiceClient) UpsertNode(ctx context.Context, in *types.ServerV2, 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13555,8 +13555,8 @@ func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceIn
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllNodes", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13663,8 +13663,8 @@ func (x *authServiceGetAccessRequestsV2Client) Recv() (*types.AccessRequestV3, e
 	return m, nil
 }
 
-func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13672,8 +13672,8 @@ func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.A
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13681,8 +13681,8 @@ func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *Request
 	return out, nil
 }
 
-func (c *authServiceClient) SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetAccessRequestState", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13717,8 +13717,8 @@ func (c *authServiceClient) GetPluginData(ctx context.Context, in *types.PluginD
 	return out, nil
 }
 
-func (c *authServiceClient) UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdatePluginData", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13771,8 +13771,8 @@ func (c *authServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest,
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteBot", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13821,7 +13821,7 @@ func (c *authServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opt
 	return out, nil
 }
 
-func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UserV2, error) {
+func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.UserV2, error) {
 	out := new(types.UserV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetCurrentUser", in, out, opts...)
 	if err != nil {
@@ -13830,7 +13830,7 @@ func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *emptypb.Empt
 	return out, nil
 }
 
-func (c *authServiceClient) GetCurrentUserRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error) {
+func (c *authServiceClient) GetCurrentUserRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[8], "/proto.AuthService/GetCurrentUserRoles", opts...)
 	if err != nil {
 		return nil, err
@@ -13894,8 +13894,8 @@ func (x *authServiceGetUsersClient) Recv() (*types.UserV2, error) {
 	return m, nil
 }
 
-func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13903,8 +13903,8 @@ func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13912,8 +13912,8 @@ func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13930,8 +13930,8 @@ func (c *authServiceClient) AcquireSemaphore(ctx context.Context, in *types.Acqu
 	return out, nil
 }
 
-func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/KeepAliveSemaphoreLease", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13939,8 +13939,8 @@ func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *typ
 	return out, nil
 }
 
-func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CancelSemaphoreLease", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13957,8 +13957,8 @@ func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.Semapho
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSemaphore", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13966,8 +13966,8 @@ func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.Semap
 	return out, nil
 }
 
-func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/EmitAuditEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14025,8 +14025,8 @@ func (c *authServiceClient) UpsertApplicationServer(ctx context.Context, in *Ups
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApplicationServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14034,8 +14034,8 @@ func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *Del
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApplicationServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14064,8 +14064,8 @@ func (c *authServiceClient) UpsertAppServer(ctx context.Context, in *UpsertAppSe
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAppServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14074,8 +14074,8 @@ func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppSe
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14101,7 +14101,7 @@ func (c *authServiceClient) GetAppSession(ctx context.Context, in *GetAppSession
 	return out, nil
 }
 
-func (c *authServiceClient) GetAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error) {
+func (c *authServiceClient) GetAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error) {
 	out := new(GetAppSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAppSessions", in, out, opts...)
 	if err != nil {
@@ -14119,8 +14119,8 @@ func (c *authServiceClient) CreateAppSession(ctx context.Context, in *CreateAppS
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAppSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14128,8 +14128,8 @@ func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppS
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14137,8 +14137,8 @@ func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *emptyp
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUserAppSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14164,7 +14164,7 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
-func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
+func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	out := new(GetSnowflakeSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSnowflakeSessions", in, out, opts...)
 	if err != nil {
@@ -14173,8 +14173,8 @@ func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptyp
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSnowflakeSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14182,8 +14182,8 @@ func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *Dele
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllSnowflakeSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14200,7 +14200,7 @@ func (c *authServiceClient) GetWebSession(ctx context.Context, in *types.GetWebS
 	return out, nil
 }
 
-func (c *authServiceClient) GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
+func (c *authServiceClient) GetWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
 	out := new(GetWebSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWebSessions", in, out, opts...)
 	if err != nil {
@@ -14209,8 +14209,8 @@ func (c *authServiceClient) GetWebSessions(ctx context.Context, in *emptypb.Empt
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWebSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14218,8 +14218,8 @@ func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.Dele
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWebSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14236,7 +14236,7 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 	return out, nil
 }
 
-func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
+func (c *authServiceClient) GetWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	out := new(GetWebTokensResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWebTokens", in, out, opts...)
 	if err != nil {
@@ -14245,8 +14245,8 @@ func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty,
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWebToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14254,8 +14254,8 @@ func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWebTokens", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14263,8 +14263,8 @@ func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateRemoteCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14283,8 +14283,8 @@ func (c *authServiceClient) GetKubeServices(ctx context.Context, in *GetKubeServ
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertKubeService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14301,8 +14301,8 @@ func (c *authServiceClient) UpsertKubeServiceV2(ctx context.Context, in *UpsertK
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteKubeService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14310,8 +14310,8 @@ func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKub
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllKubeServices", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14338,8 +14338,8 @@ func (c *authServiceClient) UpsertDatabaseServer(ctx context.Context, in *Upsert
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteDatabaseServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14347,8 +14347,8 @@ func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllDatabaseServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14392,7 +14392,7 @@ func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opt
 	return out, nil
 }
 
-func (c *authServiceClient) GetRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error) {
+func (c *authServiceClient) GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error) {
 	out := new(GetRolesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetRoles", in, out, opts...)
 	if err != nil {
@@ -14401,8 +14401,8 @@ func (c *authServiceClient) GetRoles(ctx context.Context, in *emptypb.Empty, opt
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14410,8 +14410,8 @@ func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14490,8 +14490,8 @@ func (c *authServiceClient) AddMFADeviceSync(ctx context.Context, in *AddMFADevi
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteMFADeviceSync", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14544,8 +14544,8 @@ func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertOIDCConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14553,8 +14553,8 @@ func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.O
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteOIDCConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14598,8 +14598,8 @@ func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertSAMLConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14607,8 +14607,8 @@ func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.S
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSAMLConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14652,8 +14652,8 @@ func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.R
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertGithubConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14661,8 +14661,8 @@ func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteGithubConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14706,7 +14706,7 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
+func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	out := new(types.TrustedClusterV2List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetTrustedClusters", in, out, opts...)
 	if err != nil {
@@ -14724,8 +14724,8 @@ func (c *authServiceClient) UpsertTrustedCluster(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteTrustedCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14742,7 +14742,7 @@ func (c *authServiceClient) GetToken(ctx context.Context, in *types.ResourceRequ
 	return out, nil
 }
 
-func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
+func (c *authServiceClient) GetTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
 	out := new(types.ProvisionTokenV2List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetTokens", in, out, opts...)
 	if err != nil {
@@ -14751,8 +14751,8 @@ func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, op
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14769,8 +14769,8 @@ func (c *authServiceClient) GenerateToken(ctx context.Context, in *GenerateToken
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14778,7 +14778,7 @@ func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceR
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
 	out := new(types.ClusterAuditConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterAuditConfig", in, out, opts...)
 	if err != nil {
@@ -14787,7 +14787,7 @@ func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *empty
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
+func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
 	out := new(types.ClusterNetworkingConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
@@ -14796,8 +14796,8 @@ func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14805,8 +14805,8 @@ func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14814,7 +14814,7 @@ func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in
 	return out, nil
 }
 
-func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
+func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
 	out := new(types.SessionRecordingConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
@@ -14823,8 +14823,8 @@ func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *e
 	return out, nil
 }
 
-func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14832,8 +14832,8 @@ func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *t
 	return out, nil
 }
 
-func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14841,7 +14841,7 @@ func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
+func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
 	out := new(types.AuthPreferenceV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAuthPreference", in, out, opts...)
 	if err != nil {
@@ -14850,8 +14850,8 @@ func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *emptypb.E
 	return out, nil
 }
 
-func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetAuthPreference", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14859,8 +14859,8 @@ func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.Aut
 	return out, nil
 }
 
-func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetAuthPreference", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14904,8 +14904,8 @@ func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, o
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertLock", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14913,8 +14913,8 @@ func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteLock", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14922,8 +14922,8 @@ func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockReques
 	return out, nil
 }
 
-func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ReplaceRemoteLocks", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14963,7 +14963,7 @@ func (x *authServiceStreamSessionEventsClient) Recv() (*events.OneOf, error) {
 	return m, nil
 }
 
-func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error) {
+func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error) {
 	out := new(types.NetworkRestrictionsV4)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetNetworkRestrictions", in, out, opts...)
 	if err != nil {
@@ -14972,8 +14972,8 @@ func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *empt
 	return out, nil
 }
 
-func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetNetworkRestrictions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14981,8 +14981,8 @@ func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *type
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteNetworkRestrictions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -14990,7 +14990,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
-func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
+func (c *authServiceClient) GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	out := new(types.AppV3List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetApps", in, out, opts...)
 	if err != nil {
@@ -15008,8 +15008,8 @@ func (c *authServiceClient) GetApp(ctx context.Context, in *types.ResourceReques
 	return out, nil
 }
 
-func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15017,8 +15017,8 @@ func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15026,8 +15026,8 @@ func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15035,8 +15035,8 @@ func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceReq
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApps", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15044,7 +15044,7 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
+func (c *authServiceClient) GetDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	out := new(types.DatabaseV3List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetDatabases", in, out, opts...)
 	if err != nil {
@@ -15062,8 +15062,8 @@ func (c *authServiceClient) GetDatabase(ctx context.Context, in *types.ResourceR
 	return out, nil
 }
 
-func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15071,8 +15071,8 @@ func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.Databa
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15080,8 +15080,8 @@ func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.Databa
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15089,8 +15089,8 @@ func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.Resour
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllDatabases", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15098,7 +15098,7 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
-func (c *authServiceClient) GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error) {
+func (c *authServiceClient) GetWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error) {
 	out := new(GetWindowsDesktopServicesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWindowsDesktopServices", in, out, opts...)
 	if err != nil {
@@ -15125,8 +15125,8 @@ func (c *authServiceClient) UpsertWindowsDesktopService(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWindowsDesktopService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15134,8 +15134,8 @@ func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWindowsDesktopServices", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15152,8 +15152,8 @@ func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *types.Wi
 	return out, nil
 }
 
-func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15161,8 +15161,8 @@ func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15170,8 +15170,8 @@ func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15179,8 +15179,8 @@ func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15188,8 +15188,8 @@ func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWindowsDesktops(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWindowsDesktops", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15242,8 +15242,8 @@ func (c *authServiceClient) VerifyAccountRecovery(ctx context.Context, in *Verif
 	return out, nil
 }
 
-func (c *authServiceClient) CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CompleteAccountRecovery", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15296,7 +15296,7 @@ func (c *authServiceClient) ListResources(ctx context.Context, in *ListResources
 	return out, nil
 }
 
-func (c *authServiceClient) GetDomainName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error) {
+func (c *authServiceClient) GetDomainName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error) {
 	out := new(GetDomainNameResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetDomainName", in, out, opts...)
 	if err != nil {
@@ -15305,7 +15305,7 @@ func (c *authServiceClient) GetDomainName(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error) {
+func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error) {
 	out := new(GetClusterCACertResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterCACert", in, out, opts...)
 	if err != nil {
@@ -15314,8 +15314,8 @@ func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *emptypb.Em
 	return out, nil
 }
 
-func (c *authServiceClient) UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *authServiceClient) UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UnstableAssertSystemRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -15340,11 +15340,11 @@ type AuthServiceServer interface {
 	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(context.Context, *GetSessionTrackerRequest) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
-	GetActiveSessionTrackers(*emptypb.Empty, AuthService_GetActiveSessionTrackersServer) error
+	GetActiveSessionTrackers(*empty.Empty, AuthService_GetActiveSessionTrackersServer) error
 	// RemoveSessionTracker removes a session tracker resource.
-	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*emptypb.Empty, error)
+	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*empty.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
-	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*emptypb.Empty, error)
+	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*empty.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(AuthService_SendKeepAlivesServer) error
 	// WatchEvents returns a new stream of cluster events
@@ -15354,9 +15354,9 @@ type AuthServiceServer interface {
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(context.Context, *types.ServerV2) (*types.KeepAlive, error)
 	// DeleteNode deletes an existing node in a backend described by the given request.
-	DeleteNode(context.Context, *types.ResourceInNamespaceRequest) (*emptypb.Empty, error)
+	DeleteNode(context.Context, *types.ResourceInNamespaceRequest) (*empty.Empty, error)
 	// DeleteAllNodes deletes all nodes.
-	DeleteAllNodes(context.Context, *types.ResourcesInNamespaceRequest) (*emptypb.Empty, error)
+	DeleteAllNodes(context.Context, *types.ResourcesInNamespaceRequest) (*empty.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(context.Context, *UserCertsRequest) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
@@ -15373,11 +15373,11 @@ type AuthServiceServer interface {
 	// GetAccessRequestsV2 gets all pending access requests.
 	GetAccessRequestsV2(*types.AccessRequestFilter, AuthService_GetAccessRequestsV2Server) error
 	// CreateAccessRequest creates a new access request.
-	CreateAccessRequest(context.Context, *types.AccessRequestV3) (*emptypb.Empty, error)
+	CreateAccessRequest(context.Context, *types.AccessRequestV3) (*empty.Empty, error)
 	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(context.Context, *RequestID) (*emptypb.Empty, error)
+	DeleteAccessRequest(context.Context, *RequestID) (*empty.Empty, error)
 	// SetAccessRequestState sets the state of an access request.
-	SetAccessRequestState(context.Context, *RequestStateSetter) (*emptypb.Empty, error)
+	SetAccessRequestState(context.Context, *RequestStateSetter) (*empty.Empty, error)
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(context.Context, *types.AccessReviewSubmission) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilites of a user.
@@ -15385,7 +15385,7 @@ type AuthServiceServer interface {
 	// GetPluginData gets all plugin data matching the supplied filter.
 	GetPluginData(context.Context, *types.PluginDataFilter) (*PluginDataSeq, error)
 	// UpdatePluginData updates a plugin's resource-specific datastore.
-	UpdatePluginData(context.Context, *types.PluginDataUpdateParams) (*emptypb.Empty, error)
+	UpdatePluginData(context.Context, *types.PluginDataUpdateParams) (*empty.Empty, error)
 	// Ping gets basic info about the auth server. This method is intended
 	// to mimic the behavior of the proxy's Ping method, and may be used by
 	// clients for verification or configuration on startup.
@@ -15401,36 +15401,36 @@ type AuthServiceServer interface {
 	// CreateBot creates a new bot user.
 	CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error)
 	// DeleteBot deletes a bot user.
-	DeleteBot(context.Context, *DeleteBotRequest) (*emptypb.Empty, error)
+	DeleteBot(context.Context, *DeleteBotRequest) (*empty.Empty, error)
 	// GetBotUsers gets all users with bot labels.
 	GetBotUsers(*GetBotUsersRequest, AuthService_GetBotUsersServer) error
 	// GetUser gets a user resource by name.
 	GetUser(context.Context, *GetUserRequest) (*types.UserV2, error)
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
-	GetCurrentUser(context.Context, *emptypb.Empty) (*types.UserV2, error)
+	GetCurrentUser(context.Context, *empty.Empty) (*types.UserV2, error)
 	// GetCurrentUserRoles returns current user's roles.
-	GetCurrentUserRoles(*emptypb.Empty, AuthService_GetCurrentUserRolesServer) error
+	GetCurrentUserRoles(*empty.Empty, AuthService_GetCurrentUserRolesServer) error
 	// GetUsers gets all current user resources.
 	GetUsers(*GetUsersRequest, AuthService_GetUsersServer) error
 	// CreateUser inserts a new user entry to a backend.
-	CreateUser(context.Context, *types.UserV2) (*emptypb.Empty, error)
+	CreateUser(context.Context, *types.UserV2) (*empty.Empty, error)
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(context.Context, *types.UserV2) (*emptypb.Empty, error)
+	UpdateUser(context.Context, *types.UserV2) (*empty.Empty, error)
 	// DeleteUser deletes an existing user in a backend by username.
-	DeleteUser(context.Context, *DeleteUserRequest) (*emptypb.Empty, error)
+	DeleteUser(context.Context, *DeleteUserRequest) (*empty.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error)
 	// KeepAliveSemaphoreLease updates semaphore lease.
-	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
+	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*empty.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
-	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
+	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*empty.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
-	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
+	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*empty.Empty, error)
 	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, *events.OneOf) (*emptypb.Empty, error)
+	EmitAuditEvent(context.Context, *events.OneOf) (*empty.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(AuthService_CreateAuditStreamServer) error
 	// GetApplicationServers gets all application servers.
@@ -15439,9 +15439,9 @@ type AuthServiceServer interface {
 	// UpsertApplicationServer adds an application server.
 	UpsertApplicationServer(context.Context, *UpsertApplicationServerRequest) (*types.KeepAlive, error)
 	// DeleteApplicationServer removes an application server.
-	DeleteApplicationServer(context.Context, *DeleteApplicationServerRequest) (*emptypb.Empty, error)
+	DeleteApplicationServer(context.Context, *DeleteApplicationServerRequest) (*empty.Empty, error)
 	// DeleteAllApplicationServers removes all application servers.
-	DeleteAllApplicationServers(context.Context, *DeleteAllApplicationServersRequest) (*emptypb.Empty, error)
+	DeleteAllApplicationServers(context.Context, *DeleteAllApplicationServersRequest) (*empty.Empty, error)
 	// GetAppServers gets all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
@@ -15453,76 +15453,76 @@ type AuthServiceServer interface {
 	// DeleteAppServer removes an application server.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*emptypb.Empty, error)
+	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*empty.Empty, error)
 	// DeleteAllAppServers removes all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-	DeleteAllAppServers(context.Context, *DeleteAllAppServersRequest) (*emptypb.Empty, error)
+	DeleteAllAppServers(context.Context, *DeleteAllAppServersRequest) (*empty.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(context.Context, *GenerateAppTokenRequest) (*GenerateAppTokenResponse, error)
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, *GetAppSessionRequest) (*GetAppSessionResponse, error)
 	// GetAppSessions gets all application web sessions.
-	GetAppSessions(context.Context, *emptypb.Empty) (*GetAppSessionsResponse, error)
+	GetAppSessions(context.Context, *empty.Empty) (*GetAppSessionsResponse, error)
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, *CreateAppSessionRequest) (*CreateAppSessionResponse, error)
 	// DeleteAppSession removes an application web session.
-	DeleteAppSession(context.Context, *DeleteAppSessionRequest) (*emptypb.Empty, error)
+	DeleteAppSession(context.Context, *DeleteAppSessionRequest) (*empty.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
-	DeleteAllAppSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllAppSessions(context.Context, *empty.Empty) (*empty.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
-	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error)
+	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*empty.Empty, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
+	GetSnowflakeSessions(context.Context, *empty.Empty) (*GetSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
-	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
+	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*empty.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
-	DeleteAllSnowflakeSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllSnowflakeSessions(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
-	GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error)
+	GetWebSessions(context.Context, *empty.Empty) (*GetWebSessionsResponse, error)
 	// DeleteWebSession deletes a web session.
-	DeleteWebSession(context.Context, *types.DeleteWebSessionRequest) (*emptypb.Empty, error)
+	DeleteWebSession(context.Context, *types.DeleteWebSessionRequest) (*empty.Empty, error)
 	// DeleteAllWebSessions deletes all web sessions.
-	DeleteAllWebSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllWebSessions(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
-	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
+	GetWebTokens(context.Context, *empty.Empty) (*GetWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
-	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error)
+	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*empty.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
-	DeleteAllWebTokens(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllWebTokens(context.Context, *empty.Empty) (*empty.Empty, error)
 	// UpdateRemoteCluster updates remote cluster
-	UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*emptypb.Empty, error)
+	UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*empty.Empty, error)
 	// GetKubeServices gets all kubernetes services.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(context.Context, *GetKubeServicesRequest) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*emptypb.Empty, error)
+	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*empty.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
 	UpsertKubeServiceV2(context.Context, *UpsertKubeServiceRequest) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*emptypb.Empty, error)
+	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*empty.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*emptypb.Empty, error)
+	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*empty.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(context.Context, *GetDatabaseServersRequest) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(context.Context, *UpsertDatabaseServerRequest) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
-	DeleteDatabaseServer(context.Context, *DeleteDatabaseServerRequest) (*emptypb.Empty, error)
+	DeleteDatabaseServer(context.Context, *DeleteDatabaseServerRequest) (*empty.Empty, error)
 	// DeleteAllDatabaseServers removes all registered database proxy servers.
-	DeleteAllDatabaseServers(context.Context, *DeleteAllDatabaseServersRequest) (*emptypb.Empty, error)
+	DeleteAllDatabaseServers(context.Context, *DeleteAllDatabaseServersRequest) (*empty.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.
 	SignDatabaseCSR(context.Context, *DatabaseCSRRequest) (*DatabaseCSRResponse, error)
@@ -15534,11 +15534,11 @@ type AuthServiceServer interface {
 	// GetRole retrieves a role described by the given request.
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
-	GetRoles(context.Context, *emptypb.Empty) (*GetRolesResponse, error)
+	GetRoles(context.Context, *empty.Empty) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(context.Context, *types.RoleV5) (*emptypb.Empty, error)
+	UpsertRole(context.Context, *types.RoleV5) (*empty.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
-	DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error)
+	DeleteRole(context.Context, *DeleteRoleRequest) (*empty.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
 	// The RPC is streaming both ways and the message sequence is:
@@ -15562,7 +15562,7 @@ type AuthServiceServer interface {
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(context.Context, *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
-	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*emptypb.Empty, error)
+	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*empty.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(context.Context, *GetMFADevicesRequest) (*GetMFADevicesResponse, error)
@@ -15576,9 +15576,9 @@ type AuthServiceServer interface {
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV3) (*emptypb.Empty, error)
+	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV3) (*empty.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
-	DeleteOIDCConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteOIDCConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// CreateOIDCAuthRequest creates OIDCAuthRequest.
 	CreateOIDCAuthRequest(context.Context, *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	// GetOIDCAuthRequest returns OIDC auth request if found.
@@ -15588,9 +15588,9 @@ type AuthServiceServer interface {
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
 	// UpsertSAMLConnector upserts a SAML connector in a backend.
-	UpsertSAMLConnector(context.Context, *types.SAMLConnectorV2) (*emptypb.Empty, error)
+	UpsertSAMLConnector(context.Context, *types.SAMLConnectorV2) (*empty.Empty, error)
 	// DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
-	DeleteSAMLConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteSAMLConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// CreateSAMLAuthRequest creates SAMLAuthRequest.
 	CreateSAMLAuthRequest(context.Context, *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// GetSAMLAuthRequest returns SAML auth request if found.
@@ -15600,9 +15600,9 @@ type AuthServiceServer interface {
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
 	// UpsertGithubConnector upserts a Github connector in a backend.
-	UpsertGithubConnector(context.Context, *types.GithubConnectorV3) (*emptypb.Empty, error)
+	UpsertGithubConnector(context.Context, *types.GithubConnectorV3) (*empty.Empty, error)
 	// DeleteGithubConnector deletes an existing Github connector in a backend by name.
-	DeleteGithubConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteGithubConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// CreateGithubAuthRequest creates GithubAuthRequest.
 	CreateGithubAuthRequest(context.Context, *types.GithubAuthRequest) (*types.GithubAuthRequest, error)
 	// GetGithubAuthRequest returns Github auth request if found.
@@ -15612,41 +15612,41 @@ type AuthServiceServer interface {
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
+	GetTrustedClusters(context.Context, *empty.Empty) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
-	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
-	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
+	GetTokens(context.Context, *empty.Empty) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	UpsertToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
+	UpsertToken(context.Context, *types.ProvisionTokenV2) (*empty.Empty, error)
 	// GenerateToken generates a new auth token.
 	GenerateToken(context.Context, *GenerateTokenRequest) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
-	DeleteToken(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteToken(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// GetClusterAuditConfig gets cluster audit configuration.
-	GetClusterAuditConfig(context.Context, *emptypb.Empty) (*types.ClusterAuditConfigV2, error)
+	GetClusterAuditConfig(context.Context, *empty.Empty) (*types.ClusterAuditConfigV2, error)
 	// GetClusterNetworkingConfig gets cluster networking configuration.
-	GetClusterNetworkingConfig(context.Context, *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error)
+	GetClusterNetworkingConfig(context.Context, *empty.Empty) (*types.ClusterNetworkingConfigV2, error)
 	// SetClusterNetworkingConfig sets cluster networking configuration.
-	SetClusterNetworkingConfig(context.Context, *types.ClusterNetworkingConfigV2) (*emptypb.Empty, error)
+	SetClusterNetworkingConfig(context.Context, *types.ClusterNetworkingConfigV2) (*empty.Empty, error)
 	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-	ResetClusterNetworkingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	ResetClusterNetworkingConfig(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetSessionRecordingConfig gets session recording configuration.
-	GetSessionRecordingConfig(context.Context, *emptypb.Empty) (*types.SessionRecordingConfigV2, error)
+	GetSessionRecordingConfig(context.Context, *empty.Empty) (*types.SessionRecordingConfigV2, error)
 	// SetSessionRecordingConfig sets session recording configuration.
-	SetSessionRecordingConfig(context.Context, *types.SessionRecordingConfigV2) (*emptypb.Empty, error)
+	SetSessionRecordingConfig(context.Context, *types.SessionRecordingConfigV2) (*empty.Empty, error)
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
-	ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	ResetSessionRecordingConfig(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetAuthPreference gets cluster auth preference.
-	GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error)
+	GetAuthPreference(context.Context, *empty.Empty) (*types.AuthPreferenceV2, error)
 	// SetAuthPreference sets cluster auth preference.
-	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error)
+	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*empty.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
-	ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	ResetAuthPreference(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(context.Context, *GetEventsRequest) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -15656,66 +15656,66 @@ type AuthServiceServer interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
 	// UpsertLock upserts a lock.
-	UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error)
+	UpsertLock(context.Context, *types.LockV2) (*empty.Empty, error)
 	// DeleteLock deletes a lock.
-	DeleteLock(context.Context, *DeleteLockRequest) (*emptypb.Empty, error)
+	DeleteLock(context.Context, *DeleteLockRequest) (*empty.Empty, error)
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
-	ReplaceRemoteLocks(context.Context, *ReplaceRemoteLocksRequest) (*emptypb.Empty, error)
+	ReplaceRemoteLocks(context.Context, *ReplaceRemoteLocksRequest) (*empty.Empty, error)
 	// StreamSessionEvents streams audit events from a given session recording.
 	StreamSessionEvents(*StreamSessionEventsRequest, AuthService_StreamSessionEventsServer) error
 	// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
-	GetNetworkRestrictions(context.Context, *emptypb.Empty) (*types.NetworkRestrictionsV4, error)
+	GetNetworkRestrictions(context.Context, *empty.Empty) (*types.NetworkRestrictionsV4, error)
 	// SetNetworkRestrictions updates the network restrictions.
-	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
+	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*empty.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
-	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteNetworkRestrictions(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetApps returns all registered applications.
-	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
+	GetApps(context.Context, *empty.Empty) (*types.AppV3List, error)
 	// GetApp returns an application by name.
 	GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
-	CreateApp(context.Context, *types.AppV3) (*emptypb.Empty, error)
+	CreateApp(context.Context, *types.AppV3) (*empty.Empty, error)
 	// UpdateApp updates existing application resource.
-	UpdateApp(context.Context, *types.AppV3) (*emptypb.Empty, error)
+	UpdateApp(context.Context, *types.AppV3) (*empty.Empty, error)
 	// DeleteApp removes specified application resource.
-	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteApp(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// DeleteAllApps removes all application resources.
-	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllApps(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetDatabases returns all registered databases.
-	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
+	GetDatabases(context.Context, *empty.Empty) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
-	CreateDatabase(context.Context, *types.DatabaseV3) (*emptypb.Empty, error)
+	CreateDatabase(context.Context, *types.DatabaseV3) (*empty.Empty, error)
 	// UpdateDatabase updates existing database resource.
-	UpdateDatabase(context.Context, *types.DatabaseV3) (*emptypb.Empty, error)
+	UpdateDatabase(context.Context, *types.DatabaseV3) (*empty.Empty, error)
 	// DeleteDatabase removes specified database resource.
-	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	DeleteDatabase(context.Context, *types.ResourceRequest) (*empty.Empty, error)
 	// DeleteAllDatabases removes all database resources.
-	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllDatabases(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
-	GetWindowsDesktopServices(context.Context, *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopServices(context.Context, *empty.Empty) (*GetWindowsDesktopServicesResponse, error)
 	GetWindowsDesktopService(context.Context, *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, *types.WindowsDesktopServiceV3) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
-	DeleteWindowsDesktopService(context.Context, *DeleteWindowsDesktopServiceRequest) (*emptypb.Empty, error)
+	DeleteWindowsDesktopService(context.Context, *DeleteWindowsDesktopServiceRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
-	DeleteAllWindowsDesktopServices(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllWindowsDesktopServices(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
-	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
+	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
-	UpdateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
+	UpdateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
-	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
+	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
 	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
 	// To delete all desktops, use DeleteAllWindowsDesktops.
-	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*emptypb.Empty, error)
+	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*empty.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
-	DeleteAllWindowsDesktops(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)
 	// GenerateWindowsDesktopCert generates client smartcard certificate used
 	// by an RDP client to authenticate with Windows.
 	GenerateWindowsDesktopCert(context.Context, *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error)
@@ -15764,7 +15764,7 @@ type AuthServiceServer interface {
 	// password or adds a new mfa device, allowing the user to regain access to their account with
 	// the new credentials. When the new authentication is successfully set, any user lock is
 	// removed so the user can login immediately afterwards.
-	CompleteAccountRecovery(context.Context, *CompleteAccountRecoveryRequest) (*emptypb.Empty, error)
+	CompleteAccountRecovery(context.Context, *CompleteAccountRecoveryRequest) (*empty.Empty, error)
 	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
 	// user, replacing and invalidating any previously owned codes. Users can only get recovery
 	// codes if their username is in a valid email format.
@@ -15786,15 +15786,15 @@ type AuthServiceServer interface {
 	// ListResources retrieves a paginated list of resources.
 	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
 	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName(context.Context, *emptypb.Empty) (*GetDomainNameResponse, error)
+	GetDomainName(context.Context, *empty.Empty) (*GetDomainNameResponse, error)
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
 	// without signing keys. If the cluster has multiple TLS certs, they will
 	// all be appended.
-	GetClusterCACert(context.Context, *emptypb.Empty) (*GetClusterCACertResponse, error)
+	GetClusterCACert(context.Context, *empty.Empty) (*GetClusterCACertResponse, error)
 	// UnstableAssertSystemRole is not a stable part of the public API. Used by older
 	// instances to prove that they hold a given system role.
 	// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-	UnstableAssertSystemRole(context.Context, *UnstableSystemRoleAssertion) (*emptypb.Empty, error)
+	UnstableAssertSystemRole(context.Context, *UnstableSystemRoleAssertion) (*empty.Empty, error)
 }
 
 // UnimplementedAuthServiceServer can be embedded to have forward compatible implementations.
@@ -15819,13 +15819,13 @@ func (*UnimplementedAuthServiceServer) CreateSessionTracker(ctx context.Context,
 func (*UnimplementedAuthServiceServer) GetSessionTracker(ctx context.Context, req *GetSessionTrackerRequest) (*types.SessionTrackerV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionTracker not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetActiveSessionTrackers(req *emptypb.Empty, srv AuthService_GetActiveSessionTrackersServer) error {
+func (*UnimplementedAuthServiceServer) GetActiveSessionTrackers(req *empty.Empty, srv AuthService_GetActiveSessionTrackersServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetActiveSessionTrackers not implemented")
 }
-func (*UnimplementedAuthServiceServer) RemoveSessionTracker(ctx context.Context, req *RemoveSessionTrackerRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) RemoveSessionTracker(ctx context.Context, req *RemoveSessionTrackerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveSessionTracker not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateSessionTracker(ctx context.Context, req *UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateSessionTracker(ctx context.Context, req *UpdateSessionTrackerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSessionTracker not implemented")
 }
 func (*UnimplementedAuthServiceServer) SendKeepAlives(srv AuthService_SendKeepAlivesServer) error {
@@ -15840,10 +15840,10 @@ func (*UnimplementedAuthServiceServer) GetNode(ctx context.Context, req *types.R
 func (*UnimplementedAuthServiceServer) UpsertNode(ctx context.Context, req *types.ServerV2) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertNode not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNode not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllNodes not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateUserCerts(ctx context.Context, req *UserCertsRequest) (*Certs, error) {
@@ -15864,13 +15864,13 @@ func (*UnimplementedAuthServiceServer) GetAccessRequests(ctx context.Context, re
 func (*UnimplementedAuthServiceServer) GetAccessRequestsV2(req *types.AccessRequestFilter, srv AuthService_GetAccessRequestsV2Server) error {
 	return status.Errorf(codes.Unimplemented, "method GetAccessRequestsV2 not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessRequest not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAccessRequest(ctx context.Context, req *RequestID) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAccessRequest(ctx context.Context, req *RequestID) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessRequest not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetAccessRequestState(ctx context.Context, req *RequestStateSetter) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetAccessRequestState(ctx context.Context, req *RequestStateSetter) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAccessRequestState not implemented")
 }
 func (*UnimplementedAuthServiceServer) SubmitAccessReview(ctx context.Context, req *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
@@ -15882,7 +15882,7 @@ func (*UnimplementedAuthServiceServer) GetAccessCapabilities(ctx context.Context
 func (*UnimplementedAuthServiceServer) GetPluginData(ctx context.Context, req *types.PluginDataFilter) (*PluginDataSeq, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPluginData not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdatePluginData(ctx context.Context, req *types.PluginDataUpdateParams) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdatePluginData(ctx context.Context, req *types.PluginDataUpdateParams) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePluginData not implemented")
 }
 func (*UnimplementedAuthServiceServer) Ping(ctx context.Context, req *PingRequest) (*PingResponse, error) {
@@ -15900,7 +15900,7 @@ func (*UnimplementedAuthServiceServer) CreateResetPasswordToken(ctx context.Cont
 func (*UnimplementedAuthServiceServer) CreateBot(ctx context.Context, req *CreateBotRequest) (*CreateBotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateBot not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteBot(ctx context.Context, req *DeleteBotRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteBot(ctx context.Context, req *DeleteBotRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteBot not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetBotUsers(req *GetBotUsersRequest, srv AuthService_GetBotUsersServer) error {
@@ -15909,40 +15909,40 @@ func (*UnimplementedAuthServiceServer) GetBotUsers(req *GetBotUsersRequest, srv 
 func (*UnimplementedAuthServiceServer) GetUser(ctx context.Context, req *GetUserRequest) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
+func (*UnimplementedAuthServiceServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetCurrentUserRoles(req *emptypb.Empty, srv AuthService_GetCurrentUserRolesServer) error {
+func (*UnimplementedAuthServiceServer) GetCurrentUserRoles(req *empty.Empty, srv AuthService_GetCurrentUserRolesServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetCurrentUserRoles not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetUsers(req *GetUsersRequest, srv AuthService_GetUsersServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateUser(ctx context.Context, req *types.UserV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateUser(ctx context.Context, req *types.UserV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (*UnimplementedAuthServiceServer) AcquireSemaphore(ctx context.Context, req *types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AcquireSemaphore not implemented")
 }
-func (*UnimplementedAuthServiceServer) KeepAliveSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) KeepAliveSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method KeepAliveSemaphoreLease not implemented")
 }
-func (*UnimplementedAuthServiceServer) CancelSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CancelSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelSemaphoreLease not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
 }
-func (*UnimplementedAuthServiceServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EmitAuditEvent not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAuditStream(srv AuthService_CreateAuditStreamServer) error {
@@ -15954,10 +15954,10 @@ func (*UnimplementedAuthServiceServer) GetApplicationServers(ctx context.Context
 func (*UnimplementedAuthServiceServer) UpsertApplicationServer(ctx context.Context, req *UpsertApplicationServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertApplicationServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteApplicationServer(ctx context.Context, req *DeleteApplicationServerRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteApplicationServer(ctx context.Context, req *DeleteApplicationServerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteApplicationServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllApplicationServers(ctx context.Context, req *DeleteAllApplicationServersRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllApplicationServers(ctx context.Context, req *DeleteAllApplicationServersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApplicationServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetAppServers(ctx context.Context, req *GetAppServersRequest) (*GetAppServersResponse, error) {
@@ -15966,10 +15966,10 @@ func (*UnimplementedAuthServiceServer) GetAppServers(ctx context.Context, req *G
 func (*UnimplementedAuthServiceServer) UpsertAppServer(ctx context.Context, req *UpsertAppServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAppServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAppServer(ctx context.Context, req *DeleteAppServerRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAppServer(ctx context.Context, req *DeleteAppServerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAppServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllAppServers(ctx context.Context, req *DeleteAllAppServersRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllAppServers(ctx context.Context, req *DeleteAllAppServersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAppServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateAppToken(ctx context.Context, req *GenerateAppTokenRequest) (*GenerateAppTokenResponse, error) {
@@ -15978,19 +15978,19 @@ func (*UnimplementedAuthServiceServer) GenerateAppToken(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetAppSession(ctx context.Context, req *GetAppSessionRequest) (*GetAppSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetAppSessions(ctx context.Context, req *emptypb.Empty) (*GetAppSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetAppSessions(ctx context.Context, req *empty.Empty) (*GetAppSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAppSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAppSession(ctx context.Context, req *CreateAppSessionRequest) (*CreateAppSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAppSession(ctx context.Context, req *DeleteAppSessionRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAppSession(ctx context.Context, req *DeleteAppSessionRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllAppSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllAppSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAppSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteUserAppSessions(ctx context.Context, req *DeleteUserAppSessionsRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteUserAppSessions(ctx context.Context, req *DeleteUserAppSessionsRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserAppSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateSnowflakeSession(ctx context.Context, req *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error) {
@@ -15999,55 +15999,55 @@ func (*UnimplementedAuthServiceServer) CreateSnowflakeSession(ctx context.Contex
 func (*UnimplementedAuthServiceServer) GetSnowflakeSession(ctx context.Context, req *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetSnowflakeSessions(ctx context.Context, req *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetSnowflakeSessions(ctx context.Context, req *empty.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSnowflakeSession(ctx context.Context, req *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSnowflakeSession(ctx context.Context, req *DeleteSnowflakeSessionRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllSnowflakeSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllSnowflakeSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllSnowflakeSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWebSessions(ctx context.Context, req *emptypb.Empty) (*GetWebSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWebSessions(ctx context.Context, req *empty.Empty) (*GetWebSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWebSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWebSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWebSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequest) (*GetWebTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWebTokens(ctx context.Context, req *emptypb.Empty) (*GetWebTokensResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWebTokens(ctx context.Context, req *empty.Empty) (*GetWebTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWebTokens(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWebTokens(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWebTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRemoteCluster not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetKubeServices(ctx context.Context, req *GetKubeServicesRequest) (*GetKubeServicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubeServices not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertKubeService(ctx context.Context, req *UpsertKubeServiceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertKubeService(ctx context.Context, req *UpsertKubeServiceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeService not implemented")
 }
 func (*UnimplementedAuthServiceServer) UpsertKubeServiceV2(ctx context.Context, req *UpsertKubeServiceRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeServiceV2 not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteKubeService(ctx context.Context, req *DeleteKubeServiceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteKubeService(ctx context.Context, req *DeleteKubeServiceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteKubeService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllKubeServices(ctx context.Context, req *DeleteAllKubeServicesRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllKubeServices(ctx context.Context, req *DeleteAllKubeServicesRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllKubeServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetDatabaseServers(ctx context.Context, req *GetDatabaseServersRequest) (*GetDatabaseServersResponse, error) {
@@ -16056,10 +16056,10 @@ func (*UnimplementedAuthServiceServer) GetDatabaseServers(ctx context.Context, r
 func (*UnimplementedAuthServiceServer) UpsertDatabaseServer(ctx context.Context, req *UpsertDatabaseServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertDatabaseServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteDatabaseServer(ctx context.Context, req *DeleteDatabaseServerRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteDatabaseServer(ctx context.Context, req *DeleteDatabaseServerRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDatabaseServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllDatabaseServers(ctx context.Context, req *DeleteAllDatabaseServersRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllDatabaseServers(ctx context.Context, req *DeleteAllDatabaseServersRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllDatabaseServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) SignDatabaseCSR(ctx context.Context, req *DatabaseCSRRequest) (*DatabaseCSRResponse, error) {
@@ -16074,13 +16074,13 @@ func (*UnimplementedAuthServiceServer) GenerateSnowflakeJWT(ctx context.Context,
 func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV5, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRole not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *emptypb.Empty) (*GetRolesResponse, error) {
+func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *empty.Empty) (*GetRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoles not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) AddMFADevice(srv AuthService_AddMFADeviceServer) error {
@@ -16092,7 +16092,7 @@ func (*UnimplementedAuthServiceServer) DeleteMFADevice(srv AuthService_DeleteMFA
 func (*UnimplementedAuthServiceServer) AddMFADeviceSync(ctx context.Context, req *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMFADeviceSync not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteMFADeviceSync(ctx context.Context, req *DeleteMFADeviceSyncRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteMFADeviceSync(ctx context.Context, req *DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteMFADeviceSync not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetMFADevices(ctx context.Context, req *GetMFADevicesRequest) (*GetMFADevicesResponse, error) {
@@ -16110,10 +16110,10 @@ func (*UnimplementedAuthServiceServer) GetOIDCConnector(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertOIDCConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteOIDCConnector not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
@@ -16128,10 +16128,10 @@ func (*UnimplementedAuthServiceServer) GetSAMLConnector(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetSAMLConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertSAMLConnector(ctx context.Context, req *types.SAMLConnectorV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertSAMLConnector(ctx context.Context, req *types.SAMLConnectorV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertSAMLConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSAMLConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSAMLConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSAMLConnector not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateSAMLAuthRequest(ctx context.Context, req *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -16146,10 +16146,10 @@ func (*UnimplementedAuthServiceServer) GetGithubConnector(ctx context.Context, r
 func (*UnimplementedAuthServiceServer) GetGithubConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertGithubConnector(ctx context.Context, req *types.GithubConnectorV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertGithubConnector(ctx context.Context, req *types.GithubConnectorV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertGithubConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteGithubConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteGithubConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGithubConnector not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateGithubAuthRequest(ctx context.Context, req *types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -16164,58 +16164,58 @@ func (*UnimplementedAuthServiceServer) GetSSODiagnosticInfo(ctx context.Context,
 func (*UnimplementedAuthServiceServer) GetTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedCluster not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetTrustedClusters(ctx context.Context, req *emptypb.Empty) (*types.TrustedClusterV2List, error) {
+func (*UnimplementedAuthServiceServer) GetTrustedClusters(ctx context.Context, req *empty.Empty) (*types.TrustedClusterV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedClusters not implemented")
 }
 func (*UnimplementedAuthServiceServer) UpsertTrustedCluster(ctx context.Context, req *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertTrustedCluster not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTrustedCluster not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetTokens(ctx context.Context, req *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
+func (*UnimplementedAuthServiceServer) GetTokens(ctx context.Context, req *empty.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertToken(ctx context.Context, req *types.ProvisionTokenV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertToken(ctx context.Context, req *types.ProvisionTokenV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertToken not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateToken(ctx context.Context, req *GenerateTokenRequest) (*GenerateTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterAuditConfig(ctx context.Context, req *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetClusterAuditConfig(ctx context.Context, req *empty.Empty) (*types.ClusterAuditConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAuditConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterNetworkingConfig(ctx context.Context, req *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetClusterNetworkingConfig(ctx context.Context, req *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetClusterNetworkingConfig(ctx context.Context, req *types.ClusterNetworkingConfigV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetClusterNetworkingConfig(ctx context.Context, req *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetClusterNetworkingConfig(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetClusterNetworkingConfig(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetSessionRecordingConfig(ctx context.Context, req *emptypb.Empty) (*types.SessionRecordingConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetSessionRecordingConfig(ctx context.Context, req *empty.Empty) (*types.SessionRecordingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetSessionRecordingConfig(ctx context.Context, req *types.SessionRecordingConfigV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetSessionRecordingConfig(ctx context.Context, req *types.SessionRecordingConfigV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetSessionRecordingConfig(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetSessionRecordingConfig(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetAuthPreference(ctx context.Context, req *emptypb.Empty) (*types.AuthPreferenceV2, error) {
+func (*UnimplementedAuthServiceServer) GetAuthPreference(ctx context.Context, req *empty.Empty) (*types.AuthPreferenceV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetAuthPreference(ctx context.Context, req *types.AuthPreferenceV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetAuthPreference(ctx context.Context, req *types.AuthPreferenceV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAuthPreference not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetAuthPreference(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetAuthPreference(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetEvents(ctx context.Context, req *GetEventsRequest) (*Events, error) {
@@ -16230,64 +16230,64 @@ func (*UnimplementedAuthServiceServer) GetLock(ctx context.Context, req *GetLock
 func (*UnimplementedAuthServiceServer) GetLocks(ctx context.Context, req *GetLocksRequest) (*GetLocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLocks not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertLock(ctx context.Context, req *types.LockV2) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertLock(ctx context.Context, req *types.LockV2) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertLock not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteLock(ctx context.Context, req *DeleteLockRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteLock(ctx context.Context, req *DeleteLockRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLock not implemented")
 }
-func (*UnimplementedAuthServiceServer) ReplaceRemoteLocks(ctx context.Context, req *ReplaceRemoteLocksRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) ReplaceRemoteLocks(ctx context.Context, req *ReplaceRemoteLocksRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaceRemoteLocks not implemented")
 }
 func (*UnimplementedAuthServiceServer) StreamSessionEvents(req *StreamSessionEventsRequest, srv AuthService_StreamSessionEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method StreamSessionEvents not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetNetworkRestrictions(ctx context.Context, req *emptypb.Empty) (*types.NetworkRestrictionsV4, error) {
+func (*UnimplementedAuthServiceServer) GetNetworkRestrictions(ctx context.Context, req *empty.Empty) (*types.NetworkRestrictionsV4, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetNetworkRestrictions(ctx context.Context, req *types.NetworkRestrictionsV4) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetNetworkRestrictions(ctx context.Context, req *types.NetworkRestrictionsV4) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteNetworkRestrictions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteNetworkRestrictions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetApps(ctx context.Context, req *emptypb.Empty) (*types.AppV3List, error) {
+func (*UnimplementedAuthServiceServer) GetApps(ctx context.Context, req *empty.Empty) (*types.AppV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateApp(ctx context.Context, req *types.AppV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateApp(ctx context.Context, req *types.AppV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllApps(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllApps(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApps not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetDatabases(ctx context.Context, req *emptypb.Empty) (*types.DatabaseV3List, error) {
+func (*UnimplementedAuthServiceServer) GetDatabases(ctx context.Context, req *empty.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetDatabase(ctx context.Context, req *types.ResourceRequest) (*types.DatabaseV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateDatabase(ctx context.Context, req *types.DatabaseV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateDatabase(ctx context.Context, req *types.DatabaseV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateDatabase(ctx context.Context, req *types.DatabaseV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateDatabase(ctx context.Context, req *types.DatabaseV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllDatabases(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllDatabases(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllDatabases not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWindowsDesktopServices(ctx context.Context, req *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*GetWindowsDesktopServicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktopServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWindowsDesktopService(ctx context.Context, req *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error) {
@@ -16296,28 +16296,28 @@ func (*UnimplementedAuthServiceServer) GetWindowsDesktopService(ctx context.Cont
 func (*UnimplementedAuthServiceServer) UpsertWindowsDesktopService(ctx context.Context, req *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktopService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWindowsDesktopService(ctx context.Context, req *DeleteWindowsDesktopServiceRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWindowsDesktopService(ctx context.Context, req *DeleteWindowsDesktopServiceRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWindowsDesktopService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktopServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWindowsDesktops(ctx context.Context, req *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktops not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWindowsDesktop(ctx context.Context, req *DeleteWindowsDesktopRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWindowsDesktop(ctx context.Context, req *DeleteWindowsDesktopRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktops(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktops(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktops not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateWindowsDesktopCert(ctx context.Context, req *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error) {
@@ -16335,7 +16335,7 @@ func (*UnimplementedAuthServiceServer) StartAccountRecovery(ctx context.Context,
 func (*UnimplementedAuthServiceServer) VerifyAccountRecovery(ctx context.Context, req *VerifyAccountRecoveryRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyAccountRecovery not implemented")
 }
-func (*UnimplementedAuthServiceServer) CompleteAccountRecovery(ctx context.Context, req *CompleteAccountRecoveryRequest) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) CompleteAccountRecovery(ctx context.Context, req *CompleteAccountRecoveryRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteAccountRecovery not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAccountRecoveryCodes(ctx context.Context, req *CreateAccountRecoveryCodesRequest) (*RecoveryCodes, error) {
@@ -16353,13 +16353,13 @@ func (*UnimplementedAuthServiceServer) CreatePrivilegeToken(ctx context.Context,
 func (*UnimplementedAuthServiceServer) ListResources(ctx context.Context, req *ListResourcesRequest) (*ListResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListResources not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetDomainName(ctx context.Context, req *emptypb.Empty) (*GetDomainNameResponse, error) {
+func (*UnimplementedAuthServiceServer) GetDomainName(ctx context.Context, req *empty.Empty) (*GetDomainNameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDomainName not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterCACert(ctx context.Context, req *emptypb.Empty) (*GetClusterCACertResponse, error) {
+func (*UnimplementedAuthServiceServer) GetClusterCACert(ctx context.Context, req *empty.Empty) (*GetClusterCACertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterCACert not implemented")
 }
-func (*UnimplementedAuthServiceServer) UnstableAssertSystemRole(ctx context.Context, req *UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
+func (*UnimplementedAuthServiceServer) UnstableAssertSystemRole(ctx context.Context, req *UnstableSystemRoleAssertion) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnstableAssertSystemRole not implemented")
 }
 
@@ -16492,7 +16492,7 @@ func _AuthService_GetSessionTracker_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_GetActiveSessionTrackers_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(emptypb.Empty)
+	m := new(empty.Empty)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -16553,7 +16553,7 @@ func _AuthService_SendKeepAlives_Handler(srv interface{}, stream grpc.ServerStre
 }
 
 type AuthService_SendKeepAlivesServer interface {
-	SendAndClose(*emptypb.Empty) error
+	SendAndClose(*empty.Empty) error
 	Recv() (*types.KeepAlive, error)
 	grpc.ServerStream
 }
@@ -16562,7 +16562,7 @@ type authServiceSendKeepAlivesServer struct {
 	grpc.ServerStream
 }
 
-func (x *authServiceSendKeepAlivesServer) SendAndClose(m *emptypb.Empty) error {
+func (x *authServiceSendKeepAlivesServer) SendAndClose(m *empty.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -17060,7 +17060,7 @@ func _AuthService_GetUser_Handler(srv interface{}, ctx context.Context, dec func
 }
 
 func _AuthService_GetCurrentUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17072,13 +17072,13 @@ func _AuthService_GetCurrentUser_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetCurrentUser",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetCurrentUser(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetCurrentUser(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetCurrentUserRoles_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(emptypb.Empty)
+	m := new(empty.Empty)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -17488,7 +17488,7 @@ func _AuthService_GetAppSession_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetAppSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17500,7 +17500,7 @@ func _AuthService_GetAppSessions_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetAppSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAppSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetAppSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17542,7 +17542,7 @@ func _AuthService_DeleteAppSession_Handler(srv interface{}, ctx context.Context,
 }
 
 func _AuthService_DeleteAllAppSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17554,7 +17554,7 @@ func _AuthService_DeleteAllAppSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/DeleteAllAppSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllAppSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllAppSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17614,7 +17614,7 @@ func _AuthService_GetSnowflakeSession_Handler(srv interface{}, ctx context.Conte
 }
 
 func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17626,7 +17626,7 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/GetSnowflakeSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetSnowflakeSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetSnowflakeSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17650,7 +17650,7 @@ func _AuthService_DeleteSnowflakeSession_Handler(srv interface{}, ctx context.Co
 }
 
 func _AuthService_DeleteAllSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17662,7 +17662,7 @@ func _AuthService_DeleteAllSnowflakeSessions_Handler(srv interface{}, ctx contex
 		FullMethod: "/proto.AuthService/DeleteAllSnowflakeSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllSnowflakeSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllSnowflakeSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17686,7 +17686,7 @@ func _AuthService_GetWebSession_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17698,7 +17698,7 @@ func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetWebSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17722,7 +17722,7 @@ func _AuthService_DeleteWebSession_Handler(srv interface{}, ctx context.Context,
 }
 
 func _AuthService_DeleteAllWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17734,7 +17734,7 @@ func _AuthService_DeleteAllWebSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/DeleteAllWebSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWebSessions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllWebSessions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17758,7 +17758,7 @@ func _AuthService_GetWebToken_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17770,7 +17770,7 @@ func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/proto.AuthService/GetWebTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17794,7 +17794,7 @@ func _AuthService_DeleteWebToken_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _AuthService_DeleteAllWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17806,7 +17806,7 @@ func _AuthService_DeleteAllWebTokens_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/DeleteAllWebTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWebTokens(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllWebTokens(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18064,7 +18064,7 @@ func _AuthService_GetRole_Handler(srv interface{}, ctx context.Context, dec func
 }
 
 func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18076,7 +18076,7 @@ func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/proto.AuthService/GetRoles",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetRoles(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetRoles(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18620,7 +18620,7 @@ func _AuthService_GetTrustedCluster_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18632,7 +18632,7 @@ func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/GetTrustedClusters",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetTrustedClusters(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetTrustedClusters(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18692,7 +18692,7 @@ func _AuthService_GetToken_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18704,7 +18704,7 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/proto.AuthService/GetTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetTokens(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetTokens(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18764,7 +18764,7 @@ func _AuthService_DeleteToken_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _AuthService_GetClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18776,13 +18776,13 @@ func _AuthService_GetClusterAuditConfig_Handler(srv interface{}, ctx context.Con
 		FullMethod: "/proto.AuthService/GetClusterAuditConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterAuditConfig(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetClusterAuditConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18794,7 +18794,7 @@ func _AuthService_GetClusterNetworkingConfig_Handler(srv interface{}, ctx contex
 		FullMethod: "/proto.AuthService/GetClusterNetworkingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterNetworkingConfig(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetClusterNetworkingConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18818,7 +18818,7 @@ func _AuthService_SetClusterNetworkingConfig_Handler(srv interface{}, ctx contex
 }
 
 func _AuthService_ResetClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18830,13 +18830,13 @@ func _AuthService_ResetClusterNetworkingConfig_Handler(srv interface{}, ctx cont
 		FullMethod: "/proto.AuthService/ResetClusterNetworkingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetClusterNetworkingConfig(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).ResetClusterNetworkingConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18848,7 +18848,7 @@ func _AuthService_GetSessionRecordingConfig_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/GetSessionRecordingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetSessionRecordingConfig(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetSessionRecordingConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18872,7 +18872,7 @@ func _AuthService_SetSessionRecordingConfig_Handler(srv interface{}, ctx context
 }
 
 func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18884,13 +18884,13 @@ func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx conte
 		FullMethod: "/proto.AuthService/ResetSessionRecordingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetSessionRecordingConfig(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).ResetSessionRecordingConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18902,7 +18902,7 @@ func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context
 		FullMethod: "/proto.AuthService/GetAuthPreference",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -18926,7 +18926,7 @@ func _AuthService_SetAuthPreference_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -18938,7 +18938,7 @@ func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/proto.AuthService/ResetAuthPreference",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19091,7 +19091,7 @@ func (x *authServiceStreamSessionEventsServer) Send(m *events.OneOf) error {
 }
 
 func _AuthService_GetNetworkRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19103,7 +19103,7 @@ func _AuthService_GetNetworkRestrictions_Handler(srv interface{}, ctx context.Co
 		FullMethod: "/proto.AuthService/GetNetworkRestrictions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetNetworkRestrictions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetNetworkRestrictions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19127,7 +19127,7 @@ func _AuthService_SetNetworkRestrictions_Handler(srv interface{}, ctx context.Co
 }
 
 func _AuthService_DeleteNetworkRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19139,13 +19139,13 @@ func _AuthService_DeleteNetworkRestrictions_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/DeleteNetworkRestrictions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteNetworkRestrictions(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteNetworkRestrictions(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19157,7 +19157,7 @@ func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/proto.AuthService/GetApps",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetApps(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetApps(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19235,7 +19235,7 @@ func _AuthService_DeleteApp_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _AuthService_DeleteAllApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19247,13 +19247,13 @@ func _AuthService_DeleteAllApps_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/proto.AuthService/DeleteAllApps",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllApps(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllApps(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19265,7 +19265,7 @@ func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/proto.AuthService/GetDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetDatabases(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetDatabases(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19343,7 +19343,7 @@ func _AuthService_DeleteDatabase_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _AuthService_DeleteAllDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19355,13 +19355,13 @@ func _AuthService_DeleteAllDatabases_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/DeleteAllDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllDatabases(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllDatabases(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetWindowsDesktopServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19373,7 +19373,7 @@ func _AuthService_GetWindowsDesktopServices_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/GetWindowsDesktopServices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWindowsDesktopServices(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetWindowsDesktopServices(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19433,7 +19433,7 @@ func _AuthService_DeleteWindowsDesktopService_Handler(srv interface{}, ctx conte
 }
 
 func _AuthService_DeleteAllWindowsDesktopServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19445,7 +19445,7 @@ func _AuthService_DeleteAllWindowsDesktopServices_Handler(srv interface{}, ctx c
 		FullMethod: "/proto.AuthService/DeleteAllWindowsDesktopServices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWindowsDesktopServices(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllWindowsDesktopServices(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19541,7 +19541,7 @@ func _AuthService_DeleteWindowsDesktop_Handler(srv interface{}, ctx context.Cont
 }
 
 func _AuthService_DeleteAllWindowsDesktops_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19553,7 +19553,7 @@ func _AuthService_DeleteAllWindowsDesktops_Handler(srv interface{}, ctx context.
 		FullMethod: "/proto.AuthService/DeleteAllWindowsDesktops",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWindowsDesktops(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).DeleteAllWindowsDesktops(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -19757,7 +19757,7 @@ func _AuthService_ListResources_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetDomainName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19769,13 +19769,13 @@ func _AuthService_GetDomainName_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/proto.AuthService/GetDomainName",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetDomainName(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetDomainName(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetClusterCACert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -19787,7 +19787,7 @@ func _AuthService_GetClusterCACert_Handler(srv interface{}, ctx context.Context,
 		FullMethod: "/proto.AuthService/GetClusterCACert",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterCACert(ctx, req.(*emptypb.Empty))
+		return srv.(AuthServiceServer).GetClusterCACert(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

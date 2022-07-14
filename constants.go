@@ -149,9 +149,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -722,10 +719,6 @@ const (
 	// specific UID to prevent the matching user from being deleted before
 	// spawning the intended child process.
 	ParkSubCommand = "park"
-
-	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
-	// handle SFTP connections.
-	SFTPSubCommand = "sftp"
 )
 
 const (

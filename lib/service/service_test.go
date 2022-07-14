@@ -98,7 +98,7 @@ func TestMonitor(t *testing.T) {
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -657,7 +657,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	authCfg.Auth.StaticTokens = staticTokens
 	authCfg.Auth.StorageConfig.Type = lite.GetName()
 	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
-	authCfg.Auth.ListenAddr = listenAddr
+	authCfg.Auth.SSHAddr = listenAddr
 	authCfg.Proxy.Enabled = false
 	authCfg.SSH.Enabled = false
 

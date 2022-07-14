@@ -110,7 +110,7 @@ func (l *EC2) Sync(ctx context.Context) error {
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			l.c.Log.Warningf("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+			l.c.Log.Warningf("Could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
 			return nil
 		}
 		return trace.Wrap(err)

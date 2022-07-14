@@ -1869,9 +1869,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer nodeClient.Close()
 
 	// If forwarding ports were specified, start port forwarding.
-	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
-		return trace.Wrap(err)
-	}
+	tc.startPortForwarding(ctx, nodeClient)
 
 	// If no remote command execution was requested, block on the context which
 	// will unblock upon error or SIGINT.
@@ -1912,13 +1910,14 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
 	if len(tc.Config.LocalForwardPorts) > 0 {
 		for _, fp := range tc.Config.LocalForwardPorts {
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
 			}
 			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 		}
@@ -1928,12 +1927,12 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 			socket, err := net.Listen("tcp", addr)
 			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
+				log.Errorf("Failed to bind to %v: %v.", addr, err)
+				continue
 			}
 			go nodeClient.dynamicListenAndForward(ctx, socket)
 		}
 	}
-	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -2002,9 +2001,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer nc.Close()
 
 	// Start forwarding ports if configured.
-	if err := tc.startPortForwarding(ctx, nc); err != nil {
-		return trace.Wrap(err)
-	}
+	tc.startPortForwarding(ctx, nc)
 
 	presenceCtx, presenceCancel := context.WithCancel(ctx)
 	defer presenceCancel()

@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.0.0-dev
+VERSION=10.0.0
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -283,7 +283,7 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
+	cargo install cbindgen
 	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
@@ -768,8 +768,7 @@ version: $(VERSRC)
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
-	# Update api module path, but don't fail on error.
-	$(MAKE) update-api-import-path || true
+	# "TODO: Enable automatic updating of API import paths using update-api-import-path target once agreed upon the solution".
 
 # This rule updates the api module path to be in sync with the current api release version.
 # e.g. github.com/gravitational/teleport/api/vX -> github.com/gravitational/teleport/api/vY

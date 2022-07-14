@@ -1,3 +1,5 @@
+//go:build go1.18
+
 /*
 Copyright 2022 Gravitational, Inc.
 

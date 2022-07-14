@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -40,7 +41,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 )
 
 func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
@@ -647,7 +647,7 @@ func (s *localSite) sshTunnelStats() error {
 		// In proxy peering mode, a node is expected to be connected to the
 		// current proxy if the proxy id is present. A node is expected to be
 		// connected to all proxies if no proxy ids are present.
-		if s.peerClient != nil && len(ids) != 0 && !slices.Contains(ids, s.srv.ID) {
+		if s.peerClient != nil && len(ids) != 0 && !apiutils.SliceContainsStr(ids, s.srv.ID) {
 			return false
 		}
 

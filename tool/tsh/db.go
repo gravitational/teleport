@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sort"
@@ -70,14 +69,14 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), profile.Cluster)
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
-		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, profile.Cluster)
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
 		if err != nil {
 			log.Debugf("Failed to fetch user roles: %v.", err)
 		}
@@ -89,7 +88,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
 func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
@@ -709,19 +708,12 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	log.Debug(cmd.String())
-
 	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-
-	// Use io.MultiWriter to duplicate stderr to the capture writer. The
-	// captured stderr can be used for diagnosing command failures. The capture
-	// writer captures up to a fixed number to limit memory usage.
-	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
-	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
-
 	err = cmd.Run()
 	if err != nil {
-		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
+		return trace.Wrap(err)
 	}
 	return nil
 }

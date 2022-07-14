@@ -34,6 +34,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
 
@@ -56,191 +57,177 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type authContext struct {
+type TLSSuite struct {
 	dataDir string
 	server  *TestTLSServer
 	clock   clockwork.FakeClock
 }
 
-func setupAuthContext(ctx context.Context, t *testing.T) *authContext {
-	var tt authContext
-	t.Cleanup(func() { tt.Close() })
+var _ = check.Suite(&TLSSuite{})
 
-	tt.dataDir = t.TempDir()
-	tt.clock = clockwork.NewFakeClock()
+func (s *TLSSuite) SetUpTest(c *check.C) {
+	s.dataDir = c.MkDir()
+	s.clock = clockwork.NewFakeClock()
 
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   tt.dataDir,
-		Clock: tt.clock,
+		Dir:   s.dataDir,
+		Clock: s.clock,
 	})
-	require.NoError(t, err)
-
-	tt.server, err = testAuthServer.NewTestTLSServer()
-	require.NoError(t, err)
-
-	return &tt
+	c.Assert(err, check.IsNil)
+	s.server, err = testAuthServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
 }
 
-func (a *authContext) Close() error {
-	return a.server.Close()
+func (s *TLSSuite) TearDownTest(c *check.C) {
+	if s.server != nil {
+		s.server.Close()
+	}
 }
 
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role
-func TestRemoteBuiltinRole(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:         t.TempDir(),
+		Dir:         c.MkDir(),
 		ClusterName: "remote",
-		Clock:       tt.clock,
+		Clock:       s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	certPool, err := tt.server.CertPool()
-	require.NoError(t, err)
+	certPool, err := s.server.CertPool()
+	c.Assert(err, check.IsNil)
 
 	// without trust, proxy server will get rejected
 	// remote auth server will get rejected because it is not supported
 	remoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
 	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsConnectionProblem(err))
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// after trust is established, things are good
-	err = tt.server.AuthServer.Trust(ctx, remoteServer, nil)
-	require.NoError(t, err)
+	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
 	// re initialize client with trust established.
 	remoteProxy, err = remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// remote auth server will get rejected even with established trust
 	remoteAuth, err := remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleAuth), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	_, err = remoteAuth.GetDomainName(ctx)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestAcceptedUsage tests scenario when server is set up
 // to accept certificates with certain usage metadata restrictions
 // encoded
-func TestAcceptedUsage(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	server, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:           t.TempDir(),
+		Dir:           c.MkDir(),
 		ClusterName:   "remote",
 		AcceptedUsage: []string{"usage:k8s"},
-		Clock:         tt.clock,
+		Clock:         s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	tlsServer, err := server.NewTestTLSServer()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer tlsServer.Close()
 
 	// Unrestricted clients can use restricted servers
 	client, err := tlsServer.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// restricted clients can use restricted servers if restrictions
 	// exactly match
 	identity := TestUser(user.GetName())
 	identity.AcceptedUsage = []string{"usage:k8s"}
 	client, err = tlsServer.NewClient(identity)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// restricted clients can will be rejected if usage does not match
 	identity = TestUser(user.GetName())
 	identity.AcceptedUsage = []string{"usage:extra"}
 	client, err = tlsServer.NewClient(identity)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// restricted clients can will be rejected, for now if there is any mismatch,
 	// including extra usage.
 	identity = TestUser(user.GetName())
 	identity.AcceptedUsage = []string{"usage:k8s", "usage:unknown"}
 	client, err = tlsServer.NewClient(identity)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestRemoteRotation tests remote builtin role
 // that attempts certificate authority rotation
-func TestRemoteRotation(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
+func (s *TLSSuite) TestRemoteRotation(c *check.C) {
+	ctx := context.TODO()
 	var ok bool
 
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:         t.TempDir(),
+		Dir:         c.MkDir(),
 		ClusterName: "remote",
-		Clock:       tt.clock,
+		Clock:       s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	certPool, err := tt.server.CertPool()
-	require.NoError(t, err)
+	certPool, err := s.server.CertPool()
+	c.Assert(err, check.IsNil)
 
 	// after trust is established, things are good
-	err = tt.server.AuthServer.Trust(ctx, remoteServer, nil)
-	require.NoError(t, err)
+	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
 	remoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	remoteAuth, err := remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleAuth), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleAuth), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
 	remoteServer.AuthServer.privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	c.Assert(ok, check.Equals, true)
 	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// moves to update clients
 	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
@@ -249,478 +236,454 @@ func TestRemoteRotation(t *testing.T) {
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	remoteCA, err := remoteServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: remoteServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// remote proxy should be rejected when trying to rotate ca
 	// that is not associated with the remote cluster
 	clone := remoteCA.Clone()
-	clone.SetName(tt.server.ClusterName())
+	clone.SetName(s.server.ClusterName())
 	err = remoteProxy.RotateExternalCertAuthority(ctx, clone)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// remote proxy can't upsert the certificate authority,
 	// only to rotate it (in remote rotation only certain fields are updated)
 	err = remoteProxy.UpsertCertAuthority(remoteCA)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// remote proxy can't read local cert authority with secrets
 	_, err = remoteProxy.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, true)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// no secrets read is allowed
 	_, err = remoteProxy.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// remote auth server will get rejected
 	err = remoteAuth.RotateExternalCertAuthority(ctx, remoteCA)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// remote proxy should be able to perform remote cert authority
 	// rotation
 	err = remoteProxy.RotateExternalCertAuthority(ctx, remoteCA)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// newRemoteProxy should be trusted by the auth server
 	newRemoteProxy, err := remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestBuiltin(types.RoleProxy), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// old proxy client is still trusted
-	_, err = tt.server.CloneClient(remoteProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(remoteProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 }
 
 // TestLocalProxyPermissions tests new local proxy permissions
 // as it's now allowed to update host cert authorities of remote clusters
-func TestLocalProxyPermissions(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:         t.TempDir(),
+		Dir:         c.MkDir(),
 		ClusterName: "remote",
-		Clock:       tt.clock,
+		Clock:       s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// after trust is established, things are good
-	err = tt.server.AuthServer.Trust(ctx, remoteServer, nil)
-	require.NoError(t, err)
+	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
-	ca, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// local proxy can't update local cert authorities
 	err = proxy.UpsertCertAuthority(ca)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// local proxy is allowed to update host CA of remote cert authorities
-	remoteCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+	remoteCA, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: remoteServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	err = proxy.UpsertCertAuthority(remoteCA)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestAutoRotation tests local automatic rotation
-func TestAutoRotation(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	var ok bool
 
 	// create proxy client
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// starts rotation
-	tt.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	gracePeriod := time.Hour
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	tt.clock.Advance(gracePeriod/3 + time.Minute)
-	err = tt.server.Auth().autoRotateCertAuthorities(ctx)
-	require.NoError(t, err)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities(ctx)
+	c.Assert(err, check.IsNil)
 
-	ca, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateClients)
 
 	// old clients should work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	_, err = s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	tt.clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = tt.server.Auth().autoRotateCertAuthorities(ctx)
-	require.NoError(t, err)
+	s.clock.Advance((gracePeriod*2)/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities(ctx)
+	c.Assert(err, check.IsNil)
 
-	ca, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateServers)
 
 	// old clients should work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
-	tt.clock.Advance(gracePeriod/3 + time.Minute)
-	err = tt.server.Auth().autoRotateCertAuthorities(ctx)
-	require.NoError(t, err)
-	ca, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	s.clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities(ctx)
+	c.Assert(err, check.IsNil)
+	ca, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseStandby)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseStandby)
+	c.Assert(err, check.IsNil)
 
 	// old clients should no longer work
 	// new client has to be created here to force re-create the new
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 }
 
 // TestAutoFallback tests local automatic rotation fallback,
 // when user intervenes with rollback and rotation gets switched
 // to manual mode
-func TestAutoFallback(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// starts rotation
-	tt.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
 	gracePeriod := time.Hour
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	tt.clock.Advance(gracePeriod/3 + time.Minute)
-	err = tt.server.Auth().autoRotateCertAuthorities(ctx)
-	require.NoError(t, err)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
+	err = s.server.Auth().autoRotateCertAuthorities(ctx)
+	c.Assert(err, check.IsNil)
 
-	ca, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseUpdateClients)
-	require.Equal(t, ca.GetRotation().Mode, types.RotationModeAuto)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateClients)
+	c.Assert(ca.GetRotation().Mode, check.Equals, types.RotationModeAuto)
 
 	// rollback rotation
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	ca, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
-	require.Equal(t, ca.GetRotation().Phase, types.RotationPhaseRollback)
-	require.Equal(t, ca.GetRotation().Mode, types.RotationModeManual)
+	c.Assert(err, check.IsNil)
+	c.Assert(ca.GetRotation().Phase, check.Equals, types.RotationPhaseRollback)
+	c.Assert(ca.GetRotation().Mode, check.Equals, types.RotationModeManual)
 }
 
 // TestManualRotation tests local manual rotation
 // that performs full-cycle certificate authority rotation
-func TestManualRotation(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestManualRotation(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// can't jump to mid-phase
 	gracePeriod := time.Hour
-	tt.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
-	require.True(t, trace.IsBadParameter(err))
+	fixtures.ExpectBadParameter(c, err)
 
 	// starts rotation
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// clients reconnect
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	newProxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// can't jump to standy
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
-	require.True(t, trace.IsBadParameter(err))
+	fixtures.ExpectBadParameter(c, err)
 
 	// advance rotation:
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// old clients should work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// new clients work as well
-	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// complete rotation
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// old clients should no longer work
 	// new client has to be created here to force re-create the new
 	// connection instead of re-using the one from pool
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// new clients work
-	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 }
 
 // TestRollback tests local manual rotation rollback
-func TestRollback(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestRollback(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	var ok bool
 
 	// create proxy client just for test purposes
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// client works before rotation is initiated
 	_, err = proxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// starts rotation
 	gracePeriod := time.Hour
-	tt.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
-	require.Equal(t, ok, true)
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	s.server.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
+	c.Assert(ok, check.Equals, true)
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// move to update clients phase
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// new clients work
-	newProxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	newProxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	_, err = newProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// advance rotation:
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// rollback rotation
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// new clients work, server still accepts the creds
 	// because new clients should re-register and receive new certs
-	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 
 	// can't jump to other phases
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
-	require.True(t, trace.IsBadParameter(err))
+	fixtures.ExpectBadParameter(c, err)
 
 	// complete rollback
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// clients with new creds will no longer work
-	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	_, err = s.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.ErrorMatches, ".*bad certificate.*")
 
 	// clients with old creds will still work
-	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	_, err = s.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
+	c.Assert(err, check.IsNil)
 }
 
 // TestAppTokenRotation checks that JWT tokens can be rotated and tokens can or
 // can not be validated at the appropriate phase.
-func TestAppTokenRotation(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	client, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
-	require.NoError(t, err)
+	client, err := s.server.NewClient(TestBuiltin(types.RoleApp))
+	c.Assert(err, check.IsNil)
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
@@ -729,55 +692,55 @@ func TestAppTokenRotation(t *testing.T) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Check that the "old" CA can be used to verify tokens.
-	oldCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	oldCA, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
-	require.NoError(t, err)
-	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(oldCA.GetTrustedJWTKeyPairs(), check.HasLen, 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
-	require.NoError(t, err)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	c.Assert(err, check.IsNil)
 
 	// Start rotation and move to initial phase. A new CA will be added (for
 	// verification), but requests will continue to be signed by the old CA.
 	gracePeriod := time.Hour
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// At this point in rotation, two JWT key pairs should exist.
-	oldCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	oldCA, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
-	require.NoError(t, err)
-	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
-	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(oldCA.GetRotation().Phase, check.Equals, types.RotationPhaseInit)
+	c.Assert(oldCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
-	require.NoError(t, err)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	c.Assert(err, check.IsNil)
 
 	// Move rotation into the update client phase. In this phase, requests will
 	// be signed by the new CA, but the old CA will be around to verify requests.
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// New tokens should now fail to validate with the old key.
 	newJWT, err := client.GenerateAppToken(ctx,
@@ -785,189 +748,176 @@ func TestAppTokenRotation(t *testing.T) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  tt.clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// New tokens will validate with the new key.
-	newCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	newCA, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
-	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
-	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateClients)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Both JWT should now validate.
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
-	require.NoError(t, err)
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
-	require.NoError(t, err)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	c.Assert(err, check.IsNil)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	c.Assert(err, check.IsNil)
 
 	// Move rotation into update servers phase.
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// At this point only the phase on the CA should have changed.
-	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	newCA, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
-	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
-	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseUpdateServers)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 2)
 
 	// Both JWT should continue to validate.
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
-	require.NoError(t, err)
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
-	require.NoError(t, err)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	c.Assert(err, check.IsNil)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	c.Assert(err, check.IsNil)
 
 	// Complete rotation. The old CA will be removed.
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// The new CA should now only have a single key.
-	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	newCA, err = s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.JWTSigner,
 	}, true)
-	require.NoError(t, err)
-	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
-	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(newCA.GetRotation().Phase, check.Equals, types.RotationPhaseStandby)
+	c.Assert(newCA.GetTrustedJWTKeyPairs(), check.HasLen, 1)
 
 	// Old token should no longer validate.
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
-	require.Error(t, err)
-	_, err = verifyJWT(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
-	require.NoError(t, err)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	c.Assert(err, check.NotNil)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	c.Assert(err, check.IsNil)
 }
 
 // TestRemoteUser tests scenario when remote user connects to the local
 // auth server and some edge cases.
-func TestRemoteUser(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:         t.TempDir(),
+		Dir:         c.MkDir(),
 		ClusterName: "remote",
-		Clock:       tt.clock,
+		Clock:       s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	certPool, err := tt.server.CertPool()
-	require.NoError(t, err)
+	certPool, err := s.server.CertPool()
+	c.Assert(err, check.IsNil)
 
 	remoteClient, err := remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestUser(remoteUser.GetName()), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 
 	// User is not authorized to perform any actions
 	// as local cluster does not trust the remote cluster yet
 	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsConnectionProblem(err))
+	fixtures.ExpectConnectionProblem(c, err)
 
 	// Establish trust, the request will still fail, there is
 	// no role mapping set up
-	err = tt.server.AuthServer.Trust(ctx, remoteServer, nil)
-	require.NoError(t, err)
+	err = s.server.AuthServer.Trust(ctx, remoteServer, nil)
+	c.Assert(err, check.IsNil)
 
 	// Create fresh client now trust is established
 	remoteClient, err = remoteServer.NewRemoteClient(
-		TestUser(remoteUser.GetName()), tt.server.Addr(), certPool)
-	require.NoError(t, err)
+		TestUser(remoteUser.GetName()), s.server.Addr(), certPool)
+	c.Assert(err, check.IsNil)
 	_, err = remoteClient.GetDomainName(ctx)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// Establish trust and map remote role to local admin role
-	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"})
-	require.NoError(t, err)
+	_, localRole, err := CreateUserAndRole(s.server.Auth(), "local-user", []string{"local-role"})
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
-	require.NoError(t, err)
+	err = s.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
+	c.Assert(err, check.IsNil)
 
 	_, err = remoteClient.GetDomainName(ctx)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestNopUser tests user with no permissions except
 // the ones that require other authentication methods ("nop" user)
-func TestNopUser(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestNopUser(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	client, err := tt.server.NewClient(TestNop())
-	require.NoError(t, err)
+	client, err := s.server.NewClient(TestNop())
+	c.Assert(err, check.IsNil)
 
 	// Nop User can get cluster name
 	_, err = client.GetDomainName(ctx)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// But can not get users or nodes
 	_, err = client.GetUsers(false)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// Endpoints that allow current user access should return access denied to
 	// the Nop user.
 	err = client.CheckPassword("foo", nil, "")
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestOwnRole tests that user can read roles assigned to them (used by web UI)
-func TestReadOwnRole(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestReadOwnRole(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user1, userRole, err := CreateUserAndRoleWithoutRoles(clt, "user1", []string{"user1"})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	user2, _, err := CreateUserAndRoleWithoutRoles(clt, "user2", []string{"user2"})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// user should be able to read their own roles
-	userClient, err := tt.server.NewClient(TestUser(user1.GetName()))
-	require.NoError(t, err)
+	userClient, err := s.server.NewClient(TestUser(user1.GetName()))
+	c.Assert(err, check.IsNil)
 
 	_, err = userClient.GetRole(ctx, userRole.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// user2 can't read user1 role
-	userClient2, err := tt.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
-	require.NoError(t, err)
+	userClient2, err := s.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
+	c.Assert(err, check.IsNil)
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 func TestGetCurrentUser(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1012,130 +962,90 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
-func TestAuthPreferenceSettings(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestAuthPreference(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clt,
 	}
-	suite.AuthPreference(t)
+	suite.AuthPreference(c)
 }
 
-func TestTunnelConnectionsCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
 		Clock:     clockwork.NewFakeClock(),
 	}
-	suite.TunnelConnectionsCRUD(t)
+	suite.TunnelConnectionsCRUD(c)
 }
 
-func TestRemoteClustersCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestRemoteClustersCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
 	}
-	suite.RemoteClustersCRUD(t)
+	suite.RemoteClustersCRUD(c)
 }
 
-func TestServersCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestServersCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
 	}
-	suite.ServerCRUD(t)
+	suite.ServerCRUD(c)
 }
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
-func TestAppServerCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
-	require.NoError(t, err)
+func (s *TLSSuite) TestAppServerCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleApp))
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
 	}
-	suite.AppServerCRUD(t)
+	suite.AppServerCRUD(c)
 }
 
-func TestReverseTunnelsCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestReverseTunnelsCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
 	}
-	suite.ReverseTunnelsCRUD(t)
+	suite.ReverseTunnelsCRUD(c)
 }
 
-func TestUsersCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestUsersCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	err = clt.UpsertPassword("user1", []byte("some pass"))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	users, err := clt.GetUsers(false)
-	require.NoError(t, err)
-	require.Equal(t, len(users), 1)
-	require.Equal(t, users[0].GetName(), "user1")
+	c.Assert(err, check.IsNil)
+	c.Assert(len(users), check.Equals, 1)
+	c.Assert(users[0].GetName(), check.Equals, "user1")
 
-	require.NoError(t, clt.DeleteUser(context.TODO(), "user1"))
+	c.Assert(clt.DeleteUser(context.TODO(), "user1"), check.IsNil)
 
 	users, err = clt.GetUsers(false)
-	require.NoError(t, err)
-	require.Equal(t, len(users), 0)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(users), check.Equals, 0)
 }
 
-func TestPasswordGarbage(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestPasswordGarbage(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 	garbage := [][]byte{
 		nil,
 		make([]byte, defaults.MaxPasswordLength+1),
@@ -1143,64 +1053,50 @@ func TestPasswordGarbage(t *testing.T) {
 	}
 	for _, g := range garbage {
 		err := clt.CheckPassword("user1", g, "123456")
-		require.True(t, trace.IsBadParameter(err))
+		fixtures.ExpectBadParameter(c, err)
 	}
 }
 
-func TestPasswordCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	pass := []byte("abc123")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	err = clt.CheckPassword("user1", pass, "123456")
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	err = clt.UpsertPassword("user1", pass)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
-	require.NoError(t, err)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, "user1", dev)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().UpsertMFADevice(ctx, "user1", dev)
-	require.NoError(t, err)
-
-	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
-	require.NoError(t, err)
+	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
+	c.Assert(err, check.IsNil)
 
 	err = clt.CheckPassword("user1", pass, validToken)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
-func TestTokens(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestTokens(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
-	require.NoError(t, err)
-	require.NotEqual(t, out, 0)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Not(check.Equals), 0)
 }
 
-func TestOTPCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestOTPCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -1209,16 +1105,16 @@ func TestOTPCRUD(t *testing.T) {
 
 	// upsert a password and totp secret
 	err = clt.UpsertPassword("user1", pass)
-	require.NoError(t, err)
-	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
-	require.NoError(t, err)
-
-	err = tt.server.Auth().UpsertMFADevice(ctx, user, dev)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
+	c.Assert(err, check.IsNil)
 
 	// a completely invalid token should return access denied
 	err = clt.CheckPassword("user1", pass, "123456")
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	// an invalid token should return access denied
 	//
@@ -1227,43 +1123,38 @@ func TestOTPCRUD(t *testing.T) {
 	// valid for 30 seconds + 30 second skew before and after for a usability
 	// reasons. so a token made between seconds 31 and 60 is still valid, and
 	// invalidity starts at 61 seconds in the future.
-	invalidToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now().Add(61*time.Second))
-	require.NoError(t, err)
+	invalidToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now().Add(61*time.Second))
+	c.Assert(err, check.IsNil)
 	err = clt.CheckPassword("user1", pass, invalidToken)
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	// a valid token (created right now and from a valid key) should return success
-	validToken, err := totp.GenerateCode(otpSecret, tt.server.Clock().Now())
-	require.NoError(t, err)
+	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
+	c.Assert(err, check.IsNil)
 
 	err = clt.CheckPassword("user1", pass, validToken)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
 	err = clt.CheckPassword("user1", pass, validToken)
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 }
 
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
-func TestWebSessionWithoutAccessRequest(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	req := AuthenticateUserRequest{
 		Username: user,
@@ -1273,65 +1164,60 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	}
 	// authentication attempt fails with no password set up
 	_, err = proxy.AuthenticateWebUser(req)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.UpsertPassword(user, pass)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// success with password set up
 	ws, err := proxy.AuthenticateWebUser(req)
-	require.NoError(t, err)
-	require.NotEqual(t, ws, "")
+	c.Assert(err, check.IsNil)
+	c.Assert(ws, check.Not(check.Equals), "")
 
-	web, err := tt.server.NewClientFromWebSession(ws)
-	require.NoError(t, err)
+	web, err := s.server.NewClientFromWebSession(ws)
+	c.Assert(err, check.IsNil)
 
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	ns, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	new, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
-	require.NoError(t, err)
-	require.NotNil(t, ns)
+	c.Assert(err, check.IsNil)
+	c.Assert(new, check.NotNil)
 
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(context.TODO(), user)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 }
 
-func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user := "user2"
 	pass := []byte("abc123")
 
 	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
-	require.NoError(t, err)
-	require.Len(t, newUser.GetRoles(), 1)
-	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
+	c.Assert(err, check.IsNil)
+	c.Assert(newUser.GetRoles(), check.HasLen, 1)
+	c.Assert(newUser.GetRoles(), check.DeepEquals, []string{"user:user2"})
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	// Create a user to create a web session for.
 	req := AuthenticateUserRequest{
@@ -1342,45 +1228,45 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	}
 
 	err = clt.UpsertPassword(user, pass)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	ws, err := proxy.AuthenticateWebUser(req)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	web, err := tt.server.NewClientFromWebSession(ws)
-	require.NoError(t, err)
+	web, err := s.server.NewClientFromWebSession(ws)
+	c.Assert(err, check.IsNil)
 
 	initialRole := newUser.GetRoles()[0]
 	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Create a approved access request.
 	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Set a lesser expiry date, to test switching back to default expiration later.
-	accessReq.SetAccessExpiry(tt.clock.Now().Add(time.Minute * 10))
+	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
-	require.NoError(t, err)
-	require.Equal(t, sess1.Expiry(), tt.clock.Now().Add(time.Minute*10))
-	require.Equal(t, sess1.GetLoginTime(), initialSession.GetLoginTime())
+	c.Assert(err, check.IsNil)
+	c.Assert(sess1.Expiry(), check.Equals, s.clock.Now().Add(time.Minute*10))
+	c.Assert(sess1.GetLoginTime(), check.Equals, initialSession.GetLoginTime())
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Roles extracted from cert should contain the initial role and the role assigned with access request.
 	roles, err := services.ExtractRolesFromCert(sshcert)
-	require.NoError(t, err)
-	require.Len(t, roles, 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.HasLen, 2)
 
 	mappedRole := map[string]string{
 		roles[0]: "",
@@ -1388,23 +1274,23 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	}
 
 	_, hasRole := mappedRole[initialRole]
-	require.Equal(t, hasRole, true)
+	c.Assert(hasRole, check.Equals, true)
 
 	_, hasRole = mappedRole["test-request-role"]
-	require.Equal(t, hasRole, true)
+	c.Assert(hasRole, check.Equals, true)
 
 	// certRequests extracts the active requests from a PEM encoded TLS cert.
 	certRequests := func(tlsCert []byte) []string {
 		cert, err := tlsca.ParseCertificatePEM(tlsCert)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		return identity.ActiveRequests
 	}
 
-	require.Empty(t, cmp.Diff(certRequests(sess1.GetTLSCert()), []string{accessReq.GetName()}))
+	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
 	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
@@ -1412,127 +1298,117 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
 	})
-	require.NoError(t, err)
-	require.Equal(t, sess2.GetExpiryTime(), initialSession.GetExpiryTime())
-	require.Equal(t, sess2.GetLoginTime(), initialSession.GetLoginTime())
+	c.Assert(err, check.IsNil)
+	c.Assert(sess2.GetExpiryTime(), check.Equals, initialSession.GetExpiryTime())
+	c.Assert(sess2.GetLoginTime(), check.Equals, initialSession.GetLoginTime())
 
 	sshcert, err = sshutils.ParseCertificate(sess2.GetPub())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	roles, err = services.ExtractRolesFromCert(sshcert)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, []string{initialRole}))
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.DeepEquals, []string{initialRole})
 
-	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
+	c.Assert(certRequests(sess2.GetTLSCert()), check.HasLen, 0)
 }
 
 // TestGetCertAuthority tests certificate authority permissions
-func TestGetCertAuthority(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestGetCertAuthority(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	// generate server keys for node
-	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
-	require.NoError(t, err)
+	nodeClt, err := s.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
+	c.Assert(err, check.IsNil)
 	defer nodeClt.Close()
 
 	// node is authorized to fetch CA without secrets
 	ca, err := nodeClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
-		require.Nil(t, keyPair.Key)
+		c.Assert(keyPair.Key, check.IsNil)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {
-		require.Nil(t, keyPair.PrivateKey)
+		c.Assert(keyPair.PrivateKey, check.IsNil)
 	}
 
 	// node is not authorized to fetch CA with secrets
 	_, err = nodeClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, true)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// non-admin users are not allowed to get access to private key material
 	user, err := types.NewUser("bob")
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, []string{user.GetName()})
-	err = tt.server.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
+	err = s.server.Auth().UpsertRole(ctx, role)
+	c.Assert(err, check.IsNil)
 
 	user.AddRole(role.GetName())
-	err = tt.server.Auth().UpsertUser(user)
-	require.NoError(t, err)
+	err = s.server.Auth().UpsertUser(user)
+	c.Assert(err, check.IsNil)
 
-	userClt, err := tt.server.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
+	userClt, err := s.server.NewClient(TestUser(user.GetName()))
+	c.Assert(err, check.IsNil)
 	defer userClt.Close()
 
 	// user is authorized to fetch CA without secrets
 	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// user is not authorized to fetch CA with secrets
 	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, true)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
-func TestPluginData(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
+func (s *TLSSuite) TestPluginData(c *check.C) {
 	priv, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	user := "user1"
 	role := "some-role"
-	_, err = CreateUserRoleAndRequestable(tt.server.Auth(), user, role)
-	require.NoError(t, err)
+	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
+	c.Assert(err, check.IsNil)
 
 	testUser := TestUser(user)
 	testUser.TTL = time.Hour
-	userClient, err := tt.server.NewClient(testUser)
-	require.NoError(t, err)
+	userClient, err := s.server.NewClient(testUser)
+	c.Assert(err, check.IsNil)
 
 	plugin := "my-plugin"
-	_, err = CreateAccessPluginUser(context.TODO(), tt.server.Auth(), plugin)
-	require.NoError(t, err)
+	_, err = CreateAccessPluginUser(context.TODO(), s.server.Auth(), plugin)
+	c.Assert(err, check.IsNil)
 
 	pluginUser := TestUser(plugin)
 	pluginUser.TTL = time.Hour
-	pluginClient, err := tt.server.NewClient(pluginUser)
-	require.NoError(t, err)
+	pluginClient, err := s.server.NewClient(pluginUser)
+	c.Assert(err, check.IsNil)
 
 	req, err := services.NewAccessRequest(user, role)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	require.NoError(t, userClient.CreateAccessRequest(context.TODO(), req))
+	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
 
 	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
@@ -1542,18 +1418,18 @@ func TestPluginData(t *testing.T) {
 			"foo": "bar",
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
-	require.NoError(t, err)
-	require.Equal(t, len(data), 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(data), check.Equals, 1)
 
 	entry, ok := data[0].Entries()[plugin]
-	require.Equal(t, ok, true)
-	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
+	c.Assert(ok, check.Equals, true)
+	c.Assert(entry.Data, check.DeepEquals, map[string]string{"foo": "bar"})
 
 	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
@@ -1567,27 +1443,24 @@ func TestPluginData(t *testing.T) {
 			"foo": "bar",
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
-	require.NoError(t, err)
-	require.Equal(t, len(data), 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(data), check.Equals, 1)
 
 	entry, ok = data[0].Entries()[plugin]
-	require.Equal(t, ok, true)
-	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"spam": "eggs"}))
+	c.Assert(ok, check.Equals, true)
+	c.Assert(entry.Data, check.DeepEquals, map[string]string{"spam": "eggs"})
 }
 
 // TestGenerateCerts tests edge cases around authorization of
 // certificate generation for servers and users
 func TestGenerateCerts(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
-
 	srv := newTestTLSServer(t)
 	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
@@ -1974,48 +1847,45 @@ func TestGenerateCerts(t *testing.T) {
 
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
-func TestGenerateAppToken(t *testing.T) {
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	authClient, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
-	require.NoError(t, err)
+func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
+	authClient, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
+	c.Assert(err, check.IsNil)
 
 	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
 		Type:       types.JWTSigner,
-		DomainName: tt.server.ClusterName(),
+		DomainName: s.server.ClusterName(),
 	}, true)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	signer, err := tt.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
-	require.NoError(t, err)
-	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), tt.clock)
-	require.NoError(t, err)
+	signer, err := s.server.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ca)
+	c.Assert(err, check.IsNil)
+	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
+	c.Assert(err, check.IsNil)
 
 	tests := []struct {
 		inMachineRole types.SystemRole
-		inComment     string
+		inComment     check.CommentInterface
 		outError      bool
 	}{
 		{
 			inMachineRole: types.RoleNode,
-			inComment:     "nodes should not have the ability to generate tokens",
+			inComment:     check.Commentf("nodes should not have the ability to generate tokens"),
 			outError:      true,
 		},
 		{
 			inMachineRole: types.RoleProxy,
-			inComment:     "proxies should not have the ability to generate tokens",
+			inComment:     check.Commentf("proxies should not have the ability to generate tokens"),
 			outError:      true,
 		},
 		{
 			inMachineRole: types.RoleApp,
-			inComment:     "only apps should have the ability to generate tokens",
+			inComment:     check.Commentf("only apps should have the ability to generate tokens"),
 			outError:      false,
 		},
 	}
-	for _, ts := range tests {
-		client, err := tt.server.NewClient(TestBuiltin(ts.inMachineRole))
-		require.NoError(t, err, ts.inComment)
+	for _, tt := range tests {
+		client, err := s.server.NewClient(TestBuiltin(tt.inMachineRole))
+		c.Assert(err, check.IsNil, tt.inComment)
 
 		token, err := client.GenerateAppToken(
 			context.Background(),
@@ -2023,44 +1893,42 @@ func TestGenerateAppToken(t *testing.T) {
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
 				URI:      "http://localhost:8080",
-				Expires:  tt.clock.Now().Add(1 * time.Minute),
+				Expires:  s.clock.Now().Add(1 * time.Minute),
 			})
-		require.Equal(t, err != nil, ts.outError, ts.inComment)
-		if !ts.outError {
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		if !tt.outError {
 			claims, err := key.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
 				URI:      "http://localhost:8080",
 			})
-			require.NoError(t, err, ts.inComment)
-			require.Equal(t, claims.Username, "foo@example.com", ts.inComment)
-			require.Empty(t, cmp.Diff(claims.Roles, []string{"bar", "baz"}), ts.inComment)
+			c.Assert(err, check.IsNil, tt.inComment)
+			c.Assert(claims.Username, check.Equals, "foo@example.com", tt.inComment)
+			c.Assert(claims.Roles, check.DeepEquals, []string{"bar", "baz"}, tt.inComment)
 		}
 	}
 }
 
 // TestCertificateFormat makes sure that certificates are generated with the
 // correct format.
-func TestCertificateFormat(t *testing.T) {
+func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	priv, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
 	_, err = ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// use admin client to create user and role
-	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"})
-	require.NoError(t, err)
+	user, userRole, err := CreateUserAndRole(s.server.Auth(), "user", []string{"user"})
+	c.Assert(err, check.IsNil)
 
 	pass := []byte("very secure password")
-	err = tt.server.Auth().UpsertPassword(user.GetName(), pass)
-	require.NoError(t, err)
+	err = s.server.Auth().UpsertPassword(user.GetName(), pass)
+	c.Assert(err, check.IsNil)
 
 	tests := []struct {
 		inRoleCertificateFormat   string
@@ -2081,15 +1949,15 @@ func TestCertificateFormat(t *testing.T) {
 		},
 	}
 
-	for _, ts := range tests {
+	for _, tt := range tests {
 		roleOptions := userRole.GetOptions()
-		roleOptions.CertificateFormat = ts.inRoleCertificateFormat
+		roleOptions.CertificateFormat = tt.inRoleCertificateFormat
 		userRole.SetOptions(roleOptions)
-		err := tt.server.Auth().UpsertRole(ctx, userRole)
-		require.NoError(t, err)
+		err := s.server.Auth().UpsertRole(ctx, userRole)
+		c.Assert(err, check.IsNil)
 
-		proxyClient, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-		require.NoError(t, err)
+		proxyClient, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+		c.Assert(err, check.IsNil)
 
 		// authentication attempt fails with password auth only
 		re, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
@@ -2099,66 +1967,59 @@ func TestCertificateFormat(t *testing.T) {
 					Password: pass,
 				},
 			},
-			CompatibilityMode: ts.inClientCertificateFormat,
+			CompatibilityMode: tt.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
 			PublicKey:         pub,
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		parsedCert, err := sshutils.ParseCertificate(re.Cert)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		_, ok := parsedCert.Extensions[teleport.CertExtensionTeleportRoles]
-		require.Equal(t, ok, ts.outCertContainsRole)
+		c.Assert(ok, check.Equals, tt.outCertContainsRole)
 	}
 }
 
 // TestClusterConfigContext checks that the cluster configuration gets passed
 // along in the context and permissions get updated accordingly.
-func TestClusterConfigContext(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestClusterConfigContext(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	_, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, this should fail because we are recording
 	// at the nodes not at the proxy
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// update cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
-	require.NoError(t, err)
-	err = tt.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	c.Assert(err, check.IsNil)
 
 	// try and generate a host cert, now the proxy should be able to generate a
 	// host cert because it's in recording mode.
 	_, err = proxy.GenerateHostCert(pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestAuthenticateWebUserOTP tests web authentication flow for password + OTP
-func TestAuthenticateWebUserOTP(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user := "ws-test"
 	pass := []byte("ws-abc123")
@@ -2166,44 +2027,44 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().UpsertPassword(user, pass)
-	require.NoError(t, err)
+	err = s.server.Auth().UpsertPassword(user, pass)
+	c.Assert(err, check.IsNil)
 
-	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
-	require.NoError(t, err)
-	err = tt.server.Auth().UpsertMFADevice(ctx, user, dev)
-	require.NoError(t, err)
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
+	c.Assert(err, check.IsNil)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, tt.clock.Now())
-	require.NoError(t, err)
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
+	c.Assert(err, check.IsNil)
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
-	require.NoError(t, err)
-	err = tt.server.Auth().SetAuthPreference(ctx, authPreference)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
+	c.Assert(err, check.IsNil)
 
 	// authentication attempt fails with wrong password
 	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication attempt fails with wrong otp
 	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: "wrong123"},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication attempt fails with password auth only
 	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
@@ -2212,50 +2073,45 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 			Password: pass,
 		},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication succeeds
 	ws, err := proxy.AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: validToken},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	userClient, err := tt.server.NewClientFromWebSession(ws)
-	require.NoError(t, err)
+	userClient, err := s.server.NewClientFromWebSession(ws)
+	c.Assert(err, check.IsNil)
 
 	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	err = clt.DeleteWebSession(user, ws.GetName())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 }
 
 // TestLoginAttempts makes sure the login attempt counter is incremented and
 // reset correctly.
-func TestLoginAttempts(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestLoginAttempts(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
+	c.Assert(err, check.IsNil)
 
 	err = clt.UpsertPassword(user, pass)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	req := AuthenticateUserRequest{
 		Username: user,
@@ -2265,120 +2121,112 @@ func TestLoginAttempts(t *testing.T) {
 	}
 	// authentication attempt fails with bad password
 	_, err = proxy.AuthenticateWebUser(req)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// creates first failed login attempt
-	loginAttempts, err := tt.server.Auth().GetUserLoginAttempts(user)
-	require.NoError(t, err)
-	require.Len(t, loginAttempts, 1)
+	loginAttempts, err := s.server.Auth().GetUserLoginAttempts(user)
+	c.Assert(err, check.IsNil)
+	c.Assert(loginAttempts, check.HasLen, 1)
 
 	// try second time with wrong pass
 	req.Pass.Password = pass
 	_, err = proxy.AuthenticateWebUser(req)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// clears all failed attempts after success
-	loginAttempts, err = tt.server.Auth().GetUserLoginAttempts(user)
-	require.NoError(t, err)
-	require.Len(t, loginAttempts, 0)
+	loginAttempts, err = s.server.Auth().GetUserLoginAttempts(user)
+	c.Assert(err, check.IsNil)
+	c.Assert(loginAttempts, check.HasLen, 0)
 }
 
-func TestChangeUserAuthenticationSettings(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestChangeUserAuthentication(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(true),
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
+	c.Assert(err, check.IsNil)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOTP,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().SetAuthPreference(ctx, authPreference)
-	require.NoError(t, err)
+	err = s.server.Auth().SetAuthPreference(ctx, authPreference)
+	c.Assert(err, check.IsNil)
 
 	username := "user1"
 	// Create a local user.
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+	token, err := s.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	res, err := tt.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+	res, err := s.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    token.GetName(),
 		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), tt.server.Clock().Now())
-	require.NoError(t, err)
+	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), s.server.Clock().Now())
+	c.Assert(err, check.IsNil)
 
-	_, err = tt.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+	_, err = s.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     token.GetName(),
 		NewPassword: []byte("qweqweqwe"),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
 			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
 		}},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
 // performed when local auth is disabled.
-func TestLoginNoLocalAuth(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	user := "foo"
 	pass := []byte("barbaz")
 
 	// Create a local user.
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	err = clt.UpsertPassword(user, pass)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Set auth preference to disallow local auth.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		AllowLocalAuth: types.NewBoolOption(false),
 	})
-	require.NoError(t, err)
-	err = tt.server.Auth().SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetAuthPreference(ctx, authPref)
+	c.Assert(err, check.IsNil)
 
 	// Make sure access is denied for web login.
-	_, err = tt.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = s.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
 		},
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	// Make sure access is denied for SSH login.
 	_, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	_, err = tt.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
+	c.Assert(err, check.IsNil)
+	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass: &PassCreds{
@@ -2387,22 +2235,19 @@ func TestLoginNoLocalAuth(t *testing.T) {
 		},
 		PublicKey: pub,
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 }
 
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.
-func TestCipherSuites(t *testing.T) {
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	otherServer, err := tt.server.AuthServer.NewTestTLSServer()
-	require.NoError(t, err)
+func (s *TLSSuite) TestCipherSuites(c *check.C) {
+	otherServer, err := s.server.AuthServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
 	defer otherServer.Close()
 
 	// Create a client with ciphersuites that the server does not support.
-	tlsConfig, err := tt.server.ClientTLSConfig(TestNop())
-	require.NoError(t, err)
+	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
+	c.Assert(err, check.IsNil)
 	tlsConfig.CipherSuites = []uint16{
 		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
@@ -2410,7 +2255,7 @@ func TestCipherSuites(t *testing.T) {
 
 	addrs := []string{
 		otherServer.Addr().String(),
-		tt.server.Addr().String(),
+		s.server.Addr().String(),
 	}
 	client, err := NewClient(client.Config{
 		Addrs: addrs,
@@ -2419,30 +2264,26 @@ func TestCipherSuites(t *testing.T) {
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Requests should fail.
 	_, err = client.GetClusterName()
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 }
 
 // TestTLSFailover tests HTTP client failover between two tls servers
-func TestTLSFailover(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	otherServer, err := tt.server.AuthServer.NewTestTLSServer()
-	require.NoError(t, err)
+func (s *TLSSuite) TestTLSFailover(c *check.C) {
+	otherServer, err := s.server.AuthServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
 	defer otherServer.Close()
+	ctx := context.Background()
 
-	tlsConfig, err := tt.server.ClientTLSConfig(TestNop())
-	require.NoError(t, err)
+	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
+	c.Assert(err, check.IsNil)
 
 	addrs := []string{
 		otherServer.Addr().String(),
-		tt.server.Addr().String(),
+		s.server.Addr().String(),
 	}
 	client, err := NewClient(client.Config{
 		Addrs: addrs,
@@ -2451,61 +2292,57 @@ func TestTLSFailover(t *testing.T) {
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections
 	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
-		require.True(t, trace.IsNotFound(err))
+		fixtures.ExpectNotFound(c, err)
 	}
 
 	// stop the server to get response
 	err = otherServer.Stop()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// client detects closed sockets and reconnect to the backup server
 	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
-		require.True(t, trace.IsNotFound(err))
+		fixtures.ExpectNotFound(c, err)
 	}
 }
 
 // TestRegisterCAPin makes sure that registration only works with a valid
 // CA pin.
-func TestRegisterCAPin(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
 		TTL: proto.Duration(time.Hour),
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
 	priv, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pin should be.
-	localCAResponse, err := tt.server.AuthServer.AuthServer.GetClusterCACert(ctx)
-	require.NoError(t, err)
+	localCAResponse, err := s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
+	c.Assert(err, check.IsNil)
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	require.NoError(t, err)
-	require.Len(t, caPins, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(caPins, check.HasLen, 1)
 	caPin := caPins[0]
 
 	// Attempt to register with valid CA pin, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2516,14 +2353,14 @@ func TestRegisterCAPin(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{caPin},
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2534,13 +2371,13 @@ func TestRegisterCAPin(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", caPin},
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Attempt to register with invalid CA pin, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2551,13 +2388,13 @@ func TestRegisterCAPin(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123"},
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	// Attempt to register with multiple invalid CA pins, should fail.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2568,32 +2405,32 @@ func TestRegisterCAPin(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", "sha256:456"},
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	// Add another cert to the CA (dupe the current one for simplicity)
-	hostCA, err := tt.server.AuthServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.AuthServer.ClusterName,
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
 		Type:       types.HostCA,
 	}, true)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	activeKeys := hostCA.GetActiveKeys()
 	activeKeys.TLS = append(activeKeys.TLS, activeKeys.TLS...)
 	hostCA.SetActiveKeys(activeKeys)
-	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
-	require.NoError(t, err)
+	err = s.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
+	c.Assert(err, check.IsNil)
 
 	// Calculate what CA pins should be.
-	localCAResponse, err = tt.server.AuthServer.AuthServer.GetClusterCACert(ctx)
-	require.NoError(t, err)
+	localCAResponse, err = s.server.AuthServer.AuthServer.GetClusterCACert(ctx)
+	c.Assert(err, check.IsNil)
 	caPins, err = tlsca.CalculatePins(localCAResponse.TLSCA)
-	require.NoError(t, err)
-	require.Len(t, caPins, 2)
+	c.Assert(err, check.IsNil)
+	c.Assert(caPins, check.HasLen, 2)
 
 	// Attempt to register with multiple CA pins, should work
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2604,39 +2441,35 @@ func TestRegisterCAPin(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPins:               caPins,
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestRegisterCAPath makes sure registration only works with a valid CA
 // file on disk.
-func TestRegisterCAPath(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
+	token, err := s.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{
 			types.RoleProxy,
 		},
 		TTL: proto.Duration(time.Hour),
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Generate public and private keys for node.
 	priv, pub, err := native.GenerateKeyPair()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Attempt to register with nothing at the CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2646,26 +2479,26 @@ func TestRegisterCAPath(t *testing.T) {
 		AdditionalPrincipals: []string{"example.com"},
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Extract the root CA public key and write it out to the data dir.
-	hostCA, err := tt.server.AuthServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.AuthServer.ClusterName,
+	hostCA, err := s.server.AuthServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.AuthServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	certs := services.GetTLSCerts(hostCA)
-	require.Len(t, certs, 1)
+	c.Assert(certs, check.HasLen, 1)
 	certPem := certs[0]
-	caPath := filepath.Join(tt.dataDir, defaults.CACertFile)
+	caPath := filepath.Join(s.dataDir, defaults.CACertFile)
 	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Attempt to register with valid CA path, should work.
 	_, err = Register(RegisterParams{
-		Servers: []utils.NetAddr{utils.FromAddr(tt.server.Addr())},
+		Servers: []utils.NetAddr{utils.FromAddr(s.server.Addr())},
 		Token:   token,
 		ID: IdentityID{
 			HostUUID: "once",
@@ -2676,19 +2509,15 @@ func TestRegisterCAPath(t *testing.T) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
-		Clock:                tt.clock,
+		Clock:                s.clock,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
 // TestEventsNodePresence tests streaming node presence API -
 // announcing node and keeping node alive
-func TestEventsNodePresence(t *testing.T) {
-	t.Parallel()
-
+func (s *TLSSuite) TestEventsNodePresence(c *check.C) {
 	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -2701,21 +2530,21 @@ func TestEventsNodePresence(t *testing.T) {
 		},
 	}
 	node.SetExpiry(time.Now().Add(2 * time.Second))
-	clt, err := tt.server.NewClient(TestIdentity{
+	clt, err := s.server.NewClient(TestIdentity{
 		I: BuiltinRole{
 			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, tt.server.ClusterName()),
+			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, s.server.ClusterName()),
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
 	keepAlive, err := clt.UpsertNode(ctx, node)
-	require.NoError(t, err)
-	require.NotNil(t, keepAlive)
+	c.Assert(err, check.IsNil)
+	c.Assert(keepAlive, check.NotNil)
 
 	keepAliver, err := clt.NewKeepAliver(ctx)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer keepAliver.Close()
 
 	keepAlive.Expires = time.Now().Add(2 * time.Second)
@@ -2723,21 +2552,21 @@ func TestEventsNodePresence(t *testing.T) {
 	case keepAliver.KeepAlives() <- *keepAlive:
 		// ok
 	case <-time.After(time.Second):
-		t.Fatalf("time out sending keep ailve")
+		c.Fatalf("time out sending keep ailve")
 	case <-keepAliver.Done():
-		t.Fatalf("unknown problem sending keep ailve")
+		c.Fatalf("unknown problem sending keep ailve")
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
-	require.NoError(t, err)
+	nopClt, err := s.server.NewClient(TestBuiltin(types.RoleNop))
+	c.Assert(err, check.IsNil)
 	defer nopClt.Close()
 
 	_, err = nopClt.UpsertNode(ctx, node)
-	require.True(t, trace.IsAccessDenied(err))
+	fixtures.ExpectAccessDenied(c, err)
 
 	k2, err := nopClt.NewKeepAliver(ctx)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	keepAlive.Expires = time.Now().Add(2 * time.Second)
 	go func() {
@@ -2749,53 +2578,49 @@ func TestEventsNodePresence(t *testing.T) {
 
 	select {
 	case <-time.After(time.Second):
-		t.Fatalf("time out expecting error")
+		c.Fatalf("time out expecting error")
 	case <-k2.Done():
 	}
 
-	require.True(t, trace.IsAccessDenied(k2.Error()))
+	fixtures.ExpectAccessDenied(c, k2.Error())
 }
 
 // TestEventsPermissions tests events with regards
 // to certificate authority rotation
-func TestEventsPermissions(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestBuiltin(types.RoleNode))
-	require.NoError(t, err)
+func (s *TLSSuite) TestEventsPermissions(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleNode))
+	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
+	ctx := context.TODO()
 	w, err := clt.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer w.Close()
 
 	select {
 	case <-time.After(2 * time.Second):
-		t.Fatalf("Timeout waiting for init event")
+		c.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		c.Assert(event.Type, check.Equals, types.OpInit)
 	}
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	ca, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, false)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	suite.ExpectResource(t, w, 3*time.Second, ca)
+	suite.ExpectResource(c, w, 3*time.Second, ca)
 
 	type testCase struct {
 		name     string
@@ -2844,14 +2669,14 @@ func TestEventsPermissions(t *testing.T) {
 	}
 
 	tryWatch := func(tc testCase) {
-		client, err := tt.server.NewClient(tc.identity)
-		require.NoError(t, err)
+		client, err := s.server.NewClient(tc.identity)
+		c.Assert(err, check.IsNil)
 		defer client.Close()
 
 		watcher, err := client.NewWatcher(ctx, types.Watch{
 			Kinds: tc.watches,
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 		defer watcher.Close()
 
 		go func() {
@@ -2863,11 +2688,11 @@ func TestEventsPermissions(t *testing.T) {
 
 		select {
 		case <-time.After(time.Second):
-			t.Fatalf("time out expecting error in test %q", tc.name)
+			c.Fatalf("time out expecting error in test %q", tc.name)
 		case <-watcher.Done():
 		}
 
-		require.True(t, trace.IsAccessDenied(watcher.Error()))
+		fixtures.ExpectAccessDenied(c, watcher.Error())
 	}
 
 	for _, tc := range testCases {
@@ -2876,14 +2701,9 @@ func TestEventsPermissions(t *testing.T) {
 }
 
 // TestEvents tests events suite
-func TestEvents(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestEvents(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS:       clt,
@@ -2894,20 +2714,16 @@ func TestEvents(t *testing.T) {
 		Access:        clt,
 		UsersS:        clt,
 	}
-	suite.Events(t)
+	suite.Events(c)
 }
 
 // TestEventsClusterConfig test cluster configuration
-func TestEventsClusterConfig(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
-	require.NoError(t, err)
+func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(types.RoleAdmin))
+	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
+	ctx := context.TODO()
 	w, err := clt.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindStaticTokens},
@@ -2915,33 +2731,33 @@ func TestEventsClusterConfig(t *testing.T) {
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterName},
 	}})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer w.Close()
 
 	select {
 	case <-time.After(2 * time.Second):
-		t.Fatalf("Timeout waiting for init event")
+		c.Fatalf("Timeout waiting for init event")
 	case event := <-w.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		c.Assert(event.Type, check.Equals, types.OpInit)
 	}
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = s.server.Auth().RotateCertAuthority(ctx, RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	ca, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
+	ca, err := s.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: s.server.ClusterName(),
 		Type:       types.HostCA,
 	}, true)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	suite.ExpectResource(t, w, 3*time.Second, ca)
+	suite.ExpectResource(c, w, 3*time.Second, ca)
 
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -2953,32 +2769,32 @@ func TestEventsClusterConfig(t *testing.T) {
 			},
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().SetStaticTokens(staticTokens)
-	require.NoError(t, err)
+	err = s.server.Auth().SetStaticTokens(staticTokens)
+	c.Assert(err, check.IsNil)
 
-	staticTokens, err = tt.server.Auth().GetStaticTokens()
-	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, staticTokens)
+	staticTokens, err = s.server.Auth().GetStaticTokens()
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, staticTokens)
 
 	// create provision token and expect the update event
 	token, err := types.NewProvisionToken(
 		"tok2", types.SystemRoles{types.RoleProxy}, time.Now().UTC().Add(3*time.Hour))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	err = tt.server.Auth().UpsertToken(ctx, token)
-	require.NoError(t, err)
+	err = s.server.Auth().UpsertToken(ctx, token)
+	c.Assert(err, check.IsNil)
 
-	token, err = tt.server.Auth().GetToken(ctx, token.GetName())
-	require.NoError(t, err)
+	token, err = s.server.Auth().GetToken(ctx, token.GetName())
+	c.Assert(err, check.IsNil)
 
-	suite.ExpectResource(t, w, 3*time.Second, token)
+	suite.ExpectResource(c, w, 3*time.Second, token)
 
 	// delete token and expect delete event
-	err = tt.server.Auth().DeleteToken(ctx, token.GetName())
-	require.NoError(t, err)
-	suite.ExpectDeleteResource(t, w, 3*time.Second, &types.ResourceHeader{
+	err = s.server.Auth().DeleteToken(ctx, token.GetName())
+	c.Assert(err, check.IsNil)
+	suite.ExpectDeleteResource(c, w, 3*time.Second, &types.ResourceHeader{
 		Kind:    types.KindToken,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -2991,17 +2807,17 @@ func TestEventsClusterConfig(t *testing.T) {
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
 	})
-	require.NoError(t, err)
-	err = tt.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterAuditConfig(ctx, auditConfig)
+	c.Assert(err, check.IsNil)
 
-	auditConfigResource, err := tt.server.Auth().GetClusterAuditConfig(ctx)
-	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, auditConfigResource)
+	auditConfigResource, err := s.server.Auth().GetClusterAuditConfig(ctx)
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, auditConfigResource)
 
 	// update cluster name resource metadata
-	clusterNameResource, err := tt.server.Auth().GetClusterName()
-	require.NoError(t, err)
+	clusterNameResource, err := s.server.Auth().GetClusterName()
+	c.Assert(err, check.IsNil)
 
 	// update the resource with different labels to test the change
 	clusterName := &types.ClusterNameV2{
@@ -3017,33 +2833,28 @@ func TestEventsClusterConfig(t *testing.T) {
 		Spec: clusterNameResource.(*types.ClusterNameV2).Spec,
 	}
 
-	err = tt.server.Auth().DeleteClusterName()
-	require.NoError(t, err)
-	err = tt.server.Auth().SetClusterName(clusterName)
-	require.NoError(t, err)
+	err = s.server.Auth().DeleteClusterName()
+	c.Assert(err, check.IsNil)
+	err = s.server.Auth().SetClusterName(clusterName)
+	c.Assert(err, check.IsNil)
 
-	clusterNameResource, err = tt.server.Auth().ClusterConfiguration.GetClusterName()
-	require.NoError(t, err)
-	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
+	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
+	c.Assert(err, check.IsNil)
+	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
 }
 
-func TestNetworkRestrictions(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
+func (s *TLSSuite) TestNetworkRestrictions(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		RestrictionsS: clt,
 	}
-	suite.NetworkRestrictions(t)
+	suite.NetworkRestrictions(c)
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.
-func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
 		publicKey, err := utils.ParsePublicKey(pair.PublicKey)

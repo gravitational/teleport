@@ -2098,8 +2098,8 @@ func (set RoleSet) DesktopClipboard() bool {
 }
 
 // DesktopDirectorySharing returns true if the role set has directory sharing
-// enabled. This setting is disabled if one or more of the roles in the set has
-// disabled it.
+// enabled. This setting is enabled if one or more of the roles in the set has
+// enabled it.
 func (set RoleSet) DesktopDirectorySharing() bool {
 	for _, role := range set {
 		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {

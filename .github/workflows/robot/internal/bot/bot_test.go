@@ -20,56 +20,69 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/env"
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestClassifyChanges checks that PR contents are correctly parsed for docs and
+// TestParseChanges checks that PR contents are correctly parsed for docs and
 // code changes.
-func TestClassifyChanges(t *testing.T) {
+func TestParseChanges(t *testing.T) {
 	tests := []struct {
 		desc  string
-		files []github.PullRequestFile
+		files []string
 		docs  bool
 		code  bool
 	}{
 		{
 			desc: "code-only",
-			files: []github.PullRequestFile{
-				{Name: "file.go"},
-				{Name: "examples/README.md"},
+			files: []string{
+				"file.go",
+				"examples/README.md",
 			},
 			docs: false,
 			code: true,
 		},
 		{
 			desc: "docs-only",
-			files: []github.PullRequestFile{
-				{Name: "docs/docs.md"},
+			files: []string{
+				"docs/docs.md",
 			},
 			docs: true,
 			code: false,
 		},
 		{
 			desc: "code-and-code",
-			files: []github.PullRequestFile{
-				{Name: "file.go"},
-				{Name: "docs/docs.md"},
+			files: []string{
+				"file.go",
+				"docs/docs.md",
 			},
 			docs: true,
 			code: true,
 		},
 		{
 			desc:  "no-docs-no-code",
-			files: nil,
+			files: []string{},
 			docs:  false,
 			code:  false,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			docs, code, err := classifyChanges(test.files)
+			b := &Bot{
+				c: &Config{
+					Environment: &env.Environment{
+						Organization: "foo",
+						Repository:   "bar",
+						Number:       0,
+					},
+					GitHub: &fakeGithub{
+						files: test.files,
+					},
+				},
+			}
+			docs, code, err := b.parseChanges(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, docs, test.docs)
 			require.Equal(t, code, test.code)
@@ -77,55 +90,8 @@ func TestClassifyChanges(t *testing.T) {
 	}
 }
 
-func TestIsLargePR(t *testing.T) {
-	tests := []struct {
-		desc    string
-		files   []github.PullRequestFile
-		isLarge bool
-	}{
-		{
-			desc: "single file large",
-			files: []github.PullRequestFile{
-				{Name: "file.go", Additions: 5555},
-			},
-			isLarge: true,
-		},
-		{
-			desc: "single file not large",
-			files: []github.PullRequestFile{
-				{Name: "file.go", Additions: 5, Deletions: 2},
-			},
-			isLarge: false,
-		},
-		{
-			desc: "multiple files large",
-			files: []github.PullRequestFile{
-				{Name: "file.go", Additions: 502, Deletions: 2},
-				{Name: "file2.go", Additions: 10000, Deletions: 2000},
-			},
-			isLarge: true,
-		},
-		{
-			desc: "with autogen, not large",
-			files: []github.PullRequestFile{
-				{Name: "file.go", Additions: 502, Deletions: 2},
-				{Name: "file2.pb.go", Additions: 10000, Deletions: 2000},
-				{Name: "file_pb.js", Additions: 10000, Deletions: 2000},
-				{Name: "file2_pb.d.ts", Additions: 10000, Deletions: 2000},
-				{Name: "webassets/12345/app.js", Additions: 10000, Deletions: 2000},
-			},
-			isLarge: false,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			require.Equal(t, test.isLarge, isLargePR(test.files))
-		})
-	}
-}
-
 type fakeGithub struct {
-	files     []github.PullRequestFile
+	files     []string
 	pull      github.PullRequest
 	reviewers []string
 	reviews   []github.Review
@@ -151,7 +117,7 @@ func (f *fakeGithub) ListPullRequests(ctx context.Context, organization string, 
 	return nil, nil
 }
 
-func (f *fakeGithub) ListFiles(ctx context.Context, organization string, repository string, number int) ([]github.PullRequestFile, error) {
+func (f *fakeGithub) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
 	return f.files, nil
 }
 

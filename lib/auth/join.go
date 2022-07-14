@@ -203,3 +203,17 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
 	return certs, nil
 }
+
+func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
+	tok, err := a.GetToken(ctx, token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !tok.GetRoles().Include(types.RoleAuth) {
+		return trace.AccessDenied("role does not match")
+	}
+	if err := a.DeleteToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}

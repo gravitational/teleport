@@ -37,7 +37,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -140,7 +140,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -243,7 +243,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -350,7 +350,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -633,7 +633,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -736,7 +736,7 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   RUNTIME: go1.18.3
   UID: "1000"
@@ -853,19 +853,19 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v10
-      PREVIOUS_VERSION_ONE_ROOT: v9
-      PREVIOUS_VERSION_TWO_ROOT: v8
+      CURRENT_VERSION_ROOT: v9
+      PREVIOUS_VERSION_ONE_ROOT: v8
+      PREVIOUS_VERSION_TWO_ROOT: v7
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (10)
+      # CURRENT_VERSION (9)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (9)
+      # PREVIOUS_VERSION_ONE (8)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (8)
+      # PREVIOUS_VERSION_TWO (7)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
@@ -1097,7 +1097,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1254,7 +1254,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1410,7 +1410,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -1564,7 +1564,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -2408,7 +2408,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -3526,7 +3526,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -3680,7 +3680,7 @@ kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -4530,7 +4530,7 @@ kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   RUNTIME: go1.18.3
 trigger:
   event:
@@ -4682,7 +4682,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  BUILDBOX_VERSION: "teleport11"
+  BUILDBOX_VERSION: "teleport10"
   RUNTIME: go1.17.9
 
 trigger:
@@ -5007,7 +5007,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport11
+  BUILDBOX_VERSION: teleport10
   GID: "1000"
   UID: "1000"
 trigger:
@@ -5102,7 +5102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:149
+# Generated at dronegen/misc.go:145
 ################################################
 
 kind: pipeline
@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:173
+# Generated at dronegen/misc.go:169
 ################################################
 
 kind: pipeline
@@ -5614,6 +5614,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0b31aa60031631eb74ab6f6cc76917472d5b239ad2151d37b1b19b263fb5d1c4
+hmac: 34263b8b17bde404ec85a7f09a6edd6679664c70a6ce53c66e6e3104a94212f4
 
 ...

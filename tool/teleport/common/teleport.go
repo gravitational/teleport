@@ -81,7 +81,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
 	forward := app.Command(teleport.ForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
@@ -241,14 +240,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&dbConfigCreateFlags.StaticDatabaseProtocol)
 	dbConfigureCreate.Flag("uri", "Address the proxied database is reachable at.").StringVar(&dbConfigCreateFlags.StaticDatabaseURI)
 	dbConfigureCreate.Flag("labels", "Comma-separated list of labels for the database, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.StaticDatabaseRawLabels)
-	dbConfigureCreate.Flag("aws-region", "(Only for RDS, Aurora, Redshift or ElastiCache) AWS region RDS, Aurora, Redshift or ElastiCache database instance is running in.").StringVar(&dbConfigCreateFlags.DatabaseAWSRegion)
-	dbConfigureCreate.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRedshiftClusterID)
-	dbConfigureCreate.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&dbConfigCreateFlags.DatabaseADDomain)
-	dbConfigureCreate.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&dbConfigCreateFlags.DatabaseADSPN)
-	dbConfigureCreate.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&dbConfigCreateFlags.DatabaseADKeytabFile)
-	dbConfigureCreate.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPProjectID)
-	dbConfigureCreate.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPInstanceID)
-	dbConfigureCreate.Flag("ca-cert-file", "Database CA certificate path.").StringVar(&dbConfigCreateFlags.DatabaseCACertFile)
 	dbConfigureCreate.Flag("output",
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
@@ -333,7 +324,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
-	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -373,8 +363,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
-	case sftp.FullCommand():
-		err = onSFTP()
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():

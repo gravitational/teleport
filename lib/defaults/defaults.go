@@ -383,6 +383,18 @@ var (
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
 
+	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
+	// to be considered when deciding to restart the process. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	ConnectionErrorMeasurementPeriod = 2 * time.Minute
+
+	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
+	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	MaxConnectionErrorsBeforeRestart = 5
+
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
 	MaxWatcherBackoff = time.Minute

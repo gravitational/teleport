@@ -17,20 +17,20 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-	"testing"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
 )
 
-func TestLicenseUnmarshal(t *testing.T) {
-	t.Parallel()
+type LicenseSuite struct {
+}
 
+var _ = check.Suite(&LicenseSuite{})
+
+func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
 		description string
 		input       string
@@ -103,18 +103,18 @@ func TestLicenseUnmarshal(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		comment := fmt.Sprintf("test case %q", tc.description)
+		comment := check.Commentf("test case %q", tc.description)
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(tc.expected, out))
+			c.Assert(err, check.IsNil, comment)
+			fixtures.DeepCompare(c, tc.expected, out)
 			data, err := MarshalLicense(out)
-			require.NoError(t, err, comment)
+			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(tc.expected, out2))
+			c.Assert(err, check.IsNil, comment)
+			fixtures.DeepCompare(c, tc.expected, out2)
 		} else {
-			require.IsType(t, err, tc.err, comment)
+			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}
 	}
 }

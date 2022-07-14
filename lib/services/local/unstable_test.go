@@ -22,8 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/jonboulle/clockwork"
+	"github.com/gravitational/teleport/lib/backend/lite"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -36,15 +35,12 @@ func TestSystemRoleAssertions(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	backend, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clockwork.NewFakeClock(),
-	})
+	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
 
-	defer backend.Close()
+	defer lite.Close()
 
-	unstable := NewUnstableService(backend)
+	unstable := NewUnstableService(lite)
 
 	_, err = unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	require.True(t, trace.IsNotFound(err))

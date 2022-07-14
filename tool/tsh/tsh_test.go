@@ -570,7 +570,7 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	rootAuth, rootProxy := makeTestServers(t, withBootstrap(requester, nodeAccessRole, connector, alice))
 
-	authAddr, err := rootAuth.AuthAddr()
+	authAddr, err := rootAuth.AuthSSHAddr()
 	require.NoError(t, err)
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
@@ -1682,7 +1682,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	require.NoError(t, err)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.Enabled = false
 	cfg.Log = utils.NewLoggerForTests()
 
@@ -1710,7 +1710,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		t.Fatal("auth server didn't start after 30s")
 	}
 
-	authAddr, err := auth.AuthAddr()
+	authAddr, err := auth.AuthSSHAddr()
 	require.NoError(t, err)
 
 	// Set up a test proxy service.
@@ -2184,8 +2184,7 @@ func TestSerializeProfiles(t *testing.T) {
 	}
 
 	testSerialization(t, expected, func(f string) (string, error) {
-		activeInfo, othersInfo := makeAllProfileInfo(activeProfile, []*client.ProfileStatus{otherProfile}, nil)
-		return serializeProfiles(activeInfo, othersInfo, nil, f)
+		return serializeProfiles(activeProfile, []*client.ProfileStatus{otherProfile}, f)
 	})
 }
 
@@ -2212,8 +2211,7 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 		ValidUntil: aTime,
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
-		active, _ := makeAllProfileInfo(profile, nil, nil)
-		return serializeProfiles(active, nil, nil, f)
+		return serializeProfiles(profile, nil, f)
 	})
 }
 
@@ -2224,40 +2222,7 @@ func TestSerializeProfilesNoActive(t *testing.T) {
 	}
 	`
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(nil, nil, nil, f)
-	})
-}
-
-func TestSerializeProfilesWithEnvVars(t *testing.T) {
-	cluster := "someCluster"
-	siteName := "someSiteName"
-	proxy := "example.com"
-	kubeCluster := "someKubeCluster"
-	kubeConfig := "someKubeConfigPath"
-	t.Setenv(proxyEnvVar, proxy)
-	t.Setenv(clusterEnvVar, cluster)
-	t.Setenv(siteEnvVar, siteName)
-	t.Setenv(kubeClusterEnvVar, kubeCluster)
-	t.Setenv(teleport.EnvKubeConfig, kubeConfig)
-	expected := fmt.Sprintf(`
-{
-  "profiles": [],
-  "environment": {
-    %q: %q,
-    %q: %q,
-    %q: %q,
-    %q: %q,
-    %q: %q
-  }
-}
-`, teleport.EnvKubeConfig, kubeConfig,
-		clusterEnvVar, cluster,
-		kubeClusterEnvVar, kubeCluster,
-		proxyEnvVar, proxy,
-		siteEnvVar, siteName)
-	testSerialization(t, expected, func(f string) (string, error) {
-		env := getTshEnv()
-		return serializeProfiles(nil, nil, env, f)
+		return serializeProfiles(nil, nil, f)
 	})
 }
 

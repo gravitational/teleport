@@ -65,7 +65,6 @@ func TestMux(t *testing.T) {
 	// TestMux tests basic use case of multiplexing TLS
 	// and SSH on the same listener socket
 	t.Run("TLSSSH", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -141,7 +140,6 @@ func TestMux(t *testing.T) {
 
 	// ProxyLine tests proxy line protocol
 	t.Run("ProxyLine", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -193,7 +191,6 @@ func TestMux(t *testing.T) {
 
 	// ProxyLineV2 tests proxy protocol v2
 	t.Run("ProxyLineV2", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 
@@ -246,7 +243,6 @@ func TestMux(t *testing.T) {
 	// TestDisabledProxy makes sure the connection gets dropped
 	// when Proxy line support protocol is turned off
 	t.Run("DisabledProxy", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -297,7 +293,6 @@ func TestMux(t *testing.T) {
 	// Timeout tests client timeout - client dials, but writes nothing
 	// make sure server hangs up
 	t.Run("Timeout", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -328,9 +323,7 @@ func TestMux(t *testing.T) {
 		require.Nil(t, err)
 		defer conn.Close()
 
-		// sleep until well after the deadline
-		time.Sleep(config.ReadDeadline + 50*time.Millisecond)
-
+		time.Sleep(config.ReadDeadline + 5*time.Millisecond)
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
 		defer tlsConn.Close()
@@ -343,7 +336,6 @@ func TestMux(t *testing.T) {
 	// UnknownProtocol make sure that multiplexer closes connection
 	// with unknown protocol
 	t.Run("UnknownProtocol", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -370,7 +362,6 @@ func TestMux(t *testing.T) {
 
 	// DisableSSH disables SSH
 	t.Run("DisableSSH", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -423,7 +414,6 @@ func TestMux(t *testing.T) {
 
 	// TestDisableTLS tests scenario with disabled TLS
 	t.Run("DisableTLS", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -490,7 +480,6 @@ func TestMux(t *testing.T) {
 
 	// NextProto tests multiplexing using NextProto selector
 	t.Run("NextProto", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
@@ -582,7 +571,6 @@ func TestMux(t *testing.T) {
 	})
 
 	t.Run("PostgresProxy", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 
@@ -619,7 +607,6 @@ func TestMux(t *testing.T) {
 	// WebListener verifies web listener correctly multiplexes connections
 	// between web and database listeners based on the client certificate.
 	t.Run("WebListener", func(t *testing.T) {
-		t.Parallel()
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 

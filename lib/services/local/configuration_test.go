@@ -18,122 +18,102 @@ package local
 
 import (
 	"context"
-	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
 
-type configContext struct {
+type ClusterConfigurationSuite struct {
 	bk backend.Backend
 }
 
-func setupConfigContext(ctx context.Context, t *testing.T) *configContext {
-	var tt configContext
-	t.Cleanup(func() { tt.Close() })
+var _ = check.Suite(&ClusterConfigurationSuite{})
 
-	clock := clockwork.NewFakeClock()
-
+func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
-	tt.bk, err = memory.New(memory.Config{
-		Context: context.Background(),
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	return &tt
+	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
+	c.Assert(err, check.IsNil)
 }
 
-func (tt *configContext) Close() error {
-	return tt.bk.Close()
+func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
+	c.Assert(s.bk.Close(), check.IsNil)
 }
 
-func TestAuthPreference(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
+func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.AuthPreference(t)
+	suite.AuthPreference(c)
 }
 
-func TestClusterName(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
+func (s *ClusterConfigurationSuite) TestClusterName(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.ClusterName(t)
+	suite.ClusterName(c)
 }
 
-func TestClusterNetworkingConfig(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
+func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.ClusterNetworkingConfig(t)
+	suite.ClusterNetworkingConfig(c)
 }
 
-func TestSessionRecordingConfig(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
+func (s *ClusterConfigurationSuite) TestSessionRecordingConfig(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.SessionRecordingConfig(t)
+	suite.SessionRecordingConfig(c)
 }
 
-func TestStaticTokens(t *testing.T) {
-	tt := setupConfigContext(context.Background(), t)
-
-	clusterConfig, err := NewClusterConfigurationService(tt.bk)
-	require.NoError(t, err)
+func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
+	clusterConfig, err := NewClusterConfigurationService(s.bk)
+	c.Assert(err, check.IsNil)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.StaticTokens(t)
+	suite.StaticTokens(c)
 }
 
-func TestSessionRecording(t *testing.T) {
+func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {
 	// don't allow invalid session recording values
 	_, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: "foo",
 	})
-	require.Error(t, err)
+	c.Assert(err, check.NotNil)
 
 	// default is to record at the node
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{})
-	require.NoError(t, err)
-	require.Equal(t, recConfig.GetMode(), types.RecordAtNode)
+	c.Assert(err, check.IsNil)
+	c.Assert(recConfig.GetMode(), check.Equals, types.RecordAtNode)
 
 	// update sessions to be recorded at the proxy and check again
 	recConfig.SetMode(types.RecordAtProxy)
-	require.Equal(t, recConfig.GetMode(), types.RecordAtProxy)
+	c.Assert(recConfig.GetMode(), check.Equals, types.RecordAtProxy)
 }
 
-func TestAuditConfig(t *testing.T) {
+func (s *ClusterConfigurationSuite) TestAuditConfig(c *check.C) {
 	testCases := []struct {
 		spec   types.ClusterAuditConfigSpecV2
 		config string
@@ -170,22 +150,22 @@ audit_events_uri: 'dynamodb://audit_table_name'
 
 	for _, tc := range testCases {
 		in, err := types.NewClusterAuditConfig(tc.spec)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		var data map[string]interface{}
 		err = yaml.Unmarshal([]byte(tc.config), &data)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		configSpec, err := services.ClusterAuditConfigSpecFromObject(data)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		out, err := types.NewClusterAuditConfig(*configSpec)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(out, in))
+		c.Assert(err, check.IsNil)
+		fixtures.DeepCompare(c, out, in)
 	}
 }
 
-func TestAuditConfigMarshal(t *testing.T) {
+func (s *ClusterConfigurationSuite) TestAuditConfigMarshal(c *check.C) {
 	// single audit_events uri value
 	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 		Region:           "us-west-1",
@@ -193,14 +173,14 @@ func TestAuditConfigMarshal(t *testing.T) {
 		AuditSessionsURI: "file:///home/log",
 		AuditEventsURI:   []string{"dynamodb://audit_table_name"},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	data, err := services.MarshalClusterAuditConfig(auditConfig)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	out, err := services.UnmarshalClusterAuditConfig(data)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(auditConfig, out))
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, auditConfig, out)
 
 	// multiple events uri values
 	auditConfig, err = types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
@@ -209,12 +189,12 @@ func TestAuditConfigMarshal(t *testing.T) {
 		AuditSessionsURI: "file:///home/log",
 		AuditEventsURI:   []string{"dynamodb://audit_table_name", "file:///home/test/log"},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	data, err = services.MarshalClusterAuditConfig(auditConfig)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	out, err = services.UnmarshalClusterAuditConfig(data)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(auditConfig, out))
+	c.Assert(err, check.IsNil)
+	fixtures.DeepCompare(c, auditConfig, out)
 }

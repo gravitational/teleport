@@ -64,8 +64,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const sftpSubsystem = "sftp"
-
 var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
@@ -214,8 +212,6 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
-	// awsMatchers are used to match EC2 instances
-	awsMatchers []services.AWSMatcher
 }
 
 // GetClock returns server clock implementation
@@ -656,14 +652,6 @@ func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerO
 func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 	return func(s *Server) error {
 		s.inventoryHandle = handle
-		return nil
-	}
-}
-
-// SetAWSMatchers sets the matchers used for matching EC2 instances
-func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
-	return func(s *Server) error {
-		s.awsMatchers = matchers
 		return nil
 	}
 }
@@ -1993,17 +1981,13 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
 	}
-
-	switch {
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxy:"):
+	if s.proxyMode && strings.HasPrefix(r.Name, "proxy:") {
 		return parseProxySubsys(r.Name, s, ctx)
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
-		return parseProxySitesSubsys(r.Name, s)
-	case r.Name == sftpSubsystem:
-		return newSFTPSubsys()
-	default:
-		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}
+	if s.proxyMode && strings.HasPrefix(r.Name, "proxysites") {
+		return parseProxySitesSubsys(r.Name, s)
+	}
+	return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 }
 
 func writeStderr(ch ssh.Channel, msg string) {

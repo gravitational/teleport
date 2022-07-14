@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
 	"path"
@@ -436,9 +435,6 @@ const (
 	proxyDefaultResolutionTimeout = 2 * time.Second
 )
 
-// env vars that tsh status will check to provide hints about active env vars to a user.
-var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeClusterEnvVar, teleport.EnvKubeConfig}
-
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
 
@@ -520,7 +516,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
-	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local machine vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
+	ssh.Flag("x11-trusted", "Requests trusted (insecure) X11 forwarding for this session. This can make your local displays vulnerable to attacks, use with caution").Short('Y').BoolVar(&cf.X11ForwardingTrusted)
 	ssh.Flag("x11-untrusted-timeout", "Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server").Default("10m").DurationVar((&cf.X11ForwardingTimeout))
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
@@ -667,7 +663,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
-	login.Flag("verbose", "Show extra status information").Short('v').BoolVar(&cf.Verbose)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -695,7 +690,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
 	status.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
-	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -1241,9 +1235,7 @@ func onLogin(cf *CLIConf) error {
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
+			printProfiles(cf.Debug, profile, profiles)
 
 			return nil
 		// in case if parameters match, re-fetch kube clusters and print
@@ -1256,9 +1248,7 @@ func onLogin(cf *CLIConf) error {
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
+			printProfiles(cf.Debug, profile, profiles)
 
 			return nil
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -2062,17 +2052,17 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
+func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
+		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(w, out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2172,7 +2162,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	return row
 }
 
-func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	var rows [][]string
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
@@ -2189,7 +2179,7 @@ func showDatabasesAsText(clusterFlag string, databases []types.Database, active 
 
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
@@ -3157,35 +3147,30 @@ func onShow(cf *CLIConf) error {
 }
 
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
+	var count int
 	var prefix string
+	if isActive {
+		prefix = "> "
+	} else {
+		prefix = "  "
+	}
 	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
 	}
 
-	proxyURL := p.getProxyURLLine(isActive, env)
-	cluster := p.getClusterLine(isActive, env)
-	kubeCluster := p.getKubeClusterLine(isActive, env, cluster)
-	if isActive {
-		prefix = "> "
-	} else {
-		prefix = "  "
-	}
-
-	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
-	if len(p.ActiveRequests) != 0 {
-		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
+	if len(p.ActiveRequests.AccessRequests) != 0 {
+		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests.AccessRequests, ", "))
 	}
-
-	if cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", cluster)
+	if p.Cluster != "" {
+		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
 	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
 	if debug {
-		var count int
 		for k, v := range p.Traits {
 			if count == 0 {
 				fmt.Printf("  Traits:             %v: %v\n", k, v)
@@ -3196,22 +3181,22 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		}
 	}
 	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
-	if p.KubernetesEnabled {
+	if p.KubeEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
-		if kubeCluster != "" {
+		if kubeCluster := selectedKubeCluster(p.Cluster); kubeCluster != "" {
 			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
 		}
-		if len(p.KubernetesUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
+		if len(p.KubeUsers) > 0 {
+			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
 		}
-		if len(p.KubernetesGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
+		if len(p.KubeGroups) > 0 {
+			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubeGroups, ", "))
 		}
 	} else {
 		fmt.Printf("  Kubernetes:         disabled\n")
 	}
 	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
+		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
 	}
 	if len(p.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
@@ -3251,19 +3236,16 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	env := getTshEnv()
-	active, others := makeAllProfileInfo(profile, profiles, env)
-
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeProfiles(active, others, env, format)
+		out, err := serializeProfiles(profile, profiles, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Println(out)
 	default:
-		printProfiles(cf.Debug, active, others, env, cf.Verbose)
+		printProfiles(cf.Debug, profile, profiles)
 	}
 
 	if profile == nil {
@@ -3293,24 +3275,14 @@ type profileInfo struct {
 	Databases          []string           `json:"databases,omitempty"`
 	ValidUntil         time.Time          `json:"valid_until"`
 	Extensions         []string           `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
 	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
 }
 
-func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
-	activeInfo := makeProfileInfo(active, env, true)
-	var othersInfo []*profileInfo
-	for _, p := range others {
-		othersInfo = append(othersInfo, makeProfileInfo(p, env, false))
-	}
-	return activeInfo, othersInfo
-}
-
-func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bool) *profileInfo {
+func makeProfileInfo(p *client.ProfileStatus) *profileInfo {
 	if p == nil {
 		return nil
 	}
-	out := &profileInfo{
+	return &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
 		ActiveRequests:     p.ActiveRequests.AccessRequests,
@@ -3325,73 +3297,18 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Databases:          p.DatabaseServices(),
 		ValidUntil:         p.ValidUntil,
 		Extensions:         p.Extensions,
-		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
-
-	// update active profile info from env
-	if isActive {
-		if proxy, ok := env[proxyEnvVar]; ok {
-			proxyURL := url.URL{
-				Scheme: "https",
-				Host:   proxy,
-			}
-			out.ProxyURL = proxyURL.String()
-		}
-
-		if cluster, ok := env[clusterEnvVar]; ok {
-			out.Cluster = cluster
-		} else if siteName, ok := env[siteEnvVar]; ok {
-			out.Cluster = siteName
-		}
-
-		if kubeCluster, ok := env[kubeClusterEnvVar]; ok {
-			out.KubernetesCluster = kubeCluster
-		}
-	}
-	return out
 }
 
-func (p *profileInfo) getProxyURLLine(isActive bool, env map[string]string) string {
-	// indicate if active profile proxy url is shadowed by env vars.
-	if isActive {
-		if _, ok := env[proxyEnvVar]; ok {
-			return fmt.Sprintf("%v (%v)", p.ProxyURL, proxyEnvVar)
-		}
-	}
-	return p.ProxyURL
-}
-
-func (p *profileInfo) getClusterLine(isActive bool, env map[string]string) string {
-	// indicate if active profile cluster is shadowed by env vars.
-	if isActive {
-		if _, ok := env[clusterEnvVar]; ok {
-			return fmt.Sprintf("%v (%v)", p.Cluster, clusterEnvVar)
-		} else if _, ok := env[siteEnvVar]; ok {
-			return fmt.Sprintf("%v (%v)", p.Cluster, siteEnvVar)
-		}
-	}
-	return p.Cluster
-}
-
-func (p *profileInfo) getKubeClusterLine(isActive bool, env map[string]string, cluster string) string {
-	// indicate if active profile kube cluster is shadowed by env vars.
-	if isActive {
-		// check if kube cluster env var is set and no cluster was selected by kube config
-		if _, ok := env[kubeClusterEnvVar]; ok {
-			return fmt.Sprintf("%v (%v)", p.KubernetesCluster, kubeClusterEnvVar)
-		}
-	}
-	return p.KubernetesCluster
-}
-
-func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[string]string, format string) (string, error) {
+func serializeProfiles(profile *client.ProfileStatus, profiles []*client.ProfileStatus, format string) (string, error) {
 	profileData := struct {
-		Active   *profileInfo      `json:"active,omitempty"`
-		Profiles []*profileInfo    `json:"profiles"`
-		Env      map[string]string `json:"environment,omitempty"`
-	}{profile, []*profileInfo{}, env}
-	profileData.Profiles = append(profileData.Profiles, profiles...)
+		Active   *profileInfo   `json:"active,omitempty"`
+		Profiles []*profileInfo `json:"profiles"`
+	}{makeProfileInfo(profile), []*profileInfo{}}
+	for _, prof := range profiles {
+		profileData.Profiles = append(profileData.Profiles, makeProfileInfo(prof))
+	}
 	var out []byte
 	var err error
 	if format == teleport.JSON {
@@ -3405,39 +3322,19 @@ func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[st
 	return string(out), nil
 }
 
-func getTshEnv() map[string]string {
-	env := map[string]string{}
-	for _, envVar := range tshStatusEnvVars {
-		if envVal, isSet := os.LookupEnv(envVar); isSet {
-			env[envVar] = envVal
-		}
-	}
-	return env
-}
-
-func printProfiles(debug bool, profile *profileInfo, profiles []*profileInfo, env map[string]string, verbose bool) {
+func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
 	if profile == nil && len(profiles) == 0 {
 		return
 	}
 
 	// Print the active profile.
 	if profile != nil {
-		printStatus(debug, profile, env, true)
+		printStatus(debug, profile, true)
 	}
 
 	// Print all other profiles.
 	for _, p := range profiles {
-		printStatus(debug, p, env, false)
-	}
-
-	// Print relevant active env vars, if they are set.
-	if verbose {
-		if len(env) > 0 {
-			fmt.Println("Active Environment:")
-		}
-		for k, v := range env {
-			fmt.Printf("\t%s=%s\n", k, v)
-		}
+		printStatus(debug, p, false)
 	}
 }
 

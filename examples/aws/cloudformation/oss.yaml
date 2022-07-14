@@ -97,24 +97,24 @@ Mappings:
     t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    # All AMIs from AWS - gravitational-teleport-ami-oss-10.0.0
+    # All AMIs from AWS - gravitational-teleport-ami-oss-9.3.5
     eu-north-1: {HVM64: ami-0eef7480d85b07d78}
-    ap-south-1: {HVM64 : ami-04abe4ade0e97f27b}
-    eu-west-1: {HVM64 : ami-02ca24e819cccf4b0}
-    eu-west-2: {HVM64 : ami-0e834fc2f4d548ac6}
+    ap-south-1: {HVM64 : ami-0b37542a900b756d1}
+    eu-west-1: {HVM64 : ami-0b028aa8e9a1877e6}
+    eu-west-2: {HVM64 : ami-0498c65d343759318}
     eu-west-3: {HVM64: ami-0211c6e2e821dd249}
-    ap-northeast-1: {HVM64 : ami-02a9d653dbc9b9722}
-    ap-northeast-2: {HVM64 : ami-07e4ac254fc00a2d3}
+    ap-northeast-1: {HVM64 : ami-03cf56e54a5bd425d}
+    ap-northeast-2: {HVM64 : ami-0521f73847d4237d4}
     ap-northeast-3: {HVM64: ami-02bb8618b75d025aa}
-    sa-east-1: {HVM64 : ami-0529a70854421d707}
-    ca-central-1: {HVM64 : ami-065a839d2ef80c743}
-    ap-southeast-1: {HVM64 : ami-082214c8242b23fcd}
-    ap-southeast-2: {HVM64 : ami-028fb17579727f9a8}
-    eu-central-1: {HVM64 : ami-0178dd4375df71abe}
-    us-east-1: {HVM64 : ami-01f6e08080906ce76}
-    us-east-2: {HVM64 : ami-08455c876bab0cbd3}
-    us-west-1: {HVM64 : ami-05269ed60d13d5070}
-    us-west-2: {HVM64 : ami-021f580d002bf489d}
+    sa-east-1: {HVM64 : ami-0b7f9b559ef7389fd}
+    ca-central-1: {HVM64 : ami-0421f854766b95d6b}
+    ap-southeast-1: {HVM64 : ami-0dc3fb932aa49cd56}
+    ap-southeast-2: {HVM64 : ami-0dbd504721c6ba167}
+    eu-central-1: {HVM64 : ami-0be794cc5e32a2e99}
+    us-east-1: {HVM64 : ami-0f57d482203c36e4f}
+    us-east-2: {HVM64 : ami-016b2c1e3e1c7809e}
+    us-west-1: {HVM64 : ami-0f9f4db9fe8ddf3c7}
+    us-west-2: {HVM64 : ami-0a3ee4c3611949725}
 
 Resources:
 # Auth server setup

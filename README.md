@@ -200,7 +200,7 @@ $ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
+For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md.) file.
 
 #### Updating Web UI assets
 

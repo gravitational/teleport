@@ -24,23 +24,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
 )
 
 func TestLockCRUD(t *testing.T) {
 	ctx := context.Background()
-
-	backend, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clockwork.NewFakeClock(),
-	})
+	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
 
-	access := NewAccessService(backend)
+	access := NewAccessService(lite)
 
 	lock1, err := types.NewLock("lock1", types.LockSpecV2{
 		Target: types.LockTarget{

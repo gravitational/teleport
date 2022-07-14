@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package helpers
+package integration
 
 import (
 	"fmt"
@@ -25,8 +25,6 @@ import (
 )
 
 // ports contains tcp ports allocated for all integration tests.
-// TODO: Replace all usage of `Ports` with FD-injected sockets as per
-//       https://github.com/gravitational/teleport/pull/13346
 var ports utils.PortList
 
 func init() {
@@ -38,22 +36,11 @@ func init() {
 	}
 }
 
-func NewPortValue() int {
-	return ports.PopInt()
-}
-
-func NewPortStr() string {
-	return ports.Pop()
-}
-
-func NewPortSlice(n int) []int {
-	return ports.PopIntSlice(n)
-}
-
-func NewInstancePort() *InstancePort {
+func newInstancePort() *InstancePort {
 	i := ports.PopInt()
 	p := InstancePort(i)
 	return &p
+
 }
 
 type InstancePort int
@@ -65,74 +52,62 @@ func (p *InstancePort) String() string {
 	return strconv.Itoa(int(*p))
 }
 
-func SingleProxyPortSetup() *InstancePorts {
-	v := NewInstancePort()
+func singleProxyPortSetup() *InstancePorts {
+	v := newInstancePort()
 	return &InstancePorts{
 		Web:               v,
 		SSHProxy:          v,
 		ReverseTunnel:     v,
 		MySQL:             v,
-		SSH:               NewInstancePort(),
-		Auth:              NewInstancePort(),
+		SSH:               newInstancePort(),
+		Auth:              newInstancePort(),
 		isSinglePortSetup: true,
 	}
 }
-func StandardPortSetup() *InstancePorts {
+func standardPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
+		Web:           newInstancePort(),
+		SSH:           newInstancePort(),
+		Auth:          newInstancePort(),
+		SSHProxy:      newInstancePort(),
+		ReverseTunnel: newInstancePort(),
+		MySQL:         newInstancePort(),
 	}
 }
 
-func WebReverseTunnelMuxPortSetup() *InstancePorts {
-	v := NewInstancePort()
+func webReverseTunnelMuxPortSetup() *InstancePorts {
+	v := newInstancePort()
 	return &InstancePorts{
 		Web:           v,
 		ReverseTunnel: v,
-		SSH:           NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Auth:          NewInstancePort(),
+		SSH:           newInstancePort(),
+		SSHProxy:      newInstancePort(),
+		MySQL:         newInstancePort(),
+		Auth:          newInstancePort(),
 	}
 }
 
-func SeparatePostgresPortSetup() *InstancePorts {
+func separatePostgresPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Postgres:      NewInstancePort(),
+		Web:           newInstancePort(),
+		SSH:           newInstancePort(),
+		Auth:          newInstancePort(),
+		SSHProxy:      newInstancePort(),
+		ReverseTunnel: newInstancePort(),
+		MySQL:         newInstancePort(),
+		Postgres:      newInstancePort(),
 	}
 }
 
-func SeparateMongoPortSetup() *InstancePorts {
+func separateMongoPortSetup() *InstancePorts {
 	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Mongo:         NewInstancePort(),
-	}
-}
-func SeparateMongoAndPostgresPortSetup() *InstancePorts {
-	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Mongo:         NewInstancePort(),
-		Postgres:      NewInstancePort(),
+		Web:           newInstancePort(),
+		SSH:           newInstancePort(),
+		Auth:          newInstancePort(),
+		SSHProxy:      newInstancePort(),
+		ReverseTunnel: newInstancePort(),
+		MySQL:         newInstancePort(),
+		Mongo:         newInstancePort(),
 	}
 }
 

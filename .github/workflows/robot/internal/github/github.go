@@ -209,16 +209,6 @@ func (c *Client) ListReviewers(ctx context.Context, organization string, reposit
 	return reviewers, nil
 }
 
-// PullRequestFile is a file that was modified in a pull request.
-type PullRequestFile struct {
-	// Name is the name of the file.
-	Name string
-	// Additions is the number of new lines added to the file
-	Additions int
-	// Deletions is the number of lines removed from the file
-	Deletions int
-}
-
 // GetPullRequest returns a specific Pull Request.
 func (c *Client) GetPullRequest(ctx context.Context, organization string, repository string, number int) (PullRequest, error) {
 	pull, _, err := c.client.PullRequests.Get(ctx,
@@ -309,8 +299,8 @@ func (c *Client) ListPullRequests(ctx context.Context, organization string, repo
 }
 
 // ListFiles is used to list all the files within a Pull Request.
-func (c *Client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]PullRequestFile, error) {
-	var files []PullRequestFile
+func (c *Client) ListFiles(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	var files []string
 
 	opts := &go_github.ListOptions{
 		Page:    0,
@@ -327,11 +317,7 @@ func (c *Client) ListFiles(ctx context.Context, organization string, repository 
 		}
 
 		for _, file := range page {
-			files = append(files, PullRequestFile{
-				Name:      file.GetFilename(),
-				Additions: file.GetAdditions(),
-				Deletions: file.GetDeletions(),
-			})
+			files = append(files, file.GetFilename())
 		}
 
 		if resp.NextPage == 0 {

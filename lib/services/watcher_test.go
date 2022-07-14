@@ -35,7 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -103,13 +103,11 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 
 func TestProxyWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
@@ -196,13 +194,13 @@ func newProxyServer(t *testing.T, name, addr string) types.Server {
 
 func TestLockWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 
@@ -301,13 +299,13 @@ func TestLockWatcher(t *testing.T) {
 
 func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 
@@ -378,13 +376,13 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 
 func TestLockWatcherStale(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 
@@ -524,13 +522,11 @@ func resourceDiff(res1, res2 types.Resource) string {
 // and dispatches updates to database resources.
 func TestDatabaseWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
@@ -623,13 +619,11 @@ func newDatabase(t *testing.T, name string) types.Database {
 // and dispatches updates.
 func TestAppWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
@@ -719,13 +713,13 @@ func newApp(t *testing.T, name string) types.Application {
 
 func TestCertAuthorityWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            clock,
 	})
 	require.NoError(t, err)
 
@@ -861,13 +855,11 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 
 func TestNodeWatcher(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
 	})
 	require.NoError(t, err)
 

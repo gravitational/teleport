@@ -486,6 +486,14 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	return &certs, nil
 }
 
+// RegisterNewAuthServer is used to register new auth server with token
+func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
+	_, err := c.PostJSON(ctx, c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
+		Token: token,
+	})
+	return trace.Wrap(err)
+}
+
 // DELETE IN: 5.1.0
 //
 // This logic has been moved to KeepAliveServer.
@@ -1658,6 +1666,9 @@ type ProvisioningService interface {
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+
+	// RegisterNewAuthServer is used to register new auth server with token
+	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service

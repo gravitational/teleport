@@ -18,10 +18,9 @@ limitations under the License.
 package test
 
 import (
-	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -31,11 +30,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 
-	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
 type AuthSuite struct {
@@ -44,24 +42,24 @@ type AuthSuite struct {
 	Clock  clockwork.Clock
 }
 
-func (s *AuthSuite) GenerateKeypairEmptyPass(t *testing.T) {
+func (s *AuthSuite) GenerateKeypairEmptyPass(c *check.C) {
 	priv, pub, err := s.Keygen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// make sure we can parse the private and public key
 	_, err = ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 }
 
-func (s *AuthSuite) GenerateHostCert(t *testing.T) {
+func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	priv, pub, err := s.Keygen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
@@ -73,26 +71,26 @@ func (s *AuthSuite) GenerateHostCert(t *testing.T) {
 			Role:          types.RoleAdmin,
 			TTL:           time.Hour,
 		})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	certificate, err := sshutils.ParseCertificate(cert)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Check the valid time is not more than 1 minute before the current time.
 	validAfter := time.Unix(int64(certificate.ValidAfter), 0)
-	require.Equal(t, validAfter.Unix(), s.Clock.Now().UTC().Add(-1*time.Minute).Unix())
+	c.Assert(validAfter.Unix(), check.Equals, s.Clock.Now().UTC().Add(-1*time.Minute).Unix())
 
 	// Check the valid time is not more than 1 hour after the current time.
 	validBefore := time.Unix(int64(certificate.ValidBefore), 0)
-	require.Equal(t, validBefore.Unix(), s.Clock.Now().UTC().Add(1*time.Hour).Unix())
+	c.Assert(validBefore.Unix(), check.Equals, s.Clock.Now().UTC().Add(1*time.Hour).Unix())
 }
 
-func (s *AuthSuite) GenerateUserCert(t *testing.T) {
+func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	priv, pub, err := s.Keygen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
@@ -104,12 +102,12 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		PermitPortForwarding:  true,
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// Check the valid time is not more than 1 minute before and 1 hour after
 	// the current time.
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(1*time.Hour))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
@@ -121,9 +119,9 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		PermitPortForwarding:  true,
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
@@ -135,9 +133,9 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		PermitPortForwarding:  true,
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
@@ -149,7 +147,7 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		PermitPortForwarding:  true,
 		CertificateFormat:     constants.CertificateFormatStandard,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	inRoles := []string{"role-1", "role-2"}
 	impersonator := "alice"
@@ -165,15 +163,15 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		CertificateFormat:     constants.CertificateFormatStandard,
 		Roles:                 inRoles,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	parsedCert, err := sshutils.ParseCertificate(cert)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(outRoles, inRoles))
+	c.Assert(err, check.IsNil)
+	c.Assert(outRoles, check.DeepEquals, inRoles)
 
 	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
-	require.Empty(t, cmp.Diff(outImpersonator, impersonator))
+	c.Assert(outImpersonator, check.DeepEquals, impersonator)
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {

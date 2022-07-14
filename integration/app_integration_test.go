@@ -42,7 +42,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -692,7 +691,7 @@ type pack struct {
 	webCookie string
 	webToken  string
 
-	rootCluster    *helpers.TeleInstance
+	rootCluster    *TeleInstance
 	rootAppServers []*service.TeleportProcess
 	rootCertPool   *x509.CertPool
 
@@ -717,9 +716,10 @@ type pack struct {
 	jwtAppClusterName string
 	jwtAppURI         string
 
+	leafCluster *TeleInstance
+
 	dumperAppURI string
 
-	leafCluster    *helpers.TeleInstance
 	leafAppServers []*service.TeleportProcess
 
 	leafAppName        string
@@ -752,8 +752,8 @@ type pack struct {
 type appTestOptions struct {
 	extraRootApps    []service.App
 	extraLeafApps    []service.App
-	rootClusterPorts *helpers.InstancePorts
-	leafClusterPorts *helpers.InstancePorts
+	rootClusterPorts *InstancePorts
+	leafClusterPorts *InstancePorts
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -911,24 +911,24 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
+	p.rootCluster = NewInstance(InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		log:         log,
 		Ports:       opts.rootClusterPorts,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
+	p.leafCluster = NewInstance(InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		log:         log,
 		Ports:       opts.leafClusterPorts,
 	})
 
@@ -1080,13 +1080,13 @@ func (p *pack) initWebSession(t *testing.T) {
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T) {
-	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  p.rootCluster.Process,
 		Username: p.user.GetName(),
 	})
 	require.NoError(t, err)
 
-	tc, err := p.rootCluster.NewClientWithCreds(helpers.ClientConfig{
+	tc, err := p.rootCluster.NewClientWithCreds(ClientConfig{
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,

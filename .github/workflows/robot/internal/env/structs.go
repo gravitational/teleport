@@ -53,9 +53,6 @@ type PullRequest struct {
 	//
 	// https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
 	UnsafeBase Branch `json:"base"`
-
-	Additions int `json:"additions"`
-	Deletions int `json:"deletions"`
 }
 
 type User struct {

@@ -37,9 +37,6 @@ type AWSMatcher struct {
 	Regions []string
 	// Tags are AWS tags to match.
 	Tags types.Labels
-	// SSMDocument is the SSM document used to execute the
-	// installation script
-	SSMDocument string
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -230,6 +227,4 @@ const (
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
-	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
-	AWSMatcherEC2 = "ec2"
 )

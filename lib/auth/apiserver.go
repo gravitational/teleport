@@ -153,6 +153,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Tokens
 	srv.POST("/:version/tokens", srv.withAuth(srv.generateToken))
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
+	srv.POST("/:version/tokens/register/auth", srv.withAuth(srv.registerNewAuthServer))
 
 	// Active sessions
 	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
@@ -760,6 +761,22 @@ func (s *APIServer) registerUsingToken(auth ClientI, w http.ResponseWriter, r *h
 	}
 
 	return certs, nil
+}
+
+type registerNewAuthServerReq struct {
+	Token string `json:"token"`
+}
+
+func (s *APIServer) registerNewAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
+	var req *registerNewAuthServerReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err := auth.RegisterNewAuthServer(r.Context(), req.Token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

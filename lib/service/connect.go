@@ -1056,6 +1056,8 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
+	// store err in directLogger, only log it if tunnel dial fails.
+	directErrLogger := logger.WithError(directErr)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
@@ -1071,17 +1073,8 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
-		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
-		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
-		if trace.IsConnectionProblem(directErr) && strings.Contains(directErr.Error(), "x509: certificate is valid for") {
-			directErr = trace.Wrap(directErr, "TLS certificate error. Certificate is invalid or not trusted. "+
-				"Fix the certificate to correct this error: https://goteleport.com/docs/architecture/authentication/")
-		}
-		process.log.Errorf("- connecting to auth server directly: %v", directErr)
-		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
-			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
-		}
-		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
+		directErrLogger.Debug("Failed to connect to Auth Server directly.")
+		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
 		return nil, trace.WrapWithMessage(
 			trace.NewAggregate(directErr, err),
 			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))

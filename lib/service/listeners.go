@@ -28,7 +28,7 @@ import (
 type listenerType string
 
 var (
-	listenerAuth       = listenerType(teleport.ComponentAuth)
+	listenerAuthSSH    = listenerType(teleport.ComponentAuth)
 	listenerNodeSSH    = listenerType(teleport.ComponentNode)
 	listenerProxySSH   = listenerType(teleport.Component(teleport.ComponentProxy, "ssh"))
 	listenerDiagnostic = listenerType(teleport.ComponentDiagnostic)
@@ -47,9 +47,9 @@ var (
 	listenerWindowsDesktop    = listenerType(teleport.ComponentWindowsDesktop)
 )
 
-// AuthAddr returns auth server endpoint, if configured and started.
-func (process *TeleportProcess) AuthAddr() (*utils.NetAddr, error) {
-	return process.registeredListenerAddr(listenerAuth)
+// AuthSSHAddr returns auth server SSH endpoint, if configured and started.
+func (process *TeleportProcess) AuthSSHAddr() (*utils.NetAddr, error) {
+	return process.registeredListenerAddr(listenerAuthSSH)
 }
 
 // NodeSSHAddr returns the node SSH endpoint, if configured and started.
