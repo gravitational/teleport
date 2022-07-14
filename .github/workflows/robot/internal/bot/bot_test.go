@@ -135,6 +135,10 @@ func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, 
 	return nil
 }
 
+func (f *fakeGithub) DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+	return nil
+}
+
 func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error) {
 	return f.reviews, nil
 }

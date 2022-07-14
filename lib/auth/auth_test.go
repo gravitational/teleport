@@ -637,6 +637,57 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestLocalControlStream verifies that local control stream behaves as expected.
+func TestLocalControlStream(t *testing.T) {
+	const serverID = "test-server"
+
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := newAuthSuite(t)
+
+	stream := s.a.MakeLocalInventoryControlStream()
+	defer stream.Close()
+
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+
+	// wait for control stream to get inserted into the controller (happens after
+	// hello exchange is finished).
+	require.Eventually(t, func() bool {
+		_, ok := s.a.inventory.GetControlStream(serverID)
+		return ok
+	}, time.Second*5, time.Millisecond*200)
+
+	// try performing a normal operation against the control stream to double-check that it is healthy
+	go s.a.PingInventory(ctx, proto.InventoryPingRequest{
+		ServerID: serverID,
+	})
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+}
+
 func TestGenerateTokenEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)

@@ -1204,7 +1204,12 @@ type SharedDirectoryReadResponse struct {
 func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryReadResponse))
-	binary.Write(buf, binary.BigEndian, s)
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	binary.Write(buf, binary.BigEndian, s.ReadDataLength)
+	if _, err := buf.Write(s.ReadData); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return buf.Bytes(), nil
 }
 

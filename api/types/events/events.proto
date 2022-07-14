@@ -18,6 +18,7 @@ package events;
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
 
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 
@@ -929,6 +930,101 @@ message SCP {
 
     // Action is upload or download
     string Action = 8 [ (gogoproto.jsontag) = "action" ];
+}
+
+// SFTPAttributes are file metadata sent over SFTP
+message SFTPAttributes {
+    // FileSize is file size
+    google.protobuf.UInt64Value FileSize = 1
+        [ (gogoproto.wktpointer) = true, (gogoproto.jsontag) = "file_size" ];
+
+    // UID is the user owner of a file
+    google.protobuf.UInt32Value UID = 2
+        [ (gogoproto.wktpointer) = true, (gogoproto.jsontag) = "uid" ];
+
+    // GID is the group owner of the file
+    google.protobuf.UInt32Value GID = 3
+        [ (gogoproto.wktpointer) = true, (gogoproto.jsontag) = "gid" ];
+
+    // Permissions is the file permissions
+    google.protobuf.UInt32Value Permissions = 4
+        [ (gogoproto.wktpointer) = true, (gogoproto.jsontag) = "permissions" ];
+
+    // AccessTime is when the file was last read
+    google.protobuf.Timestamp AccessTime = 5
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "access_time,omitempty" ];
+
+    // ModificationTime was when the file was last changed
+    google.protobuf.Timestamp ModificationTime = 6
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "modification_time,omitempty" ];
+}
+
+// SFTPAction denotes what type of SFTP request was made.
+// These actions were taken from https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02.
+enum SFTPAction {
+    INVALID = 0;
+    OPEN = 1;
+    CLOSE = 2;
+    READ = 3;
+    WRITE = 4;
+    LSTAT = 5;
+    FSTAT = 6;
+    SETSTAT = 7;
+    FSETSTAT = 8;
+    OPENDIR = 9;
+    READDIR = 10;
+    REMOVE = 11;
+    MKDIR = 12;
+    RMDIR = 13;
+    REALPATH = 14;
+    STAT = 15;
+    RENAME = 16;
+    READLINK = 17;
+    SYMLINK = 18;
+}
+
+// SFTP is emitted when file operations have occurred between server and client
+message SFTP {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // WorkingDirectory is the current directory the SFTP server is in
+    string WorkingDirectory = 6 [ (gogoproto.jsontag) = "working_directory" ];
+
+    // Path is the filepath that was operated on. It is the exact path that
+    // was sent by the client, so it may be relative or absolute.
+    string Path = 7 [ (gogoproto.jsontag) = "path" ];
+
+    // TargetPath is the new path in file renames, or the path of the symlink
+    // when creating symlinks. It is the exact path that wassent by the client,
+    // so it may be relative or absolute.
+    string TargetPath = 8 [ (gogoproto.jsontag) = "target_path,omitempty" ];
+
+    // Flags is options that were passed that affect file creation events
+    uint32 Flags = 9 [ (gogoproto.jsontag) = "flags,omitempty" ];
+
+    // Attributes is file metadata that the user requested to be changed
+    SFTPAttributes Attributes = 10 [ (gogoproto.jsontag) = "attributes,omitempty" ];
+
+    // Action is what kind of file operation
+    SFTPAction Action = 11 [ (gogoproto.jsontag) = "action" ];
 }
 
 // Subsystem is emitted when a user requests a new subsystem.
@@ -1928,6 +2024,7 @@ message OneOf {
         events.AccessRequestResourceSearch AccessRequestResourceSearch = 88;
         events.SQLServerRPCRequest SQLServerRPCRequest = 89;
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
+        events.SFTP SFTP = 91;
     }
 }
 

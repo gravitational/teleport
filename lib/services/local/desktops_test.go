@@ -24,7 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -32,15 +32,17 @@ import (
 
 func TestListWindowsDesktops(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	liteBackend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service := NewWindowsDesktopService(liteBackend)
+	service := NewWindowsDesktopService(bk)
 
 	// Initially we expect no desktops.
 	out, err := service.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
@@ -111,15 +113,17 @@ func TestListWindowsDesktops(t *testing.T) {
 
 func TestListWindowsDesktops_Filters(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	liteBackend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 
-	service := NewWindowsDesktopService(liteBackend)
+	service := NewWindowsDesktopService(bk)
 
 	// Upsert some windows desktops.
 

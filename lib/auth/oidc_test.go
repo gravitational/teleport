@@ -33,15 +33,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 
+	"github.com/gravitational/trace"
+
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -57,13 +58,14 @@ type OIDCSuite struct {
 
 func setUpSuite(t *testing.T) *OIDCSuite {
 	s := OIDCSuite{}
+
+	ctx := context.Background()
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
-	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            s.c,
+	s.b, err = memory.New(memory.Config{
+		Context: ctx,
+		Clock:   s.c,
 	})
 	require.NoError(t, err)
 
@@ -100,6 +102,8 @@ func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc
 }
 
 func TestCreateOIDCUser(t *testing.T) {
+	t.Parallel()
+
 	s := setUpSuite(t)
 
 	// Dry-run creation of OIDC user.
@@ -140,6 +144,8 @@ func TestCreateOIDCUser(t *testing.T) {
 // all claim information is already within the token and additional claim
 // information does not need to be fetched.
 func TestUserInfoBlockHTTP(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -166,6 +172,8 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 // TestUserInfoBadStatus asserts that a 4xx response from userinfo results
 // in AccessDenied.
 func TestUserInfoBadStatus(t *testing.T) {
+	t.Parallel()
+
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, true /* tls */)
 
@@ -186,6 +194,8 @@ func TestUserInfoBadStatus(t *testing.T) {
 }
 
 func TestSSODiagnostic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -328,6 +338,8 @@ func TestSSODiagnostic(t *testing.T) {
 // TestPingProvider confirms that the client_secret_post auth
 // method was set for a oauthclient.
 func TestPingProvider(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -376,6 +388,8 @@ func TestPingProvider(t *testing.T) {
 }
 
 func TestOIDCClientProviderSync(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
@@ -434,6 +448,8 @@ func TestOIDCClientProviderSync(t *testing.T) {
 }
 
 func TestOIDCClientCache(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -565,6 +581,8 @@ func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestOIDCGoogle(t *testing.T) {
+	t.Parallel()
+
 	directGroups := map[string][]string{
 		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 		"bob@foo.example":    {"group1@foo.example"},

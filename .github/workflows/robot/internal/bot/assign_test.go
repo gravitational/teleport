@@ -153,3 +153,83 @@ func TestBackportReviewers(t *testing.T) {
 		})
 	}
 }
+
+func TestDismissUnnecessaryReviewers(t *testing.T) {
+	for _, test := range []struct {
+		desc      string
+		reviewers []string
+		reviews   []github.Review
+		assert    require.ErrorAssertionFunc
+		dismiss   []string
+	}{
+		{
+			desc:      "exactly-2-approvals",
+			reviewers: []string{"user1", "user2"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+			},
+			assert:  require.NoError,
+			dismiss: nil,
+		},
+		{
+			desc:      "extra-approvals",
+			reviewers: []string{"user1", "user2", "user3"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+				{Author: "user3", State: "APPROVED"},
+			},
+			assert:  require.NoError,
+			dismiss: nil,
+		},
+		{
+			desc:      "2-dismissals",
+			reviewers: []string{"user1", "user2", "user3", "user4"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+			},
+			assert:  require.NoError,
+			dismiss: []string{"user3", "user4"},
+		},
+		{
+			desc:      "2-approvals-1-comment",
+			reviewers: []string{"user1", "user2", "user3"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+				{Author: "user3", State: "COMMENTED"},
+			},
+			assert:  require.NoError,
+			dismiss: nil,
+		},
+		{
+			desc:      "2-approvals-1-requestchange-1-to-dismiss",
+			reviewers: []string{"user1", "user2", "user3", "user4"},
+			reviews: []github.Review{
+				{Author: "user1", State: "APPROVED"},
+				{Author: "user2", State: "APPROVED"},
+				{Author: "user3", State: "CHANGES_REQUESTED"},
+			},
+			assert:  require.NoError,
+			dismiss: []string{"user4"},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			b := &Bot{
+				c: &Config{
+					Environment: &env.Environment{},
+					GitHub: &fakeGithub{
+						reviewers: test.reviewers,
+						reviews:   test.reviews,
+					},
+				},
+			}
+
+			toDismiss, err := b.reviewersToDismiss(context.Background())
+			test.assert(t, err)
+			require.Equal(t, test.dismiss, toDismiss)
+		})
+	}
+}
