@@ -79,8 +79,6 @@ func Start(ctx context.Context, cfg Config) error {
 		apiServer.Stop()
 	}()
 
-	log.Infof("tsh daemon is listening on %v.", cfg.Addr)
-
 	errAPI := <-serverAPIWait
 
 	if errAPI != nil {

@@ -15,6 +15,7 @@
 package apiserver
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -29,6 +30,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // New creates an instance of API Server
@@ -87,7 +90,16 @@ func newListener(hostAddr string) (net.Listener, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	addr := utils.FromAddr(lis.Addr())
+	sendBoundNetworkPortToStdout(addr)
+
+	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
+
 	return lis, nil
+}
+
+func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
+	fmt.Printf("{CONNECT_GRPC_PORT: %v}", addr.Port(1))
 }
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.
