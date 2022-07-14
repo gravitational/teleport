@@ -217,6 +217,18 @@ func (s *localSite) IsClosed() bool { return false }
 // Close always returns nil because a localSite isn't closed.
 func (s *localSite) Close() error { return nil }
 
+func (s *localSite) adviseReconnect() {
+	s.remoteConnsMtx.Lock()
+	defer s.remoteConnsMtx.Unlock()
+
+	for _, conns := range s.remoteConns {
+		for _, conn := range conns {
+			s.log.Debugf("Sending reconnect: %s", conn.nodeID)
+			go conn.adviseReconnect()
+		}
+	}
+}
+
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	if params.GetUserAgent == nil {
 		return nil, trace.BadParameter("user agent getter missing")
