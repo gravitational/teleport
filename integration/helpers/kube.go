@@ -121,8 +121,7 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
+		KeyPair: client.NewRSAKeyPair(priv, pub),
 		TLSCert: tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},

@@ -77,7 +77,7 @@ func TestListKeys(t *testing.T) {
 	skey, err := s.store.GetKey(samIdx, WithSSHCerts{})
 	require.NoError(t, err)
 	require.Equal(t, samKey.Cert, skey.Cert)
-	require.Equal(t, samKey.Pub, skey.Pub)
+	require.Equal(t, samKey.PublicKeyPEM(), skey.PublicKeyPEM())
 }
 
 func TestKeyCRUD(t *testing.T) {
@@ -474,8 +474,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	require.NoError(t, err)
 	return &Key{
 		KeyIndex:   idx,
-		Priv:       priv,
-		Pub:        pub,
+		KeyPair:    NewRSAKeyPair(priv, pub),
 		Cert:       cert,
 		TLSCert:    tlsCert,
 		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},

@@ -521,7 +521,7 @@ func (a *LocalKeyAgent) addKey(key *Key) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		if subtle.ConstantTimeCompare(storedKey.Priv, key.Priv) == 0 {
+		if subtle.ConstantTimeCompare(storedKey.PrivateKeyPEM(), key.PrivateKeyPEM()) == 0 {
 			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
 			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
 				return trace.Wrap(err)

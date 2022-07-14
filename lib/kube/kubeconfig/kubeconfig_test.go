@@ -191,7 +191,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.Priv,
+		ClientKeyData:         creds.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -427,8 +427,7 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
+		KeyPair: client.NewRSAKeyPair(priv, pub),
 		TLSCert: tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},

@@ -121,11 +121,11 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &UserCreds{
 		HostCA: ca,
 		Key: client.Key{
-			Priv:    priv,
-			Pub:     pub,
+			KeyPair: client.NewRSAKeyPair(priv, pub),
 			Cert:    sshCert,
 			TLSCert: x509Cert,
 		},

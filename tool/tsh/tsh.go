@@ -3216,7 +3216,7 @@ func refuseArgs(command string, args []string) error {
 
 // authFromIdentity returns a standard ssh.Authmethod for a given identity file
 func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
-	signer, err := sshutils.NewSigner(k.Priv, k.Cert)
+	signer, err := sshutils.NewSigner(k.PrivateKeyPEM(), k.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3237,12 +3237,12 @@ func onShow(cf *CLIConf) error {
 	}
 
 	// unmarshal private key bytes into a *rsa.PrivateKey
-	priv, err := ssh.ParseRawPrivateKey(key.Priv)
+	priv, err := ssh.ParseRawPrivateKey(key.PrivateKeyPEM())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pub, err := ssh.ParsePublicKey(key.Pub)
+	pub, err := ssh.ParsePublicKey(key.PublicKeyPEM())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -133,17 +133,23 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 		return trace.Wrap(err)
 	}
 	// Store core key data.
-	if err := fs.writeBytes(key.Priv, fs.UserKeyPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.PrivateKeyPEM(), fs.UserKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.Pub, fs.sshCAsPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.PublicKeyPEM(), fs.sshCAsPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if runtime.GOOS == constants.WindowsOS {
-		if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
+		// TODO: can we support this with yubikey?
+		ppkFile, err := key.PPKFile()
+		if err == nil {
+			if err := fs.writeBytes(ppkFile, fs.PPKFilePath(key.KeyIndex)); err != nil {
+				return trace.Wrap(err)
+			}
+		} else if !trace.IsNotImplemented(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -300,8 +306,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 
 	key := &Key{
 		KeyIndex: idx,
-		Pub:      pub,
-		Priv:     priv,
+		KeyPair:  NewRSAKeyPair(priv, pub),
 		TLSCert:  tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,
