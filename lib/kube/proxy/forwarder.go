@@ -292,7 +292,7 @@ type Forwarder struct {
 	activeRequests map[string]context.Context
 	// close is a close function
 	close context.CancelFunc
-	// ctx is a global context signalling exit
+	// ctx is a global context signaling exit
 	ctx context.Context
 	// creds contain kubernetes credentials for multiple clusters.
 	// map key is cluster name.

@@ -229,7 +229,7 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 	for signal := range signals {
 		switch signal {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, cancelling...")
+			log.Info("Received interrupt, canceling...")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:

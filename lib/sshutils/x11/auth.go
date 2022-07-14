@@ -148,26 +148,46 @@ func (x *XAuthCommand) GenerateUntrustedCookie(display Display, timeout time.Dur
 	return trace.Wrap(x.run())
 }
 
-// run Run and wrap error with stderr.
+// run the command and return stderr if there is an error.
 func (x *XAuthCommand) run() error {
-	err := x.Cmd.Run()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return trace.Wrap(err, "stderr: %q", exitErr.Stderr)
-		}
-	}
+	_, err := x.output()
 	return trace.Wrap(err)
 }
 
-// run Output and wrap error with stderr.
+// run the command and return stdout or stderr if there is an error.
 func (x *XAuthCommand) output() ([]byte, error) {
-	out, err := x.Cmd.Output()
+	stdout, err := x.Cmd.StdoutPipe()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, trace.Wrap(err, "stderr: %q", exitErr.Stderr)
-		}
+		return nil, trace.Wrap(err)
 	}
-	return out, trace.Wrap(err)
+
+	stderr, err := x.Cmd.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := x.Cmd.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We add a conservative peak length of 10 KB to prevent potential
+	// output spam from the client provided `xauth` binary
+	var peakLength int64 = 10000
+	out, err := io.ReadAll(io.LimitReader(stdout, peakLength))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	errOut, err := io.ReadAll(io.LimitReader(stderr, peakLength))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := x.Wait(); err != nil {
+		return nil, trace.Wrap(err, "command \"%s\" failed with stderr: \"%s\"", strings.Join(x.Cmd.Args, " "), errOut)
+	}
+
+	return out, nil
 }
 
 // CheckXAuthPath checks if xauth is runnable in the current environment.
