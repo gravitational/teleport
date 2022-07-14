@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -365,7 +365,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 
 	clusterName := cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if clusterName == "" {
-		return trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
+		return trace.BadParameter("missing cert extension %v", teleport.CertExtensionTeleportRouteToCluster)
 	}
 
 	identity.ClusterName = clusterName
@@ -381,7 +381,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(dest destination.Destination) error {
+func VerifyWrite(dest bot.Destination) error {
 	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
 }
 
@@ -401,7 +401,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -420,7 +420,7 @@ func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
