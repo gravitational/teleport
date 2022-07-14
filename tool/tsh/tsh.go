@@ -480,6 +480,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// shouldTerminate will be checked after app.Parse() call.
 	var shouldTerminate *int
 	app.Terminate(func(exitCode int) {
+		// make non-zero exit code sticky
+		if exitCode == 0 && shouldTerminate != nil {
+			return
+		}
 		shouldTerminate = &exitCode
 	})
 
