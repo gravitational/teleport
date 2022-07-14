@@ -45,7 +45,6 @@ const (
 func main() {
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
-		trace.DebugReport(err)
 	}
 }
 
