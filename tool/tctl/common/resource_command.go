@@ -817,7 +817,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("%s has been deleted\n", types.KindInstaller)
+		fmt.Printf("%s has been reset to a default value\n", types.KindInstaller)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1142,7 +1142,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 
 	case types.KindClusterAuthPreference:
 		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("installer is a singleton rsource, use `tctl get %v` to fetch it", types.KindClusterAuthPreference)
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
 		}
 		authPref, err := client.GetAuthPreference(ctx)
 		if err != nil {

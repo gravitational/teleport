@@ -4230,7 +4230,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, _ *empty.Empty) (*types.I
 	return inst, nil
 }
 
-// SetInstaller sets the installer script resource
+// DeleteInstaller sets the installer script resource to its default
 func (g *GRPCServer) DeleteInstaller(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

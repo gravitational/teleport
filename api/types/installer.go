@@ -35,14 +35,17 @@ type Installer interface {
 }
 
 // NewInstallerV1 returns a new installer resource
-func NewInstallerV1(script string) *InstallerV1 {
+func NewInstallerV1(script string) (*InstallerV1, error) {
 	installer := &InstallerV1{
 		Metadata: Metadata{},
 		Spec: InstallerSpecV1{
 			Script: script,
 		},
 	}
-	return installer
+	if err := installer.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return installer, nil
 }
 
 // CheckAndSetDefaults implements Installer

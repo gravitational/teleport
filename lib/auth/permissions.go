@@ -416,6 +416,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindInstaller, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{

@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,6 +73,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -190,6 +192,9 @@ type Config struct {
 
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
+
+	// Installer is used to template the installer script in responses
+	Installer installers.Template
 }
 
 type APIHandler struct {
@@ -1387,13 +1392,27 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	httplib.SetScriptHeaders(w.Header())
 	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			installer = installers.DefaultInstaller
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
-	_, err = w.Write([]byte(installer.GetScript()))
+	ping, err := h.auth.Ping(r.Context())
+	if err != nil {
+		return nil, err
+	}
+	// semver parsing requires a 'v' at the beginning of the version string.
+	version := semver.Major("v" + ping.ServerVersion)
+	instTmpl, err := template.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, nil
+	tmpl := h.cfg.Installer
+	tmpl.MajorVersion = version
+
+	err = instTmpl.Execute(w, tmpl)
+	return nil, trace.Wrap(err)
 }
 
 // AuthParams are used to construct redirect URL containing auth
