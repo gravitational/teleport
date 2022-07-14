@@ -28,7 +28,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -47,13 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
 )
 
 type authContext struct {
@@ -995,6 +995,21 @@ func TestGetCurrentUser(t *testing.T) {
 			Roles: []string{"user:user1"},
 		},
 	}, currentUser)
+}
+
+func TestGetCurrentUserRoles(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
+	require.NoError(t, err)
+
+	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	require.NoError(t, err)
+
+	roles, err := client1.GetCurrentUserRoles(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(roles, []types.Role{user1Role}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestAuthPreferenceSettings(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"testing"
 
 	"github.com/cloudflare/cfssl/log"
@@ -51,8 +52,11 @@ func requireRoot(t *testing.T) {
 
 func TestRootHostUsersBackend(t *testing.T) {
 	requireRoot(t)
-
-	backend := srv.HostUsersProvisioningBackend{}
+	sudoersTestDir := t.TempDir()
+	backend := srv.HostUsersProvisioningBackend{
+		SudoersPath: sudoersTestDir,
+		HostUUID:    "hostuuid",
+	}
 	t.Cleanup(func() {
 		// cleanup users if they got left behind due to a failing test
 		host.UserDel(testuser)
@@ -121,6 +125,13 @@ func TestRootHostUsersBackend(t *testing.T) {
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
 		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
+		// test sudoers entry containing . or ~
+		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
+		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
+		require.NoError(t, err)
+		require.NoError(t, backend.RemoveSudoersFile("user.name"))
+		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
+		require.True(t, os.IsNotExist(err))
 	})
 }
 
