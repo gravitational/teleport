@@ -69,6 +69,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// SetHeartbeatInterval(500 * time.Millisecond).
 				SetServerMonitor(sm).
 				SetMaxPoolSize(1).
+				SetMaxConnecting(1).
 				SetServerSelectionTimeout(1 * time.Second),
 		}, opts...)...)
 	if err != nil {
