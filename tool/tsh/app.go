@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -354,9 +355,9 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 	caPath := profile.AppLocalCAPath(appName)
 	keyPath := profile.KeyPath()
 
-	localCA, err := tls.LoadX509KeyPair(caPath, keyPath)
+	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
-		return localCA, nil
+		return caTLSCert, trace.Wrap(err)
 	}
 
 	// Generate and load again.
@@ -365,11 +366,11 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 		return tls.Certificate{}, err
 	}
 
-	localCA, err = tls.LoadX509KeyPair(caPath, keyPath)
+	caTLSCert, err = keys.LoadX509KeyPair(caPath, keyPath)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return localCA, nil
+	return caTLSCert, nil
 }
 
 // generateAppSelfSignedCA generates a new self-signed CA for provided app and
