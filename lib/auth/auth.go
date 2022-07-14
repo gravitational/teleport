@@ -2852,26 +2852,31 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return a.GetCache().GetNodes(ctx, namespace)
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
 		resp, err := a.ListResources(ctx, req)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(resp.Resources)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, resource := range resp.Resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || resp.NextKey == "" {
-			return resp, nil
+		if resp.NextKey == "" {
+			return nil
 		}
 
 		req.StartKey = resp.NextKey
