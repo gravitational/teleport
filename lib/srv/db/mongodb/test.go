@@ -65,8 +65,9 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// Mongo client connects in background so set a short heartbeat
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
-				SetHeartbeatInterval(500 * time.Millisecond).
+				// SetHeartbeatInterval(500 * time.Millisecond).
 				SetServerMonitor(sm).
+				SetMaxPoolSize(1).
 				SetServerSelectionTimeout(1 * time.Second),
 		}, opts...)...)
 	if err != nil {
