@@ -173,7 +173,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	case <-time.After(signalPipeTimeout):
 		return trace.BadParameter("Failed to write to parent process pipe.")
 	case <-messageSignalled.Done():
-		process.log.Infof("Signalled success to parent process.")
+		process.log.Infof("Signaled success to parent process.")
 	}
 	return nil
 }

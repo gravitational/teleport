@@ -22,6 +22,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/review"
 	"github.com/gravitational/trace"
 )
 
@@ -83,7 +84,7 @@ func (b *Bot) Check(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// if we got here, we have passed our checks and we can dismiss stale review requests
+	// if we have passed our checks we can try to dismiss other requested reviews
 	if err := b.dismissReviewers(ctx); err != nil {
 		log.Printf("Check: Failed to dismiss reviews: %v", err)
 	}
@@ -97,6 +98,11 @@ func (b *Bot) dismissReviewers(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(r) == 0 {
+		return nil
+	}
+
 	log.Printf("Check: Dismissing reviews for: %v", strings.Join(r, ", "))
 	return trace.Wrap(b.c.GitHub.DismissReviewers(ctx,
 		b.c.Environment.Organization,
@@ -128,9 +134,28 @@ func (b *Bot) reviewersToDismiss(ctx context.Context) ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	internalApprovals := 0
 	reviewedBy := make(map[string]struct{})
-	for _, review := range reviews {
-		reviewedBy[review.Author] = struct{}{}
+
+	// only count each reviewer's latest review (so we start from the end)
+	for i := len(reviews) - 1; i >= 0; i-- {
+		r := reviews[i]
+
+		// if we've already seen this reviewer then we're looking at an older review - skip it
+		if _, ok := reviewedBy[r.Author]; ok {
+			continue
+		}
+		reviewedBy[r.Author] = struct{}{}
+		if r.State == review.Approved && b.c.Review.IsInternal(r.Author) {
+			internalApprovals++
+		}
+	}
+
+	// Our internal checks could have passed with an admin approval, even though
+	// we only have a single approval. Ensure we have at least two internal approvals
+	// before we decide to dismiss reviewers.
+	if internalApprovals < 2 {
+		return nil, nil
 	}
 
 	var reviewersToDismiss []string
