@@ -407,7 +407,7 @@ func (f *fakeAnnouncer) KeepAlives() chan<- types.KeepAlive {
 	return f.keepAlivesC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (f *fakeAnnouncer) Done() <-chan struct{} {
 	return f.ctx.Done()
 }

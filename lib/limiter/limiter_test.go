@@ -239,7 +239,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
@@ -261,7 +261,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
@@ -304,7 +304,7 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {
