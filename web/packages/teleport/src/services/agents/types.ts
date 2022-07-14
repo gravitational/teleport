@@ -49,3 +49,14 @@ export type SortType = {
 };
 
 export type SortDir = 'ASC' | 'DESC';
+
+// AgentIdKind are the same id constants used to mark the type of
+// resource in the backend.
+//
+// These consts are expected for search based access requests.
+export type AgentIdKind =
+  | 'node'
+  | 'app'
+  | 'db'
+  | 'kube_cluster'
+  | 'windows_desktop';

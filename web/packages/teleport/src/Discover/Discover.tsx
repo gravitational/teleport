@@ -36,7 +36,7 @@ export default function Container() {
 
 export function Discover({
   initAttempt,
-  user,
+  username,
   currentStep,
   selectedAgentKind,
   logout,
@@ -60,7 +60,7 @@ export function Discover({
       )}
       {initAttempt.status === 'success' && (
         <>
-          <TopBar onLogout={logout} user={user} />
+          <TopBar onLogout={logout} username={username} />
           <Flex p={5} alignItems="flex-start">
             <SideNavAgentConnect currentStep={currentStep} />
             <Box width="100%" height="100%" minWidth="0">
@@ -79,7 +79,7 @@ export function Discover({
   );
 }
 
-function TopBar(props: { onLogout: VoidFunction; user: string }) {
+function TopBar(props: { onLogout: VoidFunction; username: string }) {
   const [open, setOpen] = React.useState(false);
 
   function showMenu() {
@@ -114,7 +114,7 @@ function TopBar(props: { onLogout: VoidFunction; user: string }) {
         open={open}
         onShow={showMenu}
         onClose={closeMenu}
-        user={props.user}
+        user={props.username}
       >
         <MenuItem as={NavLink} to={cfg.routes.root}>
           <MenuItemIcon as={Icons.Home} mr="2" />

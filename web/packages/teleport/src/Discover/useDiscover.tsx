@@ -28,16 +28,13 @@ export function useDiscover(ctx: DiscoverContext) {
   const { attempt, run } = useAttempt('');
   const { attempt: initAttempt, run: initRun } = useAttempt('processing');
 
-  const [user, setUser] = useState('');
   const [joinToken, setJoinToken] = useState<JoinToken>();
   const [currentStep, setCurrentStep] = useState<AgentStep>(0);
   const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>();
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
 
   useEffect(() => {
-    initRun(() =>
-      ctx.userService.fetchUserContext().then(c => setUser(c.username))
-    );
+    initRun(() => ctx.init());
   }, []);
 
   function onSelectResource(kind: AgentKind) {
@@ -91,7 +88,7 @@ export function useDiscover(ctx: DiscoverContext) {
 
   return {
     initAttempt,
-    user,
+    username: ctx.username,
     currentStep,
     selectedAgentKind,
     logout,
