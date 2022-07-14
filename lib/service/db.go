@@ -77,6 +77,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+
+		// run the resolver. this will check configuration for errors.
+		_, err := tunnelAddrResolver(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Start uploader that will scan a path on disk and upload completed
