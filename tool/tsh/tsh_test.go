@@ -207,6 +207,19 @@ func TestAlias(t *testing.T) {
 				require.Contains(t, output, `"runtime"`)
 			},
 		},
+		{
+			name: "call external program, pass non-zero exit code",
+			aliases: map[string]string{
+				"ss": fmt.Sprintf("%v status", testExecutable),
+				"bb": fmt.Sprintf("bash -c '%v ss'", testExecutable),
+			},
+			args:    []string{"bb"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, fmt.Sprintf("%vnot logged in", utils.Color(utils.Red, "ERROR: ")))
+				require.Contains(t, output, fmt.Sprintf("%vexit status 1", utils.Color(utils.Red, "ERROR: ")))
+			},
+		},
 	}
 
 	for _, tt := range tests {
