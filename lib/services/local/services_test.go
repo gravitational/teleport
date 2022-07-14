@@ -20,10 +20,9 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
@@ -48,10 +47,9 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 
 	clock := clockwork.NewFakeClock()
 
-	s.bk, err = lite.NewWithConfig(ctx, lite.Config{
-		Path:             c.MkDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clock,
+	s.bk, err = memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
 	})
 	c.Assert(err, check.IsNil)
 
