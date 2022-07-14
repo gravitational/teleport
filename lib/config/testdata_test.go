@@ -213,3 +213,33 @@ auth_service:
     type: saml
     local_auth: false
 `
+
+const configWithCAPins = `
+teleport:
+  nodename: cat.example.com
+  advertise_ip: 10.10.10.1
+  pid_file: /var/run/teleport.pid
+  log:
+    output: stderr
+    severity: INFO
+  ca_pin: [%v]
+auth_service:
+  enabled: yes
+  listen_addr: 10.5.5.1:3025
+  cluster_name: magadan
+  tokens:
+  - "proxy,node:xxx"
+  - "auth:yyy"
+  authentication:
+    type: local
+    second_factor: off
+
+ssh_service:
+  enabled: no
+
+proxy_service:
+  enabled: yes
+  web_listen_addr: webhost
+  tunnel_listen_addr: tunnelhost:1001
+  public_addr: web3:443
+`

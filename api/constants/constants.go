@@ -131,6 +131,9 @@ const (
 
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
+
+	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
+	SSHRSAType = "ssh-rsa"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
