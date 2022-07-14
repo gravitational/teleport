@@ -72,8 +72,10 @@ func NewID() ID {
 }
 
 // Session is an interactive collaboration session that represents one
-// or many SSH session started by teleport user
+// or many sessions started by the teleport user.
 type Session struct {
+	// Kind describes what kind of session this is e.g. ssh or kubernetes.
+	Kind types.SessionKind `json:"kind"`
 	// ID is a unique session identifier
 	ID ID `json:"id"`
 	// Namespace is a session namespace, separating sessions from each other
@@ -98,6 +100,8 @@ type Session struct {
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
+	// KubernetesClusterName is the name of the kube cluster that this session is running in.
+	KubernetesClusterName string `json:"kubernetes_cluster_name"`
 }
 
 // Participants returns the usernames of the current session participants.

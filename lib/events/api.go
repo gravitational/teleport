@@ -538,7 +538,7 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
-	// UpgradeWindowStartUpdateEvent is emmited when the upgrade window
+	// UpgradeWindowStartUpdateEvent is emmited when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
