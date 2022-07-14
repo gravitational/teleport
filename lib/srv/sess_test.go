@@ -402,19 +402,17 @@ func TestStopUnstarted(t *testing.T) {
 	require.NoError(t, err)
 
 	roles := services.NewRoleSet(role)
-	t.Run("Stop", func(t *testing.T) {
-		sess, _ := testOpenSession(t, reg, roles)
+	sess, _ := testOpenSession(t, reg, roles)
 
-		// Stopping the session should trigger the session
-		// to end and cleanup in the background
-		sess.Stop()
+	// Stopping the session should trigger the session
+	// to end and cleanup in the background
+	sess.Stop()
 
-		sessionClosed := func() bool {
-			_, found := reg.findSession(sess.id)
-			return !found
-		}
-		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
-	})
+	sessionClosed := func() bool {
+		_, found := reg.findSession(sess.id)
+		return !found
+	}
+	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 }
 
 // TestParties tests the party mechanisms within an interactive session,
