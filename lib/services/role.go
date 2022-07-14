@@ -462,10 +462,10 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	// verify that internal traits match the supported variables
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		switch variable.Name() {
-		case teleport.TraitLogins, teleport.TraitWindowsLogins,
-			teleport.TraitKubeGroups, teleport.TraitKubeUsers,
-			teleport.TraitDBNames, teleport.TraitDBUsers,
-			teleport.TraitAWSRoleARNs, teleport.TraitJWT:
+		case constants.TraitLogins, constants.TraitWindowsLogins,
+			constants.TraitKubeGroups, constants.TraitKubeUsers,
+			constants.TraitDBNames, constants.TraitDBUsers,
+			constants.TraitAWSRoleARNs, teleport.TraitJWT:
 		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
