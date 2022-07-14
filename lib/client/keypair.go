@@ -17,6 +17,13 @@ limitations under the License.
 package client
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth/native"
 
@@ -24,44 +31,98 @@ import (
 )
 
 type KeyPair interface {
+	PrivateKey() crypto.PrivateKey
+	Signer() crypto.Signer
 	PrivateKeyPEM() []byte
 	PublicKeyPEM() []byte
-	// PPKFile returns a PuTTY PPK-formatted keypair
 	PPKFile() ([]byte, error)
+	TLSCertificate(certRaw []byte) (tls.Certificate, error)
+	Equals(KeyPair) bool
 }
 
 type RSAKeyPair struct {
+	rsaPrivateKey *rsa.PrivateKey
 	privateKeyPEM []byte
 	publicKeyPEM  []byte
 }
 
 func GenerateRSAKeyPair() (*RSAKeyPair, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewRSAKeyPair(priv, pub), nil
+
+	// TODO ideally we only use raw keys for reading/writing to disk,
+	// so we wouldn't need to pre-parse and store the values here.
+	privPEM, pubPEM, err := native.ParseRSAPrivateKey(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &RSAKeyPair{
+		rsaPrivateKey: priv,
+		privateKeyPEM: privPEM,
+		publicKeyPEM:  pubPEM,
+	}, nil
 }
 
+// Retuns a new RSAKeyPair from an existing PEM-encoded RSA key pair.
 func NewRSAKeyPair(priv, pub []byte) *RSAKeyPair {
+	privPEM, _ := pem.Decode(priv)
+	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(privPEM.Bytes)
+	if err != nil {
+		// TODO: handle error
+		panic(err)
+	}
+
 	return &RSAKeyPair{
+		rsaPrivateKey: rsaPrivateKey,
+		// TODO: check pub vs priv?
 		privateKeyPEM: priv,
 		publicKeyPEM:  pub,
 	}
+}
+
+func (r *RSAKeyPair) PrivateKey() crypto.PrivateKey {
+	return r.rsaPrivateKey
+}
+
+func (r *RSAKeyPair) Signer() crypto.Signer {
+	return r.rsaPrivateKey
 }
 
 func (r *RSAKeyPair) PublicKeyPEM() []byte {
 	return r.publicKeyPEM
 }
 
+// TODO: remove this, we should not need to expose raw private keys
+// - may need to add a way for KeyPair to write a private key to disk though
 func (r *RSAKeyPair) PrivateKeyPEM() []byte {
 	return r.privateKeyPEM
 }
 
+// PPKFile returns a PuTTY PPK-formatted keypair
 func (r *RSAKeyPair) PPKFile() ([]byte, error) {
 	ppkFile, err := ppk.ConvertToPPK(r.privateKeyPEM, r.publicKeyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ppkFile, nil
+}
+
+func (r *RSAKeyPair) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
+	tlsCert, err := tls.X509KeyPair(certRaw, r.privateKeyPEM)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
+}
+
+func (r *RSAKeyPair) Equals(other KeyPair) bool {
+	rsa, ok := other.(*RSAKeyPair)
+	if !ok {
+		return false
+	}
+
+	return subtle.ConstantTimeCompare(r.privateKeyPEM, rsa.privateKeyPEM) == 1
 }

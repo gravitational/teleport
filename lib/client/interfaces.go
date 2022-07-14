@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -91,10 +90,6 @@ type Key struct {
 	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCA is a list of trusted certificate authorities
 	TrustedCA []auth.TrustedCerts
-}
-
-func (k *Key) PrivateKey() crypto.PrivateKey {
-	return nil
 }
 
 // GenerateKey generates a new unsigned key. Such key must be signed by a
@@ -295,24 +290,14 @@ func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16, clusters []string) 
 }
 
 func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters []string) (*tls.Config, error) {
-	tlsCert, err := tls.X509KeyPair(tlsCertRaw, k.PrivateKeyPEM())
+	tlsCert, err := k.TLSCertificate(tlsCertRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	pool := x509.NewCertPool()
-	for _, caPEM := range k.TLSCAs() {
-		cert, err := tlsca.ParseCertificatePEM(caPEM)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, k := range clusters {
-			if cert.Subject.CommonName == k {
-				if !pool.AppendCertsFromPEM(caPEM) {
-					return nil, trace.BadParameter("failed to parse TLS CA certificate")
-				}
-			}
-		}
+	pool, err := k.clientCertPool(clusters...)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tlsConfig := utils.TLSConfig(cipherSuites)
@@ -328,14 +313,43 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters
 	return tlsConfig, nil
 }
 
-// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// ClientCertPool returns x509.CertPool containing trusted CA.
+func (k *Key) clientCertPool(clusters ...string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, caPEM := range k.TLSCAs() {
+		cert, err := tlsca.ParseCertificatePEM(caPEM)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, k := range clusters {
+			if cert.Subject.CommonName == k {
+				if !pool.AppendCertsFromPEM(caPEM) {
+					return nil, trace.BadParameter("failed to parse TLS CA certificate")
+				}
+			}
+		}
+	}
+	return pool, nil
+}
+
+// SSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
 //
-func (k *Key) ProxyClientSSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientConfig, error) {
-	sshConfig, err := sshutils.ProxyClientSSHConfig(k.Cert, k.PrivateKeyPEM(), k.SSHCAs())
+func (k *Key) SSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientConfig, error) {
+	sshCert, err := sshutils.ParseCertificate(k.Cert)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
+	}
+
+	sshSigner, err := sshutils.SSHSigner(sshCert, k.Signer())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := sshutils.SSHConfig(sshCert, ssh.PublicKeys(sshSigner), k.SSHCAs())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

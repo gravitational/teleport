@@ -275,7 +275,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 
-		authConfig.SSH, err = key.ProxyClientSSHConfig(&sshTrustedHostKeyWrapper{key}, clusterName)
+		authConfig.SSH, err = key.SSHConfig(&sshTrustedHostKeyWrapper{key}, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -390,7 +390,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclien
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
-	authConfig.SSH, err = key.ProxyClientSSHConfig(keyStore, rootCluster)
+	authConfig.SSH, err = key.SSHConfig(keyStore, rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

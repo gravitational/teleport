@@ -49,42 +49,51 @@ var log = logrus.WithFields(logrus.Fields{
 })
 
 // precomputedKeys is a queue of cached keys ready for usage.
-var precomputedKeys = make(chan keyPair, 25)
+var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
-func generateKeyPairImpl() ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	if err != nil {
-		return nil, nil, err
-	}
-	privDer := x509.MarshalPKCS1PrivateKey(priv)
-	privBlock := pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Headers: nil,
-		Bytes:   privDer,
-	}
-	privPem := pem.EncodeToMemory(&privBlock)
+// TODO: remove - just reducing file edits for POC
+func GenerateKeyPair() ([]byte, []byte, error) {
+	return GenerateRSAKeyPair()
+}
 
-	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+func GenerateRSAKeyPair() ([]byte, []byte, error) {
+	rsaPrivateKey, err := GenerateRSAPrivateKey()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, trace.Wrap(err)
 	}
-	pubBytes := ssh.MarshalAuthorizedKey(pub)
-	return privPem, pubBytes, nil
+	return ParseRSAPrivateKey(rsaPrivateKey)
+}
+
+func GenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	select {
+	case k := <-precomputedKeys:
+		return k, nil
+	default:
+		return generateRSAPrivateKey()
+	}
+}
+
+func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	rsaKeyPair, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	if err != nil {
+		return nil, err
+	}
+	return rsaKeyPair, nil
 }
 
 func precomputeKeys() {
 	const backoff = time.Second * 30
 	for {
-		priv, pub, err := generateKeyPairImpl()
+		rsaPrivateKey, err := generateRSAPrivateKey()
 		if err != nil {
 			log.WithError(err).Errorf("Failed to precompute key pair, retrying in %s (this might be a bug).", backoff)
 			time.Sleep(backoff)
 		}
 
-		precomputedKeys <- keyPair{priv, pub}
+		precomputedKeys <- rsaPrivateKey
 	}
 }
 
@@ -97,20 +106,19 @@ func PrecomputeKeys() {
 	})
 }
 
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
-// This will pull from a precomputed cache of ready to use keys if PrecomputeKeys was enabled.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	select {
-	case k := <-precomputedKeys:
-		return k.privPem, k.pubBytes, nil
-	default:
-		return generateKeyPairImpl()
-	}
-}
+func ParseRSAPrivateKey(priv *rsa.PrivateKey) ([]byte, []byte, error) {
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    "RSA PRIVATE KEY",
+		Headers: nil,
+		Bytes:   x509.MarshalPKCS1PrivateKey(priv),
+	})
 
-type keyPair struct {
-	privPem  []byte
-	pubBytes []byte
+	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	pubPEM := ssh.MarshalAuthorizedKey(pub)
+	return privPEM, pubPEM, nil
 }
 
 // keygen is a key generator that precomputes keys to provide quick access to
@@ -156,7 +164,7 @@ func (k *Keygen) Close() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to
 // execute.
 func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
-	return GenerateKeyPair()
+	return GenerateRSAKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.

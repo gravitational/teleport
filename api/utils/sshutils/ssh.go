@@ -19,6 +19,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"crypto"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -102,26 +103,30 @@ func ParseAuthorizedKeys(authorizedKeys [][]byte) ([]ssh.PublicKey, error) {
 //
 // The config is set up to authenticate to proxy with the first available principal.
 //
-func ProxyClientSSHConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.ClientConfig, error) {
-	cert, err := ParseCertificate(sshCert)
+func ProxyClientSSHConfig(cert, privKey []byte, caCerts [][]byte) (*ssh.ClientConfig, error) {
+	sshCert, err := ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
-	authMethod, err := AsAuthMethod(cert, privKey)
+	authMethod, err := AsAuthMethod(sshCert, privKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert key pair to auth method")
 	}
 
+	return SSHConfig(sshCert, authMethod, caCerts)
+}
+
+func SSHConfig(sshCert *ssh.Certificate, authMethod ssh.AuthMethod, caCerts [][]byte) (*ssh.ClientConfig, error) {
 	hostKeyCallback, err := HostKeyCallback(caCerts, false)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 	}
 
 	// The KeyId is not always a valid principal, so we use the first valid principal instead.
-	user := cert.KeyId
-	if len(cert.ValidPrincipals) > 0 {
-		user = cert.ValidPrincipals[0]
+	user := sshCert.KeyId
+	if len(sshCert.ValidPrincipals) > 0 {
+		user = sshCert.ValidPrincipals[0]
 	}
 
 	return &ssh.ClientConfig{
@@ -130,6 +135,19 @@ func ProxyClientSSHConfig(sshCert, privKey []byte, caCerts [][]byte) (*ssh.Clien
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         defaults.DefaultDialTimeout,
 	}, nil
+}
+
+// TODO replaces AsSigner
+func SSHSigner(sshCert *ssh.Certificate, signer crypto.Signer) (ssh.Signer, error) {
+	sshSigner, err := ssh.NewSignerFromKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner, err = ssh.NewCertSigner(sshCert, sshSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sshSigner, nil
 }
 
 // AsSigner returns an ssh.Signer from raw marshaled key and certificate.
