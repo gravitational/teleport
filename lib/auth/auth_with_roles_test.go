@@ -3410,13 +3410,14 @@ func TestListResources_WithRoles(t *testing.T) {
 			err = srv.Auth().UpsertUser(user)
 			require.NoError(t, err)
 
-			clt, err := srv.NewClient(TestUser(user.GetName()))
-			require.NoError(t, err)
-
 			for _, needTotal := range []bool{true, false} {
 				total := needTotal
 				t.Run(fmt.Sprintf("needTotal=%t", total), func(t *testing.T) {
 					t.Parallel()
+
+					clt, err := srv.NewClient(TestUser(user.GetName()))
+					require.NoError(t, err)
+
 					var resp *types.ListResourcesResponse
 					var nodes []types.ResourceWithLabels
 					for {
