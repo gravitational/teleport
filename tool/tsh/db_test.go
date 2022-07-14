@@ -17,10 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -105,6 +107,65 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, certs, 1)
 	require.Len(t, keys, 1)
+}
+
+func TestListDatabase(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	tshHome := t.TempDir()
+	t.Setenv(types.HomeEnvVar, tshHome)
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []service.Database{{
+				Name:     "root-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []service.Database{{
+				Name:     "leaf-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+	)
+
+	mustLogin(t, s)
+
+	captureStdout := new(bytes.Buffer)
+	err := Run(context.Background(), []string{
+		"db",
+		"ls",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, captureStdout.String(), "root-postgres")
+
+	captureStdout.Reset()
+	err = Run(context.Background(), []string{
+		"db",
+		"ls",
+		"--cluster",
+		"leaf1",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, captureStdout.String(), "leaf-postgres")
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {

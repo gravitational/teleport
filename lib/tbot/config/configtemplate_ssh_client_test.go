@@ -70,6 +70,11 @@ func (m *templateSSHClientAuthMock) GetCertAuthority(ctx context.Context, id typ
 		ClusterName: m.clusterName,
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{
+				// Two of these to ensure that both are written to known hosts
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
 				{
 					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
 					PublicKey:  []byte(fixtures.SSHCAPublicKey),

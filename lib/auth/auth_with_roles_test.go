@@ -1275,7 +1275,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 
 			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
 			if test.err != "" {
-				require.EqualError(t, err, test.err)
+				require.ErrorContains(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 			}
