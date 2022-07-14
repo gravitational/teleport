@@ -18,6 +18,9 @@ package auth
 
 import (
 	"context"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -28,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/stretchr/testify/require"
 
@@ -280,4 +284,97 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 		Teams: []string{"team1", "team2", "team1"},
 	}, &types.GithubAuthRequest{})
 	require.ErrorIs(t, err, ErrGithubNoTeams)
+}
+
+type mockHTTPRequester struct {
+	succeed    bool
+	statusCode int
+}
+
+func (m mockHTTPRequester) Do(req *http.Request) (*http.Response, error) {
+	if !m.succeed {
+		return nil, &url.Error{
+			URL: req.URL.String(),
+			Err: &net.DNSError{
+				IsTimeout: true,
+			},
+		}
+	}
+
+	resp := new(http.Response)
+	resp.Body = io.NopCloser(nil)
+	resp.StatusCode = m.statusCode
+
+	return resp, nil
+}
+
+func TestCheckGithubFeatureSupport(t *testing.T) {
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "org",
+				Team:         "team",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		testName             string
+		isEnterprise         bool
+		requestShouldSucceed bool
+		httpStatusCode       int
+		errFunc              func(error) bool
+	}{
+		{
+			testName:             "OSS has SSO",
+			isEnterprise:         false,
+			requestShouldSucceed: true,
+			httpStatusCode:       200,
+			errFunc:              trace.IsAccessDenied,
+		},
+		{
+			testName:             "OSS doesn't have SSO",
+			isEnterprise:         false,
+			requestShouldSucceed: true,
+			httpStatusCode:       404,
+			errFunc:              nil,
+		},
+		{
+			testName:             "OSS HTTP connection failure",
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			errFunc:              trace.IsConnectionProblem,
+		},
+		{
+			testName:             "Enterprise skips HTTP check",
+			isEnterprise:         true,
+			requestShouldSucceed: false,
+			errFunc:              nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			client := mockHTTPRequester{
+				succeed:    tt.requestShouldSucceed,
+				statusCode: tt.httpStatusCode,
+			}
+
+			if tt.isEnterprise {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+				})
+			}
+
+			err := checkGithubFeatureSupport(connector, client)
+			if tt.errFunc == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, tt.errFunc(err))
+			}
+		})
+	}
 }
