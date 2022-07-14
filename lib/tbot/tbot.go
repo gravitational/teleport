@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 type Bot struct {
@@ -111,20 +111,15 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	watcher, err := b.client().NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{{
-			Kind: types.KindCertAuthority,
-		}},
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	eg.Go(func() error {
+		return trace.Wrap(b.renewLoop(egCtx))
+	})
 
-	go b.watchCARotations(watcher)
-
-	defer watcher.Close()
-
-	return trace.Wrap(b.renewLoop(ctx))
+	return eg.Wait()
 }
 
 func (b *Bot) initialize(ctx context.Context) error {
@@ -143,40 +138,53 @@ func (b *Bot) initialize(ctx context.Context) error {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	configTokenHashBytes := []byte{}
-	if b.cfg.Onboarding != nil && b.cfg.Onboarding.Token != "" {
-		sha := sha256.Sum256([]byte(b.cfg.Onboarding.Token))
-		configTokenHashBytes = []byte(hex.EncodeToString(sha[:]))
-	}
-
 	var authClient auth.ClientI
 
+	fetchNewIdentity := true
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil && !hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes) {
-		identStr, err := describeTLSIdentity(ident)
-		if err != nil {
-			return trace.Wrap(err)
+	if err == nil {
+		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasToken() {
+			// try to grab the token to see if it's changed, as we'll need to fetch a new identity if it has
+			if token, err := b.cfg.Onboarding.Token(); err == nil {
+				sha := sha256.Sum256([]byte(token))
+				configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
+
+				fetchNewIdentity = hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes)
+			} else {
+				// we failed to get the token, we'll continue on trying to use the existing identity
+				b.log.WithError(err).Error("There was an error loading the token")
+
+				fetchNewIdentity = false
+
+				b.log.Info("Using the last good identity")
+			}
 		}
 
-		b.log.Infof("Successfully loaded bot identity, %s", identStr)
+		if !fetchNewIdentity {
+			identStr, err := describeTLSIdentity(ident)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		if err := b.checkIdentity(ident); err != nil {
-			return trace.Wrap(err)
+			b.log.Infof("Successfully loaded bot identity, %s", identStr)
+
+			if err := b.checkIdentity(ident); err != nil {
+				return trace.Wrap(err)
+			}
+
+			if b.cfg.Onboarding != nil {
+				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
+			}
+
+			authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
+	}
 
-		if b.cfg.Onboarding != nil {
-			b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
-		}
-
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		// If the identity can't be loaded, assume we're starting fresh and
-		// need to generate our initial identity from a token
-
+	if fetchNewIdentity {
 		if ident != nil {
 			// If ident is set here, we detected a token change above.
 			b.log.Warnf("Detected a token change, will attempt to fetch a new identity.")
