@@ -62,6 +62,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				ApplyURI("mongodb://" + config.Address).
 				SetTLSConfig(tlsConfig).
 				SetDirect(true).
+				SetAppName("tel-test-clt").
 				// Mongo client connects in background so set a short heartbeat
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.

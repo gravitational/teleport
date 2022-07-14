@@ -113,6 +113,9 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 		return nil, trace.Wrap(err)
 	}
 	return []topology.ServerOption{
+		topology.WithServerAppName(func(s string) string {
+			return "tel-db-srv"
+		}),
 		topology.WithConnectionOptions(func(opts ...topology.ConnectionOption) []topology.ConnectionOption {
 			return connectionOptions
 		}),
