@@ -83,7 +83,7 @@ func (rd *debouncer) attempt() {
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
-// cancelled. This allows the watcher to be re-established if an error occurs.
+// canceled. This allows the watcher to be re-established if an error occurs.
 //
 // caRotationLoop also manages debouncing the renewals across multiple watch
 // attempts.
@@ -117,7 +117,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
 		select {
 		case <-ctx.Done():
-			b.log.Warn("Context cancelled during backoff for CA rotation watcher. Aborting.")
+			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
 			return nil
 		case <-time.After(backoffPeriod):
 		}
