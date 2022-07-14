@@ -1146,9 +1146,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &types.ListResourcesResponse{
-		Resources: make([]types.ResourceWithLabels, 0, limit),
-	}
+	var resp types.ListResourcesResponse
 	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
 		if len(resp.Resources) == limit {
 			resp.NextKey = backend.GetPaginationKey(resource)
@@ -1176,7 +1174,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
-	return resp, nil
+	return &resp, nil
 }
 
 // resourceAccessChecker allows access to be checked differently per resource type.
