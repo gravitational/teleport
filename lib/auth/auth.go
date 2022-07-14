@@ -2855,9 +2855,10 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 // ErrDone indicates that resource iteration is complete
 var ErrDone = errors.New("done iterating")
 
-// IterateResources will pass all resources matching the request to the provided function f until it has either
-// exhausted all matching resources, or f returns ErrDone. When ErrDone is provided nil will be returned, otherwise
-// the provided error from f will be returned.
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
 func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
 		resp, err := a.ListResources(ctx, req)
