@@ -109,8 +109,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			} else {
 				process.log.Errorf("Failed to perform system role assertions: %v", assertionErr)
 			}
-		} else {
-			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+		} else if connectErr != nil {
+			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
 		}
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.

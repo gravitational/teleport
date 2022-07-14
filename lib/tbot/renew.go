@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -151,6 +153,8 @@ func (b *Bot) generateIdentity(
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
 	// TODO: enforce expiration > renewal period (by what margin?)
+	//   This should be ignored if a renewal has been triggered manually or
+	//   by a CA rotation.
 
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
@@ -337,7 +341,7 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	if b.cfg.Onboarding == nil {
 		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
 	}
-	if b.cfg.Onboarding.Token == "" {
+	if !b.cfg.Onboarding.HasToken() {
 		return nil, trace.BadParameter("unable to start: no token present")
 	}
 	addr, err := utils.ParseAddr(b.cfg.AuthServer)
@@ -351,8 +355,14 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	}
 
 	b.log.Info("Attempting to generate new identity from token")
+
+	token, err := b.cfg.Onboarding.Token()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	params := auth.RegisterParams{
-		Token: b.cfg.Onboarding.Token,
+		Token: token,
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
@@ -464,12 +474,6 @@ func (b *Bot) renew(
 		return trace.Wrap(err)
 	}
 
-	// Attempt a request to make sure our client works.
-	// TODO: consider a retry/backoff loop.
-	if _, err := newClient.Ping(ctx); err != nil {
-		return trace.Wrap(err, "unable to communicate with auth server")
-	}
-
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
 	b.log.Debug("Auth client now using renewed credentials.")
@@ -544,10 +548,9 @@ func (b *Bot) renew(
 	return nil
 }
 
-func (b *Bot) renewLoop(ctx context.Context) error {
-	// TODO: failures here should probably not just end the renewal loop, there
-	// should be some retry / back-off logic.
+const renewalRetryLimit = 5
 
+func (b *Bot) renewLoop(ctx context.Context) error {
 	// TODO: what should this interval be? should it be user configurable?
 	// Also, must be < the validity period.
 	// TODO: validate that cert is actually renewable.
@@ -573,10 +576,35 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	jitter := libUtils.NewJitter()
 	defer ticker.Stop()
 	for {
-		err := b.renew(ctx, botDestination)
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			err = b.renew(ctx, botDestination)
+			if err == nil {
+				break
+			}
+
+			if attempt != renewalRetryLimit {
+				// exponentially back off with jitter, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
+				b.log.WithError(err).Warnf(
+					"Renewal attempt %d of %d failed. Retrying after %s.",
+					attempt,
+					renewalRetryLimit,
+					backoffTime,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
 		if err != nil {
+			b.log.Warnf("All %d retry attempts exhausted.", renewalRetryLimit)
 			return trace.Wrap(err)
 		}
 
@@ -596,19 +624,4 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (b *Bot) watchCARotations(watcher types.Watcher) {
-	for {
-		select {
-		case event := <-watcher.Events():
-			b.log.Debugf("CA event: %+v", event)
-			// TODO: handle CA rotations
-		case <-watcher.Done():
-			if err := watcher.Error(); err != nil {
-				b.log.WithError(err).Warnf("error watching for CA rotations")
-			}
-			return
-		}
-	}
 }
