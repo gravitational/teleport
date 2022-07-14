@@ -20,9 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -47,7 +46,7 @@ func (t *TemplateIdentity) Name() string {
 	return TemplateIdentityName
 }
 
-func (t *TemplateIdentity) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateIdentity) Describe(destination bot.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name: t.FileName,
@@ -55,13 +54,13 @@ func (t *TemplateIdentity) Describe(destination destination.Destination) []FileD
 	}
 }
 
-func (t *TemplateIdentity) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateIdentity) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := authClient.GetCertAuthorities(ctx, types.HostCA, false)
+	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
