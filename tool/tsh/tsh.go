@@ -799,7 +799,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// aliases
 	ar := newAliasRunner(cf.TshConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
-	if ok, aliasDefinition := ar.getAliasDefinition(aliasCommand); ok {
+	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
 		err = ar.markAliasSeen(aliasCommand)
 		if err != nil {
 			return trace.Wrap(err)

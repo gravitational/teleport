@@ -110,17 +110,16 @@ func expandAliasDefinition(aliasDef string, runtimeArgs []string) ([]string, err
 }
 
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
-func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (bool, string) {
+func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
 	// ignore aliases found in TSH_ALIAS list
 	for _, usedAlias := range ar.getSeenAliases() {
 		if usedAlias == aliasCmd {
-			return false, ""
+			return "", false
 		}
 	}
 
-	// match?
 	aliasDef, ok := ar.aliases[aliasCmd]
-	return ok, aliasDef
+	return aliasDef, ok
 }
 
 // markAliasSeen adds another alias to the list of aliases seen.
