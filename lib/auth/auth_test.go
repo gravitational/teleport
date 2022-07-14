@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -1898,5 +1899,100 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
+	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.ResourceWithLabels
+	resourcesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.resourcesError != nil {
+		return nil, m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, nil
+	}
+
+	return &types.ListResourcesResponse{Resources: m.resources}, nil
+}
+
+func TestFilterResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.ResourceWithLabels) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
 	}
 }
