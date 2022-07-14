@@ -301,9 +301,9 @@ func Test_getAliasDefinition(t *testing.T) {
 			}
 			ar.aliases = tt.aliasDefs
 
-			gotOk, gotDefinition := ar.getAliasDefinition(tt.alias)
-			require.Equal(t, tt.wantOk, gotOk)
+			gotDefinition, gotOk := ar.getAliasDefinition(tt.alias)
 			require.Equal(t, tt.wantDef, gotDefinition)
+			require.Equal(t, tt.wantOk, gotOk)
 		})
 	}
 }
