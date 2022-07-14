@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -57,6 +58,20 @@ type User interface {
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
+	// SetLogins sets a list of server logins/principals for user
+	SetLogins(logins []string)
+	// SetDBUsers sets a list of DB Users for user
+	SetDBUsers(dbUsers []string)
+	// SetDBNames sets a list of DB Names for user
+	SetDBNames(dbNames []string)
+	// SetKubeUsers sets a list of Kubernetes Users for user
+	SetKubeUsers(kubeUsers []string)
+	// SetKubeGroups sets a list of Kubernetes Groups for user
+	SetKubeGroups(kubeGroups []string)
+	// SetWindowsLogins sets a list of Windows Logins for user
+	SetWindowsLogins(logins []string)
+	// SetAWSRoleARNs sets a list of AWS role ARNs for user
+	SetAWSRoleARNs(awsRoleARNs []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -205,6 +220,48 @@ func (u *UserV2) Expiry() time.Time {
 // SetRoles sets a list of roles for user
 func (u *UserV2) SetRoles(roles []string) {
 	u.Spec.Roles = utils.Deduplicate(roles)
+}
+
+func (u *UserV2) setTrait(trait string, list []string) {
+	if u.Spec.Traits == nil {
+		u.Spec.Traits = make(map[string][]string)
+	}
+	u.Spec.Traits[trait] = utils.Deduplicate(list)
+}
+
+// SetLogins sets the Logins trait for the user
+func (u *UserV2) SetLogins(logins []string) {
+	u.setTrait(constants.TraitLogins, logins)
+}
+
+// SetDBUsers sets the DBUsers trait for the user
+func (u *UserV2) SetDBUsers(dbUsers []string) {
+	u.setTrait(constants.TraitDBUsers, dbUsers)
+}
+
+// SetDBNames sets the DBNames trait for the user
+func (u *UserV2) SetDBNames(dbNames []string) {
+	u.setTrait(constants.TraitDBNames, dbNames)
+}
+
+// SetKubeUsers sets the KubeUsers trait for the user
+func (u *UserV2) SetKubeUsers(kubeUsers []string) {
+	u.setTrait(constants.TraitKubeUsers, kubeUsers)
+}
+
+// SetKubeGroups sets the KubeGroups trait for the user
+func (u *UserV2) SetKubeGroups(kubeGroups []string) {
+	u.setTrait(constants.TraitKubeGroups, kubeGroups)
+}
+
+// SetWindowsLogins sets the WindowsLogins trait for the user
+func (u *UserV2) SetWindowsLogins(logins []string) {
+	u.setTrait(constants.TraitWindowsLogins, logins)
+}
+
+// SetAWSRoleARNs sets the AWSRoleARNs trait for the user
+func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
+	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
 }
 
 // GetStatus returns login status of the user
