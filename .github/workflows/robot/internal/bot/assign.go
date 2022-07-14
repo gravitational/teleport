@@ -48,23 +48,6 @@ func (b *Bot) Assign(ctx context.Context) error {
 
 	log.Printf("Assign: Requesting reviews from: %v.", reviewers)
 
-	// If the PR already has the required approvals, then:
-	// - we don't need to assign any more reviewers
-	// - we can dismiss any reviewers who have not yet reviewed
-	if err := b.Check(ctx); err == nil {
-		r, err := b.reviewersToDismiss(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Printf("Assign: Dismissing reviews for: %v", strings.Join(r, ", "))
-		return trace.Wrap(b.c.GitHub.DismissReviewers(ctx,
-			b.c.Environment.Organization,
-			b.c.Environment.Repository,
-			b.c.Environment.Number,
-			r,
-		))
-	}
-
 	// Request GitHub assign reviewers to this PR.
 	err = b.c.GitHub.RequestReviewers(ctx,
 		b.c.Environment.Organization,
@@ -76,43 +59,6 @@ func (b *Bot) Assign(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// reviewersToDismiss determines which (if any) reviewers can be removed
-// from an *already approved* pull request.
-// Precondition: the pull request must already pass required approvers checks.
-func (b *Bot) reviewersToDismiss(ctx context.Context) ([]string, error) {
-	reviewers, err := b.c.GitHub.ListReviewers(ctx,
-		b.c.Environment.Organization,
-		b.c.Environment.Repository,
-		b.c.Environment.Number,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reviews, err := b.c.GitHub.ListReviews(ctx,
-		b.c.Environment.Organization,
-		b.c.Environment.Repository,
-		b.c.Environment.Number,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reviewedBy := make(map[string]struct{})
-	for _, review := range reviews {
-		reviewedBy[review.Author] = struct{}{}
-	}
-
-	var reviewersToDismiss []string
-	for _, reviewer := range reviewers {
-		if _, ok := reviewedBy[reviewer]; !ok {
-			reviewersToDismiss = append(reviewersToDismiss, reviewer)
-		}
-	}
-
-	return reviewersToDismiss, nil
 }
 
 func (b *Bot) getReviewers(ctx context.Context, files []github.PullRequestFile) ([]string, error) {
