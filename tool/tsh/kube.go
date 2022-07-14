@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -170,7 +171,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if _, err := tc.LocalAgent().AddKey(k); err != nil {
+			if err := tc.LocalAgent().AddKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -615,7 +616,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	}
 
 	// Cache the new cert on disk for reuse.
-	if _, err := tc.LocalAgent().AddKey(k); err != nil {
+	if err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -633,11 +634,18 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
+
+	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+	// private keys for kube credentials (if possible)
+	rsaKeyPEM, err := keys.GetRSAPrivateKeyPEM(key.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
-			ClientKeyData:         string(key.Priv),
+			ClientKeyData:         string(rsaKeyPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)

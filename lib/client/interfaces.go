@@ -17,15 +17,18 @@ limitations under the License.
 package client
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -69,12 +71,9 @@ func (idx KeyIndex) Check() error {
 type Key struct {
 	KeyIndex
 
-	// Priv is a PEM encoded private key
-	Priv []byte `json:"Priv,omitempty"`
-	// Pub is a public key
-	Pub []byte `json:"Pub,omitempty"`
-	// PPK is a PuTTY PPK-formatted keypair
-	PPK []byte `json:"PPK,omitempty"`
+	// PrivateKey is a private key used for cryptographical operations.
+	keys.PrivateKey
+
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
 	// TLSCert is a PEM encoded client TLS x509 certificate.
@@ -96,26 +95,24 @@ type Key struct {
 	TrustedCA []auth.TrustedCerts
 }
 
-// NewKey generates a new unsigned key. Such key must be signed by a
-// Teleport CA (auth server) before it becomes useful.
-func NewKey() (key *Key, err error) {
-	priv, pub, err := native.GenerateKeyPair()
+// GenerateRSAKey generates a new unsigned key.
+func GenerateRSAKey() (*Key, error) {
+	pk, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return NewKey(pk), nil
+}
 
-	ppkFile, err := ppk.ConvertToPPK(priv, pub)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// NewKey creates a new Key for the given private key.
+func NewKey(priv keys.PrivateKey) *Key {
 	return &Key{
-		Priv:         priv,
-		Pub:          pub,
-		PPK:          ppkFile,
-		KubeTLSCerts: make(map[string][]byte),
-		DBTLSCerts:   make(map[string][]byte),
-	}, nil
+		PrivateKey:          priv,
+		KubeTLSCerts:        make(map[string][]byte),
+		DBTLSCerts:          make(map[string][]byte),
+		AppTLSCerts:         make(map[string][]byte),
+		WindowsDesktopCerts: make(map[string][]byte),
+	}
 }
 
 // extractIdentityFromCert parses a tlsca.Identity from raw PEM cert bytes.
@@ -141,12 +138,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
 
-	// validate both by parsing them:
-	privKey, err := ssh.ParseRawPrivateKey(ident.PrivateKey)
-	if err != nil {
-		return nil, trace.BadParameter("invalid identity: %s. %v", path, err)
-	}
-	signer, err := ssh.NewSignerFromKey(privKey)
+	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,7 +148,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
-		if _, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey); err != nil {
+		if _, err := priv.TLSCertificate(ident.Certs.TLS); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -200,8 +192,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		Priv:        ident.PrivateKey,
-		Pub:         ssh.MarshalAuthorizedKey(signer.PublicKey()),
+		PrivateKey:  priv,
 		Cert:        ident.Certs.SSH,
 		TLSCert:     ident.Certs.TLS,
 		TrustedCA:   trustedCA,
@@ -296,24 +287,14 @@ func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16, clusters []string) 
 }
 
 func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters []string) (*tls.Config, error) {
-	tlsCert, err := tls.X509KeyPair(tlsCertRaw, k.Priv)
+	tlsCert, err := k.TLSCertificate(tlsCertRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	pool := x509.NewCertPool()
-	for _, caPEM := range k.TLSCAs() {
-		cert, err := tlsca.ParseCertificatePEM(caPEM)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, k := range clusters {
-			if cert.Subject.CommonName == k {
-				if !pool.AppendCertsFromPEM(caPEM) {
-					return nil, trace.BadParameter("failed to parse TLS CA certificate")
-				}
-			}
-		}
+	pool, err := k.clientCertPool(clusters...)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tlsConfig := utils.TLSConfig(cipherSuites)
@@ -329,6 +310,25 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters
 	return tlsConfig, nil
 }
 
+// ClientCertPool returns x509.CertPool containing trusted CA.
+func (k *Key) clientCertPool(clusters ...string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, caPEM := range k.TLSCAs() {
+		cert, err := tlsca.ParseCertificatePEM(caPEM)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, k := range clusters {
+			if cert.Subject.CommonName == k {
+				if !pool.AppendCertsFromPEM(caPEM) {
+					return nil, trace.BadParameter("failed to parse TLS CA certificate")
+				}
+			}
+		}
+	}
+	return pool, nil
+}
+
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // Key and HostKeyCallback matching SSH CAs in the Key.
 //
@@ -336,7 +336,12 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
 //
 func (k *Key) ProxyClientSSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientConfig, error) {
-	sshConfig, err := sshutils.ProxyClientSSHConfig(k.Cert, k.Priv, k.SSHCAs())
+	sshCert, err := k.SSHCert()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
+	}
+
+	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -387,11 +392,35 @@ func (k *Key) CertRoles() ([]string, error) {
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
 func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
-	cert, err := k.SSHCert()
+	sshCert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAgentKeys(cert, k.Priv)
+
+	agentKey, err := keys.AsAgentKey(k.PrivateKey, sshCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// On all OS'es, return the certificate with the private key embedded.
+	agentKeys := []agent.AddedKey{agentKey}
+	if runtime.GOOS != constants.WindowsOS {
+		// On Unix, also return a lone private key.
+		//
+		// (2016-08-01) have a bug in how they use certificates that have been lo
+		// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1aded
+		// in an agent. Specifically when you add a certificate to an agent, you can't
+		// just embed the private key within the certificate, you have to add the
+		// certificate and private key to the agent separately. Teleport works around
+		// this behavior to ensure OpenSSH interoperability.
+		//
+		// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+		// WARNING: callers expect the returned slice to be __exactly as it is__
+		agentKey.Certificate = nil
+		agentKeys = append(agentKeys, agentKey)
+	}
+
+	return agentKeys, nil
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
@@ -460,16 +489,16 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAuthMethod(cert, k.Priv)
+	return sshutils.AsAuthMethod(cert, k)
 }
 
-// AsSigner returns an ssh.Signer using the SSH certificate in this key.
-func (k *Key) AsSigner() (ssh.Signer, error) {
+// SSHSigner returns an ssh.Signer using the SSH certificate in this key.
+func (k *Key) SSHSigner() (ssh.Signer, error) {
 	cert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsSigner(cert, k.Priv)
+	return sshutils.SSHSigner(cert, k)
 }
 
 // SSHCert returns parsed SSH certificate
@@ -496,20 +525,25 @@ func (k *Key) ActiveRequests() (services.RequestIDs, error) {
 	return activeRequests, nil
 }
 
-// CheckCert makes sure the SSH certificate is valid.
+// CheckCert makes sure the key's SSH certificate is valid.
 func (k *Key) CheckCert() error {
 	cert, err := k.SSHCert()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Check that the certificate was for the current public key. If not, the
-	// public/private key pair may have been rotated.
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(k.Pub)
-	if err != nil {
+	if err := k.checkCert(cert); err != nil {
 		return trace.Wrap(err)
 	}
-	if !sshutils.KeysEqual(cert.Key, pub) {
+
+	return nil
+}
+
+// checkCert makes sure the given SSH certificate is valid.
+func (k *Key) checkCert(sshCert *ssh.Certificate) error {
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	if !sshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
 		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
@@ -518,12 +552,27 @@ func (k *Key) CheckCert() error {
 	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
-	err = certChecker.CheckCert(cert.ValidPrincipals[0], cert)
-	if err != nil {
+	if err := certChecker.CheckCert(sshCert.ValidPrincipals[0], sshCert); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
+}
+
+func (k *Key) SSHPublicKeyPEM() []byte {
+	return ssh.MarshalAuthorizedKey(k.SSHPublicKey())
+}
+
+// PPKFile returns a PuTTY PPK-formatted keypair
+func (k *Key) PPKFile() ([]byte, error) {
+	priv, ok := k.PrivateKey.(*keys.RSAPrivateKey)
+	if !ok {
+		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
+	}
+	ppkFile, err := ppk.ConvertToPPK(priv.PrivateKey, k.SSHPublicKeyPEM())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ppkFile, nil
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
@@ -562,4 +611,9 @@ func (k *Key) RootClusterName() (string, error) {
 		return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
 	}
 	return clusterName, nil
+}
+
+// Equal returns wheter this key and the given key have the same PrivateKey
+func (k *Key) Equal(other *Key) bool {
+	return subtle.ConstantTimeCompare(k.PrivateKeyPEM(), other.PrivateKeyPEM()) == 1
 }

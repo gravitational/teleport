@@ -646,7 +646,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	privateKeyBytes, _, err := native.GenerateKeyPair()
+	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -654,7 +654,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKeyBytes)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -675,7 +675,8 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := tls.X509KeyPair(response.Cert, privateKeyBytes)
+
+	cert, err := privateKey.TLSCertificate(response.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
