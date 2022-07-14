@@ -75,9 +75,17 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	}
 	// Mongo client connects in background so do a ping to make sure it
 	// can connect successfully.
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		return client, trace.Wrap(err)
+	for i := 0; i < 3; i++ {
+		err = client.Ping(ctx, nil)
+		if err != nil {
+			fmt.Printf("\n\n== PING FAILED %v == %v\n\n", i, err)
+			if i == 2 {
+				return client, trace.Wrap(err)
+			}
+			continue
+		}
+		fmt.Printf("\n\n== PING SUCCEEDED %v ==\n\n", i)
+		break
 	}
 	return client, nil
 }
