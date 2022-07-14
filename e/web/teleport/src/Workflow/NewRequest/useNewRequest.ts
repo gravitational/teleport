@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import {
+import type {
   AgentLabel,
   AgentFilter,
   AgentResponse,
   AgentKind,
+  AgentIdKind,
 } from 'teleport/services/agents';
-import { ResourceIdKind } from 'e-teleport/services/workflow';
 import Ctx from 'e-teleport/teleportContextE';
 
 const pageSize = 10;
@@ -360,7 +360,7 @@ type Page = {
 
 // ResourceKind describes resource kind's for both a search based access
 // request and "role" based access request.
-export type ResourceKind = ResourceIdKind | 'role';
+export type ResourceKind = AgentIdKind | 'role';
 
 export type ResourceMap = {
   [K in ResourceKind]: Record<string, string>;

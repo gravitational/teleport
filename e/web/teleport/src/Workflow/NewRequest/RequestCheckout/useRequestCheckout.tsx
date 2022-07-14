@@ -2,7 +2,8 @@ import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import Ctx from 'e-teleport/teleportContextE';
-import { ResourceId, ResourceIdKind } from 'e-teleport/services/workflow';
+import type { AgentIdKind } from 'teleport/services/agents';
+import type { ResourceId } from 'e-teleport/services/workflow';
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
 export function useRequestCheckout({
@@ -34,7 +35,7 @@ export function useRequestCheckout({
     } else {
       resourceIds = data.map(item => ({
         name: item.id,
-        kind: item.kind as ResourceIdKind,
+        kind: item.kind as AgentIdKind,
         clusterName: clusterId,
       }));
     }
