@@ -326,7 +326,7 @@ const (
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
 
-	// UpgradeWindowStartUpdatedCode is the upgrade windows edit code.
+	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
 
 	// UnknownCode is used when an event of unknown type is encountered.

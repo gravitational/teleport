@@ -2486,7 +2486,7 @@ message DatabaseSessionMalformedPacket {
 
 // UpgradeWindowStartMetadata contains common upgrade window information.
 message UpgradeWindowStartMetadata {
-    // Window is the upgrade window time.
+    // UpgradeWindowStart is the upgrade window time.
     string UpgradeWindowStart = 1 [ (gogoproto.jsontag) = "upgrade_window_start,omitempty" ];
 }
 
