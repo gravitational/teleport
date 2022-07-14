@@ -376,7 +376,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	handler.handler.sshPort = sshPort
 
 	t.Cleanup(func() {
-		// In particular close the lock watchers by cancelling the context.
+		// In particular close the lock watchers by canceling the context.
 		s.cancel()
 
 		s.webServer.Close()

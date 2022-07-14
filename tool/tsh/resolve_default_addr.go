@@ -63,7 +63,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 	}
 	defer rsp.Body.Close()
 
-	// NB: `ReadAll()` will time out (or be cancelled) according to the
+	// NB: `ReadAll()` will time out (or be canceled) according to the
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
 	//     here.
@@ -159,7 +159,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	for {
 		select {
 		case <-ctx.Done():
-			// We've timed out or been cancelled. Bail out ASAP. Remember that returning
+			// We've timed out or been canceled. Bail out ASAP. Remember that returning
 			// will implicitly cancel all the already-started racers.
 			return "", ctx.Err()
 
