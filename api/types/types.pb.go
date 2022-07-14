@@ -8825,7 +8825,7 @@ var xxx_messageInfo_GithubClaims proto.InternalMessageInfo
 type TeamMapping struct {
 	// Organization is a Github organization a user belongs to.
 	Organization string `protobuf:"bytes,1,opt,name=Organization,proto3" json:"organization"`
-	// Team is a team within the organization a user belongs to.
+	// Team is a team within the organization a user belongs to or '*' to match all users in the organization regardless of teams.
 	Team string `protobuf:"bytes,2,opt,name=Team,proto3" json:"team"`
 	// Logins is a list of allowed logins for this org/team.
 	Logins []string `protobuf:"bytes,3,rep,name=Logins,proto3" json:"logins,omitempty"`
@@ -8875,7 +8875,7 @@ var xxx_messageInfo_TeamMapping proto.InternalMessageInfo
 type TeamRolesMapping struct {
 	// Organization is a Github organization a user belongs to.
 	Organization string `protobuf:"bytes,1,opt,name=Organization,proto3" json:"organization"`
-	// Team is a team within the organization a user belongs to.
+	// Team is a team within the organization a user belongs to or '*' to match all users in the organization regardless of teams.
 	Team string `protobuf:"bytes,2,opt,name=Team,proto3" json:"team"`
 	// Roles is a list of allowed logins for this org/team.
 	Roles                []string `protobuf:"bytes,3,rep,name=Roles,proto3" json:"roles,omitempty"`
