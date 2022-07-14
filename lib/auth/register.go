@@ -148,16 +148,16 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 
 	// add EC2 Identity Document to params if required for given join method
 	if params.JoinMethod == types.JoinMethodEC2 {
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if !utils.IsEC2NodeID(params.ID.HostUUID) {
 			return nil, trace.BadParameter(
-				`host ID %q is not valid when using the EC2 join method, `+
+				`Host ID %q is not valid when using the EC2 join method, `+
 					`try removing the "host_uuid" file in your teleport data dir `+
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
+		}
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
