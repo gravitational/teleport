@@ -217,7 +217,8 @@ proxy_service:
   title="IMPORTANT"
 >
   The data directory (`/var/lib/teleport` by default) must be empty prior to launching the
-  Node. An error will occur if this Node had previously joined by another method (e.g. token or IAM) and is now switching to the EC2 method. 
+  Node. If this Node had previously joined by another method (e.g. token or IAM) the host UUID will not match the expected name 
+  (<AWS Account number>-<instance id>) and will not be allowed to join.
 </Admonition>
 
 
