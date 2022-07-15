@@ -489,7 +489,7 @@
               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "AWS ElastiCache & MemoryDB",
+              "title": "AWS ElastiCache & MemoryDB (Preview)",
               "slug": "/database-access/guides/redis-aws/"
             },
             {
