@@ -3924,7 +3924,6 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 			teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()
-		process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: minimalWebHandler})
 		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
 			log.Warningf("Error while serving web requests: %v", err)
 		}
