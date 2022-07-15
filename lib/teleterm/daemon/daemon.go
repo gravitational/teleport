@@ -288,7 +288,7 @@ func (s *Service) SetGatewayLocalPort(ctx context.Context, gatewayURI, localPort
 		return nil, trace.Wrap(err)
 	}
 
-	if err = gateway.SetLocalPort(localPort); err != nil {
+	if err = gateway.SetLocalPortAndRestart(localPort); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

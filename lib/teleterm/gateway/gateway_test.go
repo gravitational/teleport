@@ -89,12 +89,12 @@ func TestGatewayStart(t *testing.T) {
 	require.NoError(t, <-serveErr)
 }
 
-func TestSetLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
+func TestSetLocalPortAndRestartStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
 	tcpPortAllocator := mockTCPPortAllocator{}
 	gateway := serveGateway(t, &tcpPortAllocator)
 	originalCloseContext := gateway.closeContext
 
-	err := gateway.SetLocalPort("12345")
+	err := gateway.SetLocalPortAndRestart("12345")
 	require.NoError(t, err)
 
 	require.Equal(t, "12345", gateway.LocalPort())
@@ -116,12 +116,12 @@ func TestSetLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
 		"The listener on the old port wasn't closed after starting a listener on the new port.")
 }
 
-func TestSetLocalPortDoesntStopGatewayIfNewPortIsOccupied(t *testing.T) {
+func TestSetLocalPortAndRestartDoesntStopGatewayIfNewPortIsOccupied(t *testing.T) {
 	tcpPortAllocator := mockTCPPortAllocator{portsInUse: []string{"12345"}}
 	gateway := serveGateway(t, &tcpPortAllocator)
 	originalPort := gateway.LocalPort()
 
-	err := gateway.SetLocalPort("12345")
+	err := gateway.SetLocalPortAndRestart("12345")
 	require.ErrorContains(t, err, "address already in use")
 	require.Equal(t, originalPort, gateway.LocalPort())
 

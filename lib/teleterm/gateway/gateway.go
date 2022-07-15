@@ -196,13 +196,15 @@ func (g *Gateway) LocalPort() string {
 	return g.cfg.LocalPort
 }
 
-// SetLocalPort attempts to create a listener on the specified port. If successful, it stops
-// g.localProxy and starts a new one with the new listener and then updates the fields on gateway.
+// SetLocalPortAndRestart attempts to create a listener on the specified port. If successful, it
+// obtains a listener on the new port, stops the old proxy, updates the fields on gateway and then
+// starts the new proxy with the new listener. It starts the local proxy even if the previous one
+// wasn't started – SetLocalPortAndRestart is expected to be called after Serve.
 //
 // If it fails it's imperative that the current proxy is kept intact and the fields on gateway are
 // not changed. This way if the user attempts to change the port to one that cannot be obtained,
 // they're able to correct that mistake and choose a different port.
-func (g *Gateway) SetLocalPort(port string) error {
+func (g *Gateway) SetLocalPortAndRestart(port string) error {
 	result, err := newListenerAndLocalProxy(*g.cfg, port)
 	if err != nil {
 		return trace.Wrap(err)
