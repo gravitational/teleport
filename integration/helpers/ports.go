@@ -126,16 +126,17 @@ func SeparateMongoPortSetup(t *testing.T, fds *[]service.FileDescriptor) *Instan
 		Mongo:         NewListener(t, service.ListenerProxyMongo, fds),
 	}
 }
-func SeparateMongoAndPostgresPortSetup() *InstancePorts {
-	return &InstancePorts{
-		Web:           NewInstancePort(),
-		SSH:           NewInstancePort(),
-		Auth:          NewInstancePort(),
-		SSHProxy:      NewInstancePort(),
-		ReverseTunnel: NewInstancePort(),
-		MySQL:         NewInstancePort(),
-		Mongo:         NewInstancePort(),
-		Postgres:      NewInstancePort(),
+
+func SeparateMongoAndPostgresPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return &InstanceListeners{
+		Web:           NewListener(t, service.ListenerProxyWeb, fds),
+		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
+		Auth:          NewListener(t, service.ListenerAuth, fds),
+		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
+		ReverseTunnel: NewListener(t, service.ListenerProxyTunnel, fds),
+		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
+		Mongo:         NewListener(t, service.ListenerProxyMongo, fds),
+		Postgres:      NewListener(t, service.ListenerProxyPostgres, fds),
 	}
 }
 

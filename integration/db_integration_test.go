@@ -92,7 +92,7 @@ func TestDatabaseAccess(t *testing.T) {
 // TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
 func TestDatabaseAccessSeparateListeners(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SeparateMongoAndPostgresPortSetup),
+		withListenerSetupDatabaseTest(helpers.SeparateMongoAndPostgresPortSetup),
 	)
 
 	t.Run("PostgresSeparateListener", pack.testPostgresSeparateListener)
@@ -675,7 +675,7 @@ func (p *databasePack) testPostgresSeparateListener(t *testing.T) {
 // with DisableTLS.
 func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
+		withListenerSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
 		withRootConfig(func(config *service.Config) {
 			config.Proxy.DisableTLS = true
 		}),

@@ -820,17 +820,22 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	log := utils.NewLoggerForTests()
+
 	rcAddr, err := getLocalIP()
 	require.NoError(t, err)
 
+	log.Info("Creating Teleport instance...")
 	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		Log:         utils.NewLoggerForTests(),
+		Log:         log,
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
+	log.Info("Teleport root cluster instance created")
+
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -844,9 +849,13 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
+	log.Infof("Root cluster config: %#v", rcConf)
+
+	log.Info("Creating Root cluster...")
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
+	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
 	defer rc.StopAll()
@@ -858,6 +867,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	validPass := "open sesame"
 
 	// Create and start http_proxy server.
+	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
 	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
 	ts := httptest.NewServer(authorizer)
@@ -865,6 +875,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	proxyURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
+	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
 	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 
