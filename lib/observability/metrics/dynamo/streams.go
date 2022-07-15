@@ -45,15 +45,6 @@ func NewStreamsMetricsAPI(tableType TableType, api dynamodbstreamsiface.DynamoDB
 	}, nil
 }
 
-func recordMetrics(tableType TableType, operation string, err error, latency float64) {
-	labels := []string{string(tableType), operation}
-	apiRequestLatencies.WithLabelValues(labels...).Observe(latency)
-	apiRequests.WithLabelValues(labels...).Inc()
-	if err != nil {
-		apiRequestsFailed.WithLabelValues(labels...).Inc()
-	}
-}
-
 func (m *StreamsMetricsAPI) DescribeStreamWithContext(ctx context.Context, input *dynamodbstreams.DescribeStreamInput, opts ...request.Option) (*dynamodbstreams.DescribeStreamOutput, error) {
 	start := time.Now()
 	output, err := m.DynamoDBStreamsAPI.DescribeStreamWithContext(ctx, input, opts...)
