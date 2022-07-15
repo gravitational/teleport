@@ -167,6 +167,8 @@ type Agent struct {
 	log         log.FieldLogger
 	ctx         context.Context
 	cancel      context.CancelFunc
+	claimCtx    context.Context
+	claimCancel context.CancelFunc
 	authMethods []ssh.AuthMethod
 	// state is the state of this agent
 	state string
@@ -190,10 +192,13 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
+	claimCtx, claimCancel := context.WithCancel(ctx)
 	a := &Agent{
 		AgentConfig: cfg,
 		ctx:         ctx,
 		cancel:      cancel,
+		claimCtx:    claimCtx,
+		claimCancel: claimCancel,
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signer)},
 		state:       agentStateConnecting,
 		log:         cfg.Log,
@@ -371,6 +376,17 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case reconnectRequest:
+				a.log.Debug("Received reconnect advisory request from proxy.")
+				if r.WantReply {
+					err := r.Reply(true, nil)
+					if err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					}
+				}
+
+				a.claimCancel()
+				a.Lease.Release()
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
@@ -396,6 +412,7 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 func (a *Agent) run() {
 	defer a.setState(agentStateDisconnected)
 	defer a.Lease.Release()
+	defer a.claimCancel()
 
 	a.setState(agentStateConnecting)
 
@@ -420,40 +437,36 @@ func (a *Agent) run() {
 		"remote-addr": remote,
 	}).Info("Connected.")
 
-	// wrap up remaining business logic in closure for easy
-	// conditional execution.
-	doWork := func() {
-		a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
-		a.setState(agentStateConnected)
-		// Notify waiters that the agent has connected.
-		if a.EventsC != nil {
-			select {
-			case a.EventsC <- ConnectedEvent:
-			case <-a.ctx.Done():
-				a.log.Debug("Context is closing.")
-				return
-			default:
-			}
-		}
-
-		// A connection has been established start - processing requests. Note that
-		// this function blocks while the connection is up. It will unblock when
-		// the connection is closed either due to intermittent connectivity issues
-		// or permanent loss of a proxy.
-		err = a.processRequests(conn)
-		if err != nil {
-			a.log.Warnf("Unable to continue processioning requests: %v.", err)
-			return
-		}
-	}
 	// if Tracker was provided, then the agent shouldn't continue unless
 	// no other agents hold a claim.
 	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
+		if ok := a.Tracker.ClaimContext(a.claimCtx, a.getPrincipalsList()...); !ok {
 			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
+			return
 		}
-	} else {
-		doWork()
+	}
+
+	a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
+	a.setState(agentStateConnected)
+	// Notify waiters that the agent has connected.
+	if a.EventsC != nil {
+		select {
+		case a.EventsC <- ConnectedEvent:
+		case <-a.ctx.Done():
+			a.log.Debug("Context is closing.")
+			return
+		default:
+		}
+	}
+
+	// A connection has been established start - processing requests. Note that
+	// this function blocks while the connection is up. It will unblock when
+	// the connection is closed either due to intermittent connectivity issues
+	// or permanent loss of a proxy.
+	err = a.processRequests(conn)
+	if err != nil {
+		a.log.Warnf("Unable to continue processioning requests: %v.", err)
+		return
 	}
 }
 
@@ -590,6 +603,7 @@ const (
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (
