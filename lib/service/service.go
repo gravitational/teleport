@@ -3680,7 +3680,7 @@ func (process *TeleportProcess) initApps() {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// run the resolver. this will check configuration for errors.
-			_, err := tunnelAddrResolver(process.ExitContext())
+			_, err := tunnelAddrResolver()
 			if err != nil {
 				return trace.Wrap(err)
 			}
