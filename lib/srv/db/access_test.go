@@ -690,8 +690,8 @@ func TestAccessMongoDB(t *testing.T) {
 	}{
 		{
 			desc:         "has access to all database names and users",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice1",
+			role:         "admin1",
 			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{types.Wildcard},
 			dbUser:       "admin",
@@ -701,8 +701,8 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 		{
 			desc:         "has access to nothing",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice2",
+			role:         "admin2",
 			allowDbNames: []string{},
 			allowDbUsers: []string{},
 			dbName:       "admin",
@@ -712,8 +712,8 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 		{
 			desc:         "no access to databases",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice3",
+			role:         "admin3",
 			allowDbNames: []string{""},
 			allowDbUsers: []string{types.Wildcard},
 			dbName:       "admin",
@@ -723,8 +723,8 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 		{
 			desc:         "no access to users",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice4",
+			role:         "admin4",
 			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{},
 			dbName:       "admin",
@@ -734,8 +734,8 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 		{
 			desc:         "access allowed to specific user and database",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice5",
+			role:         "admin5",
 			allowDbNames: []string{"admin"},
 			allowDbUsers: []string{"alice"},
 			dbName:       "admin",
@@ -745,8 +745,8 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 		{
 			desc:         "access denied to specific user and database",
-			user:         "alice",
-			role:         "admin",
+			user:         "alice6",
+			role:         "admin6",
 			allowDbNames: []string{"admin"},
 			allowDbUsers: []string{"alice"},
 			dbName:       "metrics",
@@ -759,21 +759,11 @@ func TestAccessMongoDB(t *testing.T) {
 	// Each scenario is executed multiple times with different server/client
 	// options to test things like legacy MongoDB servers and clients that
 	// use compression.
-	serverOpts := []struct {
-		name string
-		opts []mongodb.TestServerOption
-	}{
-		{
-			name: "new server",
-			opts: []mongodb.TestServerOption{},
-		},
-		{
-			name: "old server",
-			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
-			},
-		},
-	}
+
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedMongo("mongo-new"),
+		withSelfHostedMongo("mongo-old", mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion-1)))
+	go testCtx.startHandlingConnections()
 
 	clientOpts := []struct {
 		name string
@@ -781,15 +771,11 @@ func TestAccessMongoDB(t *testing.T) {
 	}{
 		{
 			name: "client without compression",
-			opts: options.Client().
-				// Add extra time so the test won't time out when running in parallel.
-				SetServerSelectionTimeout(10 * time.Second),
+			opts: options.Client(),
 		},
 		{
 			name: "client with compression",
 			opts: options.Client().
-				// Add extra time so the test won't time out when running in parallel.
-				SetServerSelectionTimeout(10 * time.Second).
 				SetCompressors([]string{"zlib"}),
 		},
 	}
@@ -797,50 +783,44 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
-		test := test
-		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
-			t.Parallel()
-
-			for _, serverOpt := range serverOpts {
-				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
-				go testCtx.startHandlingConnections()
-
-				for _, clientOpt := range clientOpts {
+		for _, serverName := range []string{"mongo-new", "mongo-old"} {
+			for _, clientOpt := range clientOpts {
+				t.Run(fmt.Sprintf("%v/%v/%v", test.desc, serverName, clientOpt.name), func(t *testing.T) {
+					test := test
+					serverName := serverName
 					clientOpt := clientOpt
 
-					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
-						t.Parallel()
+					t.Parallel()
 
-						// Create user/role with the requested permissions.
-						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+					// Create user/role with the requested permissions.
+					testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
-						// Try to connect to the database as this user.
-						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
-						t.Cleanup(func() {
-							if mongoClient != nil {
-								require.NoError(t, mongoClient.Disconnect(ctx))
-							}
-						})
-						if test.connectErr != "" {
-							require.Error(t, err)
-							require.Contains(t, err.Error(), test.connectErr)
-							return
+					// Try to connect to the database as this user.
+					mongoClient, err := testCtx.mongoClient(ctx, test.user, serverName, test.dbUser, clientOpt.opts)
+					t.Cleanup(func() {
+						if mongoClient != nil {
+							require.NoError(t, mongoClient.Disconnect(ctx))
 						}
-						require.NoError(t, err)
-
-						// Execute a "find" command. Collection name doesn't matter currently.
-						records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
-						if test.queryErr != "" {
-							require.Error(t, err)
-							require.Contains(t, err.Error(), test.queryErr)
-							return
-						}
-						require.NoError(t, err)
-						require.NoError(t, records.Close(ctx))
 					})
-				}
+					if test.connectErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.connectErr)
+						return
+					}
+					require.NoError(t, err)
+
+					// Execute a "find" command. Collection name doesn't matter currently.
+					records, err := mongoClient.Database(test.dbName).Collection("test").Find(ctx, bson.M{})
+					if test.queryErr != "" {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), test.queryErr)
+						return
+					}
+					require.NoError(t, err)
+					require.NoError(t, records.Close(ctx))
+				})
 			}
-		})
+		}
 	}
 }
 
@@ -1772,7 +1752,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
-	testCtx.emitter = eventstest.NewChannelEmitter(100)
+	testCtx.emitter = eventstest.NewChannelEmitter(10000)
 
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{

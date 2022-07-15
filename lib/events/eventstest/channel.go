@@ -45,6 +45,9 @@ func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditE
 		return ctx.Err()
 	case e.events <- event:
 		return nil
+	default:
+		e.log.Warnf("Dropping event: %v.", event)
+		return nil
 	}
 }
 

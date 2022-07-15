@@ -70,7 +70,7 @@ type FakeRemoteSite struct {
 func NewFakeRemoteSite(clusterName string, accessPoint auth.RemoteProxyAccessPoint) *FakeRemoteSite {
 	return &FakeRemoteSite{
 		Name:        clusterName,
-		connCh:      make(chan net.Conn),
+		connCh:      make(chan net.Conn, 100000),
 		AccessPoint: accessPoint,
 	}
 }
