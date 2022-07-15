@@ -56,6 +56,9 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 		ServerHeartbeatSucceeded:   func(e *event.ServerHeartbeatSucceededEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
 		ServerHeartbeatFailed:      func(e *event.ServerHeartbeatFailedEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
 	}
+	pm := &event.PoolMonitor{
+		Event: func(e *event.PoolEvent) { fmt.Printf("=== DEBUG === %#v\n", e) },
+	}
 	client, err := mongo.Connect(ctx, append(
 		[]*options.ClientOptions{
 			options.Client().
@@ -68,6 +71,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// returned to the client quicker.
 				// SetHeartbeatInterval(500 * time.Millisecond).
 				SetServerMonitor(sm).
+				SetPoolMonitor(pm).
 				SetMaxPoolSize(1).
 				SetMaxConnecting(1).
 				SetServerSelectionTimeout(1 * time.Second),

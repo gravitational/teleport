@@ -119,6 +119,9 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 		topology.WithMaxConnections(func(u uint64) uint64 {
 			return 1
 		}),
+		topology.WithMaxConnecting(func(u uint64) uint64 {
+			return 1
+		}),
 		topology.WithConnectionOptions(func(opts ...topology.ConnectionOption) []topology.ConnectionOption {
 			return connectionOptions
 		}),
