@@ -20,20 +20,15 @@ state: draft
 
 ## What
 
-Teleport should support trusting a third party OP and the JWTs that it issues when authenticating a client for the cluster join process. This is similar to the support for IAM joining, and will allow joining a Teleport cluster without the need to distribute a token on several platforms.
+Teleport should support trusting a third party OP and the JWTs that it issues when authenticating a client for the cluster join process. This is similar to the support for AWS IAM joining, and will allow joining a Teleport cluster without the need to distribute a static token on several platforms.
 
 Users will need to be able to configure trust in an OP, and rules that determine what identities are allowed to join the cluster.
 
 ## Why
 
-This feature reduces the friction involved in adding many new nodes to Teleport on a variety of platforms. This is also more secure, as the user does not need to distribute a token which is liable to exfilitration.
+This feature reduces the friction involved in dynamically adding many new nodes to Teleport on a variety of platforms. This is also more secure, as the user does not need to distribute a token which is liable to exfilitration.
 
-Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GCP GCE since this represents a large portion of the market. However, the work towards this feature will also enable us to simply add other providers that support OIDC such as:
-
-- GitHub Actions: a key platform for growing usage of Machine ID.
-- GitLab CI/CD
-- CircleCI
-- GCP GCB
+Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GCP GCE since this represents a key platform for Teleport, and is also well documented and easy to test on. However, the work towards this feature will also enable us to simply add other providers that support OIDC workload identity (see the references for more), this particularly ties into Machine ID goals as we aim to support several CI/CD providers that offer workload identity.
 
 ## Details
 
@@ -45,6 +40,21 @@ The work on OIDC joining is broken down into two parts:
 OIDC supports multiple types of token (`id_token`: a JWT encoding information about the identity, which can be verified using the issuer's public key and `access_token`: an opaque token that can be used with a `userinfo` endpoint on the issuer to obtain information about the identity). However, in the case of workload identities, `id_token` is the most prevelant. For this reason, our initial implementation will solely support `id_token`.
 
 ### Auth server support
+
+#### Caching JWKs
+
+Special attention should be given to the logic around caching the JWKs.
+
+We will cache these for two reasons:
+
+- Improve the performance of validating JWTs, as we will not need to make a HTTPS request to the issuer.
+- Improve the reliability, as we can validate JWTs even if the issuer is experiencing some downtime.
+- Reduce the impact of Teleport on an issuer. If onboarding a large number of nodes, we do not want to unduly place pressure on the issuer. 
+
+We should keep in mind the following considerations:
+
+- When we are presented with a JWT with a previously unseen `kid`, we should re-check the issuer's JWKs, as they may have begun issuing tokens with a new JWK.
+- We should ensure that the TTL of the cache entries is relatively short, as we want to allow an issuer to revoke a JWK that has been stolen.
 
 #### Configuration
 
@@ -60,7 +70,7 @@ spec:
   roles: [Node]
   join_method: oidc-jwt
   issuer_url: https://accounts.google.com
-  allow: claims.google.compute_engine.project_id == "my-project" && claims.google.compute_engine.instance_name == "an-instance"
+  allow: claims.aud == "noah.teleport.sh" && claims.google.compute_engine.project_id == "my-project" && claims.google.compute_engine.instance_name == "an-instance"
 ```
 
 To allow the user to configure rules for what identities will be accepted, we will use the [Common Expression Language (CEL)](https://github.com/google/cel-spec). This allows a large degree of flexibility in the complexity of rules users can configure, but still allows simple expressions.
@@ -70,6 +80,14 @@ Users must also configure the `issuer_url`. This must be a host on which there i
 ### Node support
 
 Node here not only refers to a Teleport node, but also to a `tbot` instance.
+
+We will need to support collecting the token from the environment. This will differ on each platform. Some offer the token via a metadata service, and others directly inject it via an environment variable. Where possible, we should encourage the user to configure the token to be generated with an audience of their Teleport cluster, however, not all providers support this (e.g GitLab CI/CD).
+
+For GCP, a HTTP request is made to a metadata service. In this request, a query parameter controls the audience of the generated token. E.g
+
+```
+GET http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://noah.teleport.sh&format=full
+```
 
 ### Security Considerations
 
@@ -104,6 +122,12 @@ In order to verify the JWT, we have to fetch the public key from the issuers's J
 We should require that the configured issuer URL is HTTPS to mitigate this.
 
 ## References and Resources
+
+OIDC Specifications:
+
+- [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html)
+- [OpenID connect Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
+
 
 Providers of Workload Identity. These are platforms we can support once OIDC joining is added:
 
