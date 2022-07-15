@@ -361,8 +361,9 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.Srv.GetNamespace(),
-			ServerHostname:  s.Srv.GetInfo().GetHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+			// TODO(joel): update hostname here
+			ServerHostname: s.Srv.GetInfo().GetHostname(),
+			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
@@ -728,8 +729,9 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			ID:          uuid.New().String(),
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
+			ServerID:     ctx.srv.HostUUID(),
+			ServerLabels: ctx.srv.GetInfo().GetAllLabels(),
+			// TODO(joel): update hostname here
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
@@ -773,8 +775,9 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+			// TODO(joel): update hostname here
+			ServerHostname: s.getHostname(),
+			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
@@ -822,11 +825,13 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			// TODO(joel): update uuid here
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+			// TODO(joel): update hostname here
+			ServerHostname: s.getHostname(),
+			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
@@ -880,8 +885,9 @@ func (s *session) emitSessionEndEvent() {
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+			// TODO(joel): update hostname here
+			ServerHostname: s.getHostname(),
+			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
@@ -1757,9 +1763,10 @@ func (p *party) closeUnderSessionLock() {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:    s.id.String(),
-		Kind:         string(types.SSHSessionKind),
-		State:        types.SessionState_SessionStatePending,
+		SessionID: s.id.String(),
+		Kind:      string(types.SSHSessionKind),
+		State:     types.SessionState_SessionStatePending,
+		// TODO(joel): update hostname here
 		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
 		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
