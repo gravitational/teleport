@@ -71,6 +71,8 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -788,12 +790,24 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	clt, ok := h.cfg.ProxyClient.(*auth.Client)
+	if !ok {
+		return nil, trace.BadParameter("expected *auth.Client, got: %T", clt)
+	}
+
+	var header metadata.MD
+	_, err = clt.WithCallOptions(grpc.Header(&header)).Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
+		LicenseWarnings:  header.Get("license-warnings"),
 	}, nil
 }
 

@@ -17,33 +17,27 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/reporting"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
-// displayLicenseWarnings displays license out of compliance warnings.
-func displayLicenseWarnings(config *service.Config) error {
-	proxyAddr := ""
-	if len(config.AuthServers) != 0 {
-		proxyAddr = config.AuthServers[0].Addr
+func displayLicenseWarnings(ctx context.Context, client auth.ClientI) error {
+	clt, ok := client.(*auth.Client)
+	if !ok {
+		trace.BadParameter("expected *auth.Client, got: %T", clt)
 	}
-	profile, _, err := client.Status(config.TeleportHome, proxyAddr)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if profile == nil {
-		return nil
-	}
-	warnings, err := reporting.GetLicenseWarnings(config.TeleportHome, profile.Name)
+	var header metadata.MD
+	_, err := clt.WithCallOptions(grpc.Header(&header)).Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, warning := range warnings {
+	for _, warning := range header.Get("license-warnings") {
 		fmt.Println(warning)
 	}
 	return nil

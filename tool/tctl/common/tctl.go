@@ -188,7 +188,7 @@ func Run(commands []CLICommand) {
 			utils.FatalError(err)
 		}
 		if match {
-			if err := displayLicenseWarnings(cfg); err != nil {
+			if err := displayLicenseWarnings(ctx, client); err != nil {
 				log.WithError(err).Debug("failed to display license warnings")
 			}
 			break

@@ -262,6 +262,9 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// PluginInterceptor configures custom interceptors for the grpc server.
+	PluginInterceptor plugin.Interceptor
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

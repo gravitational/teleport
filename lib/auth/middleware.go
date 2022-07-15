@@ -184,8 +184,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:               server.cfg.TLS,
 		APIConfig:         cfg.APIConfig,
-		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
-		StreamInterceptor: authMiddleware.StreamInterceptor(),
+		UnaryInterceptor:  utils.ChainUnaryServerInterceptors(authMiddleware.UnaryInterceptor(), server.cfg.PluginInterceptor.UnaryInterceptor),
+		StreamInterceptor: utils.ChainStreamServerInterceptors(authMiddleware.StreamInterceptor(), server.cfg.PluginInterceptor.StreamInterceptor),
 		TraceClient:       cfg.TraceClient,
 	})
 	if err != nil {

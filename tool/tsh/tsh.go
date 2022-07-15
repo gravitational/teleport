@@ -1434,10 +1434,6 @@ func onLogin(cf *CLIConf) error {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
-	if err := recordLicenseStatus(cf); err != nil {
-		log.WithError(err).Debug("failed to record license status")
-	}
-
 	// Print status to show information of the logged in user.
 	return trace.Wrap(onStatus(cf))
 }

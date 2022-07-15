@@ -19,62 +19,20 @@ package main
 import (
 	"fmt"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/reporting"
-
 	"github.com/gravitational/trace"
 )
 
-// recordLicenseStatus gets the license status and stores it in the tsh home directory.
-func recordLicenseStatus(cf *CLIConf) error {
-	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if profile == nil {
-		return nil
-	}
-	teleportClient, err := makeClient(cf, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	proxyClient, err := teleportClient.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authClient, err := proxyClient.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clt, ok := authClient.(*auth.Client)
-	if !ok {
-		trace.BadParameter("expected *auth.Client, got: %T", clt)
-	}
-	licenseStatus, err := reporting.GetLicenseStatus(cf.Context, clt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := reporting.WriteLicenseStatus(cf.HomePath, profile.Name, licenseStatus); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // displayLicenseWarnings displays license out of compliance warnings.
 func displayLicenseWarnings(cf *CLIConf) error {
-	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if profile == nil {
-		return nil
-	}
-	warnings, err := reporting.GetLicenseWarnings(cf.HomePath, profile.Name)
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, warning := range warnings {
+	resp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, warning := range resp.LicenseWarnings {
 		fmt.Println(warning)
 	}
 	return nil
