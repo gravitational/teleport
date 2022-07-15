@@ -81,5 +81,5 @@ void AuthContextClose(AuthContext *actx) {
   if (actx == NULL) {
     return;
   }
-  actx->la_ctx = NULL;
+  actx->la_ctx = NULL; // Let ARC collect the LAContext.
 }
