@@ -1,6 +1,9 @@
 steps:
-  - name: quay.io/gravitational/teleport-buildbox:teleport11
+  - name: quay.io/gravitational/teleport-buildbox-centos7:teleport11
     id: lint
     args: ['make', 'lint']
+  - name: quay.io/gravitational/teleport-buildbox-centos7:teleport11
+    id: binary-compat
+    args: ['make', 'full', 'test-compat']
 options:
   machineType: 'E2_HIGHCPU_32'
