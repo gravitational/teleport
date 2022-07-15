@@ -19,11 +19,12 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 
 # Instal openssl.
 # Pulled from source because repository versions are too old.
-RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1n && \
+# install_sw install only binaries, skips docs.
+RUN git clone --depth=1 git://git.openssl.org/openssl.git -b OpenSSL_1_1_1o && \
     cd openssl && \
     ./config --release && \
     make && \
-    make install
+    make install_sw
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
@@ -39,7 +40,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Install libfido2.
 # Depends on libcbor, openssl, zlib-devel and libudev.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
     cmake3 \
         -DBUILD_EXAMPLES=OFF \
@@ -51,6 +52,35 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.10.0 && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
+
+FROM centos:7 AS libbpf
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+    # required by libbpf
+    centos-release-scl \
+    # required by libbpf
+    devtoolset-11-gcc* \
+    # required by libbpf
+    devtoolset-11-make \
+    # required by libbpf
+    elfutils-libelf-devel-static \
+    git \
+    # required by libbpf
+    scl-utils \
+    yum clean all
+
+# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
+# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && \
+    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
 FROM centos:7 AS buildbox
 
@@ -68,14 +98,27 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
 RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
     yum install -y \
-        git \
-        libatomic \
-        net-tools \
-        pam-devel \
-        perl-IPC-Cmd \
-        tree \
-        zip \
+    #required by libbpf
+    centos-release-scl \
+    # required by libbpf
+    devtoolset-11-* \
+    # required by libbpf
+    elfutils-libelf-devel-static \
+    git \
+    net-tools \
+    # required by Teleport PAM support
+    pam-devel \
+    perl-IPC-Cmd \
+    tree \
+    # used by our Makefile
+    which \
+    zip \
+    # required by libbpf
+    zlib-static && \
     yum clean all
 
 # Install etcd.
@@ -90,7 +133,11 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     /opt/go/bin/go version
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
-    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+    PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
@@ -125,7 +172,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.1.1 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.10.0 \
+    /usr/local/lib64/libfido2.so.1.11.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
     /usr/local/lib64/libudev.a \
@@ -133,7 +180,7 @@ COPY --from=libfido2 \
 RUN cd /usr/local/lib64 && \
 # Re-create usual lib64 links.
     ln -s libcrypto.so.1.1 libcrypto.so && \
-    ln -s libfido2.so.1.10.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.1.1 libssl.so && \
 # Update ld.
@@ -141,6 +188,12 @@ RUN cd /usr/local/lib64 && \
     ldconfig
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
+
+# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
+RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
+
+# Copy libbpf into the final image.
+COPY --from=libbpf /opt/libbpf/usr /usr
 
 USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]

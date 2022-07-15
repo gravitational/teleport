@@ -18,10 +18,15 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -77,7 +82,7 @@ type CLICommand interface {
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
-	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
+	TryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
 // Run is the same as 'make'. It helps to share the code between different
@@ -93,6 +98,7 @@ func Run(commands []CLICommand) {
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
 	for i := range commands {
@@ -133,7 +139,7 @@ func Run(commands []CLICommand) {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print cluster version")
+	ver := app.Command("version", "Print the version of your tctl binary")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -161,7 +167,10 @@ func Run(commands []CLICommand) {
 		utils.FatalError(err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(
+		context.Background(), syscall.SIGTERM, syscall.SIGINT,
+	)
+	defer cancel()
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
@@ -174,7 +183,7 @@ func Run(commands []CLICommand) {
 	// execute whatever is selected:
 	var match bool
 	for _, c := range commands {
-		match, err = c.TryRun(selectedCmd, client)
+		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -275,6 +284,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err, fmt.Sprintf("Could not load Teleport host UUID file at %s. "+
+					"Please make sure that Teleport is up and running prior to using tctl.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile)))
+			}
 			return nil, trace.Wrap(err)
 		}
 		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})

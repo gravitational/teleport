@@ -151,7 +151,7 @@ over a reverse tunnel.
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh \
+   --auth-server=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \
@@ -189,7 +189,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=mytenant.teleport.sh \
+   --proxy=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \

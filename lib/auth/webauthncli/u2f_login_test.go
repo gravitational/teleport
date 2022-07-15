@@ -77,8 +77,7 @@ func TestLogin(t *testing.T) {
 	}
 	loginFlow := &wanlib.LoginFlow{
 		U2F: &types.U2F{
-			AppID:  appID,
-			Facets: []string{appID, rpID},
+			AppID: appID,
 		},
 		Webauthn: &types.Webauthn{
 			RPID: rpID,

@@ -165,6 +165,14 @@ type Server interface {
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
+
+	// GetCreateHostUser returns whether the node should create
+	// temporary teleport users or not
+	GetCreateHostUser() bool
+
+	// GetHostUser returns the HostUsers instance being used to manage
+	// host user provisioning
+	GetHostUsers() HostUsers
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -186,9 +194,8 @@ type IdentityContext struct {
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
 
-	// RoleSet is the roles this Teleport user is associated with. RoleSet is
-	// used to check RBAC permissions.
-	RoleSet services.RoleSet
+	// AccessChecker is used to check RBAC permissions.
+	AccessChecker services.AccessChecker
 
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
@@ -214,6 +221,10 @@ type IdentityContext struct {
 	// Generation counts the number of times this identity's certificate has
 	// been renewed.
 	Generation uint64
+
+	// AllowedResourceIDs lists the resources this identity should be allowed to
+	// access
+	AllowedResourceIDs []types.ResourceID
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -368,7 +379,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.RoleSet.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
 	}
@@ -394,7 +405,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
@@ -418,7 +429,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           lockTargets,
-		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
+		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -509,23 +520,17 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return nil
 	}
 	// make sure whatever session is requested is a valid session
-	_, err := rsession.ParseID(ssid)
+	id, err := rsession.ParseID(ssid)
 	if err != nil {
 		return trace.BadParameter("invalid session id")
 	}
 
-	findSession := func() (*session, bool) {
-		reg.sessionsMux.Lock()
-		defer reg.sessionsMux.Unlock()
-		return reg.findSessionLocked(rsession.ID(ssid))
-	}
-
-	// update ctx with a session ID
-	c.session, _ = findSession()
-	if c.session == nil {
-		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
+	// update ctx with the session if it exists
+	if sess, found := reg.findSession(*id); found {
+		c.session = sess
+		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	} else {
-		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Logger.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -676,16 +681,16 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 				// The client's session hasn't been fully set up yet so this
 				// could potentially be a break-in attempt.
 				if ok, err := c.x11Ready(); err != nil {
-					log.WithError(err).Debug("Failed to get X11 ready status")
+					c.Logger.WithError(err).Debug("Failed to get X11 ready status")
 					return
 				} else if !ok {
-					log.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
+					c.Logger.WithError(err).Debug("Rejecting X11 request, XServer Proxy is not ready")
 					return
 				}
 
 				xchan, sin, err := c.ServerConn.OpenChannel(sshutils.X11ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
-					log.WithError(err).Debug("Failed to open a new X11 channel")
+					c.Logger.WithError(err).Debug("Failed to open a new X11 channel")
 					return
 				}
 				defer xchan.Close()
@@ -697,12 +702,12 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 				go func() {
 					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
 					if err != nil {
-						log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+						c.Logger.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 					}
 				}()
 
 				if err := x11.Forward(ctx, xconn, xchan); err != nil {
-					log.WithError(err).Debug("Encountered error during X11 forwarding")
+					c.Logger.WithError(err).Debug("Encountered error during X11 forwarding")
 				}
 			}()
 
@@ -909,10 +914,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 	}
 
 	// If the identity has roles, extract the role names.
-	var roleNames []string
-	if len(c.Identity.RoleSet) > 0 {
-		roleNames = c.Identity.RoleSet.RoleNames()
-	}
+	roleNames := c.Identity.AccessChecker.RoleNames()
 
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
@@ -940,7 +942,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					log.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					c.Logger.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
 					continue
 				}
 
@@ -962,10 +964,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	// If the identity has roles, extract the role names.
-	var roleNames []string
-	if len(c.Identity.RoleSet) > 0 {
-		roleNames = c.Identity.RoleSet.RoleNames()
-	}
+	roleNames := c.Identity.AccessChecker.RoleNames()
 
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
@@ -1033,11 +1032,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
-		log.Debugf("Failed to split remote address: %v.", err)
+		ctx.Logger.Debugf("Failed to split remote address: %v.", err)
 	} else {
 		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
-			log.Debugf("Failed to split local address: %v.", err)
+			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
 			env = append(env,
 				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),
@@ -1121,7 +1120,7 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
-	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
+	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(roles)...,
 	)

@@ -69,18 +69,34 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		attrOSVersion:         {"6.1"},
 		attrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
 		attrCommonName:        {"foo"},
+		"bar":                 {"baz"},
+		"quux":                {""},
 	})
-	applyLabelsFromLDAP(entry, l)
 
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			DiscoveryLDAPAttributeLabels: []string{"bar"},
+		},
+	}
+	s.applyLabelsFromLDAP(entry, l)
+
+	// check default labels
 	require.Equal(t, l[types.OriginLabel], types.OriginDynamic)
 	require.Equal(t, l[types.TeleportNamespace+"/dns_host_name"], "foo.example.com")
 	require.Equal(t, l[types.TeleportNamespace+"/computer_name"], "foo")
 	require.Equal(t, l[types.TeleportNamespace+"/os"], "Windows Server")
 	require.Equal(t, l[types.TeleportNamespace+"/os_version"], "6.1")
+
+	// check OU label
 	require.Equal(t, l[types.TeleportNamespace+"/ou"], "OU=IT,DC=goteleport,DC=com")
+
+	// check custom labels
+	require.Equal(t, l["ldap/bar"], "baz")
+	require.Empty(t, l["ldap/quux"])
 }
 
 func TestLabelsDomainControllers(t *testing.T) {
+	s := &WindowsService{}
 	for _, test := range []struct {
 		desc   string
 		entry  *ldap.Entry
@@ -110,7 +126,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			applyLabelsFromLDAP(test.entry, l)
+			s.applyLabelsFromLDAP(test.entry, l)
 
 			b, _ := strconv.ParseBool(l[types.TeleportNamespace+"/is_domain_controller"])
 			test.assert(t, b)

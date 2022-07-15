@@ -40,7 +40,9 @@ func Stdin() StdinReader {
 	stdinMU.Lock()
 	defer stdinMU.Unlock()
 	if stdin == nil {
-		stdin = NewContextReader(os.Stdin)
+		cr := NewContextReader(os.Stdin)
+		go cr.handleInterrupt()
+		stdin = cr
 	}
 	return stdin
 }
@@ -51,4 +53,18 @@ func SetStdin(rd StdinReader) {
 	stdinMU.Lock()
 	defer stdinMU.Unlock()
 	stdin = rd
+}
+
+// NotifyExit notifies prompt singletons, such as Stdin, that the program is
+// about to exit. This allows singletons to perform actions such as restoring
+// terminal state.
+// Once NotifyExit is called the singletons will be closed.
+func NotifyExit() {
+	// Note: don't call methods such as Stdin() here, we don't want to
+	// inadvertently hijack the prompts on exit.
+	stdinMU.Lock()
+	if cr, ok := stdin.(*ContextReader); ok {
+		_ = cr.Close()
+	}
+	stdinMU.Unlock()
 }

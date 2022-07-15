@@ -301,14 +301,17 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DeduplicateApps deduplicates apps by name.
+// DeduplicateApps deduplicates apps by combination of app name and public address.
+// Apps can have the same name but also could have different addresses.
 func DeduplicateApps(apps []Application) (result []Application) {
-	seen := make(map[string]struct{})
+	type key struct{ name, addr string }
+	seen := make(map[key]struct{})
 	for _, app := range apps {
-		if _, ok := seen[app.GetName()]; ok {
+		key := key{app.GetName(), app.GetPublicAddr()}
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[app.GetName()] = struct{}{}
+		seen[key] = struct{}{}
 		result = append(result, app)
 	}
 	return result

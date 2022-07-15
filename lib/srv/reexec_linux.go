@@ -18,8 +18,6 @@
 package srv
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
 	"syscall"
 
@@ -35,26 +33,26 @@ func init() {
 	fd1, _ := syscall.Open("/proc/self/exe", unix.O_PATH|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
 	fd2, _ := syscall.Open("/proc/self/exe", unix.O_PATH|syscall.O_NOCTTY|syscall.O_CLOEXEC, 0)
 
-	// this can happen if both calls returned -1 or if we're in running in a
-	// version of qemu-user that's affected by this bug:
+	// this can happen if both calls failed (returning -1) or if we're
+	// running in a version of qemu-user that's affected by this bug:
 	// https://gitlab.com/qemu-project/qemu/-/issues/927
+	// (hopefully they'll also add special handling for execve on /proc/self/exe
+	// if they ever fix that bug)
 	if fd1 == fd2 {
 		return
 	}
 
-	// if one has failed but not the other we can't really trust what's
-	// happening anymore
+	// closing -1 is harmless, no need to check here
+	syscall.Close(fd1)
+	syscall.Close(fd2)
+
+	// if one Open has failed but not the other we can't really
+	// trust the availability of "/proc/self/exe"
 	if fd1 == -1 || fd2 == -1 {
-		syscall.Close(fd1)
-		syscall.Close(fd2)
 		return
 	}
 
-	syscall.Close(fd2)
-	// we must specify the path with our pid number instead of self, because
-	// file descriptors are shuffled and overwritten during (*exec.Cmd).Start()
-	// after forking
-	reexecPath = fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), fd1)
+	reexecPath = "/proc/self/exe"
 }
 
 // reexecPath specifies a path to execute on reexec, overriding Path in the cmd

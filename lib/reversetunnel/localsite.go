@@ -17,6 +17,7 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -25,13 +26,15 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
+	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,7 +43,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -66,6 +69,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 		accessPoint:      accessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
+		authServers:      authServers,
 		remoteConns:      make(map[connKey][]*remoteConn),
 		clock:            srv.Clock,
 		log: log.WithFields(log.Fields{
@@ -75,9 +79,10 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 			},
 		}),
 		offlineThreshold: srv.offlineThreshold,
+		peerClient:       peerClient,
 	}
 
-	// Start periodic functions for the the local cluster in the background.
+	// Start periodic functions for the local cluster in the background.
 	go s.periodicFunctions()
 
 	return s, nil
@@ -88,9 +93,10 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 //
 // it implements RemoteSite interface
 type localSite struct {
-	log        log.FieldLogger
-	domainName string
-	srv        *server
+	log         log.FieldLogger
+	domainName  string
+	authServers []string
+	srv         *server
 
 	// client provides access to the Auth Server API of the local cluster.
 	client auth.ClientI
@@ -113,6 +119,8 @@ type localSite struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	peerClient *proxy.Client
 }
 
 // GetTunnelsCount always the number of tunnel connections to this cluster.
@@ -159,27 +167,18 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
-	// get list of local auth servers
-	authServers, err := s.client.GetAuthServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(authServers) < 1 {
+func (s *localSite) DialAuthServer() (net.Conn, error) {
+	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
 
-	// try and dial to one of them, as soon as we are successful, return the net.Conn
-	for _, authServer := range authServers {
-		conn, err = net.DialTimeout("tcp", authServer.GetAddr(), apidefaults.DefaultDialTimeout)
-		if err == nil {
-			return conn, nil
-		}
+	addr := utils.ChooseRandomString(s.authServers)
+	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultDialTimeout)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
 
-	// return the last error
-	return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
+	return conn, nil
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
@@ -190,7 +189,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) && !params.FromPeerProxy {
 		return s.dialWithAgent(params)
 	}
 
@@ -216,6 +215,36 @@ func (s *localSite) IsClosed() bool { return false }
 
 // Close always returns nil because a localSite isn't closed.
 func (s *localSite) Close() error { return nil }
+
+// adviseReconnect sends reconnects to agents in the background blocking until
+// the requests complete or the context is done.
+func (s *localSite) adviseReconnect(ctx context.Context) {
+	wg := &sync.WaitGroup{}
+	s.remoteConnsMtx.Lock()
+	for _, conns := range s.remoteConns {
+		for _, conn := range conns {
+			s.log.Debugf("Sending reconnect: %s", conn.nodeID)
+
+			wg.Add(1)
+			go func(conn *remoteConn) {
+				conn.adviseReconnect()
+				wg.Done()
+			}(conn)
+		}
+	}
+	s.remoteConnsMtx.Unlock()
+
+	wait := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wait)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-wait:
+	}
+}
 
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	if params.GetUserAgent == nil {
@@ -297,6 +326,66 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 	return conn, nil
 }
 
+// tryProxyPeering determines whether the node should try to be reached over
+// a peer proxy.
+func (s *localSite) tryProxyPeering(params DialParams) bool {
+	if s.peerClient == nil {
+		return false
+	}
+	if params.FromPeerProxy {
+		return false
+	}
+	if params.ConnType == "" || params.ConnType == types.ProxyTunnel {
+		return false
+	}
+
+	return true
+}
+
+// skipDirectDial determines if a direct dial attempt should be made.
+func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
+	// Connections to application and database servers should never occur
+	// over a direct dial.
+	switch params.ConnType {
+	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
+	case types.AppTunnel, types.DatabaseTunnel:
+		return true, nil
+	default:
+		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
+	}
+
+	// Never direct dial when the client is already connecting from
+	// a peer proxy.
+	if params.FromPeerProxy {
+		return true, nil
+	}
+
+	// This node can only be reached over a tunnel, don't attempt to dial
+	// remotely.
+	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func getTunnelErrorMessage(params DialParams, connStr string, err error) string {
+	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
+
+  %v
+
+This usually means that the agent is offline or has disconnected. Check the
+agent logs and, if the issue persists, try restarting it or re-registering it
+with the cluster.`
+
+	var toAddr string
+	if params.To != nil {
+		toAddr = params.To.String()
+	}
+
+	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
+}
+
 func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dreq := &sshutils.DialReq{
 		ServerID: params.ServerID,
@@ -306,54 +395,66 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		dreq.Address = params.To.String()
 	}
 
+	var (
+		tunnelErr error
+		peerErr   error
+		directErr error
+	)
+
+	dialStart := s.srv.Clock.Now()
+
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
-	conn, tunnelErr := s.dialTunnel(dreq)
+	conn, tunnelErr = s.dialTunnel(dreq)
 	if tunnelErr == nil {
-		return conn, true, nil
-	}
+		dt := tunnel
+		if params.FromPeerProxy {
+			dt = peerTunnel
+		}
 
-	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.Wrap(tunnelErr)
+		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
-
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
-	errorMessageTemplate := `Teleport proxy failed to connect to %q agent %q over %s:
+	if s.tryProxyPeering(params) {
+		s.log.Info("Dialing over peer proxy")
+		conn, peerErr = s.peerClient.DialNode(
+			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+		)
+		if peerErr == nil {
+			return newMetricConn(conn, peer, dialStart, s.srv.Clock), true, nil
+		}
+		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
+	}
 
-  %v
+	err = trace.NewAggregate(tunnelErr, peerErr)
+	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
 
-This usually means that the agent is offline or has disconnected. Check the
-agent logs and, if the issue persists, try restarting it or re-registering it
-with the cluster.`
-
-	tunnelMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "reverse tunnel", tunnelErr)
-
-	// Connections to application and database servers should never occur
-	// over a direct dial, return right away.
-	switch params.ConnType {
-	case types.AppTunnel, types.DatabaseTunnel:
+	// Skip direct dial when the tunnel error is not a not found error. This
+	// means the agent is tunneling but the connection failed for some reason.
+	if !trace.IsNotFound(tunnelErr) {
 		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
 	}
 
-	// This node can only be reached over a tunnel, don't attempt to dial
-	// remotely.
-	if params.To.String() == "" {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+	skip, err := s.skipDirectDial(params)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	} else if skip {
+		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
-	dialer := proxy.DialerFromEnvironment(params.To.String())
-	conn, directErr := dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	dialer := proxyutils.DialerFromEnvironment(params.To.String())
+	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
-		directMsg := fmt.Sprintf(errorMessageTemplate, params.ConnType, dreq.Address, "direct dial", directErr)
+		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
-		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
+		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
 		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
 	}
 
 	// Return a direct dialed connection.
-	return conn, false, nil
+	return newMetricConn(conn, direct, dialStart, s.srv.Clock), false, nil
 }
 
 func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
@@ -541,6 +642,15 @@ func (s *localSite) sshTunnelStats() error {
 			return false
 		}
 
+		ids := server.GetProxyIDs()
+
+		// In proxy peering mode, a node is expected to be connected to the
+		// current proxy if the proxy id is present. A node is expected to be
+		// connected to all proxies if no proxy ids are present.
+		if s.peerClient != nil && len(ids) != 0 && !apiutils.SliceContainsStr(ids, s.srv.ID) {
+			return false
+		}
+
 		// Check if the tunnel actually exists.
 		_, err := s.getRemoteConn(&sshutils.DialReq{
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
@@ -552,6 +662,7 @@ func (s *localSite) sshTunnelStats() error {
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))
+
 	if len(missing) > 0 {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
@@ -580,5 +691,5 @@ var (
 		[]string{teleport.TagType},
 	)
 
-	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, reverseSSHTunnels}
+	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, reverseSSHTunnels, connLatency}
 )

@@ -8,10 +8,8 @@ teleport:
 auth_service:
    cluster_name: a.local
    listen_addr: 0.0.0.0:5025
-   tokens: 
+   tokens:
        - "node:hello"
-   trusted_clusters:
-      - key_file: /etc/b.ca
 
 ssh_service:
   listen_addr: 0.0.0.0:5022
@@ -23,6 +21,6 @@ ssh_service:
         period: 5m
 
 proxy_service:
-  listen_addr: 0.0.0.0:5023                                                                                                        
-  web_listen_addr: 0.0.0.0:5080                                                                                                    
+  listen_addr: 0.0.0.0:5023
+  web_listen_addr: 0.0.0.0:5080
   tunnel_listen_addr: 0.0.0.0:5024

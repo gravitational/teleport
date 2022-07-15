@@ -1,3 +1,9 @@
+---
+name: Test Plan
+about: Manual test plan for Teleport major releases
+labels: testplan
+---
+
 ## Manual Testing Plan
 
 Below are the items that should be manually tested with each release of Teleport.
@@ -33,29 +39,46 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Verify that custom PAM environment variables are available as expected.
 
 - [ ] Users
-With every user combination, try to login and signup with invalid second factor, invalid password to see how the system reacts.
+
+    With every user combination, try to login and signup with invalid second
+    factor, invalid password to see how the system reacts.
+
+    WebAuthn in the release `tsh` binary is implemented using libfido2. Ask for
+    a statically built pre-release binary for realistic tests. (`tsh fido2 diag`
+    should work in our binary.)
+
+    Touch ID requires a signed `tsh`, ask for a signed pre-release binary so you
+    may run the tests.
 
   - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
-  - [ ] Adding Users U2F
   - [ ] Adding Users WebAuthn
+  - [ ] Adding Users Touch ID
   - [ ] Managing MFA devices
     - [ ] Add an OTP device with `tsh mfa add`
-    - [ ] Add a U2F device with `tsh mfa add`
-    - [ ] Verify that the U2F device works under WebAuthn
     - [ ] Add a WebAuthn device with `tsh mfa add`
+    - [ ] Add a Touch ID device with `tsh mfa add`
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
-    - [ ] Remove a U2F device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
     - [ ] Attempt removing the last MFA device on the user
       - [ ] with `second_factor: on` in `auth_service`, should fail
       - [ ] with `second_factor: optional` in `auth_service`, should succeed
   - [ ] Login Password Only
   - [ ] Login with MFA
-    - [ ] Add 2 OTP and 2 WebAuthn devices with `tsh mfa add`
+    - [ ] Add an OTP, a WebAuthn and a Touch ID device with `tsh mfa add`
     - [ ] Login via OTP
     - [ ] Login via WebAuthn
+    - [ ] Login via Touch ID
+    - [ ] Login via WebAuthn using an U2F device
+
+    U2F devices must be registered in a previous version of Teleport.
+
+    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
+    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
+    the install to the current Teleport version (one major at a time) and try to
+    login using the U2F device as your second factor - it should work.
+
   - [ ] Login OIDC
   - [ ] Login SAML
   - [ ] Login GitHub
@@ -266,15 +289,38 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 - [ ] G Suite install instructions work
     - [ ] G Suite Screenshots are up to date
-- [ ] ActiveDirectory install instructions work
-    - [ ] Active Directory Screenshots are up to date
+- [ ] Azure Active Directory (AD) install instructions work
+    - [ ] Azure Active Directory (AD) Screenshots are up to date
+- [ ] ActiveDirectory (ADFS) install instructions work
+    - [ ] Active Directory (ADFS) Screenshots are up to date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up to date
 - [ ] OneLogin install instructions work
     - [ ] OneLogin Screenshots are up to date
+- [ ] GitLab install instructions work
+    - [ ] GitLab Screenshots are up to date
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up to date
+- [ ] All providers with guides in docs are covered in this test plan
 
+### `tctl sso` family of commands
+
+`tctl sso configure` helps to construct a valid connector definition:
+
+- [ ] `tctl sso configure github ...` creates valid connector definitions
+- [ ] `tctl sso configure oidc ...` creates valid connector definitions
+- [ ] `tctl sso configure saml ...` creates valid connector definitions
+
+`tctl sso test` test a provided connector definition, which can be loaded from
+file or piped in with `tctl sso configure` or `tctl get --with-secrets`. Valid
+connectors are accepted, invalid are rejected with sensible error messages.
+
+- [ ] Connectors can be tested with `tctl sso test`.
+    - [ ] GitHub
+    - [ ] SAML
+    - [ ] OIDC
+        - [ ] Google Workspace
+        - [ ] Non-Google IdP
 
 ### Teleport Plugins
 
@@ -289,6 +335,46 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestIAMNodeJoin`
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
+
+### Passwordless
+
+Passwordless requires `tsh` compiled with libfido2 for most operations (apart
+from Touch ID). Ask for a statically-built `tsh` binary for realistic tests.
+
+Touch ID requires a properly built and signed `tsh` binary. Ask for a
+pre-release binary so you may run the tests.
+
+This sections complements "Users -> Managing MFA devices". Ideally both macOS
+and Linux `tsh` binaries are tested for FIDO2 items.
+
+- [ ] Diagnostics
+
+    Both commands should pass all tests.
+
+  - [ ] `tsh fido2 diag`
+  - [ ] `tsh touchid diag`
+
+- [ ] Registration
+  - [ ] Register a passworldess FIDO2 key (`tsh mfa add`, choose WEBAUTHN and
+        passwordless)
+  - [ ] Register a Touch ID credential (`tsh mfa add`, choose TOUCHID)
+
+- [ ] Login
+  - [ ] Passwordless login using FIDO2 (`tsh login --auth=passwordless`)
+  - [ ] Passwordless login using Touch ID (`tsh login --auth=passwordless`)
+  - [ ] `tsh login --auth=passwordless --mfa-mode=cross-platform` uses FIDO2
+  - [ ] `tsh login --auth=passwordless --mfa-mode=platform` uses Touch ID
+  - [ ] `tsh login --auth=passwordless --mfa-mode=auto` prefers Touch ID
+  - [ ] Passwordless disable switch works
+        (`auth_service.authentication.passwordless = false`)
+  - [ ] Cluster in passwordless mode defaults to passwordless
+        (`auth_service.authentication.connector_name = passwordless`)
+  - [ ] Cluster in passwordless mode allows MFA login
+        (`tsh login --auth=local`)
+
+- [ ] Touch ID support commands
+  - [ ] `tsh touchid ls` works
+  - [ ] `tsh touchid rm` works (careful, may lock you out!)
 
 ## WEB UI
 
@@ -597,6 +683,12 @@ Using the same user as above:
 - [ ] Verify removing a device works
 - [ ] Verify `second_factor` set to `off` disables adding devices
 
+#### Passwordless
+
+- [ ] Pure passwordless registrations and resets are possible
+- [ ] Verify adding a passwordless device (WebAuthn)
+- [ ] Verify passwordless logins
+
 ## Cloud
 From your cloud staging account, change the field `teleportVersion` to the test version.
 ```
@@ -810,6 +902,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
@@ -822,6 +915,7 @@ and non interactive tsh bench loads.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS Redshift.
   - [ ] AWS ElastiCache.
+  - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
 - [ ] Verify audit events.
@@ -846,6 +940,10 @@ and non interactive tsh bench loads.
   - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
   - [ ] Can detect and register Redshift clusters.
   - [ ] Can detect and register ElastiCache Redis clusters.
+  - [ ] Can detect and register MemoryDB clusters.
+- [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
+  - [ ] Can detect and manage ElastiCache users
+  - [ ] Can detect and manage MemoryDB users 
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
@@ -983,3 +1081,76 @@ and non interactive tsh bench loads.
 - Verify tsh runs on:
   - [ ] Windows 10
   - [ ] MacOS
+
+## Machine ID
+
+### SSH
+
+With a default Teleport instance configured with a SSH node:
+
+- [ ] Verify you are able to create a new bot user with `tctl bots add robot --roles=access`. Follow the instructions provided in the output to start `tbot`
+- [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
+- [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
+- [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
+- [ ] Verify that you are able to make a connection to the SSH node using the `ssh_config` provided by `tbot` after each phase of a manual CA rotation.
+
+Ensure the above tests are completed for both:
+
+- [ ] Directly connecting to the auth server
+- [ ] Connecting to the auth server via the proxy reverse tunnel
+
+### DB Access
+
+With a default Postgres DB instance, a Teleport instance configured with DB access and a bot user configured:
+
+- [ ] Verify you are able to connect to and interact with a database using `tbot db` while `tbot start` is running
+
+## Teleport Connect
+
+- Shell
+  - [ ] Verify that shell is pinned to correct cluster (for root clusters and leaf clusters)
+  - [ ] Verify that local shell is opened with the correct env vars
+  - [ ] Verify that working directory in the tab title is updated when you change the directory (only for local terminals)
+- State restoration
+  - [ ] Verify that app asks about restoring the previous tabs when launched
+  - [ ] Verify that app opens with the cluster that was active when you closed it previously
+  - [ ] Verify that app remembers size & position after restart
+  - [ ] Verify if [reopening a cluster that has no workspace assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works
+- Connections picker
+  - [ ] Verify that connections picker shows new connections when ssh & db tabs are opened
+  - [ ] Check if these connections are available after the app restart
+  - [ ] Check that these connections are removed when the cluster to which they belong is removed
+- Cluster resources (servers/databases)
+  - [ ] Verify that the app shows the same resources as WebUI
+  - [ ] Verify that search is working for the resources lists
+  - [ ] Verify that you can connect to these resources
+- [ ] Verify if adding a cluster adds it to the clusters list and activates automatically
+- [ ] Verify that state of the current workspace is preserved when you change it (by switching to another cluster) and return
+- [ ] Verify that autocomplete works in the command bar
+- [ ] Verify that the keyboard shortcuts work (opening connections list, cluster & porfile selectors, switching tabs, etc.)
+- [ ] Verify that app doesn’t crash when there is no internet connection or some cluster is unavailable
+- [ ] Verify that logs are collected for all processes
+- [ ] Verify that the login modal is displayed when a user tries to make a request after the certificate has expired
+
+## Host users creation
+
+[Host users creation docs](https://github.com/gravitational/teleport/pull/13056)
+[Host users creation RFD](https://github.com/gravitational/teleport/pull/11077)
+<!---
+TODO(lxea): replace links with actual docs once merged
+
+[Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
+[Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
+-->
+
+- Verify host users creation functionality
+  - [ ] non-existing users are created automatically
+  - [ ] users are added to groups
+    - [ ] non existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
+  - [ ] sudoers file creation is successful
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
+  - [ ] setting `disable_create_host_user: true` stops user creation from occurring

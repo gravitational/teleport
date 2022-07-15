@@ -28,9 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
@@ -41,7 +38,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -96,13 +96,13 @@ type NodeSession struct {
 // newSession creates a new Teleport session with the given remote node
 // if 'joinSessin' is given, the session will join the existing session
 // of another user
-func newSession(client *NodeClient,
+func newSession(ctx context.Context,
+	client *NodeClient,
 	joinSession types.SessionTracker,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
-	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
 	// Initialize the terminal. Note that at this point, we don't know if this
@@ -130,7 +130,7 @@ func newSession(client *NodeClient,
 	// existing/current terminal size:
 	if joinSession != nil {
 		sessionID := joinSession.GetSessionID()
-		terminalSize, err := client.GetRemoteTerminalSize(sessionID)
+		terminalSize, err := client.GetRemoteTerminalSize(ctx, sessionID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -149,15 +149,7 @@ func newSession(client *NodeClient,
 	} else {
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
-			// DELETE IN: 4.1.0.
-			//
-			// Always send UUIDv4 after 4.1.
-			if legacyID {
-				sid = string(session.NewLegacyID())
-			} else {
-				sid = string(session.NewID())
-			}
-
+			sid = string(session.NewID())
 		}
 		ns.id = session.ID(sid)
 	}
@@ -167,7 +159,7 @@ func newSession(client *NodeClient,
 	// Determine if terminal should clear on exit.
 	ns.shouldClearOnExit = isFIPS()
 	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		boring, err := client.Proxy.isAuthBoring(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

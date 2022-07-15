@@ -268,3 +268,102 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMemoryDBEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		inputURI    string
+		expectInfo  *RedisEndpointInfo
+		expectError bool
+	}{
+		{
+			name:     "TLS enabled cluster endpoint",
+			inputURI: "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "cluster",
+			},
+		},
+		{
+			name:     "TLS disabled cluster endpoint",
+			inputURI: "my-memorydb.xxxxxx.clustercfg.memorydb.us-east-1.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: false,
+				EndpointType:             "cluster",
+			},
+		},
+		{
+			name:     "TLS enabled node endpoint",
+			inputURI: "my-memorydb-0002-001.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "node",
+			},
+		},
+		{
+			name:     "TLS disabled node endpoint",
+			inputURI: "my-memorydb-0002-001.xxxxx.0002.memorydb.us-east-1.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: false,
+				EndpointType:             "node",
+			},
+		},
+		{
+			name:     "CN endpoint",
+			inputURI: "clustercfg.my-memorydb.xxxxxx.memorydb.cn-north-1.amazonaws.com.cn:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "cn-north-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "cluster",
+			},
+		},
+		{
+			name:     "endpoint with schema and parameters",
+			inputURI: "redis://clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379?a=b&c=d",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "my-memorydb",
+				Region:                   "us-east-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "cluster",
+			},
+		},
+		{
+			name:        "invalid suffix",
+			inputURI:    "clustercfg.my-memorydb.xxxxxx.memorydb.ca-central-1.amazonaws.ca:6379",
+			expectError: true,
+		},
+		{
+			name:        "invalid url",
+			inputURI:    "://clustercfg.my-memorydb.xxxxxx.memorydb.ca-central-1.amazonaws.com:6379",
+			expectError: true,
+		},
+		{
+			name:        "invalid format",
+			inputURI:    "unknown.format.memorydb.ca-central-1.amazonaws.com:6379",
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualInfo, err := ParseMemoryDBEndpoint(test.inputURI)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectInfo, actualInfo)
+			}
+		})
+	}
+}

@@ -260,12 +260,19 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 	}
 
 	if listenersClosed() {
-		process.log.Debug("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
+		process.log.Debugf("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
+		process.Lock()
+		listener, ok := process.getListenerNeedsLock(typ, address)
+		process.Unlock()
+		if ok {
+			process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
+			return listener, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	process.Lock()
@@ -275,12 +282,27 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 	// needs a dns lookup, so we can't do it while holding the lock)
 	if process.listenersClosed {
 		listener.Close()
-		process.log.Debug("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
+		process.log.Debugf("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
+	}
+	if l, ok := process.getListenerNeedsLock(typ, address); ok {
+		listener.Close()
+		process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
+		return l, nil
 	}
 	r := registeredListener{typ: typ, address: address, listener: listener}
 	process.registeredListeners = append(process.registeredListeners, r)
 	return listener, nil
+}
+
+// getListenerNeedsLock tries to get an existing listener that matches the type/addr.
+func (process *TeleportProcess) getListenerNeedsLock(typ listenerType, address string) (listener net.Listener, ok bool) {
+	for _, l := range process.registeredListeners {
+		if l.typ == typ && l.address == address {
+			return l.listener, true
+		}
+	}
+	return nil, false
 }
 
 func (process *TeleportProcess) stopListeners() error {
@@ -494,7 +516,7 @@ func (process *TeleportProcess) forkChild() error {
 		data := make([]byte, 1024)
 		len, err := readPipe.Read(data)
 		if err != nil {
-			log.Debugf("Failed to read from pipe")
+			log.Debug("Failed to read from pipe")
 			return
 		}
 		log.Infof("Received message from pid %v: %v", p.Pid, string(data[:len]))

@@ -33,6 +33,11 @@ import (
 // repeated calls.
 var HalfJitter = NewHalfJitter()
 
+// SeventhJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls.
+var SeventhJitter = NewSeventhJitter()
+
 // Jitter is a function which applies random jitter to a
 // duration.  Used to randomize backoff values.  Must be
 // safe for concurrent usage.
@@ -155,6 +160,27 @@ func NewConstant(interval time.Duration) (*Linear, error) {
 	return NewLinear(LinearConfig{Step: interval, Max: interval})
 }
 
+// NewDefaultLinear creates a linear retry using a half jitter, 10s step, and maxing out
+// at 1 minute. These values were selected by reviewing commonly used parameters elsewhere
+// in the code base, which (at the time of writing) seem to converge on approximately this
+// configuration for "critical but potentially load-inducing" operations like cache watcher
+// registration and auth connector setup. It also includes an auto-reset value of 5m. Auto-reset
+// is less commonly used, and if used should probably be shorter, but 5m is a reasonable
+// safety net to reduce the impact of accidental misuse.
+func NewDefaultLinear() *Linear {
+	retry, err := NewLinear(LinearConfig{
+		First:     HalfJitter(time.Second * 5),
+		Step:      time.Second * 10,
+		Max:       time.Minute,
+		Jitter:    NewHalfJitter(),
+		AutoReset: 5,
+	})
+	if err != nil {
+		panic("default linear retry misconfigured (this is a bug)")
+	}
+	return retry
+}
+
 // Linear is used to calculate retry period
 // that follows the following logic:
 // On the first error there is no delay
@@ -163,7 +189,7 @@ func NewConstant(interval time.Duration) (*Linear, error) {
 type Linear struct {
 	// LinearConfig is a linear retry config
 	LinearConfig
-	lastIncr   time.Time
+	lastUse    time.Time
 	attempt    int64
 	closedChan chan time.Time
 }
@@ -187,42 +213,32 @@ func (r *Linear) Clone() Retry {
 // Inc increments attempt counter
 func (r *Linear) Inc() {
 	r.attempt++
-	if r.AutoReset < 1 {
-		// No AutoRest configured; we can skip
-		// everything else.
-		return
-	}
-	// when AutoReset is active, we track the time of the
-	// last call to Incr.  If more than Max * AutoReset has
-	// elapsed, we reset state internally.  This allows
-	// Linear to function like as a long-lived rate-limiting
-	// device.
-	prev := r.lastIncr
-	r.lastIncr = r.Clock.Now()
-	if prev.IsZero() {
-		return
-	}
-	if r.Max*time.Duration(r.AutoReset) < r.lastIncr.Sub(prev) {
-		r.Reset()
-	}
 }
 
 // Duration returns retry duration based on state
 func (r *Linear) Duration() time.Duration {
+	if r.AutoReset > 0 {
+		now := r.Clock.Now()
+		if now.After(r.lastUse.Add(r.Max * time.Duration(r.AutoReset))) {
+			r.Reset()
+		}
+		r.lastUse = now
+	}
+
 	a := r.First + time.Duration(r.attempt)*r.Step
 	if a < 1 {
 		return 0
 	}
+
+	if a > r.Max {
+		a = r.Max
+	}
+
 	if r.Jitter != nil {
 		a = r.Jitter(a)
 	}
-	if a <= r.Max {
-		return a
-	}
-	if r.Jitter != nil {
-		return r.Jitter(r.Max)
-	}
-	return r.Max
+
+	return a
 }
 
 // After returns channel that fires with timeout

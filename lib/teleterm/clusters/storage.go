@@ -56,16 +56,6 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 	return clusters, nil
 }
 
-// GetByName returns a cluster by name
-func (s *Storage) GetByName(clusterName string) (*Cluster, error) {
-	cluster, err := s.fromProfile(clusterName, "")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cluster, nil
-}
-
 // GetByURI returns a cluster by URI
 func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	URI := uri.New(clusterURI)
@@ -73,6 +63,22 @@ func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	leafClusterName := URI.GetLeafClusterName()
 
 	cluster, err := s.fromProfile(rootClusterName, leafClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cluster, nil
+}
+
+// GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
+// resources and will return a root or leaf cluster accordingly.
+func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
+	clusterURI, err := uri.ParseClusterURI(resourceURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.GetByURI(clusterURI.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +105,11 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			return nil, trace.BadParameter("cluster %v already exists", clusterName)
+			cluster, err := s.fromProfile(clusterName, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
 		}
 	}
 

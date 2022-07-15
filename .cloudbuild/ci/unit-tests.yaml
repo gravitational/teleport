@@ -1,7 +1,8 @@
 timeout: 25m
 
 options:
-  machineType: E2_HIGHCPU_32
+  pool:
+    name: projects/ci-account/locations/us-west1/workerPools/high-cpu-pool
 
   # This build needs to run in environments where the _GITHUB_DEPLOY_KEY_SRC
   # substitution is defined, but also environments where it isn't. The

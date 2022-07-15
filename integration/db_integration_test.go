@@ -34,6 +34,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -280,9 +281,8 @@ func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
 		return trace.Wrap(err)
 	}
 
-	sub, err := watcher.Subscribe(ctx, services.CertAuthorityTarget{
-		ClusterName: p.clusterRootName,
-		Type:        p.certType,
+	sub, err := watcher.Subscribe(ctx, types.CertAuthorityFilter{
+		p.certType: p.clusterRootName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -609,36 +609,51 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 
 // TestDatabaseAccessPostgresSeparateListener tests postgres proxy listener running on separate port.
 func TestDatabaseAccessPostgresSeparateListener(t *testing.T) {
-	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(separatePostgresPortSetup),
-	)
+	tests := []struct {
+		desc       string
+		disableTLS bool
+	}{
+		{desc: "With TLS enabled", disableTLS: false},
+		{desc: "With TLS disabled", disableTLS: true},
+	}
 
-	// Connect to the database service in root cluster.
-	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
-		Cluster:    pack.root.cluster.Secrets.SiteName,
-		Username:   pack.root.user.GetName(),
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: pack.root.postgresService.Name,
-			Protocol:    pack.root.postgresService.Protocol,
-			Username:    "postgres",
-			Database:    "test",
-		},
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			pack := setupDatabaseTest(t,
+				withPortSetupDatabaseTest(separatePostgresPortSetup),
+				withRootConfig(func(config *service.Config) {
+					config.Proxy.DisableTLS = tt.disableTLS
+				}),
+			)
 
-	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-	require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
-	require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+			// Connect to the database service in root cluster.
+			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortPostgres()),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.postgresService.Name,
+					Protocol:    pack.root.postgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			require.NoError(t, err)
 
-	// Disconnect.
-	err = client.Close(context.Background())
-	require.NoError(t, err)
+			// Execute a query.
+			result, err := client.Exec(context.Background(), "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+			require.Equal(t, uint32(1), pack.root.postgres.QueryCount())
+			require.Equal(t, uint32(0), pack.leaf.postgres.QueryCount())
+
+			// Disconnect.
+			err = client.Close(context.Background())
+			require.NoError(t, err)
+		})
+	}
 }
 
 func init() {
@@ -950,7 +965,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	SetTestTimeouts(100 * time.Millisecond)
 	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
@@ -1001,6 +1015,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
+	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1013,6 +1028,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
+	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1083,12 +1099,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
+	rdConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		p.root.dbProcess.Close()
-	})
+	t.Cleanup(func() { require.NoError(t, p.root.dbProcess.Close()) })
 
 	// Create and start database services in the leaf cluster.
 	p.leaf.postgresService = service.Database{
@@ -1122,6 +1137,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.mongoService,
 	}
 	ldConf.Clock = p.clock
+	ldConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1224,6 +1240,7 @@ func (p *databasePack) setupUsersAndRoles(t *testing.T) {
 }
 
 func (p *databasePack) waitForLeaf(t *testing.T) {
+	waitForProxyCount(p.leaf.cluster, p.root.cluster.Secrets.SiteName, 1)
 	site, err := p.root.cluster.Tunnel.GetSite(p.leaf.cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
@@ -1280,6 +1297,7 @@ func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.Enabled = true
 	conf.Databases.Databases = params.databases
 	conf.Databases.ResourceMatchers = params.resourceMatchers
+	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	server, authClient, err := p.root.cluster.StartDatabase(conf)
 	require.NoError(t, err)
@@ -1297,4 +1315,54 @@ func containsDB(servers []types.DatabaseServer, name string) bool {
 		}
 	}
 	return false
+}
+
+// TestDatabaseAccessLargeQuery tests a scenario where a user connects
+// to a MySQL database running in a root cluster.
+func TestDatabaseAccessLargeQuery(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	client, err := mysql.MakeTestClient(common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()),
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.mysqlService.Name,
+			Protocol:    pack.root.mysqlService.Protocol,
+			Username:    "root",
+		},
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
+	result, err := client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+	require.Len(t, ee, 1)
+
+	query = "select 1"
+	result, err = client.Execute(query)
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+	result.Close()
+
+	require.Eventually(t, func() bool {
+		ee := waitForAuditEventTypeWithBackoff(t, pack.root.cluster.Process.GetAuthServer(), now, events.DatabaseSessionQueryEvent)
+		return len(ee) == 2
+	}, time.Second*3, time.Millisecond*500)
+
+	// Disconnect.
+	err = client.Close()
+	require.NoError(t, err)
 }

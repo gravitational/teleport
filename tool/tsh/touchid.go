@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -27,16 +28,49 @@ import (
 )
 
 type touchIDCommand struct {
-	ls *touchIDLsCommand
-	rm *touchIDRmCommand
+	diag *touchIDDiagCommand
+	ls   *touchIDLsCommand
+	rm   *touchIDRmCommand
 }
 
+// newTouchIDCommand returns touchid subcommands.
+// diag is always available.
+// ls and rm may not be available depending on binary and platform limitations.
 func newTouchIDCommand(app *kingpin.Application) *touchIDCommand {
 	tid := app.Command("touchid", "Manage Touch ID credentials").Hidden()
-	return &touchIDCommand{
-		ls: newTouchIDLsCommand(tid),
-		rm: newTouchIDRmCommand(tid),
+	cmd := &touchIDCommand{
+		diag: newTouchIDDiagCommand(tid),
 	}
+	if touchid.IsAvailable() {
+		cmd.ls = newTouchIDLsCommand(tid)
+		cmd.rm = newTouchIDRmCommand(tid)
+	}
+	return cmd
+}
+
+type touchIDDiagCommand struct {
+	*kingpin.CmdClause
+}
+
+func newTouchIDDiagCommand(app *kingpin.CmdClause) *touchIDDiagCommand {
+	return &touchIDDiagCommand{
+		CmdClause: app.Command("diag", "Run Touch ID diagnostics").Hidden(),
+	}
+}
+
+func (c *touchIDDiagCommand) run(cf *CLIConf) error {
+	res, err := touchid.Diag()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Has compile support? %v\n", res.HasCompileSupport)
+	fmt.Printf("Has signature? %v\n", res.HasSignature)
+	fmt.Printf("Has entitlements? %v\n", res.HasEntitlements)
+	fmt.Printf("Passed LAPolicy test? %v\n", res.PassedLAPolicyTest)
+	fmt.Printf("Passed Secure Enclave test? %v\n", res.PassedSecureEnclaveTest)
+	fmt.Printf("Touch ID enabled? %v\n", res.IsAvailable)
+	return nil
 }
 
 type touchIDLsCommand struct {
@@ -64,14 +98,15 @@ func (c *touchIDLsCommand) run(cf *CLIConf) error {
 		if cmp := strings.Compare(i1.User, i2.User); cmp != 0 {
 			return cmp < 0
 		}
-		return i1.CredentialID < i2.CredentialID
+		return i1.CreateTime.Before(i2.CreateTime)
 	})
 
-	t := asciitable.MakeTable([]string{"RPID", "User", "Credential ID"})
+	t := asciitable.MakeTable([]string{"RPID", "User", "Create Time", "Credential ID"})
 	for _, info := range infos {
 		t.AddRow([]string{
 			info.RPID,
 			info.User,
+			info.CreateTime.Format(time.RFC3339),
 			info.CredentialID,
 		})
 	}

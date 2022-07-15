@@ -60,6 +60,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -295,11 +296,12 @@ func newWebSuite(t *testing.T) *WebSuite {
 		LocalAccessPoint:      s.proxyClient,
 		Emitter:               s.proxyClient,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  caWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
 	})
 	require.NoError(t, err)
 	s.proxyTunnel = revTunServer
@@ -315,7 +317,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 		utils.NetAddr{},
 		s.proxyClient,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, s.proxyClient),
+		regular.SetProxyMode("", revTunServer, s.proxyClient),
 		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
@@ -543,6 +545,7 @@ func Test_clientMetaFromReq(t *testing.T) {
 
 func TestSAMLSuccess(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	input := fixtures.SAMLOktaConnectorV2
 
@@ -573,7 +576,7 @@ func TestSAMLSuccess(t *testing.T) {
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 
-	err = s.server.Auth().CreateSAMLConnector(connector)
+	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	clt := s.clientNoRedirects()
@@ -612,7 +615,7 @@ func TestSAMLSuccess(t *testing.T) {
 	// now swap the request id to the hardcoded one in fixtures
 	authRequest.ID = fixtures.SAMLOktaAuthRequestID
 	authRequest.CSRFToken = csrfToken
-	err = s.server.Auth().Identity.CreateSAMLAuthRequest(*authRequest, backend.Forever)
+	err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
 	require.NoError(t, err)
 
 	// now respond with pre-recorded request to the POST url
@@ -734,6 +737,28 @@ func TestPasswordChange(t *testing.T) {
 
 	_, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "users", "password"), req)
 	require.NoError(t, err)
+}
+
+// TestValidateBearerToken tests that the bearer token's user name
+// matches the user name on the cookie.
+func TestValidateBearerToken(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack1 := proxy.authPack(t, "user1")
+	pack2 := proxy.authPack(t, "user2")
+
+	// Swap pack1's session token with pack2's sessionToken
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	pack1.clt = proxy.newClient(t, roundtrip.BearerAuth(pack2.session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&proxy.webURL, pack1.cookies)
+
+	// Auth protected endpoint.
+	req := changePasswordReq{}
+	_, err = pack1.clt.PutJSON(context.Background(), pack1.clt.Endpoint("webapi", "users", "password"), req)
+	require.True(t, trace.IsAccessDenied(err))
+	require.True(t, strings.Contains(err.Error(), "bad bearer token"))
 }
 
 func TestWebSessionsBadInput(t *testing.T) {
@@ -1253,7 +1278,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 	n, err := authClient.GetClusterName()
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
-	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "")
+	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
 	require.NoError(t, err)
 
 	tlsConfig, err := identity.TLSConfig(nil)
@@ -1441,22 +1466,14 @@ func TestActiveSessions(t *testing.T) {
 	err = waitForOutput(stream, "vinsong")
 	require.NoError(t, err)
 
-	// Make sure this session appears in the list of active sessions.
 	var sessResp *siteSessionsGetResponse
-	for i := 0; i < 10; i++ {
+	require.Eventually(t, func() bool {
 		// Get site nodes and make sure the node has our active party.
 		re, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
 		require.NoError(t, err)
-
 		require.NoError(t, json.Unmarshal(re.Bytes(), &sessResp))
-		require.Len(t, sessResp.Sessions, 1)
-
-		// Sessions do not appear momentarily as there's async heartbeat
-		// procedure.
-		time.Sleep(250 * time.Millisecond)
-	}
-
-	require.Len(t, sessResp.Sessions, 1)
+		return len(sessResp.Sessions) == 1
+	}, time.Second*5, 250*time.Millisecond)
 
 	sess := sessResp.Sessions[0]
 	require.Equal(t, sid, sess.ID)
@@ -1469,67 +1486,8 @@ func TestActiveSessions(t *testing.T) {
 	require.False(t, sess.LastActive.IsZero())
 	require.Equal(t, s.srvID, sess.ServerID)
 	require.Equal(t, s.node.GetInfo().GetHostname(), sess.ServerHostname)
-	require.Equal(t, s.node.GetInfo().GetAddr(), sess.ServerAddr)
+	require.Equal(t, s.srvID, sess.ServerAddr)
 	require.Equal(t, s.server.ClusterName(), sess.ClusterName)
-}
-
-// DELETE IN: 5.0.0
-// Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
-// that tests empty ClusterName and ServerHostname gets set.
-func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
-	require.NoError(t, err)
-
-	// Create a session with empty ClusterName.
-	sess1 := session.Session{
-		ClusterName:    "",
-		ServerID:       string(session.NewID()),
-		ID:             session.NewID(),
-		Namespace:      apidefaults.Namespace,
-		Login:          "foo",
-		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-	}
-	err = nodeClient.CreateSession(sess1)
-	require.NoError(t, err)
-
-	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(t, "baz")
-	res, err := pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions", sess1.ID.String()), url.Values{})
-	require.NoError(t, err)
-
-	// Test that empty ClusterName and ServerHostname got set.
-	var sessionResult *session.Session
-	err = json.Unmarshal(res.Bytes(), &sessionResult)
-	require.NoError(t, err)
-	require.Equal(t, s.server.ClusterName(), sessionResult.ClusterName)
-	require.Equal(t, sess1.ServerID, sessionResult.ServerHostname)
-
-	// Create another session to test sessions list.
-	sess2 := sess1
-	sess2.ID = session.NewID()
-	sess2.ServerID = string(session.NewID())
-	err = nodeClient.CreateSession(sess2)
-	require.NoError(t, err)
-
-	// Retrieve sessions list.
-	res, err = pack.clt.Get(s.ctx, pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"), url.Values{})
-	require.NoError(t, err)
-
-	var sessionList *siteSessionsGetResponse
-	err = json.Unmarshal(res.Bytes(), &sessionList)
-	require.NoError(t, err)
-
-	s1 := sessionList.Sessions[0]
-	s2 := sessionList.Sessions[1]
-
-	require.Equal(t, s.server.ClusterName(), s1.ClusterName)
-	require.Equal(t, s.server.ClusterName(), s2.ClusterName)
-	require.Equal(t, s1.ServerID, s1.ServerHostname)
-	require.Equal(t, s2.ServerID, s2.ServerHostname)
 }
 
 func TestCloseConnectionsOnLogout(t *testing.T) {
@@ -1787,7 +1745,7 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// create two oidc connectors, one named "foo" and another named "bar"
 	oidcConnectorSpec := types.OIDCConnectorSpecV3{
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 		ClientID:     "000000000000-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com",
 		ClientSecret: "AAAAAAAAAAAAAAAAAAAAAAAA",
 		IssuerURL:    "https://oidc.example.com",
@@ -2468,9 +2426,17 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a test connector.
-	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
-	err = env.server.Auth().CreateGithubConnector(github)
+	err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
@@ -3338,12 +3304,16 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(ctx context.Context, n string, opts ...services.MarshalOption) ([]types.Server, error) {
+func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Server, error) {
 	return []types.Server{&mock.server}, nil
 }
 
 func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
+}
+
+func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, trace.NotFound("foo")
 }
 
 func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...session.ID) (*websocket.Conn, error) {
@@ -3826,11 +3796,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LocalAccessPoint:      client,
 		Emitter:               client,
 		NewCachingAccessPoint: noCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: authServer.ClusterName(), Client: client}},
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
@@ -3845,7 +3816,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		utils.NetAddr{},
 		client,
 		regular.SetUUID(proxyID),
-		regular.SetProxyMode(revTunServer, client),
+		regular.SetProxyMode("", revTunServer, client),
 		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),

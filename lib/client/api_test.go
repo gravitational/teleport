@@ -17,17 +17,20 @@ limitations under the License.
 package client
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -191,6 +194,7 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		KeysDir:   "/tmp",
 		Username:  "localuser",
 		SiteName:  "site",
+		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 	err := conf.ParseProxyHost("proxy")
 	c.Assert(err, check.IsNil)
@@ -539,6 +543,7 @@ func TestNewClient_UseKeyPrincipals(t *testing.T) {
 		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
 		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
 		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+		Tracer:           tracing.NoopProvider().Tracer("test"),
 	}
 	client, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -702,6 +707,54 @@ func TestVirtualPathNames(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			names := VirtualPathEnvNames(tc.kind, tc.params)
 			require.Equal(t, tc.expected, names)
+		})
+	}
+}
+
+func TestFormatConnectToProxyErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+
+		wantError       string
+		wantUserMessage string
+	}{
+		{
+			name: "nil error passes through",
+			err:  nil,
+		},
+		{
+			name:      "unrelated error passes through",
+			err:       fmt.Errorf("flux capacitor undercharged"),
+			wantError: "flux capacitor undercharged",
+		},
+		{
+			name:            "principals mismatch user message injected",
+			err:             trace.Wrap(fmt.Errorf(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`)),
+			wantError:       `ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`,
+			wantUserMessage: unconfiguredPublicAddrMsg,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := formatConnectToProxyErr(tt.err)
+			if tt.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			traceErr, isTraceErr := err.(*trace.TraceErr)
+
+			if isTraceErr {
+				require.EqualError(t, traceErr.OrigError(), tt.wantError)
+			} else {
+				require.EqualError(t, err, tt.wantError)
+			}
+
+			if tt.wantUserMessage != "" {
+				require.True(t, isTraceErr)
+				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
+			}
 		})
 	}
 }

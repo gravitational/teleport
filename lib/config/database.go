@@ -34,7 +34,6 @@ var databaseConfigTemplateFuncs = template.FuncMap{
 }
 
 // databaseAgentConfigurationTemplate database configuration template.
-// TODO(greedy52) add documentation link to ElastiCache page.
 var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(databaseConfigTemplateFuncs).Parse(`#
 # Teleport database agent configuration file.
 # Configuration reference: https://goteleport.com/docs/database-access/reference/configuration/
@@ -60,7 +59,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions }}
+  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -92,10 +91,24 @@ db_service:
   {{- end }}
   {{- if .ElastiCacheDiscoveryRegions }}
   # ElastiCache databases auto-discovery.
+  # For more information about ElastiCache auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
   - types: ["elasticache"]
     # AWS regions to register databases from.
     regions:
     {{- range .ElastiCacheDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if .MemoryDBDiscoveryRegions }}
+  # MemoryDB databases auto-discovery.
+  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
+  - types: ["memorydb"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .MemoryDBDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -189,6 +202,20 @@ db_service:
   #     elasticache:
   #       # ElastiCache replication group ID.
   #       replication_group_id: redis-cluster-example
+  # # MemoryDB database static configuration.
+  # - name: memorydb
+  #   description: AWS MemoryDB cluster configuration example.
+  #   protocol: redis
+  #   # Database connection endpoint. Must be reachable from Database service.
+  #   uri: clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379
+  #   # AWS specific configuration.
+  #   aws:
+  #     # Region the database is deployed in.
+  #     region: us-west-1
+  #     # MemoryDB specific configuration.
+  #     memorydb:
+  #       # MemoryDB cluster name.
+  #       cluster_name: my-memorydb
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -241,6 +268,9 @@ type DatabaseSampleFlags struct {
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
+	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
+	// auto-discovery is configured.
+	MemoryDBDiscoveryRegions []string
 	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 }

@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
@@ -42,7 +43,7 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*Identity, error) {
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,6 +70,7 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 			NoCache:              true,
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
+			SystemRoles:          systemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -116,6 +118,8 @@ type RegisterParams struct {
 	// ec2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	ec2IdentityDocument []byte
+	// CircuitBreakerConfig defines how the circuit breaker should behave.
+	CircuitBreakerConfig breaker.Config
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -137,13 +141,21 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
-	token, err := utils.ReadToken(params.Token)
+	token, err := utils.TryReadValueAsFile(params.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// add EC2 Identity Document to params if required for given join method
 	if params.JoinMethod == types.JoinMethodEC2 {
+		if !utils.IsEC2NodeID(params.ID.HostUUID) {
+			return nil, trace.BadParameter(
+				`Host ID %q is not valid when using the EC2 join method, `+
+					`try removing the "host_uuid" file in your teleport data dir `+
+					`(e.g. /var/lib/teleport/host_uuid)`,
+				params.ID.HostUUID)
+		}
+
 		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -344,6 +356,7 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -382,6 +395,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +404,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Fetch the root CA from the Auth Server. The NOP role has access to the
 	// GetClusterCACert endpoint.
-	localCA, err := authClient.GetClusterCACert()
+	localCA, err := authClient.GetClusterCACert(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,6 +446,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -496,24 +511,27 @@ type ReRegisterParams struct {
 	PublicSSHKey []byte
 	// Rotation is the rotation state of the certificate authority
 	Rotation types.Rotation
+	// SystemRoles is a set of additional system roles held by the instance.
+	SystemRoles []types.SystemRole
+	// Used by older instances to requisition a multi-role cert by individually
+	// proving which system roles are held.
+	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
 func ReRegister(params ReRegisterParams) (*Identity, error) {
-	hostID, err := params.ID.HostID()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:               hostID,
-			NodeName:             params.ID.NodeName,
-			Role:                 params.ID.Role,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			DNSNames:             params.DNSNames,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			Rotation:             &params.Rotation,
+			HostID:                        params.ID.HostID(),
+			NodeName:                      params.ID.NodeName,
+			Role:                          params.ID.Role,
+			AdditionalPrincipals:          params.AdditionalPrincipals,
+			DNSNames:                      params.DNSNames,
+			PublicTLSKey:                  params.PublicTLSKey,
+			PublicSSHKey:                  params.PublicSSHKey,
+			Rotation:                      &params.Rotation,
+			SystemRoles:                   params.SystemRoles,
+			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

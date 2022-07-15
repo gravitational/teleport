@@ -159,11 +159,6 @@ type InitConfig struct {
 	// CipherSuites is a list of ciphersuites that the auth server supports.
 	CipherSuites []uint16
 
-	// CASigningAlg is a signing algorithm used for SSH (certificate and
-	// handshake) signatures for both host and user CAs. This option only
-	// affects newly-created CAs.
-	CASigningAlg *string
-
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 
@@ -788,12 +783,8 @@ type IdentityID struct {
 }
 
 // HostID is host ID part of the host UUID that consists cluster name
-func (id *IdentityID) HostID() (string, error) {
-	parts := strings.Split(id.HostUUID, ".")
-	if len(parts) < 2 {
-		return "", trace.BadParameter("expected 2 parts in %q", id.HostUUID)
-	}
-	return parts[0], nil
+func (id *IdentityID) HostID() string {
+	return strings.SplitN(id.HostUUID, ".", 2)[0]
 }
 
 // Equals returns true if two identities are equal
@@ -1105,7 +1096,6 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 				// Copy only TLS keys as SSH are not needed.
 				TLS: cav2.Spec.ActiveKeys.TLS,
 			},
-			SigningAlg: cav2.Spec.SigningAlg,
 		})
 		if err != nil {
 			return trace.Wrap(err)

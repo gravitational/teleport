@@ -202,7 +202,7 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.tunnelWithRoles(ctx).GetSite(req.clusterName)
+		_, err := srv.tunnelWithAccessChecker(ctx).GetSite(req.clusterName)
 		if err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
@@ -241,7 +241,7 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 	var (
 		site       reversetunnel.RemoteSite
 		err        error
-		tunnel     = t.srv.tunnelWithRoles(serverContext)
+		tunnel     = t.srv.tunnelWithAccessChecker(serverContext)
 		clientAddr = sconn.RemoteAddr()
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
@@ -383,11 +383,16 @@ func (t *proxySubsys) proxyToHost(
 
 	// Resolve the IP address to dial to because the hostname may not be
 	// DNS resolvable.
-	var serverAddr string
+	var (
+		serverAddr string
+		proxyIDs   []string
+	)
+
 	if server != nil {
 		// Add hostUUID.clusterName to list of principals.
 		serverID = fmt.Sprintf("%v.%v", server.GetName(), t.clusterName)
 		principals = append(principals, serverID)
+		proxyIDs = server.GetProxyIDs()
 
 		// Add IP address (if it exists) of the node to list of principals.
 		serverAddr = server.GetAddr()
@@ -423,6 +428,7 @@ func (t *proxySubsys) proxyToHost(
 		GetUserAgent: t.ctx.StartAgentChannel,
 		Address:      t.host,
 		ServerID:     serverID,
+		ProxyIDs:     proxyIDs,
 		Principals:   principals,
 		ConnType:     types.NodeTunnel,
 	})

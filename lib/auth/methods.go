@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,7 +35,7 @@ import (
 
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
-	// Username is a user name
+	// Username is a username
 	Username string `json:"username"`
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
@@ -73,7 +74,7 @@ type PassCreds struct {
 	Password []byte `json:"password"`
 }
 
-// OTPCreds is a two factor authencication credentials
+// OTPCreds is a two-factor authentication credentials
 type OTPCreds struct {
 	// Password is a user password
 	Password []byte `json:"password"`
@@ -134,9 +135,23 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	return user, trace.Wrap(err)
 }
 
-// authenticateWebauthnError is the generic error message returned for failed
-// WebAuthn authentication attempts.
-const authenticateWebauthnError = "invalid Webauthn response"
+var (
+	// authenticateWebauthnError is the generic error returned for failed WebAuthn
+	// authentication attempts.
+	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
+	// invalidUserPassError is the error for when either the provided username or
+	// password is incorrect.
+	invalidUserPassError = trace.AccessDenied("invalid username or password")
+	// invalidUserpass2FError is the error for when either the provided username,
+	// password, or second factor is incorrect.
+	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+)
+
+// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
+// password, or second factor.
+func IsInvalidLocalCredentialError(err error) bool {
+	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
+}
 
 // authenticateUser authenticates a user through various methods (password, MFA,
 // passwordless)
@@ -155,7 +170,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
-	var failMsg string // failMsg kept obscure on purpose, use logging for details
+	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
 	case req.Webauthn != nil:
@@ -168,7 +183,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return dev, trace.Wrap(err)
 		}
-		failMsg = authenticateWebauthnError
+		authErr = authenticateWebauthnError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -179,7 +194,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			return res.mfaDev, nil
 		}
-		failMsg = "invalid username, password or second factor"
+		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
@@ -195,12 +210,12 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 				return nil, "", trace.Wrap(fieldErr)
 			}
 
-			return nil, "", trace.AccessDenied(failMsg)
+			return nil, "", trace.Wrap(authErr)
 		case dev == nil:
 			log.Debugf(
 				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v): %v.",
 				req.Webauthn != nil, req.OTP != nil, err)
-			return nil, "", trace.AccessDenied(failMsg)
+			return nil, "", trace.Wrap(authErr)
 		default:
 			return dev, user, nil
 		}
@@ -248,7 +263,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, "", trace.AccessDenied("invalid username or password")
+		return nil, "", trace.Wrap(invalidUserPassError)
 	}
 	return nil, user, nil
 }
@@ -262,7 +277,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
-		return nil, "", trace.AccessDenied(authenticateWebauthnError)
+		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
 
 	// A distinction between passwordless and "plain" MFA is that we can't
@@ -270,7 +285,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// We do grab it here so successful logins go through the regular process.
 	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
 		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
-		return nil, user, trace.AccessDenied(authenticateWebauthnError)
+		return nil, user, trace.Wrap(authenticateWebauthnError)
 	}
 
 	return dev, user, nil
@@ -362,7 +377,7 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 // SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
 type SSHLoginResponse struct {
-	// User contains a logged in user informationn
+	// User contains a logged-in user information
 	Username string `json:"username"`
 	// Cert is a PEM encoded  signed certificate
 	Cert []byte `json:"cert"`
@@ -382,7 +397,7 @@ type TrustedCerts struct {
 	// HostCertificates is a list of SSH public keys that can be used to check
 	// host certificate signatures
 	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authoritiy
+	// TLSCertificates  is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }
@@ -445,10 +460,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), s, user.GetTraits())
+	accessInfo, err := services.AccessInfoFromUser(user, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
@@ -462,6 +478,18 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		authority,
 	}
 
+	sourceIP := ""
+	if checker.PinSourceIP() {
+		md := req.ClientMetadata
+		if md == nil {
+			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
+		}
+		host, err := utils.Host(md.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sourceIP = host
+	}
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
 		ttl:               req.TTL,
@@ -471,6 +499,7 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 		traits:            user.GetTraits(),
 		routeToCluster:    req.RouteToCluster,
 		kubernetesCluster: req.KubernetesCluster,
+		sourceIP:          sourceIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

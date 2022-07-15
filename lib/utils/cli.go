@@ -246,7 +246,6 @@ func formatCertError(err error) string {
 	default:
 		return ""
 	}
-
 }
 
 const (
@@ -339,7 +338,6 @@ func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseCont
 				opt.commandPrintfWidth = len(command.FullCommand)
 			}
 		}
-
 	}
 }
 

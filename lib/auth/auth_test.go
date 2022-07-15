@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -561,7 +562,7 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
 	require.NoError(t, err)
 	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -577,7 +578,7 @@ func TestTokensCRUD(t *testing.T) {
 
 	// generate predefined token
 	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
 	require.NoError(t, err)
 	require.Equal(t, tokenName, customToken)
 
@@ -629,12 +630,63 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 
 	// tampered
-	tok, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
+	tok, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
 	require.NoError(t, err)
 
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
+}
+
+// TestLocalControlStream verifies that local control stream behaves as expected.
+func TestLocalControlStream(t *testing.T) {
+	const serverID = "test-server"
+
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := newAuthSuite(t)
+
+	stream := s.a.MakeLocalInventoryControlStream()
+	defer stream.Close()
+
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+
+	// wait for control stream to get inserted into the controller (happens after
+	// hello exchange is finished).
+	require.Eventually(t, func() bool {
+		_, ok := s.a.inventory.GetControlStream(serverID)
+		return ok
+	}, time.Second*5, time.Millisecond*200)
+
+	// try performing a normal operation against the control stream to double-check that it is healthy
+	go s.a.PingInventory(ctx, proto.InventoryPingRequest{
+		ServerID: serverID,
+	})
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
 }
 
 func TestGenerateTokenEventsEmitted(t *testing.T) {
@@ -643,13 +695,13 @@ func TestGenerateTokenEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
+	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
 	s.mockEmitter.Reset()
 
 	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: types.SystemRoles{
+	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
 		types.RoleNode,
 		types.RoleTrustedCluster,
 		types.RoleAuth,
@@ -920,7 +972,15 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test github create event
-	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
@@ -945,13 +1005,17 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	// test oidc create event
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{ClientID: "a", ClaimsToRoles: []types.ClaimMapping{
-		{
-			Claim: "dummy",
-			Value: "dummy",
-			Roles: []string{"dummy"},
+	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
+		ClientID: "a",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "dummy",
+				Value: "dummy",
+				Roles: []string{"dummy"},
+			},
 		},
-	}})
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
@@ -1076,13 +1140,18 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
+	err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	require.NoError(t, err)
 
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:      user,
-		checker:   services.NewRoleSet(role),
+		checker:   services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
 		publicKey: pub,
 	}
 	certs, err := p.a.generateUserCert(certReq)
@@ -1102,7 +1171,9 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
+	require.NoError(t, err)
+	accessInfo, err := services.AccessInfoFromUser(user, p.a)
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
 	requestID := "test-access-request"
@@ -1111,7 +1182,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:           user,
-		checker:        services.NewRoleSet(role),
+		checker:        services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
@@ -1828,5 +1899,100 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
+	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.ResourceWithLabels
+	resourcesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.resourcesError != nil {
+		return nil, m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, nil
+	}
+
+	return &types.ListResourcesResponse{Resources: m.resources}, nil
+}
+
+func TestFilterResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.ResourceWithLabels) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
 	}
 }

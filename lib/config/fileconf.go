@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -52,12 +53,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
-
-var validCASigAlgos = []string{
-	ssh.KeyAlgoRSA,
-	ssh.KeyAlgoRSASHA256,
-	ssh.KeyAlgoRSASHA512,
-}
 
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
@@ -86,6 +81,9 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// Tracing is the "tracing_service" section in Teleport configuration file
+	Tracing TracingService `yaml:"tracing_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -161,6 +159,13 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
+	NodeLabels string
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin string
+	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
+	JoinMethod string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -192,15 +197,28 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
-	g.AuthToken = flags.AuthToken
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
+	g.JoinParams = JoinParams{
+		TokenName: flags.AuthToken,
+		Method:    types.JoinMethod(joinMethod),
+	}
+
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
 
+	g.CAPin = strings.Split(flags.CAPin, ",")
+
 	roles := roleMapFromFlags(flags)
 
 	// SSH config:
-	s := makeSampleSSHConfig(conf, roles[defaults.RoleNode])
+	s, err := makeSampleSSHConfig(conf, flags, roles[defaults.RoleNode])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Auth config:
 	a := makeSampleAuthConfig(conf, flags, roles[defaults.RoleAuthService])
@@ -246,7 +264,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
+func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -258,14 +276,16 @@ func makeSampleSSHConfig(conf *service.Config, enabled bool) SSH {
 				Period:  time.Minute,
 			},
 		}
-		s.Labels = map[string]string{
-			"env": "example",
+		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		if err != nil {
+			return s, trace.Wrap(err)
 		}
+		s.Labels = labels
 	} else {
 		s.EnabledFlag = "no"
 	}
 
-	return s
+	return s, nil
 }
 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
@@ -409,9 +429,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-	if conf.CASignatureAlgorithm != nil && !apiutils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
-		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
-	}
 
 	return nil
 }
@@ -497,9 +514,13 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
-	PIDFile     string           `yaml:"pid_file,omitempty"`
+	NodeName string `yaml:"nodename,omitempty"`
+	DataDir  string `yaml:"data_dir,omitempty"`
+	PIDFile  string `yaml:"pid_file,omitempty"`
+
+	// AuthToken is the old way of configuring the token to be used by the
+	// node to join the Teleport cluster. `JoinParams.TokenName` should be
+	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
@@ -526,9 +547,7 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
-	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
-	// algorithm that the server uses for signing user and host certificates.
-	// If omitted, the default will be used.
+	// CASignatureAlgorithm is ignored but ketp for config backwards compat
 	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
 
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -641,20 +660,6 @@ type Auth struct {
 	// to 3rd party auth servers we trust)
 	ReverseTunnels []ReverseTunnel `yaml:"reverse_tunnels,omitempty"`
 
-	// TrustedClustersFile is a file path to a file containing public CA keys
-	// of clusters we trust. One key per line, those starting with '#' are comments
-	// Deprecated: Remove in Teleport 2.4.1.
-	TrustedClusters []TrustedCluster `yaml:"trusted_clusters,omitempty"`
-
-	// OIDCConnectors is a list of trusted OpenID Connect Identity providers
-	// Deprecated: Remove in Teleport 2.4.1.
-	OIDCConnectors []OIDCConnector `yaml:"oidc_connectors,omitempty"`
-
-	// DynamicConfig determines when file configuration is pushed to the backend. Setting
-	// it here overrides defaults.
-	// Deprecated: Remove in Teleport 2.4.1.
-	DynamicConfig *bool `yaml:"dynamic_config,omitempty"`
-
 	// PublicAddr sets SSH host principals and TLS DNS names to auth
 	// server certificates
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
@@ -703,6 +708,9 @@ type Auth struct {
 
 	// RoutingStrategy configures the routing strategy to nodes.
 	RoutingStrategy types.RoutingStrategy `yaml:"routing_strategy,omitempty"`
+
+	// TunnelStrategy configures the tunnel strategy used by the cluster.
+	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -757,28 +765,32 @@ func (c ClusterName) Parse() (types.ClusterName, error) {
 type StaticTokens []StaticToken
 
 func (t StaticTokens) Parse() (types.StaticTokens, error) {
-	staticTokens := []types.ProvisionTokenV1{}
+	var provisionTokens []types.ProvisionTokenV1
 
-	for _, token := range t {
-		st, err := token.Parse()
+	for _, st := range t {
+		tokens, err := st.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		staticTokens = append(staticTokens, *st)
+		provisionTokens = append(provisionTokens, tokens...)
 	}
 
 	return types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: staticTokens,
+		StaticTokens: provisionTokens,
 	})
 }
 
 type StaticToken string
 
 // Parse is applied to a string in "role,role,role:token" format. It breaks it
-// apart and constructs a services.ProvisionToken which contains the token,
+// apart and constructs a list of services.ProvisionToken which contains the token,
 // role, and expiry (infinite).
-func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
-	parts := strings.Split(string(t), ":")
+// If the token string is a file path, the file may contain multiple newline delimited
+// tokens, in which case each token is used to construct a services.ProvisionToken
+// with the same roles.
+func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
+	// Split only on the first ':', for future cross platform compat with windows paths
+	parts := strings.SplitN(string(t), ":", 2)
 	if len(parts) != 2 {
 		return nil, trace.BadParameter("invalid static token spec: %q", t)
 	}
@@ -788,16 +800,21 @@ func (t StaticToken) Parse() (*types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := utils.ReadToken(parts[1])
+	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tokens := strings.Split(tokenPart, "\n")
+	provisionTokens := make([]types.ProvisionTokenV1, 0, len(tokens))
 
-	return &types.ProvisionTokenV1{
-		Token:   token,
-		Roles:   roles,
-		Expires: time.Unix(0, 0).UTC(),
-	}, nil
+	for _, token := range tokens {
+		provisionTokens = append(provisionTokens, types.ProvisionTokenV1{
+			Token:   token,
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		})
+	}
+	return provisionTokens, nil
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
@@ -854,7 +871,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 }
 
 type UniversalSecondFactor struct {
-	AppID                string   `yaml:"app_id"`
+	AppID string `yaml:"app_id"`
+	// Facets kept only to avoid breakages during Teleport updates.
+	// Webauthn is now used instead of U2F.
 	Facets               []string `yaml:"facets"`
 	DeviceAttestationCAs []string `yaml:"device_attestation_cas"`
 }
@@ -866,7 +885,6 @@ func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
 	}
 	return &types.U2F{
 		AppID:                u.AppID,
-		Facets:               u.Facets,
 		DeviceAttestationCAs: attestationCAs,
 	}, nil
 }
@@ -965,6 +983,10 @@ type SSH struct {
 
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1000,11 +1022,6 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 		if cfg.DisplayOffset > x11.MaxDisplayNumber {
 			cfg.DisplayOffset = x11.MaxDisplayNumber
 		}
-	}
-
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	if ssh.X11.MaxDisplays != nil && ssh.X11.MaxDisplay == nil {
-		ssh.X11.MaxDisplay = ssh.X11.MaxDisplays
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1125,8 +1142,6 @@ type X11 struct {
 	// MaxDisplay tells the server what X11 display number to stop at when
 	// searching for an open X11 unix socket for XServer proxies.
 	MaxDisplay *uint `yaml:"max_display,omitempty"`
-	// DELETE IN 10.0.0 (Joerger): yaml typo, use MaxDisplay.
-	MaxDisplays *uint `yaml:"max_displays,omitempty"`
 }
 
 // Databases represents the database proxy service configuration.
@@ -1151,7 +1166,8 @@ type ResourceMatcher struct {
 
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", or "elasticache".
+	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
@@ -1218,6 +1234,14 @@ type DatabaseMySQL struct {
 	ServerVersion string `yaml:"server_version,omitempty"`
 }
 
+// SecretStore contains settings for managing secrets.
+type SecretStore struct {
+	// KeyPrefix specifies the secret key prefix.
+	KeyPrefix string `yaml:"key_prefix,omitempty"`
+	// KMSKeyID specifies the KMS key used to encrypt and decrypt the secret.
+	KMSKeyID string `yaml:"kms_key_id,omitempty"`
+}
+
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
 type DatabaseAWS struct {
 	// Region is a cloud region for RDS/Aurora database endpoint.
@@ -1228,6 +1252,10 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// SecretStore contains settings for managing secrets.
+	SecretStore SecretStore `yaml:"secret_store"`
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1248,6 +1276,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -1322,6 +1356,8 @@ type Proxy struct {
 	WebAddr string `yaml:"web_listen_addr,omitempty"`
 	// TunAddr is a reverse tunnel address
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
+	// PeerAddr is the address this proxy will be dialed at by its peers.
+	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file
@@ -1494,77 +1530,6 @@ type ClaimMapping struct {
 	Roles []string `yaml:"roles,omitempty"`
 }
 
-// OIDCConnector specifies configuration fo Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
-type OIDCConnector struct {
-	// ID is a provider id, 'e.g.' google, used internally
-	ID string `yaml:"id"`
-	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
-	IssuerURL string `yaml:"issuer_url"`
-	// ClientID is id for authentication client (in our case it's our Auth server)
-	ClientID string `yaml:"client_id"`
-	// ClientSecret is used to authenticate our client and should not
-	// be visible to end user
-	ClientSecret string `yaml:"client_secret"`
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	RedirectURL string `yaml:"redirect_url"`
-	// ACR is the acr_values parameter to be sent with an authorization request.
-	ACR string `yaml:"acr_values,omitempty"`
-	// Provider is the identity provider we connect to. This field is
-	// only required if using acr_values.
-	Provider string `yaml:"provider,omitempty"`
-	// Display controls how this connector is displayed
-	Display string `yaml:"display"`
-	// Scope is a list of additional scopes to request from OIDC
-	// note that oidc and email scopes are always requested
-	Scope []string `yaml:"scope"`
-	// ClaimsToRoles is a list of mappings of claims to roles
-	ClaimsToRoles []ClaimMapping `yaml:"claims_to_roles"`
-}
-
-// Parse parses config struct into services connector and checks if it's valid
-func (o *OIDCConnector) Parse() (types.OIDCConnector, error) {
-	if o.Display == "" {
-		o.Display = o.ID
-	}
-
-	var mappings []types.ClaimMapping
-	for _, c := range o.ClaimsToRoles {
-		var roles []string
-		if len(c.Roles) > 0 {
-			roles = append(roles, c.Roles...)
-		}
-
-		mappings = append(mappings, types.ClaimMapping{
-			Claim: c.Claim,
-			Value: c.Value,
-			Roles: roles,
-		})
-	}
-
-	connector, err := types.NewOIDCConnector(o.ID, types.OIDCConnectorSpecV3{
-		IssuerURL:     o.IssuerURL,
-		ClientID:      o.ClientID,
-		ClientSecret:  o.ClientSecret,
-		RedirectURL:   o.RedirectURL,
-		Display:       o.Display,
-		Scope:         o.Scope,
-		ClaimsToRoles: mappings,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connector.SetACR(o.ACR)
-	connector.SetProvider(o.Provider)
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return connector, nil
-}
-
 // Metrics is a `metrics_service` section of the config file:
 type Metrics struct {
 	// Service is a generic service configuration section
@@ -1630,4 +1595,34 @@ type LDAPConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
+}
+
+// TracingService contains configuration for the tracing_service.
+type TracingService struct {
+	// Enabled turns the tracing service role on or off for this process
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// ExporterURL is the OTLP exporter URL to send spans to
+	ExporterURL string `yaml:"exporter_url"`
+
+	// KeyPairs is a list of x509 serving key pairs used for mTLS.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts are the exporter ca certs to use
+	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// SamplingRatePerMillion is the sampling rate for the exporter.
+	// 1_000_000 means all spans will be sampled and 0 means none are sampled.
+	SamplingRatePerMillion int `yaml:"sampling_rate_per_million"`
+}
+
+func (s *TracingService) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return false
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }

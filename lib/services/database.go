@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
@@ -289,10 +290,31 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	return types.NewDatabaseV3(types.Metadata{
 		Name:        name,
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromElastiCacheCluster(metadata, endpointType, extraLabels),
+		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
+// NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
+// cluster.
+func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
+	endpointType := awsutils.MemoryDBClusterEndpoint
+
+	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(types.Metadata{
+		Name:        aws.StringValue(cluster.Name),
+		Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
+		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
 		AWS:      *metadata,
 	})
 }
@@ -367,6 +389,26 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
+// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// cluster.
+func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		MemoryDB: types.MemoryDB{
+			ClusterName:  aws.StringValue(cluster.Name),
+			ACLName:      aws.StringValue(cluster.ACLName),
+			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
+			EndpointType: endpointType,
+		},
+	}, nil
+}
+
 // ExtraElastiCacheLabels returns a list of extra labels for provided
 // ElastiCache cluster.
 func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
@@ -400,6 +442,35 @@ func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elast
 	// for filtering.
 	for _, subnetGroup := range allSubnetGroups {
 		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
+			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
+			break
+		}
+	}
+
+	return labels
+}
+
+// ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
+// cluster.
+func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
+	labels := make(map[string]string)
+
+	// Add AWS resource tags.
+	for _, tag := range tags {
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping MemoryDB tag %q, not a valid label key.", key)
+		}
+	}
+
+	// Engine version.
+	labels[labelEngineVersion] = aws.StringValue(cluster.EngineVersion)
+
+	// VPC ID.
+	for _, subnetGroup := range allSubnetGroups {
+		if aws.StringValue(subnetGroup.Name) == aws.StringValue(cluster.SubnetGroupName) {
 			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
 			break
 		}
@@ -460,9 +531,8 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 	return labels
 }
 
-// labelsFromElastiCacheCluster creates database labels for the provided
-// ElastiCache cluster.
-func labelsFromElastiCacheCluster(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
+// labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
+func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, value := range extraLabels {
 		labels[key] = value
@@ -517,9 +587,13 @@ func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.
 func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 	switch aws.StringValue(cluster.EngineMode) {
-	// Aurora Serverless (v1 and v2) does not support IAM authentication
+	// Aurora Serverless v1 does NOT support IAM authentication.
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html#aurora-serverless.limitations
-	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-2.limitations.html
+	//
+	// Note that Aurora Serverless v2 does support IAM authentication.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html
+	// However, v2's engine mode is "provisioned" instead of "serverless" so it
+	// goes to the default case (true).
 	case RDSEngineModeServerless:
 		return false
 
@@ -538,6 +612,11 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 // supported.
 func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
 	return aws.BoolValue(cluster.TransitEncryptionEnabled)
+}
+
+// IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
+func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
+	return aws.BoolValue(cluster.TLSEnabled)
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -655,6 +734,25 @@ func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
 		log.Warnf("Unknown status type: %q. Assuming ElastiCache %q is available.",
 			aws.StringValue(cluster.Status),
 			aws.StringValue(cluster.ReplicationGroupId),
+		)
+		return true
+
+	}
+}
+
+// IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
+func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
+	switch aws.StringValue(cluster.Status) {
+	case "available", "modifying", "snapshotting":
+		return true
+
+	case "creating", "deleting", "create-failed":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming MemoryDB %q is available.",
+			aws.StringValue(cluster.Status),
+			aws.StringValue(cluster.Name),
 		)
 		return true
 

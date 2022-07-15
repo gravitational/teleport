@@ -88,6 +88,18 @@ type ClusterNetworkingConfig interface {
 
 	// SetRoutingStrategy sets the routing strategy setting.
 	SetRoutingStrategy(strategy RoutingStrategy)
+
+	// GetTunnelStrategy gets the tunnel strategy.
+	GetTunnelStrategyType() (TunnelStrategyType, error)
+
+	// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
+	GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy
+
+	// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+	GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy
+
+	// SetTunnelStrategy sets the tunnel strategy.
+	SetTunnelStrategy(*TunnelStrategyV1)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -278,6 +290,37 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 	c.Spec.RoutingStrategy = strategy
 }
 
+// GetTunnelStrategy gets the tunnel strategy type.
+func (c *ClusterNetworkingConfigV2) GetTunnelStrategyType() (TunnelStrategyType, error) {
+	if c.Spec.TunnelStrategy == nil {
+		return "", trace.BadParameter("tunnel strategy is nil")
+	}
+
+	switch c.Spec.TunnelStrategy.Strategy.(type) {
+	case *TunnelStrategyV1_AgentMesh:
+		return AgentMesh, nil
+	case *TunnelStrategyV1_ProxyPeering:
+		return ProxyPeering, nil
+	}
+
+	return "", trace.BadParameter("unknown tunnel strategy type: %T", c.Spec.TunnelStrategy.Strategy)
+}
+
+// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy {
+	return c.Spec.TunnelStrategy.GetAgentMesh()
+}
+
+// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy {
+	return c.Spec.TunnelStrategy.GetProxyPeering()
+}
+
+// SetTunnelStrategy sets the tunnel strategy.
+func (c *ClusterNetworkingConfigV2) SetTunnelStrategy(strategy *TunnelStrategyV1) {
+	c.Spec.TunnelStrategy = strategy
+}
+
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
 func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -296,6 +339,15 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	}
 	if c.Spec.KeepAliveCountMax == 0 {
 		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
+	}
+
+	if c.Spec.TunnelStrategy == nil {
+		c.Spec.TunnelStrategy = &TunnelStrategyV1{
+			Strategy: DefaultTunnelStrategy(),
+		}
+	}
+	if err := c.Spec.TunnelStrategy.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

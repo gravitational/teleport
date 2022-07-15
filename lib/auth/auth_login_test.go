@@ -73,8 +73,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
 				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
+					AppID: "https://localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
@@ -103,10 +102,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				SecondFactor: constants.SecondFactorWebauthn,
 				U2F: &types.U2F{
 					AppID: "https://myoldappid.com",
-					Facets: []string{
-						"https://myoldappid.com",
-						"https://localhost",
-					},
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "myexplicitid",

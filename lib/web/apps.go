@@ -74,7 +74,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			LocalProxyDNSName: h.proxyDNSName(),
 			AppClusterName:    appClusterName,
 			Identity:          identity,
-			Apps:              types.DeduplicateApps(apps),
+			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,

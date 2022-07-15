@@ -3,12 +3,12 @@ sets Pod annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -58,12 +58,12 @@ sets Pod labels when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -128,7 +128,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: 790ebcf515a3f43b0c1dba7b809211184a6ad4481ac78b21e1275777ec4207af
+            checksum/config: b37ca9b3da292ffe343a4629c7da7dc006ec03156fc19268123a24df51dfeb78
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
@@ -137,12 +137,12 @@ sets StatefulSet labels when specified:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.0.0-dev
+            image: quay.io/gravitational/teleport:10.0.1
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
               httpGet:
-                path: /readyz
+                path: /healthz
                 port: diag
               initialDelaySeconds: 5
               periodSeconds: 5
@@ -203,12 +203,12 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -258,12 +258,12 @@ should add volumeClaimTemplate for data volume when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -313,12 +313,12 @@ should add volumeMount for data volume when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -368,12 +368,12 @@ should expose diag port:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -435,12 +435,12 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -502,12 +502,12 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -557,12 +557,12 @@ should have one replica when replicaCount is not set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -612,12 +612,12 @@ should mount extraVolumes and extraVolumeMounts:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -672,12 +672,12 @@ should not add emptyDir for data when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -727,12 +727,12 @@ should provision initContainer correctly when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -818,12 +818,12 @@ should set SecurityContext:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -893,12 +893,12 @@ should set affinity when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -948,12 +948,12 @@ should set default serviceAccountName when not set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1006,12 +1006,12 @@ should set environment when extraEnv set in values:
       env:
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1066,7 +1066,7 @@ should set image and tag correctly:
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1116,12 +1116,12 @@ should set imagePullPolicy when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1171,12 +1171,12 @@ should set nodeSelector if set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1240,12 +1240,12 @@ should set preferred affinity when more than one replica is used:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1295,12 +1295,12 @@ should set probeTimeoutSeconds when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1360,12 +1360,12 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1415,12 +1415,12 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1477,12 +1477,12 @@ should set serviceAccountName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1532,12 +1532,12 @@ should set storage.requests when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1587,12 +1587,12 @@ should set storage.storageClassName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
@@ -1642,12 +1642,12 @@ should set tolerations when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.0.0-dev
+      image: quay.io/gravitational/teleport:10.0.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
         httpGet:
-          path: /readyz
+          path: /healthz
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5

@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -128,8 +127,6 @@ type rotationReq struct {
 	// privateKey is passed by tests to supply private key for cert authorities
 	// instead of generating them on each iteration
 	privateKey []byte
-	// caSigningAlg is an SSH signing algorithm to use with the new CA.
-	caSigningAlg *string
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -228,14 +225,13 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 		}
 
 		rotated, err := a.processRotationRequest(rotationReq{
-			ca:           existing,
-			clock:        a.clock,
-			targetPhase:  req.TargetPhase,
-			schedule:     *req.Schedule,
-			gracePeriod:  *req.GracePeriod,
-			mode:         req.Mode,
-			privateKey:   a.privateKey,
-			caSigningAlg: a.caSigningAlg,
+			ca:          existing,
+			clock:       a.clock,
+			targetPhase: req.TargetPhase,
+			schedule:    *req.Schedule,
+			gracePeriod: *req.GracePeriod,
+			mode:        req.Mode,
+			privateKey:  a.privateKey,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -696,12 +692,6 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	}
 
 	ca.SetRotation(rotation)
-	// The certificate signing algorithm is only set when signing algorithm is
-	// explicitly set in the config file. If the config file doesn't set a value,
-	// preserve the signing algorithm of the existing CA.
-	if req.caSigningAlg != nil {
-		sshutils.SetSigningAlgName(ca, *req.caSigningAlg)
-	}
 
 	return nil
 }

@@ -15,24 +15,14 @@ like:
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
-<ScopedBlock
-  scope={["oss"]}
->
+## Prerequisites
 
-  This guide requires Teleport Cloud or Teleport Enterprise.
+- At least two groups in GitLab with users assigned.
+- Teleport role with access to maintaining `oidc` resources.  This is available in the default `editor` role.
 
-  View this guide as the user of another Teleport edition:
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./gitlab.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./gitlab.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
+(!docs/pages/includes/tctl.mdx!)
 
 ## Enable default OIDC authentication
 
@@ -103,7 +93,7 @@ version: v2
 
 Create the connector using `tctl` tool:
 
-```bsh
+```code
 $ tctl create oidc-connector.yaml
 ```
 
@@ -154,7 +144,7 @@ spec:
 
 Create both roles on the auth server:
 
-```bsh
+```code
 $ tctl create admin.yaml
 $ tctl create dev.yaml
 ```
@@ -164,7 +154,7 @@ $ tctl create dev.yaml
 The Web UI will now contain a new button: "Login with GitLab". The CLI is
 the same as before:
 
-```bsh
+```code
 $ tsh --proxy=teleport.example.com login
 ```
 
@@ -192,4 +182,3 @@ automatically in a browser).
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-</ScopedBlock>

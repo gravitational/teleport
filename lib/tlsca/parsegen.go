@@ -26,6 +26,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -58,11 +59,12 @@ func GenerateSelfSignedCAWithSigner(signer crypto.Signer, entity pkix.Name, dnsN
 // GenerateCAConfig defines the configuration for generating
 // self-signed CA certificates
 type GenerateCAConfig struct {
-	Signer   crypto.Signer
-	Entity   pkix.Name
-	DNSNames []string
-	TTL      time.Duration
-	Clock    clockwork.Clock
+	Signer      crypto.Signer
+	Entity      pkix.Name
+	DNSNames    []string
+	IPAddresses []net.IP
+	TTL         time.Duration
+	Clock       clockwork.Clock
 }
 
 // setDefaults imposes defaults on this configuration
@@ -101,6 +103,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		DNSNames:              config.DNSNames,
+		IPAddresses:           config.IPAddresses,
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, config.Signer.Public(), config.Signer)

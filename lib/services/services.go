@@ -32,6 +32,7 @@ type Services interface {
 	Apps
 	Databases
 	AppSession
+	SnowflakeSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops

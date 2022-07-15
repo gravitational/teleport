@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -245,6 +246,25 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	// If we're planning on changing credentials, we should first park an
+	// innocuous process with the same UID and then check the user database
+	// again, to avoid it getting deleted under our nose.
+	parkerCtx, parkerCancel := context.WithCancel(context.Background())
+	defer parkerCancel()
+	if cmd.SysProcAttr.Credential != nil {
+		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		localUserCheck, err := user.Lookup(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
+		}
+	}
+
 	if c.X11Config.XServerUnixSocket != "" {
 		// Set the open XServer unix socket's owner to the localuser
 		// to prevent a potential privilege escalation vulnerability.
@@ -260,25 +280,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		// Update localUser's xauth database for X11 forwarding.
+		// Update localUser's xauth database for X11 forwarding. We set
+		// cmd.SysProcAttr.Setsid, cmd.Env, and cmd.Dir so that the xauth command
+		// acts as if called within the following shell/exec, so that the
+		// xauthority files is put into the correct place ($HOME/.Xauthority)
+		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
-
-		// Copy the re-exec command's io and user environment fields.
-		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
-			cmd.Stdout = params.Stdout
-			cmd.Stdin = params.Stdin
-			cmd.Stderr = params.Stderr
-			cmd.SysProcAttr = params.SysProcAttr
-			cmd.Env = params.Env
-			cmd.Dir = params.Dir
-		}
-		cpyCmdFields(removeCmd.Cmd, cmd)
-		cpyCmdFields(addCmd.Cmd, cmd)
-
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.Env = cmd.Env
+		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
+
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.Env = cmd.Env
+		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -310,6 +328,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+
+	parkerCancel()
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
@@ -423,6 +443,13 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
+// runPark does nothing, forever.
+func runPark() (errw io.Writer, code int, err error) {
+	for {
+		time.Sleep(time.Hour)
+	}
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -438,6 +465,8 @@ func RunAndExit(commandType string) {
 		w, code, err = RunForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
+	case teleport.ParkSubCommand:
+		w, code, err = runPark()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -453,7 +482,7 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand, teleport.ParkSubCommand:
 			return true
 		}
 	}
@@ -719,6 +748,32 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
+}
+
+// Spawns a process with the given credentials, outliving the context.
+func newParker(ctx context.Context, credential syscall.Credential) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &credential,
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	if err := cmd.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// the process will get killed when the context ends but we still need to
+	// Wait on it
+	go cmd.Wait()
+
+	return nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the

@@ -49,8 +49,7 @@ func TestPing(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
 				U2F: &types.U2F{
-					AppID:  "https://example.com",
-					Facets: []string{"https://example.com"},
+					AppID: "https://example.com",
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",

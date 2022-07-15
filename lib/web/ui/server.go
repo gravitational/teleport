@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Label describes label for webapp
@@ -48,6 +49,8 @@ type Server struct {
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
+	// SSHLogins is the list of logins this user can use on this server
+	SSHLogins []string `json:"sshLogins"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -66,11 +69,11 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
-		serverLabels := server.GetLabels()
+		serverLabels := server.GetStaticLabels()
 		for name, value := range serverLabels {
 			uiLabels = append(uiLabels, Label{
 				Name:  name,
@@ -88,6 +91,12 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 
 		sort.Sort(sortedLabels(uiLabels))
 
+		serverLogins := userRoles.EnumerateServerLogins(server)
+		sshLogins := serverLogins.Allowed()
+		if sshLogins == nil {
+			sshLogins = []string{}
+		}
+
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
 			Labels:      uiLabels,
@@ -95,6 +104,7 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
+			SSHLogins:   sshLogins,
 		})
 	}
 

@@ -533,6 +533,11 @@
             "type": "object",
             "default": {}
         },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "default": {}
+        },
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",

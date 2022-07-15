@@ -11,15 +11,7 @@ hardware security module (HSM) to store and handle private keys.
 
 This guide is intended for Teleport Enterprise users.
 
-<TileSet>
-<Tile title="View this guide as a Teleport Enterprise user" icon="building" href="./hsm.mdx/?scope=enterprise">
-
-</Tile>
-</TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope="enterprise">
 
 ## Prerequisites
 
@@ -36,7 +28,6 @@ This guide is intended for Teleport Enterprise users.
 <Admonition type="warning" scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
 Teleport Cloud and Teleport Open Source do not currently support HSM.
 
-You can view this guide as a [Teleport Enterprise user](./hsm.mdx/?scope=enterprise).
 </Admonition>
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
@@ -227,4 +218,3 @@ You are all set! Check the teleport logs for `Creating new HSM key pair` to
 confirm that the feature is working. You can also check that keys were created
 in your HSM using your HSM's admin tool.
 
-</ScopedBlock>

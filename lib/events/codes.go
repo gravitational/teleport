@@ -124,6 +124,8 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
+	DatabaseSessionMalformedPacketCode = "TDB06I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -164,6 +166,9 @@ const (
 	MySQLDebugCode = "TMY12I"
 	// MySQLRefreshCode is the db.session.mysql.refresh event code.
 	MySQLRefreshCode = "TMY13I"
+
+	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
+	SQLServerRPCRequestCode = "TMS00I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"

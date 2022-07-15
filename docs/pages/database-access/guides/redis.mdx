@@ -95,7 +95,7 @@ address of your Teleport Cloud tenant:
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=example-redis \
   --protocol=redis \
   --uri=rediss://redis.example.com:6379 \

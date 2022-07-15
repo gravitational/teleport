@@ -78,9 +78,7 @@ podSecurityPolicy:
 # Labels is a map of key values pairs about this cluster
 labels: {}
 
-# Settings for high availability. These are not used in "standalone" mode.
-# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
-# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+# Settings for high availability.
 highAvailability:
   # Set to >1 for a high availability mode where multiple Teleport agent pods will be deployed.
   replicaCount: 1

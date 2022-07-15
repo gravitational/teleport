@@ -32,6 +32,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
@@ -639,6 +640,51 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 	require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
 }
 
+func TestDatabaseFromMemoryDBCluster(t *testing.T) {
+	cluster := &memorydb.Cluster{
+		ARN:        aws.String("arn:aws:memorydb:us-east-1:1234567890:cluster:my-cluster"),
+		Name:       aws.String("my-cluster"),
+		Status:     aws.String("available"),
+		TLSEnabled: aws.Bool(true),
+		ACLName:    aws.String("my-user-group"),
+		ClusterEndpoint: &memorydb.Endpoint{
+			Address: aws.String("memorydb.localhost"),
+			Port:    aws.Int64(6379),
+		},
+	}
+	extraLabels := map[string]string{"key": "value"}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-cluster",
+		Description: "MemoryDB cluster in us-east-1",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginCloud,
+			labelAccountID:    "1234567890",
+			labelRegion:       "us-east-1",
+			labelEndpointType: "cluster",
+			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "memorydb.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-cluster",
+				ACLName:      "my-user-group",
+				TLSEnabled:   true,
+				EndpointType: awsutils.MemoryDBClusterEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
 func TestExtraElastiCacheLabels(t *testing.T) {
 	cluster := &elasticache.ReplicationGroup{
 		ReplicationGroupId: aws.String("my-redis"),
@@ -732,6 +778,40 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			require.Equal(t, test.expectLabels, actualLabels)
 		})
 	}
+}
+
+func TestExtraMemoryDBLabels(t *testing.T) {
+	cluster := &memorydb.Cluster{
+		Name:            aws.String("my-cluster"),
+		SubnetGroupName: aws.String("my-subnet-group"),
+		EngineVersion:   aws.String("6.6.6"),
+	}
+
+	allSubnetGroups := []*memorydb.SubnetGroup{
+		{
+			Name:  aws.String("other-subnet-group"),
+			VpcId: aws.String("other-vpc-id"),
+		},
+		{
+			Name:  aws.String("my-subnet-group"),
+			VpcId: aws.String("my-vpc-id"),
+		},
+	}
+
+	resourceTags := []*memorydb.Tag{
+		{Key: aws.String("key1"), Value: aws.String("value1")},
+		{Key: aws.String("key2"), Value: aws.String("value2")},
+	}
+
+	expected := map[string]string{
+		"key1":           "value1",
+		"key2":           "value2",
+		"engine-version": "6.6.6",
+		"vpc-id":         "my-vpc-id",
+	}
+
+	actual := ExtraMemoryDBLabels(cluster, resourceTags, allSubnetGroups)
+	require.Equal(t, expected, actual)
 }
 
 func TestGetLabelEngineVersion(t *testing.T) {

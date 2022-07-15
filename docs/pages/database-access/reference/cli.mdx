@@ -38,7 +38,7 @@ $ teleport db start \
 ```code
 $ teleport db start \
     --token=/path/to/token \
-    --auth-server=mytenant.teleport.sh:3080 \
+    --auth-server=mytenant.teleport.sh:443 \
     --name=example \
     --protocol=postgres \
     --uri=postgres.mytenant.teleport.sh:5432
@@ -103,11 +103,13 @@ $ teleport db configure create \
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
+| `--rds-discovery` | List of AWS regions in which the agent will discover RDS/Aurora instances. |
+| `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
+| `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis clusters. |
+| `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |
+| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |

@@ -11,26 +11,15 @@ administrators to define policies like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
 
-<ScopedBlock
-  scope={["oss"]}
->
+## Prerequisites
 
-  This guide requires Teleport Cloud or Teleport Enterprise.
+- Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
+- Teleport role with access to maintaining `oidc` resources. This is available in the default `editor` role.
 
-  View this guide as the user of another Teleport edition:
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./oidc.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./oidc.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
+(!docs/pages/includes/tctl.mdx!)
 
 ## Enable default OIDC authentication
 
@@ -81,8 +70,9 @@ Create the connector:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create oidc-connector.yaml
 ```
@@ -91,7 +81,7 @@ $ tctl create oidc-connector.yaml
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely
+# Log in to your Teleport cluster so you can use tctl remotely.
 $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create oidc-connector.yaml
 ```
@@ -148,7 +138,7 @@ spec:
 
 Create both roles:
 
-```bsh
+```code
 $ tctl create role-admin.yaml
 $ tctl create role-dev.yaml
 ```
@@ -250,4 +240,3 @@ identity provider if you are not automatically redirected.
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-</ScopedBlock>

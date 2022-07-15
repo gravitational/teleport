@@ -4,7 +4,7 @@ metadata:
   labels:
     teleport-role: node
   name: node
-  namespace: loadtest
+  namespace: ${NAMESPACE}
 spec:
   replicas: 1
   selector:
@@ -20,11 +20,32 @@ spec:
       containers:
         - image: ${TELEPORT_IMAGE}
           name: teleport
-          args: ["-d", "--insecure"]
+          args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
           ports:
             - name: nodessh
               containerPort: 3022
               protocol: TCP
+            - name: diag
+              containerPort: 3434
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3434
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3434
+            timeoutSeconds: 1
           volumeMounts:
             - mountPath: /etc/teleport
               name: config

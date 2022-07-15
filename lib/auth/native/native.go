@@ -23,7 +23,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"sync/atomic"
+	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -49,9 +51,8 @@ var log = logrus.WithFields(logrus.Fields{
 // precomputedKeys is a queue of cached keys ready for usage.
 var precomputedKeys = make(chan keyPair, 25)
 
-// precomputeTaskStarted is used to start the background task that precomputes key pairs.
-// This may only ever be accessed atomically.
-var precomputeTaskStarted int32
+// startPrecomputeOnce is used to start the background task that precomputes key pairs.
+var startPrecomputeOnce sync.Once
 
 func generateKeyPairImpl() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
@@ -74,31 +75,31 @@ func generateKeyPairImpl() ([]byte, []byte, error) {
 	return privPem, pubBytes, nil
 }
 
-func replenishKeys() {
-	// Mark the task as stopped.
-	defer atomic.StoreInt32(&precomputeTaskStarted, 0)
-
+func precomputeKeys() {
+	const backoff = time.Second * 30
 	for {
 		priv, pub, err := generateKeyPairImpl()
 		if err != nil {
-			log.Errorf("Failed to generate key pair: %v", err)
-			return
+			log.WithError(err).Errorf("Failed to precompute key pair, retrying in %s (this might be a bug).", backoff)
+			time.Sleep(backoff)
 		}
 
 		precomputedKeys <- keyPair{priv, pub}
 	}
 }
 
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
-// This will in most cases pull from a precomputed cache of ready to use keys.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	// Start the background task to replenish the queue of precomputed keys.
-	// This is only started once this function is called to avoid starting the task
-	// just by pulling in this package.
-	if atomic.SwapInt32(&precomputeTaskStarted, 1) == 0 {
-		go replenishKeys()
-	}
+// PrecomputeKeys sets this package into a mode where a small backlog of keys are
+// computed in advance.  This should only be enabled if large spikes in key computation
+// are expected (e.g. in auth/proxy services).  Safe to double-call.
+func PrecomputeKeys() {
+	startPrecomputeOnce.Do(func() {
+		go precomputeKeys()
+	})
+}
 
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
+// This will pull from a precomputed cache of ready to use keys if PrecomputeKeys was enabled.
+func GenerateKeyPair() ([]byte, []byte, error) {
 	select {
 	case k := <-precomputedKeys:
 		return k.privPem, k.pubBytes, nil
@@ -222,8 +223,13 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return k.GenerateUserCertWithoutValidation(c)
 }
 
+// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
+// from which this certificate is accepted for authentication.
+// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+const sourceAddress = "source-address"
+
 // GenerateUserCertWithoutValidation generates a user certificate with the
-// passed in parameters without validating them. For use in tests only.
+// passed in parameters without validating them.
 func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(c.PublicUserKey)
 	if err != nil {
@@ -273,6 +279,25 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	}
 	if c.Generation > 0 {
 		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
+	}
+	if c.AllowedResourceIDs != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
+	}
+
+	if c.SourceIP != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
+		}
+		if cert.CriticalOptions == nil {
+			cert.CriticalOptions = make(map[string]string)
+		}
+		//IPv4, all bits matter
+		ip := c.SourceIP + "/32"
+		if strings.Contains(c.SourceIP, ":") {
+			//IPv6
+			ip = c.SourceIP + "/128"
+		}
+		cert.CriticalOptions[sourceAddress] = ip
 	}
 
 	for _, extension := range c.CertificateExtensions {

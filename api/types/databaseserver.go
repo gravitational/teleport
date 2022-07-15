@@ -51,6 +51,8 @@ type DatabaseServer interface {
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
 	SetDatabase(Database) error
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -190,6 +192,16 @@ func (s *DatabaseServerV3) SetDatabase(database Database) error {
 	return nil
 }
 
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *DatabaseServerV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
 	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
@@ -270,6 +282,16 @@ func (s *DatabaseServerV3) GetAllLabels() map[string]string {
 	}
 
 	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
+}
+
+// GetStaticLabels returns the database server static labels.
+func (s *DatabaseServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the database server static labels.
+func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // Copy returns a copy of this database server object.
@@ -363,4 +385,13 @@ func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
+}
+
+// ToDatabases converts database servers to a list of databases.
+func (s DatabaseServers) ToDatabases() []Database {
+	databases := make([]Database, 0, len(s))
+	for _, server := range s {
+		databases = append(databases, server.GetDatabase())
+	}
+	return databases
 }

@@ -33,6 +33,11 @@ var (
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
+	triggerPromote = trigger{
+		Event:  triggerRef{Include: []string{"promote"}},
+		Target: triggerRef{Include: []string{"production"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
 
 	volumeDocker = volume{
 		Name: "dockersock",
@@ -162,6 +167,10 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 	return result
 }
 
+func (b *buildType) hasTeleportConnect() bool {
+	return b.os == "darwin" && b.arch == "amd64"
+}
+
 // dockerService generates a docker:dind service
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
@@ -188,15 +197,23 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos7 {
+	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
+	if b.centos7 || b.arch == "amd64" {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-	if b.os == "windows" && b.windowsUnsigned {
-		makefileTarget = "release-windows-unsigned"
+
+	// Override Windows targets.
+	if b.os == "windows" {
+		if b.windowsUnsigned {
+			makefileTarget = "release-windows-unsigned"
+		} else {
+			makefileTarget = "release-windows"
+		}
 	}
+
 	return makefileTarget
 }
 

@@ -282,6 +282,10 @@ resources: {}
 #    cpu: "1"
 #    memory: "2Gi"
 
+# Security context to add to the container
+securityContext: {}
+  # runAsUser: 99
+
 # Priority class name to add to the deployment
 priorityClassName: ""
 

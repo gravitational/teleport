@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
-
 	saml2 "github.com/russellhaering/gosaml2"
 )
 

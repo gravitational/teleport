@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
@@ -194,27 +192,6 @@ func TestClickableURL(t *testing.T) {
 		t.Run(testCase.info, func(t *testing.T) {
 			out := ClickableURL(testCase.in)
 			require.Equal(t, testCase.out, out)
-		})
-	}
-}
-
-// TestParseSessionsURI parses sessions URI
-func TestParseSessionsURI(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		info string
-		in   string
-		url  *url.URL
-	}{
-		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.info, func(t *testing.T) {
-			out, err := ParseSessionsURI(testCase.in)
-			require.NoError(t, err)
-			require.Equal(t, testCase.url, out)
 		})
 	}
 }
@@ -506,13 +483,13 @@ func TestMarshalYAML(t *testing.T) {
 }
 
 // TestReadToken tests reading token from file and as is
-func TestReadToken(t *testing.T) {
+func TestTryReadValueAsFile(t *testing.T) {
 	t.Parallel()
-	tok, err := ReadToken("token")
+	tok, err := TryReadValueAsFile("token")
 	require.Equal(t, "token", tok)
 	require.NoError(t, err)
 
-	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
+	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
 	fixtures.AssertNotFound(t, err)
 
 	dir := t.TempDir()
@@ -520,7 +497,7 @@ func TestReadToken(t *testing.T) {
 	err = os.WriteFile(tokenPath, []byte("shmoken"), 0644)
 	require.NoError(t, err)
 
-	tok, err = ReadToken(tokenPath)
+	tok, err = TryReadValueAsFile(tokenPath)
 	require.NoError(t, err)
 	require.Equal(t, "shmoken", tok)
 }

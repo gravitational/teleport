@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -44,6 +45,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// sessionChunkCloseTimeout is the default timeout used for sessionChunk.closeTimeout
+const sessionChunkCloseTimeout = 1 * time.Hour
+
+var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
+
 // sessionChunk holds an open request forwarder and audit log for an app session.
 //
 // An app session is only bounded by the lifetime of the certificate in
@@ -62,14 +68,38 @@ type sessionChunk struct {
 	fwd *forward.Forwarder
 	// streamWriter can emit events to the audit log.
 	streamWriter events.StreamWriter
+
+	// inflightCond protects and signals change of inflight
+	inflightCond *sync.Cond
+	// inflight is the amount of in-flight requests
+	// closing the chunk is only allowed when this is 0, or after closeTimeout elapses.
+	// On session expiration, this will first be atomically decremented to -1,
+	// preventing any new requests from using the closing/closed session.
+	inflight int64
+	// closeTimeout is the timeout after which close() will forcibly close the chunk,
+	// even if there are still ongoing requests.
+	// E.g. with 5 minute chunk TTL and 2 minute closeTimeout, the chunk will live
+	// for ~7 minutes at most.
+	closeTimeout time.Duration
+
+	log *logrus.Entry
 }
 
 // newSessionChunk creates a new chunk session.
+// The session chunk is created with inflight=1,
+// and as such expects `release()` to eventually be called
+// by the caller of this function.
 func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application) (*sessionChunk, error) {
 	sess := &sessionChunk{
-		id:     uuid.New().String(),
-		closeC: make(chan struct{}),
+		id:           uuid.New().String(),
+		closeC:       make(chan struct{}),
+		inflightCond: sync.NewCond(&sync.Mutex{}),
+		inflight:     1,
+		closeTimeout: sessionChunkCloseTimeout,
+		log:          s.log,
 	}
+
+	sess.log.Debugf("Created app session chunk %s", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -140,8 +170,54 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	return sess, nil
 }
 
+// acquire() increments in-flight request count by 1.
+// It is supposed to be paired with a `release()` call,
+// after the chunk is done with for the individual request
+func (s *sessionChunk) acquire() error {
+	s.inflightCond.L.Lock()
+	defer s.inflightCond.L.Unlock()
+
+	if s.inflight == -1 {
+		return trace.Wrap(errSessionChunkAlreadyClosed)
+	}
+
+	s.inflight++
+	return nil
+}
+
+func (s *sessionChunk) release() {
+	s.inflightCond.L.Lock()
+	defer s.inflightCond.L.Unlock()
+	if s.inflight == -1 {
+		return
+	}
+	s.inflight--
+	s.inflightCond.Signal()
+}
+
 func (s *sessionChunk) close(ctx context.Context) error {
+	deadline := time.Now().Add(s.closeTimeout)
+	t := time.AfterFunc(s.closeTimeout, func() { s.inflightCond.Signal() })
+	defer t.Stop()
+
+	// Wait until there are no requests in-flight,
+	// then mark the session as not accepting new requests,
+	// and close it.
+	s.inflightCond.L.Lock()
+	for {
+		if s.inflight == 0 {
+			break
+		} else if time.Now().After(deadline) {
+			s.log.Debugf("Timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
+			break
+		}
+		s.log.Debugf("Inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
+		s.inflightCond.Wait()
+	}
+	s.inflight = -1
+	s.inflightCond.L.Unlock()
 	close(s.closeC)
+	s.log.Debugf("Closed session chunk %s", s.id)
 	err := s.streamWriter.Close(ctx)
 	return trace.Wrap(err)
 }

@@ -34,6 +34,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// HeartbeatI abstracts over the basic interfact of Heartbeat and HeartbeatV2. This can be removed
+// once we've fully transitioned to HeartbeatV2.
+type HeartbeatI interface {
+	Run() error
+	Close() error
+	ForceSend(timeout time.Duration) error
+}
+
 // KeepAliveState represents state of the heartbeat
 type KeepAliveState int
 

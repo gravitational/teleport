@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/go-redis/redis/v8"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -195,6 +196,15 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		dbUser, ok := cmd.Args()[1].(string)
 		if !ok {
 			return trace.BadParameter("username has a wrong type, expected string got %T", cmd.Args()[1])
+		}
+
+		// For Teleport managed users, bypass the passwords sent here.
+		if apiutils.SliceContainsStr(e.sessionCtx.Database.GetManagedUsers(), e.sessionCtx.DatabaseUser) {
+			return trace.Wrap(e.sendToClient([]string{
+				"OK",
+				fmt.Sprintf("Please note that AUTH commands are ignored for Teleport managed user '%s'.", e.sessionCtx.DatabaseUser),
+				"Teleport service automatically authenticates managed users with the Redis server.",
+			}))
 		}
 
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ****", dbUser)})

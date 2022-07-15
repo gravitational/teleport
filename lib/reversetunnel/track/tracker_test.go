@@ -89,21 +89,30 @@ func (s *simpleTestProxies) Discover(tracker *Tracker, lease Lease) (ok bool) {
 func (s *simpleTestProxies) ProxyLoop(tracker *Tracker, lease Lease, proxy testProxy) (ok bool) {
 	defer lease.Release()
 	timeout := time.After(proxy.life)
-	ok = tracker.WithProxy(func() {
-		ticker := time.NewTicker(jitter(time.Millisecond * 100))
-	Loop:
-		for {
-			select {
-			case <-ticker.C:
-				if p, ok := s.GetRandProxy(); ok {
-					tracker.TrackExpected(p.principals[0])
-				}
-			case <-timeout:
-				break Loop
+
+	unclaim, ok := tracker.Claim(proxy.principals...)
+	if !ok {
+		return ok
+	}
+
+	defer unclaim()
+
+	ticker := time.NewTicker(jitter(time.Millisecond * 100))
+	defer ticker.Stop()
+
+Loop:
+	for {
+		select {
+		case <-ticker.C:
+			if p, ok := s.GetRandProxy(); ok {
+				tracker.TrackExpected(p.principals[0])
 			}
+		case <-timeout:
+			break Loop
 		}
-	}, proxy.principals...)
-	return
+	}
+
+	return ok
 }
 
 type testProxy struct {
@@ -261,11 +270,17 @@ func TestUUIDHandling(t *testing.T) {
 	tracker.Start()
 	<-tracker.Acquire()
 	// claim a proxy using principal of the form <uuid>.<cluster>
-	go tracker.WithProxy(func() {
+	go func() {
+		unclaim, ok := tracker.Claim("my-proxy.test-cluster")
+		if !ok {
+			return
+		}
+		defer unclaim()
+
 		t.Logf("Successfully claimed proxy")
 		<-ctx.Done()
-	}, "my-proxy.test-cluster")
 
+	}()
 	// Wait for proxy to be claimed
 Wait:
 	for {

@@ -17,12 +17,15 @@ limitations under the License.
 package types
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -37,10 +40,8 @@ type OIDCConnector interface {
 	// ClientSecret is used to authenticate our client and should not
 	// be visible to end user
 	GetClientSecret() string
-	// RedirectURL - Identity provider will use this URL to redirect
-	// client's browser back to it after successful authentication
-	// Should match the URL on Provider's side
-	GetRedirectURL() string
+	// GetRedirectURLs returns list of redirect URLs.
+	GetRedirectURLs() []string
 	// GetACR returns the Authentication Context Class Reference (ACR) value.
 	GetACR() string
 	// GetProvider returns the identity provider.
@@ -62,8 +63,8 @@ type OIDCConnector interface {
 	SetClientID(string)
 	// SetIssuerURL sets the endpoint of the provider
 	SetIssuerURL(string)
-	// SetRedirectURL sets RedirectURL
-	SetRedirectURL(string)
+	// SetRedirectURLs sets the list of redirectURLs
+	SetRedirectURLs([]string)
 	// SetPrompt sets OIDC prompt value
 	SetPrompt(string)
 	// GetPrompt returns OIDC prompt value,
@@ -226,9 +227,9 @@ func (o *OIDCConnectorV3) SetIssuerURL(issuerURL string) {
 	o.Spec.IssuerURL = issuerURL
 }
 
-// SetRedirectURL sets client secret to some value
-func (o *OIDCConnectorV3) SetRedirectURL(redirectURL string) {
-	o.Spec.RedirectURL = redirectURL
+// SetRedirectURLs sets the list of redirectURLs
+func (o *OIDCConnectorV3) SetRedirectURLs(redirectURLs []string) {
+	o.Spec.RedirectURLs = redirectURLs
 }
 
 // SetACR sets the Authentication Context Class Reference (ACR) value.
@@ -277,11 +278,9 @@ func (o *OIDCConnectorV3) GetClientSecret() string {
 	return o.Spec.ClientSecret
 }
 
-// GetRedirectURL - Identity provider will use this URL to redirect
-// client's browser back to it after successful authentication
-// Should match the URL on Provider's side
-func (o *OIDCConnectorV3) GetRedirectURL() string {
-	return o.Spec.RedirectURL
+// GetRedirectURLs returns a list of the connector's redirect URLs.
+func (o *OIDCConnectorV3) GetRedirectURLs() []string {
+	return o.Spec.RedirectURLs
 }
 
 // GetACR returns the Authentication Context Class Reference (ACR) value.
@@ -359,15 +358,97 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	if name := o.Metadata.Name; utils.SliceContainsStr(constants.SystemConnectors, name) {
 		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", name)
 	}
+
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")
 	}
 
-	// make sure claim mappings have either roles or a role template
+	if len(o.GetClaimsToRoles()) == 0 {
+		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
+	}
 	for _, v := range o.Spec.ClaimsToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")
 		}
+	}
+
+	if _, err := url.Parse(o.GetIssuerURL()); err != nil {
+		return trace.BadParameter("bad IssuerURL '%v', err: %v", o.GetIssuerURL(), err)
+	}
+
+	// DELETE IN 11.0.0
+	o.CheckSetRedirectURL()
+
+	if len(o.GetRedirectURLs()) == 0 {
+		return trace.BadParameter("RedirectURL: missing redirect_url")
+	}
+	for _, redirectURL := range o.GetRedirectURLs() {
+		if _, err := url.Parse(redirectURL); err != nil {
+			return trace.BadParameter("bad RedirectURL '%v', err: %v", redirectURL, err)
+		}
+	}
+
+	if o.GetGoogleServiceAccountURI() != "" && o.GetGoogleServiceAccount() != "" {
+		return trace.BadParameter("one of either google_service_account_uri or google_service_account is supported, not both")
+	}
+
+	if o.GetGoogleServiceAccountURI() != "" {
+		uri, err := utils.ParseSessionsURI(o.GetGoogleServiceAccountURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if uri.Scheme != "file" {
+			return trace.BadParameter("only file:// scheme is supported for google_service_account_uri")
+		}
+		if o.GetGoogleAdminEmail() == "" {
+			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protools/OAuth2ServiceAccount#delegatingauthority for more details")
+		}
+	}
+
+	if o.GetGoogleServiceAccount() != "" {
+		if o.GetGoogleAdminEmail() == "" {
+			return trace.BadParameter("whenever google_service_account is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
+		}
+	}
+
+	return nil
+}
+
+// RedirectURL must be checked/set when communicating with an old server or client.
+// DELETE IN 11.0.0
+func (o *OIDCConnectorV3) CheckSetRedirectURL() {
+	if o.Spec.RedirectURL == "" && len(o.Spec.RedirectURLs) != 0 {
+		o.Spec.RedirectURL = o.Spec.RedirectURLs[0]
+	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
+		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
+	}
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *OIDCAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
+	}
+	if i.StateToken == "" {
+		return trace.BadParameter("StateToken: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
 
 	return nil

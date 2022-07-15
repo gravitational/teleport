@@ -181,6 +181,30 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 	}
 }
 
+// WaitOnState waits until the desired state is reached or the context is canceled.
+func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
+	go func() {
+		<-ctx.Done()
+		s.trackerCond.Broadcast()
+	}()
+
+	s.trackerCond.L.Lock()
+	defer s.trackerCond.L.Unlock()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if s.tracker.GetState() == wanted {
+				return nil
+			}
+
+			s.trackerCond.Wait()
+		}
+	}
+}
+
 func (s *SessionTracker) GetState() types.SessionState {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()

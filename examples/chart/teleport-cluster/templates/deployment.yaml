@@ -169,6 +169,9 @@ spec:
         resources:
   {{- toYaml .Values.resources | nindent 10 }}
 {{- end }}
+{{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- end }}
         volumeMounts:
 {{- if .Values.enterprise }}
         - mountPath: /var/lib/license

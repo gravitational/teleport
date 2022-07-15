@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base32"
 	"fmt"
 	"net"
@@ -39,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1361,6 +1361,134 @@ func TestGenerateHostCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
+// TestInstanceCertAndControlStream attempts to generate an instance cert via the
+// assertion API and use it to handle an inventory ping via the control stream.
+func TestInstanceCertAndControlStream(t *testing.T) {
+	const assertionID = "test-assertion"
+	const serverID = "test-server"
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	srv := newTestTLSServer(t)
+
+	roles := []types.SystemRole{
+		types.RoleNode,
+		types.RoleAuth,
+		types.RoleProxy,
+	}
+
+	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	priv, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	req := proto.HostCertsRequest{
+		HostID:       serverID,
+		Role:         types.RoleInstance,
+		PublicSSHKey: pub,
+		PublicTLSKey: pubTLS,
+		SystemRoles:  roles,
+		// assertion ID is omitted initially to test
+		// the failure case
+	}
+
+	// request should fail since clt only holds RoleNode
+	_, err = clt.GenerateHostCerts(ctx, &req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// perform assertions
+	for _, role := range roles {
+		func() {
+			clt, err := srv.NewClient(TestServerID(role, serverID))
+			require.NoError(t, err)
+			defer clt.Close()
+
+			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+				ServerID:    serverID,
+				AssertionID: assertionID,
+				SystemRole:  role,
+			})
+			require.NoError(t, err)
+		}()
+	}
+
+	// set assertion ID
+	req.UnstableSystemRoleAssertionID = assertionID
+
+	// assertion should allow us to generate certs
+	certs, err := clt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	// make an instance client
+	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	instanceClt := srv.NewClientWithCert(instanceCert)
+
+	// instance cert can self-renew without assertions
+	req.UnstableSystemRoleAssertionID = ""
+	_, err = instanceClt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	stream, err := instanceClt.InventoryControlStream(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	err = stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: roles,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream hello")
+	}
+
+	// fire off a ping in the background
+	pingErr := make(chan error, 1)
+	go func() {
+		defer close(pingErr)
+		// get an admin client so that we can test pings
+		clt, err := srv.NewClient(TestAdmin())
+		if err != nil {
+			pingErr <- err
+			return
+		}
+		defer clt.Close()
+
+		_, err = clt.PingInventory(ctx, proto.InventoryPingRequest{
+			ServerID: serverID,
+		})
+		pingErr <- err
+	}()
+
+	// wait for the ping
+	select {
+	case msg := <-stream.Recv():
+		ping, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+		err = stream.Send(ctx, proto.UpstreamInventoryPong{
+			ID: ping.ID,
+		})
+		require.NoError(t, err)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream ping")
+	}
+
+	// ensure that bg ping routine was successful
+	require.NoError(t, <-pingErr)
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1391,51 +1519,6 @@ func TestNodesCRUD(t *testing.T) {
 
 	// Run NodeGetters in nested subtests to allow parallelization.
 	t.Run("NodeGetters", func(t *testing.T) {
-		t.Run("List Nodes", func(t *testing.T) {
-			t.Parallel()
-			// List nodes one at a time, last page should be empty.
-
-			// First node.
-			nodes, nextKey, err := clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-			})
-			require.NoError(t, err)
-			require.Len(t, nodes, 1)
-			require.Empty(t, cmp.Diff([]types.Server{node1}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node1), nextKey)
-
-			// Second node (last).
-			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     1,
-				StartKey:  nextKey,
-			})
-			require.NoError(t, err)
-			require.Len(t, nodes, 1)
-			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Empty(t, nextKey)
-
-			// ListNodes should not fail if namespace is empty
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Limit: 1,
-			})
-			require.NoError(t, err)
-
-			// ListNodes should fail if limit is nonpositive
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-
-			_, _, err = clt.ListNodes(ctx, proto.ListNodesRequest{
-				Namespace: apidefaults.Namespace,
-				Limit:     -1,
-			})
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
-		})
 		t.Run("GetNodes", func(t *testing.T) {
 			t.Parallel()
 			// Get all nodes
@@ -2005,6 +2088,17 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.TotalCount)
 
+			// ListResources should also work when called on auth directly
+			resp, err = srv.Auth().ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: test.resourceType,
+				Namespace:    apidefaults.Namespace,
+				Limit:        100,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
 			// Test types.KindKubernetesCluster
 			if test.resourceType == types.KindKubeService {
 				test.resourceType = types.KindKubernetesCluster
@@ -2016,7 +2110,7 @@ func TestListResources(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, 2)
 				require.Empty(t, resp.NextKey)
-				require.Empty(t, resp.TotalCount)
+				require.Equal(t, 2, resp.TotalCount)
 			}
 
 			// Test listing with NeedTotalCount flag.

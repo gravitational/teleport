@@ -166,3 +166,16 @@ func (l *Dynamic) setLabel(name string, value types.CommandLabel) {
 
 	l.c.Labels[name] = value
 }
+
+// Importer is an interface for labels imported from an external source,
+// such as a cloud provider.
+type Importer interface {
+	// Get returns the current labels.
+	Get() map[string]string
+	// Apply adds the current labels to the provided resource's static labels.
+	Apply(r types.ResourceWithLabels)
+	// Sync blocks and synchronously updates the labels.
+	Sync(context.Context) error
+	// Start starts a loop that continually keeps the labels updated.
+	Start(context.Context)
+}

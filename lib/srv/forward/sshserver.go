@@ -26,6 +26,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -43,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -403,6 +404,18 @@ func (s *Server) UseTunnel() bool {
 // node), so return a NOP implementation.
 func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
+}
+
+// GetCreateHostUser determines whether users should be created on the
+// host automatically
+func (s *Server) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUser returns the HostUsers instance being used to manage
+// host user provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostUsers() srv.HostUsers {
+	return nil
 }
 
 // GetRestrictedSessionManager returns a NOP manager since for a
@@ -900,6 +913,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if scx.JoinOnly {
 		switch req.Type {
+		case tracessh.TracingRequest:
+			return s.handleTracingRequest(req, scx)
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ch, req, scx)
 		case sshutils.ShellRequest:
@@ -913,12 +928,23 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, scx)
+		case sshutils.AgentForwardRequest:
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, all errors should be logged and we should continue
+			// processing requests.
+			err := s.handleAgentForward(ch, req, scx)
+			if err != nil {
+				s.log.Debug(err)
+			}
+			return nil
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
 
 	switch req.Type {
+	case tracessh.TracingRequest:
+		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ch, req, scx)
 	case sshutils.PTYRequest:
@@ -1094,6 +1120,14 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 			Err:  trace.Wrap(err),
 		})
 	}()
+
+	return nil
+}
+
+func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
+	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
+		s.log.WithError(err).Debugf("Unable to set forward tracing context")
+	}
 
 	return nil
 }
