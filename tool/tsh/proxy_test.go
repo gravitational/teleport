@@ -82,12 +82,7 @@ func TestTSHSSH(t *testing.T) {
 }
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
-	run := func(ctx context.Context, args []string, opts ...cliOption) error {
-		t.Logf("Running Run() with args=%v, opts=%v", args, opts)
-		return Run(ctx, args, opts...)
-	}
-
-	err := run(context.Background(), []string{
+	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -98,7 +93,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 		return nil
 	})
 	require.NoError(t, err)
-	err = run(context.Background(), []string{
+	err = Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
@@ -106,7 +101,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	identityFile := path.Join(t.TempDir(), "identity.pem")
-	err = run(context.Background(), []string{
+	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -119,7 +114,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	})
 	require.NoError(t, err)
 
-	err = run(context.Background(), []string{
+	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
