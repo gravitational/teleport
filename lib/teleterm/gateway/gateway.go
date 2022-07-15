@@ -249,6 +249,11 @@ func (g *Gateway) CLICommand() (string, error) {
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
+//
+// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
+// daemon.Service which obtains a lock for any operation pertaining to gateways.
+//
+// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
 type Gateway struct {
 	cfg        *Config
 	localProxy *alpn.LocalProxy
