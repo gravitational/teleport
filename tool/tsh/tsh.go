@@ -277,7 +277,7 @@ type CLIConf struct {
 	// Deprecated in favor of `AddKeysToAgent`.
 	UseLocalSSHAgent bool
 
-	// AddKeysToAgent specifies the behaviour of how certs are handled.
+	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
@@ -3073,7 +3073,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 
-			// On error, fall back to the legacy behaviour
+			// On error, fall back to the legacy behavior
 			if err != nil {
 				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
 				return c.ParseProxyHost(cf.Proxy)
