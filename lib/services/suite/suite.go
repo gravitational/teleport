@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -1280,7 +1281,7 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 			Expiry:  time.Hour,
 			Params: types.AcquireSemaphoreRequest{
 				SemaphoreKind: types.SemaphoreKindConnection,
-				SemaphoreName: "alice",
+				SemaphoreName: fmt.Sprintf("sem-%d", i), // avoid overlap between iterations
 				MaxLeases:     locks,
 			},
 		}
@@ -1288,16 +1289,16 @@ func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
 		// context-based cancellation is needed to cleanup the
 		// background keepalive activity.
 		cancelCtx, cancel := context.WithCancel(ctx)
-		var wg sync.WaitGroup
+		acquireErrs := make(chan error, locks)
 		for i := int64(0); i < locks; i++ {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
 				_, err := services.AcquireSemaphoreLock(cancelCtx, cfg)
-				c.Assert(err, check.IsNil)
+				acquireErrs <- err
 			}()
 		}
-		wg.Wait()
+		for i := int64(0); i < locks; i++ {
+			c.Assert(<-acquireErrs, check.IsNil)
+		}
 		cancel()
 		c.Assert(s.PresenceS.DeleteSemaphore(ctx, types.SemaphoreFilter{
 			SemaphoreKind: cfg.Params.SemaphoreKind,
