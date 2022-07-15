@@ -74,7 +74,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				SetPoolMonitor(pm).
 				SetMaxPoolSize(1).
 				SetMaxConnecting(1).
-				SetServerSelectionTimeout(1 * time.Second),
+				SetServerSelectionTimeout(2 * time.Second),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
