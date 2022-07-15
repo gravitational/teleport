@@ -203,8 +203,9 @@ spec:
 </Tabs>
 
 Manually pasting XML into the `entity_descriptor` field is error prone. We recommend using the `tctl sso configure saml -e entity_descriptor.xml ...` command instead.
-You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch the entity descriptor from
-  your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
+Alternatively to a static XML file you can also provide URL where the XML file can be found. In this configuration Teleport will dynamically fetch its contents on each start. This URL should be provided via `entity_descriptor_url` field, which will be used by `tctl sso configure saml` command if the argument to the `-e` flag is URL.
+We recommend a configuration utilising a fixed XML file.
+
 
 Test the connector with [`tctl sso test`](../setup/reference/cli.mdx#tctl-sso-test) command:
 
