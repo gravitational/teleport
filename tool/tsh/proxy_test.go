@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -81,16 +80,9 @@ func TestSSH(t *testing.T) {
 	}
 }
 
-func runMain(ctx context.Context, args []string, opts ...cliOption) error {
-	log.WithFields(logrus.Fields{
-		trace.Component: teleport.ComponentTSH + "-test",
-	}).Debugf("Running Run() with args=%v, opts=%v, env=%v", args, opts, os.Environ())
-	return Run(ctx, args, opts...)
-}
-
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s)
-	err := runMain(context.Background(), []string{
+	err := Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
@@ -98,7 +90,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	identityFile := mustLoginIdentity(t, s)
-	err = runMain(context.Background(), []string{
+	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -112,7 +104,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
 	require.Eventually(t, func() bool {
-		err := runMain(context.Background(), []string{
+		err := Run(context.Background(), []string{
 			"ssh",
 			s.leaf.Config.Hostname,
 			"echo", "hello",
@@ -121,7 +113,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	}, 5*time.Second, time.Second)
 
 	identityFile := mustLoginIdentity(t, s)
-	err := runMain(context.Background(), []string{
+	err := Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -138,7 +130,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
 
 	// Switch to leaf cluster
-	err := runMain(context.Background(), []string{
+	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -146,7 +138,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
-	err = runMain(context.Background(), []string{
+	err = Run(context.Background(), []string{
 		"ssh",
 		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
@@ -157,7 +149,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 
 	t.Run("root cluster online", func(t *testing.T) {
 		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
-		err = runMain(context.Background(), []string{
+		err = Run(context.Background(), []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -173,7 +165,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		require.NoError(t, err)
 
 		// Check JumpHost flow when root cluster is offline.
-		err = runMain(context.Background(), []string{
+		err = Run(context.Background(), []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -220,7 +212,7 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
-				return runMain(context.Background(), []string{
+				return Run(context.Background(), []string{
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
@@ -477,7 +469,7 @@ func mustLogin(t *testing.T, s *suite, args ...string) string {
 		"--debug",
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 	}, args...)
-	err := runMain(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
+	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
 	return tshHome
 }
@@ -494,7 +486,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
 		"--debug",
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 	}, args...)
-	err := runMain(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
+	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
 	return tshHome
 }
@@ -507,7 +499,7 @@ func mustLoginIdentity(t *testing.T, s *suite, opts ...cliOption) string {
 
 func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
-	err := runMain(context.Background(), []string{
+	err := Run(context.Background(), []string{
 		"config",
 	}, func(cf *CLIConf) error {
 		cf.overrideStdout = &buff
