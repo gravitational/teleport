@@ -120,14 +120,31 @@ func TestSetLocalPortAndRestartDoesntStopGatewayIfNewPortIsOccupied(t *testing.T
 	tcpPortAllocator := mockTCPPortAllocator{portsInUse: []string{"12345"}}
 	gateway := serveGateway(t, &tcpPortAllocator)
 	originalPort := gateway.LocalPort()
+	originalCloseContext := gateway.closeContext
 
 	err := gateway.SetLocalPortAndRestart("12345")
 	require.ErrorContains(t, err, "address already in use")
 	require.Equal(t, originalPort, gateway.LocalPort())
 
 	// Verify that we don't stop the gateway if we failed to start a listener on the specified port.
-	require.NoError(t, gateway.closeContext.Err(),
+	require.NoError(t, originalCloseContext.Err(),
 		"The listener on the current port was closed even though we failed to start a listener on the new port.")
+}
+
+func TestSetLocalPortAndRestartIsNoopIfNewPortEqualsOldPort(t *testing.T) {
+	tcpPortAllocator := mockTCPPortAllocator{}
+	gateway := serveGateway(t, &tcpPortAllocator)
+	port := gateway.LocalPort()
+	gatewayAddress := tcpPortAllocator.RecentListener().RealAddr().String()
+	originalCloseContext := gateway.closeContext
+
+	err := gateway.SetLocalPortAndRestart(port)
+	require.NoError(t, err)
+
+	// Verify that we don't stop the gateway if the new port is equal to the old port.
+	require.NoError(t, originalCloseContext.Err(),
+		"The listener on the current port was closed even though the new port is equal to the old port.")
+	blockUntilGatewayAcceptsConnections(t, gatewayAddress)
 }
 
 type mockCLICommandProvider struct{}

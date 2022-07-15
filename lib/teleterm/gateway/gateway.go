@@ -204,7 +204,13 @@ func (g *Gateway) LocalPort() string {
 // If it fails it's imperative that the current proxy is kept intact and the fields on gateway are
 // not changed. This way if the user attempts to change the port to one that cannot be obtained,
 // they're able to correct that mistake and choose a different port.
+//
+// SetLocalPortAndRestart is a noop if port is equal to the existing port.
 func (g *Gateway) SetLocalPortAndRestart(port string) error {
+	if port == g.cfg.LocalPort {
+		return nil
+	}
+
 	result, err := newListenerAndLocalProxy(*g.cfg, port)
 	if err != nil {
 		return trace.Wrap(err)
