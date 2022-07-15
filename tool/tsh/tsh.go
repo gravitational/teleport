@@ -348,6 +348,9 @@ type CLIConf struct {
 	// TracingProvider is the provider to use to create tracers, from which spans can be created.
 	TracingProvider oteltrace.TracerProvider
 
+	// Tracer is the tracer used to collect spans for this component.
+	Tracer oteltrace.Tracer
+
 	// disableAccessRequest disables automatic resource access requests.
 	disableAccessRequest bool
 }
@@ -804,7 +807,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// start the span for the command and update the config context so that all spans created
 	// in the future will be rooted at this span.
-	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
+	cf.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	ctx, span := cf.Tracer.Start(cf.Context, command)
 	cf.Context = ctx
 	defer span.End()
 
@@ -2193,7 +2197,7 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
-func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
+func printDatabasesWithClusters(w io.Writer, clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
 	var rows [][]string
 	for _, listing := range dbListings {
 		rows = append(rows, getDatabaseRow(
@@ -2215,7 +2219,7 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 			"Labels",
 		)
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func formatDatabaseLabels(database types.Database) string {
@@ -2708,10 +2712,8 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 	c.Host = cf.UserHost
-	if cf.TracingProvider == nil {
-		cf.TracingProvider = tracing.NoopProvider()
-	}
-	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	c.Tracer = cf.Tracer
+	c.TracerProvider = cf.TracingProvider
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {

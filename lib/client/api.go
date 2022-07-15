@@ -393,6 +393,8 @@ type Config struct {
 
 	// Tracer is the tracer to create spans with
 	Tracer oteltrace.Tracer
+	// TracerProvider is the optional provider to create tracers.
+	TracerProvider oteltrace.TracerProvider
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1423,7 +1425,11 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+		if c.TracerProvider != nil {
+			c.Tracer = c.TracerProvider.Tracer(teleport.ComponentTeleport)
+		} else {
+			c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+		}
 	}
 
 	tc = &TeleportClient{

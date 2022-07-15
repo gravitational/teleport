@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os/user"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	sdktracetest "go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type suite struct {
@@ -38,6 +43,7 @@ type suite struct {
 	leaf      *service.TeleportProcess
 	connector types.OIDCConnector
 	user      types.User
+	ctx       context.Context
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
@@ -106,6 +112,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 	s.user.SetRoles([]string{"access", "ssh-login"})
 	cfg.Auth.Resources = []types.Resource{s.connector, s.user, sshLoginRole}
+
+	for _, role := range options.extraUserRoles {
+		s.user.AddRole(role.GetName())
+		cfg.Auth.Resources = append(cfg.Auth.Resources, role)
+	}
 
 	if options.rootConfigFunc != nil {
 		options.rootConfigFunc(cfg)
@@ -187,6 +198,7 @@ type testSuiteOptions struct {
 	rootConfigFunc func(cfg *service.Config)
 	leafConfigFunc func(cfg *service.Config)
 	leafCluster    bool
+	extraUserRoles []types.Role
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
@@ -209,12 +221,24 @@ func withLeafCluster() testSuiteOptionFunc {
 	}
 }
 
+func withExtraUserRoles(roles []types.Role) testSuiteOptionFunc {
+	return func(o *testSuiteOptions) {
+		o.extraUserRoles = roles
+	}
+}
+
 func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	var options testSuiteOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
-	s := &suite{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	s := &suite{
+		ctx: ctx,
+	}
 
 	s.setupRootCluster(t, options)
 
@@ -249,9 +273,7 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	waitForEvents(t, process, serviceReadyEvents...)
 
 	if cfg.Databases.Enabled {
-		for _, database := range cfg.Databases.Databases {
-			waitForDatabase(t, process, database)
-		}
+		waitForDatabases(t, process, cfg.Databases.Databases)
 	}
 	return process
 }
@@ -285,4 +307,62 @@ func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string)
 	require.NoError(t, err)
 	_, err = c.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// traceHelper is a helper that collect otel traces in memory for tests.
+type traceHelper struct {
+	*sdktrace.TracerProvider
+
+	exporter *sdktracetest.InMemoryExporter
+	ctx      context.Context
+}
+
+func newTraceHelper(ctx context.Context) *traceHelper {
+	exporter := sdktracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(1))),
+		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
+	)
+
+	return &traceHelper{
+		TracerProvider: provider,
+		exporter:       exporter,
+		ctx:            ctx,
+	}
+}
+
+func (h *traceHelper) close() {
+	h.exporter.Shutdown(h.ctx)
+	h.Shutdown(h.ctx)
+}
+
+func (h *traceHelper) reset() {
+	h.exporter.Reset()
+}
+
+func (h traceHelper) countClientSpans(spanNamePrefixes ...string) int {
+	h.ForceFlush(h.ctx)
+
+	count := 0
+	for _, span := range h.exporter.GetSpans() {
+		// Filter by span kind.
+		if span.SpanKind != oteltrace.SpanKindClient {
+			continue
+		}
+
+		// If no input, assume every span matches.
+		if len(spanNamePrefixes) == 0 {
+			count += 1
+			continue
+		}
+
+		// Filter by prefix.
+		for _, spanNamePrefix := range spanNamePrefixes {
+			if strings.HasPrefix(span.Name, spanNamePrefix) {
+				count += 1
+				break
+			}
+		}
+	}
+	return count
 }

@@ -1163,6 +1163,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+		TracerProvider:             proxy.teleportClient.TracerProvider,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1231,6 +1232,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 				client.LoadTLS(proxy.teleportClient.TLS),
 			},
 			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+			TracerProvider:       proxy.teleportClient.TracerProvider,
 		})
 	}
 
@@ -1250,6 +1252,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		TracerProvider:       proxy.teleportClient.TracerProvider,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

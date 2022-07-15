@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -384,12 +385,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			otelgrpc.UnaryClientInterceptor(otelgrpc.WithTracerProvider(c.c.TracerProvider)),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			otelgrpc.StreamClientInterceptor(otelgrpc.WithTracerProvider(c.c.TracerProvider)),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -503,6 +504,10 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
+	// TracerProvider is the optional provider to use to create tracers. If not
+	// provided, otelgrpc will use the default provider from
+	// oteltrace.GetTracerProvider().
+	TracerProvider oteltrace.TracerProvider
 }
 
 // CheckAndSetDefaults checks and sets default config values.

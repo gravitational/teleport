@@ -37,9 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -160,27 +162,37 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
+			ctx, span := cf.Tracer.Start(
+				groupCtx,
+				"listDatabasesAllClusters/forEachProfile",
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					attribute.String("profile", profile.Name),
+				),
+			)
+			defer span.End()
+
+			proxy, err := tc.ConnectToProxy(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			defer proxy.Close()
 
-			sites, err := proxy.GetSites(groupCtx)
+			sites, err := proxy.GetSites(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			var dbListings databaseListings
 			for _, site := range sites {
-				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				databases, err := proxy.FindDatabasesByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 
 				var roleSet services.RoleSet
 				if isRoleSetRequiredForShowDatabases(cf) {
-					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
+					roleSet, err = fetchRoleSetForCluster(ctx, profile, proxy, site.Name)
 					if err != nil {
 						log.Debugf("Failed to fetch user roles: %v.", err)
 					}
@@ -224,13 +236,13 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+		printDatabasesWithClusters(cf.Stdout(), cf.SiteName, dbListings, active, cf.Verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabasesAllClusters(dbListings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}

@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -109,63 +110,100 @@ func TestDatabaseLogin(t *testing.T) {
 	require.Len(t, keys, 1)
 }
 
-func TestListDatabase(t *testing.T) {
+func TestListDatabases(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
 	tshHome := t.TempDir()
 	t.Setenv(types.HomeEnvVar, tshHome)
 
+	genResourceCount := 10
+
 	s := newTestSuite(t,
+		withExtraUserRoles(mustGenRoles(t, genResourceCount, "db-access", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				DatabaseNames: []string{types.Wildcard},
+				DatabaseUsers: []string{types.Wildcard},
+			},
+		})),
 		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []service.Database{{
+			cfg.Databases.Databases = genServiceDatabaseConfigs(genResourceCount, service.Database{
 				Name:     "root-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-			}}
+			})
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []service.Database{{
+			cfg.Databases.Databases = genServiceDatabaseConfigs(genResourceCount, service.Database{
 				Name:     "leaf-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-			}}
+			})
 		}),
 	)
 
 	mustLogin(t, s)
 
-	captureStdout := new(bytes.Buffer)
-	err := Run(context.Background(), []string{
-		"db",
-		"ls",
-		"--insecure",
-		"--debug",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
-		return nil
-	})
-	require.NoError(t, err)
-	require.Contains(t, captureStdout.String(), "root-postgres")
+	traceHelper := newTraceHelper(s.ctx)
+	t.Cleanup(traceHelper.close)
+	spansNamesToCount := []string{
+		"teleportClient/ConnectToCluster", // New connection is expensive.
+		"proto.AuthService/",              // Capture all grpc calls.
+	}
 
-	captureStdout.Reset()
-	err = Run(context.Background(), []string{
-		"db",
-		"ls",
-		"--cluster",
-		"leaf1",
-		"--insecure",
-		"--debug",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
-		return nil
-	})
-	require.NoError(t, err)
-	require.Contains(t, captureStdout.String(), "leaf-postgres")
+	tests := []struct {
+		name            string
+		runCommand      []string
+		expectDatabases []string
+
+		// maxSpanCount is an arbitrary cap used to ensure the number of
+		// outgoing APIs does NOT scale with the number of resources. Bump up
+		// if necessary (e.g. new API call added to the function).
+		maxSpanCount int
+	}{
+		{
+			name:            "root cluster",
+			runCommand:      []string{"db", "ls", "--insecure", "--debug"},
+			expectDatabases: []string{"root-postgres"},
+			maxSpanCount:    5,
+		},
+		{
+			name:            "leaf cluster",
+			runCommand:      []string{"db", "ls", "--cluster", "leaf1", "--insecure", "--debug"},
+			expectDatabases: []string{"leaf-postgres"},
+			maxSpanCount:    5,
+		},
+		{
+			name:            "all clusters",
+			runCommand:      []string{"db", "ls", "--all", "--insecure", "--debug", "-v"},
+			expectDatabases: []string{"root-postgres", "leaf-postgres"},
+			maxSpanCount:    10,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			traceHelper.reset()
+			captureStdout := new(bytes.Buffer)
+
+			err := Run(s.ctx, test.runCommand, func(cf *CLIConf) error {
+				cf.TracingProvider = traceHelper
+				cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+				return nil
+			})
+			require.NoError(t, err)
+
+			for _, expectedDatabase := range test.expectDatabases {
+				require.Contains(t, captureStdout.String(), expectedDatabase)
+			}
+
+			require.LessOrEqual(t, traceHelper.countClientSpans(spansNamesToCount...), test.maxSpanCount)
+		})
+	}
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
@@ -340,14 +378,12 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	}
 
 	// Wait for all databases to register to avoid races.
-	for _, database := range dbs {
-		waitForDatabase(t, auth, database)
-	}
+	waitForDatabases(t, auth, dbs)
 
 	return db
 }
 
-func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -355,13 +391,22 @@ func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Dat
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			for _, a := range all {
-				if a.GetName() == db.Name {
-					return
+
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered += 1
+						break
+					}
 				}
 			}
+
+			if registered == len(dbs) {
+				return
+			}
 		case <-ctx.Done():
-			t.Fatal("database not registered after 10s")
+			t.Fatal("databases not registered after 10s")
 		}
 	}
 }
@@ -386,4 +431,26 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 		}
 	}
 	return certs, keys, nil
+}
+
+func genServiceDatabaseConfigs(count int, modelConfig service.Database) []service.Database {
+	configs := make([]service.Database, 0, count)
+	for i := 0; i < count; i++ {
+		config := modelConfig
+		config.Name = fmt.Sprintf("%s-%d", config.Name, i)
+
+		configs = append(configs, config)
+	}
+	return configs
+}
+
+func mustGenRoles(t *testing.T, count int, name string, spec types.RoleSpecV5) []types.Role {
+	roles := make([]types.Role, 0, count)
+	for i := 0; i < count; i++ {
+		role, err := types.NewRoleV3(fmt.Sprintf("%s-%d", name, i), spec)
+		require.NoError(t, err)
+
+		roles = append(roles, role)
+	}
+	return roles
 }
