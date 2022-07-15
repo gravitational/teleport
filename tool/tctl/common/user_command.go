@@ -308,41 +308,41 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	if len(u.allowedLogins) > 0 {
 		logins := flattenSlice(u.allowedLogins)
 		user.SetLogins(logins)
-		updateMessages[constants.TraitLogins] = logins
+		updateMessages["logins"] = logins
 	}
 	if len(u.allowedWindowsLogins) > 0 {
 		windowsLogins := flattenSlice(u.allowedWindowsLogins)
 		user.SetWindowsLogins(windowsLogins)
-		updateMessages[constants.TraitWindowsLogins] = windowsLogins
+		updateMessages["Windows logins"] = windowsLogins
 	}
 	if len(u.allowedKubeUsers) > 0 {
 		kubeUsers := flattenSlice(u.allowedKubeUsers)
 		user.SetKubeUsers(kubeUsers)
-		updateMessages[constants.TraitKubeUsers] = kubeUsers
+		updateMessages["Kubernetes users"] = kubeUsers
 	}
 	if len(u.allowedKubeGroups) > 0 {
 		kubeGroups := flattenSlice(u.allowedKubeGroups)
 		user.SetKubeGroups(kubeGroups)
-		updateMessages[constants.TraitKubeGroups] = kubeGroups
+		updateMessages["Kubernetes groups"] = kubeGroups
 	}
 	if len(u.allowedDatabaseUsers) > 0 {
 		dbUsers := flattenSlice(u.allowedDatabaseUsers)
 		user.SetDBUsers(dbUsers)
-		updateMessages[constants.TraitDBUsers] = dbUsers
+		updateMessages["database users"] = dbUsers
 	}
 	if len(u.allowedDatabaseNames) > 0 {
 		dbNames := flattenSlice(u.allowedDatabaseNames)
 		user.SetDBNames(dbNames)
-		updateMessages[constants.TraitDBNames] = dbNames
+		updateMessages["database names"] = dbNames
 	}
 	if len(u.allowedAWSRoleARNs) > 0 {
 		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)
 		user.SetAWSRoleARNs(awsRoleARNs)
-		updateMessages[constants.TraitAWSRoleARNs] = awsRoleARNs
+		updateMessages["AWS role ARNs"] = awsRoleARNs
 	}
 
 	if len(updateMessages) == 0 {
-		return trace.BadParameter("Nothing to update. Please provide at least one --set-x flag.")
+		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
 
 	if err := client.UpsertUser(user); err != nil {
