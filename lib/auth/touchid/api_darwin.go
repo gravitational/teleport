@@ -129,6 +129,7 @@ func (c *touchIDContext) Guard(fn func()) error {
 	// handle and have an exported Go function run it.
 	// See https://github.com/golang/go/wiki/cgo#function-variables.
 	handle := cgo.NewHandle(fn)
+	defer handle.Delete()
 
 	var errMsgC *C.char
 	defer C.free(unsafe.Pointer(errMsgC))
