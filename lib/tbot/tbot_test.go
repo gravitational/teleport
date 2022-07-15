@@ -170,24 +170,24 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// TODO: These sleeps allow the client time to rotate. They could be
 	// replaced if tbot emitted a CA rotation/renewal event.
 	time.Sleep(time.Second * 15)
-	_, err := b.client().Ping(ctx)
+	_, err := b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
 	time.Sleep(time.Second * 15)
 	// Ensure both sets of CA certificates are now available locally
 	require.Len(t, b.ident().TLSCACertsBytes, 3)
-	_, err = b.client().Ping(ctx)
+	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
 	time.Sleep(time.Second * 15)
-	_, err = b.client().Ping(ctx)
+	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
 	time.Sleep(time.Second * 15)
-	_, err = b.client().Ping(ctx)
+	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	require.Len(t, b.ident().TLSCACertsBytes, 2)
