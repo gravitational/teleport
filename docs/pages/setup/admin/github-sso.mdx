@@ -74,7 +74,7 @@ The values of `client_id` and `client_secret` come from the GitHub OAuth App you
   type="tip"
   title="Teams to logins mapping"
 >
-  The `--teams-to-logins` flag (`-r` for short) can be repeated multiple times. Each repetition will create an additional entry in the `teams_to_logins` mapping of your GitHub authentication connector.
+When you run `tctl sso configure github`, you can include the `--teams-to-logins` flag (`-r` for short) multiple times. Each repetition will create an additional entry in the `teams_to_logins` mapping of your GitHub authentication connector.
   
   To map a GitHub team to multiple Teleport roles, list these roles after the name of the GitHub team, separated by commas: `-r org,team,role1,role2,role3,...`.
 </Admonition>
@@ -124,7 +124,7 @@ $ tctl sso test github.yaml
 # For more details repeat the command with --debug flag.
 ```
 
-The test command can accept the auth connector from standard input. The pipeline may also utilise `tee` to save the connector to file:
+The test command can accept the auth connector from standard input. The pipeline may also utilize `tee` to save the connector to a file so you can define and test the connector in a single command:
 
 ```code
 $ tctl sso configure github ... | tee github.yaml | tctl sso test
@@ -139,7 +139,7 @@ $ tctl sso configure github ... | tee github.yaml | tctl sso test
 
 ## Step 4/5. Create the connector
 
-Once you are satisfied with the connector, you can finally create it using `tctl`:
+Once you are satisfied with the connector, you can create it using `tctl`:
 
 ```code
 $ tctl create github.yaml

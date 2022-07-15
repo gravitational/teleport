@@ -202,14 +202,13 @@ spec:
 </TabItem>
 </Tabs>
 
-Note:
-- Manually pasting the XML to `entity_descriptor` field is error prone. We recommend using `tctl sso configure saml -e entity_descriptor.xml ...` command instead.
-- You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
+Manually pasting XML into the `entity_descriptor` field is error prone. We recommend using the `tctl sso configure saml -e entity_descriptor.xml ...` command instead.
+You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch the entity descriptor from
   your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
 
 Test the connector with [`tctl sso test`](../setup/reference/cli.mdx#tctl-sso-test) command:
 
-```bsh
+```code
 $ tctl sso test connector.yaml
 ```
 
@@ -345,8 +344,8 @@ If something is not working, we recommend to:
 
 - Run the connector definition through [`tctl sso test`](../setup/reference/cli.mdx#tctl-sso-test) command.
 - Double-check the host names, tokens and TCP ports in a connector definition.
-- Double-check the role mapping in connector definition for possible typos.
-- Verify the configuration on IdP side (callback URLs, claim names, scopes, ...).
+- Double-check the role mapping in your connector definition for possible typos.
+- Verify the configuration on your IdP's side (e.g., callback URLs, claim names, and scopes).
 
 ### Using the Web UI
 
