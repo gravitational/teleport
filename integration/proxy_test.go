@@ -217,7 +217,10 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -226,8 +229,8 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterListeners(helpers.SingleProxyPortSetup),
-		withLeafClusterListeners(helpers.SingleProxyPortSetup),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
@@ -255,7 +258,10 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -746,6 +752,9 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -755,7 +764,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		NodeName:    addr,
 		Log:         utils.NewLoggerForTests(),
 	}
-	instanceCfg.Listeners = helpers.SingleProxyPortSetup(t, &instanceCfg.Fds)
+	instanceCfg.Listeners = helpers.SingleProxyPortSetupOn(addr)(t, &instanceCfg.Fds)
 	rc := helpers.NewInstance(t, instanceCfg)
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
@@ -822,6 +831,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	log := utils.NewLoggerForTests()
 
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	rcAddr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -832,7 +844,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		NodeName:    rcAddr,
 		Log:         log,
 	}
-	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
 	log.Info("Teleport root cluster instance created")
 

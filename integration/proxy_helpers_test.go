@@ -87,8 +87,8 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
 		rootClusterNodeName:  Host,
 		leafClusterNodeName:  Host,
-		rootClusterListeners: helpers.SingleProxyPortSetup,
-		leafClusterListeners: helpers.SingleProxyPortSetup,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
 	}
 	for _, opt := range opts {
 		opt(&options)

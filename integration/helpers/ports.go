@@ -78,17 +78,28 @@ func StandardListenerSetup(t *testing.T, fds *[]service.FileDescriptor) *Instanc
 	}
 }
 
-func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
-	ssh := NewListener(t, service.ListenerProxyWeb, fds)
-	return &InstanceListeners{
-		Web:               ssh,
-		SSH:               NewListener(t, service.ListenerNodeSSH, fds),
-		Auth:              NewListener(t, service.ListenerAuth, fds),
-		SSHProxy:          ssh,
-		ReverseTunnel:     ssh,
-		MySQL:             ssh,
-		IsSinglePortSetup: true,
+// SingleProxyPortSetupOn creates a constructor function that will in turn generate an
+// InstanceConfig that allows proxying of multiple protocols over a single port when
+// invoked.
+func SingleProxyPortSetupOn(addr string) func(*testing.T, *[]service.FileDescriptor) *InstanceListeners {
+	return func(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+		ssh := NewListenerOn(t, addr, service.ListenerProxyWeb, fds)
+		return &InstanceListeners{
+			Web:               ssh,
+			SSH:               NewListenerOn(t, addr, service.ListenerNodeSSH, fds),
+			Auth:              NewListenerOn(t, addr, service.ListenerAuth, fds),
+			SSHProxy:          ssh,
+			ReverseTunnel:     ssh,
+			MySQL:             ssh,
+			IsSinglePortSetup: true,
+		}
 	}
+}
+
+// SingleProxyPortSetup generates an InstanceConfig that allows proxying of multiple protocols 
+// over a single port.
+func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return SingleProxyPortSetupOn("127.0.0.1")(t, fds)
 }
 
 func WebReverseTunnelMuxPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
@@ -159,7 +170,7 @@ func Port(t *testing.T, addr string) int {
 	return port
 }
 
-// NewListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// NewListener creates a new TCP listener on `hostAddr`:0, adds it to the
 // FileDescriptor slice (with the specified type) and returns its actual local
 // address as a string (for use in configuration). The idea is to subvert
 // Teleport's file-descriptor injection mechanism (used to share ports between
@@ -169,10 +180,10 @@ func Port(t *testing.T, addr string) int {
 //
 // The resulting file descriptor is added to the `fds` slice, which can then be
 // given to a teleport instance on startup in order to suppl
-func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
+func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *[]service.FileDescriptor) string {
 	t.Helper()
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	l, err := net.Listen("tcp", hostAddr+":0")
 	require.NoError(t, err)
 	defer l.Close()
 	addr := l.Addr().String()
@@ -198,4 +209,18 @@ func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescr
 	})
 
 	return addr
+}
+
+// NewListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). The idea is to subvert
+// Teleport's file-descriptor injection mechanism (used to share ports between
+// parent and child processes) to inject preconfigured listeners to Teleport
+// instances under test. The ports are allocated and bound at runtime, so there
+// should be no issues with port clashes on parallel tests.
+//
+// The resulting file descriptor is added to the `fds` slice, which can then be
+// given to a teleport instance on startup in order to suppl
+func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
+	return NewListenerOn(t, "127.0.0.1", ty, fds)
 }
