@@ -84,7 +84,7 @@ func TestSSH(t *testing.T) {
 func runMain(ctx context.Context, args []string, opts ...cliOption) error {
 	log.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentTSH + "-test",
-	}).Debugf("Running Run() with args=%v, opts=%v", args, opts)
+	}).Debugf("Running Run() with args=%v, opts=%v, env=%v", args, opts, os.Environ())
 	return Run(ctx, args, opts...)
 }
 
