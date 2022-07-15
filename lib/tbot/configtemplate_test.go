@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,7 +35,7 @@ import (
 // if we tried importing renewal code from the config package.
 
 // validateTemplate loads and validates a config template from the destination
-func validateTemplate(t *testing.T, tplI config.Template, dest destination.Destination) {
+func validateTemplate(t *testing.T, tplI config.Template, dest bot.Destination) {
 	t.Helper()
 
 	// First, make sure all advertised files exist.

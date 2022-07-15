@@ -17,7 +17,10 @@ limitations under the License.
 package config
 
 import (
+	"reflect"
+
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
 // DatabaseConfig is the config for a database access request.
@@ -44,6 +47,37 @@ func (dc *DatabaseConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// KubernetesCluster is a Kubernetes cluster certificate request.
+type KubernetesCluster struct {
+	// ClusterName is the name of the Kubernetes cluster in Teleport.
+	ClusterName string
+}
+
+func (kc *KubernetesCluster) UnmarshalYAML(node *yaml.Node) error {
+	// We don't care for multiple YAML shapes here, we just want our Kubernetes
+	// config field to be compatible with CheckAndSetDefaults().
+
+	var clusterName string
+	if err := node.Decode(&clusterName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	kc.ClusterName = clusterName
+	return nil
+}
+
+func (kc *KubernetesCluster) MarshalYAML() (interface{}, error) {
+	return kc.ClusterName, nil
+}
+
+func (kc *KubernetesCluster) CheckAndSetDefaults() error {
+	if kc.ClusterName == "" {
+		return trace.BadParameter("Kubernetes cluster name must not be empty")
+	}
+
+	return nil
+}
+
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
@@ -56,7 +90,13 @@ type DestinationConfig struct {
 	// DELETE IN 11.0.0: Kinds should be removed after a grace period.
 	Kinds []string `yaml:"kinds,omitempty"`
 
+	// Database is a database to request access to. Mutually exclusive with
+	// `kubernetes_cluster` and other special cert requests.
 	Database *DatabaseConfig `yaml:"database,omitempty"`
+
+	// KubernetesCluster is a cluster to request access to. Mutually exclusive
+	// with `database` and other special cert requests.
+	KubernetesCluster *KubernetesCluster `yaml:"kubernetes_cluster,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -88,6 +128,13 @@ func (dc *DestinationConfig) addRequiredConfigs() {
 			TLSCAs: &TemplateTLSCAs{},
 		})
 	}
+
+	// If a k8s request exists, enable the kubernetes template.
+	if dc.KubernetesCluster != nil && dc.GetConfigByName(TemplateKubernetesName) == nil {
+		dc.Configs = append(dc.Configs, TemplateConfig{
+			Kubernetes: &TemplateKubernetes{},
+		})
+	}
 }
 
 func (dc *DestinationConfig) CheckAndSetDefaults() error {
@@ -95,10 +142,31 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if dc.Database != nil {
-		if err := dc.Database.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+	certRequests := []interface{ CheckAndSetDefaults() error }{
+		dc.Database,
+		dc.KubernetesCluster,
+	}
+	notNilCount := 0
+	for _, request := range certRequests {
+		// Note: this check is fragile and will fail if the templates aren't
+		// all simple pointer types. They are, though, and the "correct"
+		// solution is insane, so we'll stick with this.
+		if reflect.ValueOf(request).IsNil() {
+			continue
 		}
+
+		if request != nil {
+			if err := request.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+
+			notNilCount++
+		}
+	}
+
+	if notNilCount > 1 {
+		return trace.BadParameter("a destination can make at most one " +
+			"special certificate request (database, kubernetes_cluster, etc)")
 	}
 
 	// Note: empty roles is allowed; interpreted to mean "all" at generation
