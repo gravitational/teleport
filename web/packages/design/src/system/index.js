@@ -51,7 +51,6 @@ const gap = style({
   // This makes gap use the space defined in the theme.
   // https://github.com/styled-system/styled-system/blob/v3.1.11/src/index.js#L67
   key: 'space',
-  transformValue: n => n + 'px',
 });
 
 propTypes.gap = gap.propTypes;
