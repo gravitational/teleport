@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,20 @@ var precomputedKeys = make(chan keyPair, 25)
 
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
+
+var generateKeyPairImplFunc = generateKeyPairImpl
+
+// UnsafeSetGenerateKeyPairFunc sets a custom function what will be used for key pair generation.
+func UnsafeSetGenerateKeyPairFunc(fn func() ([]byte, []byte, error)) {
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("failed to get runtime.Caller")
+	}
+	if !strings.HasSuffix(file, "_test.go") {
+		panic("UnsafeSetGenerateKeyPairFunc call is only allowed from go test files")
+	}
+	generateKeyPairImplFunc = fn
+}
 
 func generateKeyPairImpl() ([]byte, []byte, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
@@ -104,7 +119,7 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 	case k := <-precomputedKeys:
 		return k.privPem, k.pubBytes, nil
 	default:
-		return generateKeyPairImpl()
+		return generateKeyPairImplFunc()
 	}
 }
 

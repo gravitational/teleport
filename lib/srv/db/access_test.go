@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -73,6 +74,14 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	privPem, pubPem, err := native.GenerateKeyPair()
+	if err != nil {
+		panic(err)
+	}
+	native.UnsafeSetGenerateKeyPairFunc(func() ([]byte, []byte, error) {
+		return privPem, pubPem, nil
+	})
+
 	os.Exit(m.Run())
 }
 
