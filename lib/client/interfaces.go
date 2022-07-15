@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,6 +73,8 @@ type Key struct {
 	Priv []byte `json:"Priv,omitempty"`
 	// Pub is a public key
 	Pub []byte `json:"Pub,omitempty"`
+	// PPK is a PuTTY PPK-formatted keypair
+	PPK []byte `json:"PPK,omitempty"`
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
 	// TLSCert is a PEM encoded client TLS x509 certificate.
@@ -101,9 +104,15 @@ func NewKey() (key *Key, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ppkFile, err := ppk.ConvertToPPK(priv, pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Key{
 		Priv:         priv,
 		Pub:          pub,
+		PPK:          ppkFile,
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
 	}, nil

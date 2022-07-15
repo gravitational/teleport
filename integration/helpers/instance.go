@@ -1179,6 +1179,8 @@ type ClientConfig struct {
 	Interactive bool
 	// Source IP to used in generated SSH cert
 	SourceIP string
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
+	EnableEscapeSequences bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1228,20 +1230,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:           cfg.Login,
-		Host:               cfg.Host,
-		HostPort:           cfg.Port,
-		HostLogin:          cfg.Login,
-		InsecureSkipVerify: true,
-		KeysDir:            keyDir,
-		SiteName:           cfg.Cluster,
-		ForwardAgent:       fwdAgentMode,
-		Labels:             cfg.Labels,
-		WebProxyAddr:       webProxyAddr,
-		SSHProxyAddr:       sshProxyAddr,
-		Interactive:        cfg.Interactive,
-		TLSRoutingEnabled:  i.isSinglePortSetup,
-		Tracer:             tracing.NoopProvider().Tracer("test"),
+		Username:              cfg.Login,
+		Host:                  cfg.Host,
+		HostPort:              cfg.Port,
+		HostLogin:             cfg.Login,
+		InsecureSkipVerify:    true,
+		KeysDir:               keyDir,
+		SiteName:              cfg.Cluster,
+		ForwardAgent:          fwdAgentMode,
+		Labels:                cfg.Labels,
+		WebProxyAddr:          webProxyAddr,
+		SSHProxyAddr:          sshProxyAddr,
+		Interactive:           cfg.Interactive,
+		TLSRoutingEnabled:     i.isSinglePortSetup,
+		Tracer:                tracing.NoopProvider().Tracer("test"),
+		EnableEscapeSequences: cfg.EnableEscapeSequences,
 	}
 
 	// JumpHost turns on jump host mode
