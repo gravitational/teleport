@@ -203,7 +203,8 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
-	// Validate roles (server does not do this yet).
+	// Validate roles
+	// DELETE IN 12.0.0
 	for _, roleName := range u.createRoles {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
 			return trace.Wrap(err)

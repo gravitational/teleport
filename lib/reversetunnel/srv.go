@@ -103,7 +103,7 @@ type server struct {
 	// cancel function will cancel the
 	cancel context.CancelFunc
 
-	// ctx is a context used for signalling and broadcast
+	// ctx is a context used for signaling and broadcast
 	ctx context.Context
 
 	// log specifies the logger
@@ -143,7 +143,7 @@ type Config struct {
 	// NewCachingAccessPoint returns new caching access points
 	// per remote cluster
 	NewCachingAccessPoint auth.NewRemoteProxyCachingAccessPoint
-	// Context is a signalling context
+	// Context is a signaling context
 	Context context.Context
 	// Clock is a clock used in the server, set up to
 	// wall clock if not set
