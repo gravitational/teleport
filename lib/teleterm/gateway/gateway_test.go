@@ -233,15 +233,18 @@ func serveGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 		},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { gateway.Close() })
-	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
+	serveErr := make(chan error)
 	go func() {
-		if err := gateway.Serve(); err != nil {
-			t.Fatal(err)
-		}
+		err := gateway.Serve()
+		serveErr <- err
 	}()
+	t.Cleanup(func() {
+		gateway.Close()
+		require.NoError(t, <-serveErr, "Gateway %s returned error from Serve()", gateway.URI())
+	})
 
+	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 	blockUntilGatewayAcceptsConnections(t, gatewayAddress)
 
 	return gateway
