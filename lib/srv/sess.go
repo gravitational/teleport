@@ -825,7 +825,6 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			// TODO(joel): update uuid here
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.getNamespace(),
