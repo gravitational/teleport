@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,6 +48,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -194,7 +196,7 @@ type Log struct {
 	*log.Entry
 	// Config is a backend configuration
 	Config
-	svc *dynamodb.DynamoDB
+	svc dynamodbiface.DynamoDBAPI
 
 	// session holds the AWS client.
 	session *awssession.Session
@@ -292,7 +294,11 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
 
 	// create DynamoDB service:
-	b.svc = dynamodb.New(b.session)
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.svc = svc
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.Tablename)
