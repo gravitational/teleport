@@ -223,7 +223,7 @@ Label each cluster with key-value pairs describing the cluster:
 <Tabs>
   <TabItem label="Helm">
     ```code
-    # Install or upgrade the agent or cluster and set labels:
+    # Install or upgrade Teleport and set labels:
     $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1
