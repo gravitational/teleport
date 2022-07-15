@@ -9,10 +9,10 @@ configures IAM policies for Amazon RDS and Redshift. Teleport also requires
 permission to update database configurations, for example, to enable IAM
 authentication on RDS databases.
 
-For Amazon ElastiCache, Teleport requires permission to automatically discover
-the Redis clusters. Teleport also requires permission to automatically discover
-and modify any Teleport-managed ElastiCache users and permission to manage the
-passwords in AWS Secrets Manager.
+For Amazon ElastiCache and MemoryDB, Teleport requires permission to
+automatically discover the Redis clusters. Teleport also requires permission to
+automatically discover and modify any Teleport-managed ElastiCache or MemoryDB
+users and permission to manage the passwords in AWS Secrets Manager.
 
 You can generate and manage the permissions with the [`teleport db configure
 bootstrap`](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap)
@@ -218,54 +218,99 @@ policies for each discovery type are shown below.
   </TabItem>
 </Tabs>
 
-### ElastiCache
+### ElastiCache/MemoryDB
 
 In addition to database discovery, Teleport requires permissions to modify user
-passwords, and save passwords in AWS Secrets Manager, if any ElastiCache users
-are tagged to be managed by Teleport.
+passwords, and save passwords in AWS Secrets Manager, if any ElastiCache or
+MemoryDB users are tagged to be managed by Teleport.
 
-Replace `{account-id}` with your AWS Account ID:
+<Tabs>
+  <TabItem label="ElastiCache">
+  Use this policy if you are connecting to ElastiCache clusters.
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "elasticache:ListTagsForResource",
-                "elasticache:DescribeReplicationGroups",
-                "elasticache:DescribeCacheClusters",
-                "elasticache:DescribeCacheSubnetGroups",
-                "elasticache:DescribeUsers",
-                "elasticache:ModifyUser"
-            ],
-            "Resource": [
-                "*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "secretsmanager:DescribeSecret",
-                "secretsmanager:CreateSecret",
-                "secretsmanager:UpdateSecret",
-                "secretsmanager:DeleteSecret",
-                "secretsmanager:GetSecretValue",
-                "secretsmanager:PutSecretValue",
-                "secretsmanager:TagResource"
-            ],
-            "Resource": [
-                "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-            ]
-        }
-    ]
-}
-```
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "elasticache:ListTagsForResource",
+                  "elasticache:DescribeReplicationGroups",
+                  "elasticache:DescribeCacheClusters",
+                  "elasticache:DescribeCacheSubnetGroups",
+                  "elasticache:DescribeUsers",
+                  "elasticache:ModifyUser"
+              ],
+              "Resource": [
+                  "*"
+              ]
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "secretsmanager:DescribeSecret",
+                  "secretsmanager:CreateSecret",
+                  "secretsmanager:UpdateSecret",
+                  "secretsmanager:DeleteSecret",
+                  "secretsmanager:GetSecretValue",
+                  "secretsmanager:PutSecretValue",
+                  "secretsmanager:TagResource"
+              ],
+              "Resource": [
+                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
+              ]
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="MemoryDB">
+  Use this policy if you are connecting to MemoryDB clusters.
+
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "memorydb:ListTags",
+                  "memorydb:DescribeClusters",
+                  "memorydb:DescribeSubnetGroups",
+                  "memorydb:DescribeUsers",
+                  "memorydb:UpdateUser"
+              ],
+              "Resource": [
+                  "*"
+              ]
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "secretsmanager:DescribeSecret",
+                  "secretsmanager:CreateSecret",
+                  "secretsmanager:UpdateSecret",
+                  "secretsmanager:DeleteSecret",
+                  "secretsmanager:GetSecretValue",
+                  "secretsmanager:PutSecretValue",
+                  "secretsmanager:TagResource"
+              ],
+              "Resource": [
+                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
+              ]
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
 
 ## Manual registration
-If you prefer to register RDS, Redshift or ElastiCache databases manually using
-a [static configuration](./configuration.mdx) or
+If you prefer to register RDS, Redshift, ElastiCache or MemoryDB databases
+manually using a [static configuration](./configuration.mdx) or
 [`tctl`](../guides/dynamic-registration.mdx) and manage IAM yourself, example
 IAM policies with the required permissions are shown below.
 
@@ -357,48 +402,92 @@ See [Create an IAM role or user with permissions to call
 GetClusterCredentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
 for more information.
 
-### ElastiCache policy
+### ElastiCache/MemoryDB policy
 
-If any ElastiCache users are tagged to be managed by Teleport, below are the
-IAM permissions required for managing the ElastiCache users. Otherwise, no
-additional IAM permissions are required.
+If any ElastiCache or MemoryDB users are tagged to be managed by Teleport,
+below are the IAM permissions required for managing the ElastiCache or MemoryDB
+users. Otherwise, no additional IAM permissions are required.
 
-Replace `{account-id}` with your AWS Account ID:
+<Tabs>
+  <TabItem label="ElastiCache">
+  Use this policy for managing ElastiCache users.
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "elasticache:ListTagsForResource",
-                "elasticache:DescribeReplicationGroups",
-                "elasticache:DescribeUsers",
-                "elasticache:ModifyUser"
-            ],
-            "Resource": [
-                "*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "secretsmanager:DescribeSecret",
-                "secretsmanager:CreateSecret",
-                "secretsmanager:UpdateSecret",
-                "secretsmanager:DeleteSecret",
-                "secretsmanager:GetSecretValue",
-                "secretsmanager:PutSecretValue",
-                "secretsmanager:TagResource"
-            ],
-            "Resource": [
-                "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
-            ]
-        }
-    ]
-}
-```
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "elasticache:ListTagsForResource",
+                  "elasticache:DescribeReplicationGroups",
+                  "elasticache:DescribeUsers",
+                  "elasticache:ModifyUser"
+              ],
+              "Resource": [
+                  "*"
+              ]
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "secretsmanager:DescribeSecret",
+                  "secretsmanager:CreateSecret",
+                  "secretsmanager:UpdateSecret",
+                  "secretsmanager:DeleteSecret",
+                  "secretsmanager:GetSecretValue",
+                  "secretsmanager:PutSecretValue",
+                  "secretsmanager:TagResource"
+              ],
+              "Resource": [
+                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
+              ]
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="MemoryDB">
+  Use this policy for managing MemoryDB users.
+
+  Replace `{account-id}` with your AWS Account ID:
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                "memorydb:ListTags",
+                "memorydb:DescribeClusters",
+                "memorydb:DescribeUsers",
+                "memorydb:UpdateUser"
+              ],
+              "Resource": [
+                  "*"
+              ]
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "secretsmanager:DescribeSecret",
+                  "secretsmanager:CreateSecret",
+                  "secretsmanager:UpdateSecret",
+                  "secretsmanager:DeleteSecret",
+                  "secretsmanager:GetSecretValue",
+                  "secretsmanager:PutSecretValue",
+                  "secretsmanager:TagResource"
+              ],
+              "Resource": [
+                  "arn:aws:secretsmanager:*:{account-id}:secret:teleport/*"
+              ]
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
 
 If any custom key prefix or KMS key ID is used in the static configuration, add
 the following to the IAM policy.

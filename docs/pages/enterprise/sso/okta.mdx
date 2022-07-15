@@ -15,25 +15,6 @@ like:
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
 
-<ScopedBlock
-  scope={["oss"]}
->
-
-  This guide requires Teleport Cloud or Teleport Enterprise.
-
-  View this guide as the user of another Teleport edition:
-
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./okta.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./okta.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
-
 ## Prerequisites
 
 - Okta account with admin access. Your account must include users and at least two groups.
@@ -191,4 +172,3 @@ automatically in a browser).
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-</ScopedBlock>

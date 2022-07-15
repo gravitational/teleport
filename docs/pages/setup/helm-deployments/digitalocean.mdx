@@ -22,25 +22,8 @@ icon="kubernetes"
 </Tile>
 </TileSet>
 
-You can also view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-href="./digitalocean.mdx/?scope=oss"
-title="Open Source"
-icon="stack"
->
-</Tile>
-<Tile
-href="./digitalocean.mdx/?scope=enterprise"
-title="Enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
 </ScopedBlock>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 This guide will show you how to get started with Teleport on DigitalOcean
 Kubernetes.
@@ -51,6 +34,7 @@ Kubernetes.
 - Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](https://goteleport.com/docs/installation/) client.
 
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
+
 Create a new [DigitalOcean Kubernetes Cluster](https://cloud.digitalocean.com/kubernetes/clusters/)
 <Figure align="left" bordered caption="Create DigitalOcean Kubernetes cluster">
   ![Create DigitalOcean Kubernetes cluster](../../../img/helm/digitalocean/create-k8s.png)
@@ -172,7 +156,6 @@ The following steps show how to access the Kubernetes cluster using `tsh`.
 
 First, authenticate to Teleport using `tsh` as the **tadmin** user we created in the third step. 
 
-
 <Admonition
   type="note"
   title="Note"
@@ -200,16 +183,19 @@ Enter your OTP token:
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
+### Grant Kubernetes cluster access to your user
+
+(!docs/pages/includes/kubernetes-access/rbac.mdx!)
 
 ### Select the Kubernetes cluster
+
 ```code
 $ tsh kube login tele.example.com
 Logged into kubernetes cluster "tele.example.com"
 ```
 
-
-
 ### Connect to the Kubernetes cluster
+
 ```code
 $ kubectl --namespace=teleport-cluster get pods
 NAME                                READY   STATUS    RESTARTS   AGE
@@ -224,9 +210,8 @@ Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot
 
 
 ## Next steps
+
 - [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
 - [Setup CI/CD Access with Teleport](../../kubernetes-access/guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)
-
-</ScopedBlock>

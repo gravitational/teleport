@@ -1293,7 +1293,7 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil)
+	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1570,7 +1570,7 @@ func (s *APIServer) deleteAllTunnelConnections(auth ClientI, w http.ResponseWrit
 }
 
 type createRemoteClusterRawReq struct {
-	// RemoteCluster is marshalled remote cluster resource
+	// RemoteCluster is marshaled remote cluster resource
 	RemoteCluster json.RawMessage `json:"remote_cluster"`
 }
 

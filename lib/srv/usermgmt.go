@@ -19,8 +19,10 @@ package srv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/user"
+	"regexp"
 	"strings"
 	"time"
 
@@ -131,6 +133,20 @@ type HostUserManagement struct {
 
 var _ HostUsers = &HostUserManagement{}
 
+// Under the section "Including other files from within sudoers":
+//           https://man7.org/linux/man-pages/man5/sudoers.5.html
+// '.', '~' and '/' will cause a file not to be read and these can be
+// included in a username, removing slash to avoid escaping a
+// directory
+var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
+
+// sanitizeSudoersName replaces occurrences of '.', '~' and '/' with
+// underscores as `sudo` will not read files including these
+// characters
+func sanitizeSudoersName(username string) string {
+	return sudoersSanitizationMatcher.ReplaceAllString(username, "_")
+}
+
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (*user.User, io.Closer, error) {
 	tempUser, err := u.backend.Lookup(name)
@@ -218,8 +234,11 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		backend:  u.backend,
 	}
 	if len(ui.Sudoers) != 0 {
-		contents := []byte(strings.Join(ui.Sudoers, "\n") + "\n")
-		err := u.backend.WriteSudoersFile(name, contents)
+		var sudoers strings.Builder
+		for _, entry := range ui.Sudoers {
+			sudoers.WriteString(fmt.Sprintf("%s %s\n", name, entry))
+		}
+		err := u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 		if err != nil {
 			return tempUser, closer, trace.Wrap(err)
 		}

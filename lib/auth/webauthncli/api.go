@@ -39,23 +39,16 @@ const (
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
-	// If empty, Login may either choose a credential or error due to ambiguity.
+	// If empty, Login may either choose a credential or prompt the user for input
+	// (via LoginPrompt).
 	User string
-	// OptimisticAssertion allows Login to skip credential listing and attempt
-	// to assert directly. The drawback of an optimistic assertion is that the
-	// authenticator chooses the login credential, so Login can't guarantee that
-	// the User field will be respected. The upside is that it saves a touch for
-	// some devices.
-	// Login may decide to forego optimistic assertions if it wouldn't save a
-	// touch.
-	OptimisticAssertion bool
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment AuthenticatorAttachment
 }
 
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Login without a deadline or cancel condition
+// context is canceled. Calling Login without a deadline or cancel condition
 // may cause it to block forever.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
@@ -133,7 +126,7 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Register without a deadline or cancel condition
+// context is canceled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
 // The caller is expected to react to RegisterPrompt in order to prompt the user
 // at appropriate times. Register may choose different flows depending on the

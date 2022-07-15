@@ -243,6 +243,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
 		e = &events.RenewableCertificateGenerationMismatch{}
+	case SFTPEvent:
+		e = &events.SFTP{}
+	case UpgradeWindowStartUpdateEvent:
+		e = &events.UpgradeWindowStartUpdate{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:

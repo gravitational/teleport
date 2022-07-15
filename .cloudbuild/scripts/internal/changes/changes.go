@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package changes implements a script to analyse the changes between
+// Package changes implements a script to analyze the changes between
 // a commit and a given branch. It is designed for use when comparing
 // the tip of a PR against the merge target
 package changes
@@ -29,7 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Changes describes the kind of changes found in the analysed workspace.
+// Changes describes the kind of changes found in the analyzed workspace.
 type Changes struct {
 	Docs       bool
 	Code       bool

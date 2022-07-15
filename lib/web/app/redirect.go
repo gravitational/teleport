@@ -51,8 +51,12 @@ const js = `
     <title>Teleport Redirection Service</title>
     <script nonce="%v">
       (function() {
+        var url = new URL(window.location);
+        var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
-        if (searchParts.length !== 2 || searchParts[0] !== '?state') {
+        var stateValue = params.get("state");
+        var path = params.get("path");
+        if (!stateValue) {
           return;
         }
         var hashParts = window.location.hash.split('=');
@@ -60,7 +64,7 @@ const js = `
           return;
         }
         const data = {
-          state_value: searchParts[1],
+          state_value: stateValue,
           cookie_value: hashParts[1],
         };
         fetch('/x-teleport-auth', {
@@ -73,8 +77,18 @@ const js = `
           body: JSON.stringify(data),
         }).then(response => {
           if (response.ok) {
-            // redirect to the root and remove current URL from history (back button)
-            window.location.replace('/');
+            try {
+              // if a path parameter was passed through the redirect, append that path to the target url
+              if (path) {
+                var redirectUrl = new URL(path, url.origin)
+                window.location.replace(redirectUrl.toString());
+              } else {
+                window.location.replace(url.origin);
+              }
+            } catch (error) {
+                // in case of malformed url, return to origin
+                window.location.replace(url.origin)
+            }
           }
         });
       })();

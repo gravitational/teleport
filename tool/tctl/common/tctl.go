@@ -18,7 +18,9 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -282,6 +284,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err, fmt.Sprintf("Could not load Teleport host UUID file at %s. "+
+					"Please make sure that Teleport is up and running prior to using tctl.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile)))
+			}
 			return nil, trace.Wrap(err)
 		}
 		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})

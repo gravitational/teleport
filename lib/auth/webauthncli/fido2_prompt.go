@@ -16,10 +16,14 @@ package webauthncli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"sort"
+	"strconv"
 
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/trace"
 )
 
 // DefaultPrompt is a default implementation for LoginPrompt and
@@ -27,6 +31,7 @@ import (
 type DefaultPrompt struct {
 	PINMessage                            string
 	FirstTouchMessage, SecondTouchMessage string
+	PromptCredentialMessage               string
 
 	ctx   context.Context
 	out   io.Writer
@@ -38,11 +43,12 @@ type DefaultPrompt struct {
 // customized by setting the appropriate fields.
 func NewDefaultPrompt(ctx context.Context, out io.Writer) *DefaultPrompt {
 	return &DefaultPrompt{
-		PINMessage:         "Enter your security key PIN",
-		FirstTouchMessage:  "Tap your security key",
-		SecondTouchMessage: "Tap your security key again to complete login",
-		ctx:                ctx,
-		out:                out,
+		PINMessage:              "Enter your security key PIN",
+		FirstTouchMessage:       "Tap your security key",
+		SecondTouchMessage:      "Tap your security key again to complete login",
+		PromptCredentialMessage: "Choose the user for login",
+		ctx:                     ctx,
+		out:                     out,
 	}
 }
 
@@ -63,5 +69,43 @@ func (p *DefaultPrompt) PromptTouch() {
 	}
 	if p.SecondTouchMessage != "" {
 		fmt.Fprintln(p.out, p.SecondTouchMessage)
+	}
+}
+
+// PromptCredential prompts the user to choose a credential, in case multiple
+// credentials are available.
+func (p *DefaultPrompt) PromptCredential(creds []*Credential) (*Credential, error) {
+	// Shouldn't happen, but let's check just in case.
+	if len(creds) == 0 {
+		return nil, errors.New("attempted to prompt credential with empty credentials")
+	}
+
+	sort.Slice(creds, func(i, j int) bool {
+		c1 := creds[i]
+		c2 := creds[j]
+		return c1.User.Name < c2.User.Name
+	})
+	for i, cred := range creds {
+		fmt.Fprintf(p.out, "[%v] %v\n", i+1, cred.User.Name)
+	}
+
+	for {
+		numOrName, err := prompt.Input(p.ctx, p.out, prompt.Stdin(), p.PromptCredentialMessage)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch num, err := strconv.Atoi(numOrName); {
+		case err != nil: // See if a name was typed instead.
+			for _, cred := range creds {
+				if cred.User.Name == numOrName {
+					return cred, nil
+				}
+			}
+		case num >= 1 && num <= len(creds): // Valid number.
+			return creds[num-1], nil
+		}
+
+		fmt.Fprintf(p.out, "Invalid user choice: %q\n", numOrName)
 	}
 }

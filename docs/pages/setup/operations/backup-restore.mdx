@@ -150,9 +150,9 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
-    public endpoint of the Web UI remains the same. This cannot be caught by
-    Teleport, so be careful!
+  - Some user authentication mechanisms (e.g. WebAuthn) require that the public
+    endpoint of the Web UI remains the same. This cannot be caught by Teleport,
+    so be careful!
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
@@ -214,9 +214,9 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
-    public endpoint of the Web UI remains the same. This cannot be caught by
-    Teleport, so be careful!
+  - Some user authentication mechanisms (e.g. WebAuthn) require that the public
+    endpoint of the Web UI remains the same. This cannot be caught by Teleport,
+    so be careful!
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.

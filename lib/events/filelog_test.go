@@ -111,12 +111,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err := log.SearchSessionEvents(start, clock.Now(),
-		10, // limit
-		types.EventOrderAscending,
-		"",  // startKey
-		nil, // cond
-	)
+	result, _, err := log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)
@@ -132,12 +127,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err = log.SearchSessionEvents(start, clock.Now(),
-		10, // limit
-		types.EventOrderAscending,
-		"",  // startKey
-		nil, // cond
-	)
+	result, _, err = log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)
@@ -153,12 +143,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err = log.SearchSessionEvents(start, clock.Now(),
-		10, // limit
-		types.EventOrderAscending,
-		"",  // startKey
-		nil, // cond
-	)
+	result, _, err = log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)

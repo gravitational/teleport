@@ -154,7 +154,8 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx) | Specify the type of authentication connector to use. |
+| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
@@ -695,11 +696,14 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
+### tsh environment variables
+
 Environment variables configure your tsh client and can help you avoid using flags repetitively.
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or Github auth connector | okta |
+| TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
@@ -1317,6 +1321,346 @@ $ tctl auth rotate --type=user --grace-period=200h
 
 # Rotate only host certificates with a grace period of 8 hours:
 $ tctl auth rotate --type=host --grace-period=8h
+```
+
+### tctl sso test
+
+Perform an end-to-end test of an SSO authentication flow using the provided auth connector definition.
+
+The command supports all auth connector types: `github`, `oidc` and `saml`. The latter two require Teleport Enterprise.
+
+```code
+$ tctl [<global-flags>] sso test [<auth-connector.yaml>]
+```
+
+The testing consists of running a single end-to-end authentication request using the provided auth connector definition.
+Once the request is finished, the results will be printed to standard output along with context-specific diagnostic information.
+The test process is safe from side effects in that:
+- it will not change the list of configured auth connectors
+- the audit log will clearly state the login attempts as "test" ones
+- there will be no certificates issued for the authenticated user
+
+<Admonition
+  type="note"
+  title="Important"
+>
+  To use this command, you must have access to the `github_request`, `oidc_request`, and `saml_request` resources (depending on the type of connector being tested).
+
+  If you receive a "permission denied" error, ensure that you have access to the following resources in one of your Teleport roles:
+
+```yaml
+- resources: [github_request]
+  verbs: [list,create,read,update,delete]
+- resources: [oidc_request]
+  verbs: [list,create,read,update,delete]
+- resources: [saml_request]
+  verbs: [list,create,read,update,delete]
+```
+</Admonition>
+
+
+#### Arguments
+
+- `[<filename>]` Connector resource definition file. Optional. Empty for stdin.
+
+#### Flags
+
+This command defines no flags.
+
+#### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+Test the auth connector from `connector.yaml`:
+
+```code
+$ tctl sso test connector.yaml
+```
+
+The command is designed to be used in conjunction with the `tctl sso configure` family of commands:
+
+```code
+$ tctl sso configure ... | tctl sso test
+```
+
+The pipeline may also utilize `tee` to capture the connector generated with `tctl sso configure`. This will save the connector in `connector.yaml`:
+
+```code
+$ tctl sso configure ... | tee connector.yaml | tctl sso test
+```
+
+You can test an existing auth connector by combining the command with `tctl get`:
+
+```bsh
+$ tctl get saml/your-connector-name --with-secrets | tctl sso test
+````
+
+<Admonition
+  type="note"
+  title="Important"
+>
+  Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
+</Admonition>
+
+### tctl sso configure github
+
+Configure the GitHub auth connector.
+
+Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
+
+The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
+In this example, members of the `octocats` team in GitHub will be assigned the `devs`, `access`, and `editor` roles in Teleport.
+
+```code
+$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+```
+
+#### Arguments
+
+This command accepts no arguments.
+
+#### Flags
+
+Mandatory flags: `--id`, `--secret`, `--teams-to-roles`.
+
+| Name                      | Default Value(s) | Allowed Value(s)           | Description                                             |
+|---------------------------|------------------|----------------------------|---------------------------------------------------------|
+| `-n`, `--name`            | `github`         | resource name              | Connector name.                                         |
+| `-r`, `--teams-to-roles`  | none             | `org,team,role1,role2,...` | Sets teams-to-roles mapping. Repeatable.                |
+| `--display`               | none             | display name               | Controls how this connector is displayed.               |
+| `--id`                    | none             | GitHub OAuth2 client id    | GitHub app client ID.                                   |
+| `--secret`                | none             | GitHub OAuth2 secret       | GitHub app client secret.                               |
+| `--redirect-url`          | none             | Valid callback URL.        | Authorization callback URL.                             |
+| `--ignore-missing-roles`  |                  |                            | Ignore missing roles referenced in `--teams-to-roles`.  |
+
+#### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+Generate a GitHub auth connector. Two role mappings are defined:
+  - members of the `admin` team in the `octocats` org will receive `access`, `editor` and `auditor` roles.
+  - members of the `dev` team in `octocats` org will receive the `access` role.
+
+<Admonition type="note">
+  `tctl sso configure gh` is an alias for `tctl sso configure github`.
+</Admonition>
+
+```code
+$ tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
+INFO [CLIENT]    RedirectURL empty, resolving automatically.
+INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:3080/v1/webapi/github/callback"
+kind: github
+metadata:
+  name: github
+spec:
+  client_id: CLIENT_ID
+  client_secret: GH_SECRET
+  display: ""
+  redirect_url: https://teleport.example.com:3080/v1/webapi/github/callback
+  teams_to_logins:
+  - logins:
+    - access
+    - editor
+    - auditor
+    organization: octocats
+    team: admin
+  - logins:
+    - access
+    organization: octocats
+    team: dev
+version: v3
+```
+
+Generate the configuration and immediately test it using `tctl sso test` command.
+
+```code
+$ tctl sso configure gh ... | tctl sso test
+```
+
+### tctl sso configure oidc
+
+Configure an OIDC auth connector, optionally using a preset.
+
+The flag `--claims-to-roles` can be provided multiple times.
+
+```code
+$ tctl sso configure oidc --id=CLIENT_ID --secret=SECRET --claims-to-roles=... [<other-flags>]
+```
+
+#### Arguments
+
+This command accepts no arguments.
+
+#### Flags
+
+Mandatory flags: `--id`, `--secret`, `--claims-to-roles`. Other flags may be required depending on chosen preset.
+
+General flags:
+
+| Name                      | Description                                                                                                                               |
+|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `-p`, `--preset`          | Preset. One of: `google`, `gitlab`, `okta`.                                                                                               |
+| `-n`, `--name`            | Connector name. Required, unless implied from preset.                                                                                     |
+| `-r`, `--claims-to-roles` | Sets claim-to-roles mapping using format `claim_name,claim_value,role1,role2,...`. Repeatable.                                            |
+| `--display`               | Display controls how this connector is displayed.                                                                                         |
+| `--id`                    | OIDC app client ID.                                                                                                                       |
+| `--secret`                | OIDC app client secret.                                                                                                                   |
+| `--issuer-url`            | Issuer URL.                                                                                                                               |
+| `--redirect-url`          | Authorization callback URL.                                                                                                               |
+| `--prompt`                | Optional OIDC prompt. Example values: `none`, `select_account`, `login`, `consent`.                                                       |
+| `--scope`                 | Scope specifies additional scopes set by provider. Each repetition of the flag declares one scope. Examples: `email`, `groups`, `openid`. |
+| `--acr`                   | Authentication Context Class Reference values.                                                                                            |
+| `--provider`              | Sets the external identity provider type to enable IdP specific workarounds. Examples: `ping`, `adfs`, `netiq`, `okta``.                  |
+| `--ignore-missing-roles`  | Ignore missing roles referenced in `--claims-to-roles`.                                                                                   |
+
+Supported presets:
+
+| Name     | Description      | Display | Issuer URL                    |
+|----------|------------------|---------|-------------------------------|
+| `google` | Google Workspace | Google  | `https://accounts.google.com` |
+| `gitlab` | GitLab           | GitLab  | `https://gitlab.com`          |
+| `okta`   | Okta             | Okta    | `https://oktaice.okta.com`    |
+
+The above values for `--issuer-url` are defaults which may need to be updated depending on your IdP configuration.
+
+The following flags are specific to Google Workspace:
+
+| Name               | Description                                                                                            |
+|--------------------|--------------------------------------------------------------------------------------------------------|
+| `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
+| `--google-acc`      | String containing Google service account credentials.                                                  |
+| `--google-admin`   | Email of a Google admin to impersonate.                                                                |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
+| `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
+
+
+#### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+1. Generate an OIDC auth connector configuration called `myauth`. Two mappings from OIDC claims to roles are defined:
+   - members of `admin` group will receive `access`, `editor` and `auditor` roles.
+   - members of `developer` group will receive `access` role.
+
+The values for `--secret`, `--id` and `--issuer-url` are provided by the IdP.
+
+```code
+$ tctl sso configure oidc -n myauth -r groups,admin,access,editor,auditor -r group,developer,access \
+      --secret IDP_SECRET --id CLIENT_ID                                                            \
+      --issuer-url https://idp.example.com
+```
+
+2. Generate an OIDC auth connector with the Okta preset, enabling the `groups` scope and mapping the `okta-admin` group to roles `access`, `editor`, `auditor`.
+Issuer URL is set to match a custom Okta domain.
+
+```code
+$ tctl sso configure oidc --preset okta --scope groups -r groups,okta-admin,access,editor,auditor \
+      --secret IDP_SECRET --id CLIENT_ID                                                          \
+      --issuer-url dev-123456.oktapreview.com
+```
+
+3. Generate an OIDC auth connector with the Google preset. Service account credentials are set to be loaded from `/var/lib/teleport/gacc.json` with `--google-acc-uri`.
+
+```code
+$ tctl sso configure oidc --preset google -r groups,mygroup@mydomain.example.com,access \
+      --secret SECRET --google-id GOOGLE_ID --google-acc-uri /var/lib/teleport/gacc.json \
+      --google-admin admin@mydomain.example.com
+```
+
+4. Generate the configuration and immediately test it using the `tctl sso test` command.
+
+```code
+$ tctl sso configure oidc ... | tctl sso test
+```
+
+
+### tctl sso configure saml
+
+Configure the SAML auth connector, optionally using a preset.
+
+The flag `--attributes-to-roles/-r` can be provided multiple times. 
+
+To avoid errors when pasting XML to a YAML file, we encourage the usage of the flag `--entity-descriptor`/`-e`.
+
+```code
+$ tctl sso configure saml -e entity_desc.xml -r attr,value,role1 [<other-flags>]
+```
+
+#### Arguments
+
+This command accepts no arguments.
+
+#### Flags
+
+Mandatory flags: `--name`, `--attributes-to-roles`, `--entity-descriptor`. These flags may become non-mandatory when other flags are present; see table below for details.
+
+| Name                        | Required?                                                             | Description                                                                                                                                                      |
+|-----------------------------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-p/--preset`               |                                                                       | Preset. One of: `okta`, `onelogin`, `ad`, `adfs`.                                                                                                                |
+| `-n/--name`                 | Yes, unless `--preset` is given.                                         | Connector name.                                                                                                                                                  |
+| `-e/--entity-descriptor`    | Yes, unless `--sso`, `--acs`, `--cert` and `--issuer` are also given. | Set the Entity Descriptor. Valid values: file path, URL, XML content. Supplies configuration parameters as a single XML document instead of individual elements. |
+| `-r/--attributes-to-roles`  | Yes, at least one occurrence must be present.                         | Sets attribute-to-role mapping using format `attr_name,attr_value,role1,role2,...`. Repeatable.                                                                  |
+| `--display`                 |                                                                       | Sets the connector display name.                                                                                                                                 |
+| `--issuer`                  |                                                                       | Sets identity provider issuer.                                                                                                                                   |
+| `--sso`                     |                                                                       | URL of the identity provider's SSO service.                                                                                                                      |
+| `--cert`                    |                                                                       | Path to your IdP's certificate PEM file. Your IdP signs responses using this certificate.                                                                        |
+| `--acs`                     |                                                                       | URL for the assertion consumer service on the service provider (Teleport's side).                                                  |
+| `--audience`                |                                                                       | Uniquely identifies our service provider.                                                                                                               |
+| `--service-provider-issuer` |                                                                       | Issuer of the service provider (Teleport).                                                                                          |
+| `--signing-key-file`        |                                                                       | A file with request signing key. Must be used together with `--signing-cert-file`.                                                                               |
+| `--signing-cert-file`       |                                                                       | A file with request certificate. Must be used together with `--signing-key-file`.                                                                                |
+| `--assertion-key-file`      |                                                                       | A file with key used for securing SAML assertions. Must be used together with `--assertion-cert-file`.                                                           |
+| `--assertion-cert-file`     |                                                                       | A file with cert used for securing SAML assertions. Must be used together with `--assertion-key-file`.                                                           |
+| `--provider`                |                                                                       | Sets the external identity provider type, enabling workarounds. Examples: ping, adfs.                                                                            |
+| `--ignore-missing-roles`    |                                                                       | Ignore missing roles referenced in `--attributes-to-roles`.                                                                                                      |
+
+
+Supported presets:
+
+| Name       | Description                          | Display   |
+|------------|--------------------------------------|-----------|
+| `okta`     | Okta                                 | Okta      |
+| `onelogin` | OneLogin                             | OneLogin  |
+| `ad`       | Azure Active Directory               | Microsoft |
+| `adfs`     | Active Directory Federation Services | ADFS      |
+
+
+#### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+1. Generate a SAML auth connector configuration called `myauth`. Two mappings from SAML attributes to roles are defined:
+   - members of `admin` group will receive `access`, `editor` and `auditor` roles.
+   - members of `developer` group will receive `access` role.
+The IdP metadata will be read from `entity-desc.xml` file.
+
+```code
+$ tctl sso configure saml -n myauth -r group,admin,access,editor,auditor -r group,developer,access -e entity-desc.xml
+```
+
+2. Generate a SAML auth connector configuration using the `okta` preset. The choice of preset affects the default name and display attribute, and may apply IdP-specific tweaks.
+Instead of an XML file, a URL was provided to the -e flag, which will be fetched by Teleport during runtime.
+
+```code
+$ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.oktapreview.com/app/ex30h8/sso/saml/metadata
+```
+
+3. Generate a configuration and immediately test it using the `tctl sso test` command:
+
+```code
+$ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
 ```
 
 ### tctl create

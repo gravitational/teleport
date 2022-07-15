@@ -13,18 +13,7 @@ level overview of how Teleport can be used to help your company to become SOC2 c
 
   This guide requires Teleport Cloud or Teleport Enterprise.
 
-  View this guide as the user of another Teleport edition:
-
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./soc2.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./soc2.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Achieving SOC2 Compliance with Teleport
 SOC2 or Service Organization Controls were developed by the American Institute of CPAs (AICPA). They are based on five trust service areas: security, availability, processing integrity, confidentiality and privacy. 
@@ -93,5 +82,3 @@ Each principle has many “Points of Focus” which will apply differently to di
 | CC7.4 - Periodically Evaluates Incidents | Periodically, management reviews incidents related to security, availability, processing integrity, confidentiality, and privacy and identifies the need for system changes based on incident patterns and root causes. | [Use Session recording and audit logs to find patterns that lead to incidents.](../server-access/guides/bpf-session-recording.mdx)  | 
 | CC7.5 - Determines Root Cause of the Event | The root cause of the event is determined. | [Use Session recording and audit logs to find root cause.](../server-access/guides/bpf-session-recording.mdx) | 
 | CC7.5 - Improves Response and Recovery Procedures | Lessons learned are analyzed and the incident-response plan and recovery procedures are improved. | [Replay Session recordings at your &#39;after action review&#39; or postmortem meetings](../server-access/guides/bpf-session-recording.mdx) | 
-
-</ScopedBlock>

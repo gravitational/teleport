@@ -597,6 +597,7 @@ func (p *pack) appServersHA(t *testing.T) {
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
@@ -619,6 +620,7 @@ func (p *pack) appServersHA(t *testing.T) {
 
 			for _, appServer := range servers {
 				require.NoError(t, appServer.Close())
+				require.NoError(t, appServer.Wait())
 
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
@@ -1489,6 +1491,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers
@@ -1603,6 +1606,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
+		waitAppServerTunnel(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID)
 	}
 
 	return servers

@@ -48,9 +48,6 @@ type FIDODevice interface {
 	// Cancel mirrors libfido2.Device.Cancel.
 	Cancel() error
 
-	// Credentials mirrors libfido2.Device.Credentials.
-	Credentials(rpID string, pin string) ([]*libfido2.Credential, error)
-
 	// MakeCredential mirrors libfido2.Device.MakeCredential.
 	MakeCredential(
 		clientDataHash []byte,
@@ -66,7 +63,7 @@ type FIDODevice interface {
 		clientDataHash []byte,
 		credentialIDs [][]byte,
 		pin string,
-		opts *libfido2.AssertionOpts) (*libfido2.Assertion, error)
+		opts *libfido2.AssertionOpts) ([]*libfido2.Assertion, error)
 }
 
 // fidoDeviceLocations and fidoNewDevice are used to allow testing.
@@ -105,7 +102,10 @@ func fido2Login(
 
 	allowedCreds := assertion.Response.GetAllowedCredentialIDs()
 	uv := assertion.Response.UserVerification == protocol.VerificationRequired
-	passwordless := len(allowedCreds) == 0 && uv
+
+	// Presence of any allowed credential is interpreted as the user identity
+	// being partially established, aka non-passwordless.
+	passwordless := len(allowedCreds) == 0
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -127,7 +127,6 @@ func fido2Login(
 	// mu guards the variables below it.
 	var mu sync.Mutex
 	var assertionResp *libfido2.Assertion
-	var username string
 	var usedAppID bool
 
 	pathToRPID := &sync.Map{} // map[string]string
@@ -155,25 +154,8 @@ func fido2Login(
 		return true, nil
 	}
 
+	user := opts.User
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
-		creds := allowedCreds
-		var uName string
-		switch {
-		case passwordless && opts.OptimisticAssertion && info.bioEnroll:
-			log.Debugf("FIDO2: Using optimistic assertion for biometric device")
-		case passwordless:
-			cred, err := getPasswordlessCredentials(dev, pin, rpID, opts.User)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			creds = [][]byte{cred.ID}
-			uName = cred.User.Name
-
-			// Ask for another touch before the assertion, we used the first touch
-			// in the Credentials() call.
-			prompt.PromptTouch()
-		}
-
 		actualRPID := rpID
 		if val, ok := pathToRPID.Load(info.path); ok {
 			actualRPID = val.(string)
@@ -182,30 +164,48 @@ func fido2Login(
 		opts := &libfido2.AssertionOpts{
 			UP: libfido2.True,
 		}
+		// Note that "uv" fails for PIN-capable devices with an empty PIN.
+		// This is handled by runOnFIDO2Devices.
 		if uv {
 			opts.UV = libfido2.True
 		}
-		resp, err := dev.Assertion(actualRPID, ccdHash[:], creds, pin, opts)
+		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
+			// Try again if we are getting "unsupported option" and the PIN is set.
+			// Happens inconsistently in some authenticator series (YubiKey 5).
+			// We are relying on the fact that, because the PIN is set, the
+			// authenticator will set the UV bit regardless of it being requested.
+			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
+			opts.UV = libfido2.Default
+			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		log.Debugf("FIDO2: Got %v assertions", len(assertions))
+
+		// Find assertion for target user, or show the prompt.
+		assertion, err := pickAssertion(assertions, prompt, user, passwordless)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		log.Debugf(
-			"FIDO2: Authenticated: credential ID (b64) = %v, user ID (hex) = %x, username = %q",
-			base64.RawURLEncoding.EncodeToString(resp.CredentialID), resp.User.ID, uName)
+			"FIDO2: Authenticated: credential ID (b64) = %v, user ID (hex) = %x, user name = %q",
+			base64.RawURLEncoding.EncodeToString(assertion.CredentialID), assertion.User.ID, assertion.User.Name)
 
 		// Use the first successful assertion.
 		// In practice it is very unlikely we'd hit this twice.
 		mu.Lock()
 		if assertionResp == nil {
-			assertionResp = resp
-			username = uName
+			assertionResp = assertion
 			usedAppID = actualRPID != rpID
 		}
 		mu.Unlock()
 		return nil
 	}
 
-	if err := runOnFIDO2Devices(ctx, prompt, passwordless, filter, deviceCallback); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, filter, deviceCallback); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -213,6 +213,9 @@ func fido2Login(
 	if err := cbor.Unmarshal(assertionResp.AuthDataCBOR, &rawAuthData); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
+	// Trust the assertion user if present, otherwise say nothing.
+	actualUser := assertionResp.User.Name
 
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
@@ -230,56 +233,7 @@ func fido2Login(
 				},
 			},
 		},
-	}, username, nil
-}
-
-func getPasswordlessCredentials(dev FIDODevice, pin, rpID, user string) (*libfido2.Credential, error) {
-	creds, err := dev.Credentials(rpID, pin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(codingllama): After this line we should cancel other devices,
-	//  the user picked the current one.
-
-	if user != "" {
-		log.Debugf("FIDO2: Searching credentials for user %q", user)
-	}
-
-	switch {
-	case len(creds) == 0:
-		return nil, libfido2.ErrNoCredentials
-	case len(creds) == 1 && user == "": // no need to disambiguate
-		cred := creds[0]
-		log.Debugf("FIDO2: Found resident credential for user %q", cred.User.Name)
-		return cred, nil
-	case len(creds) > 1 && user == "": // can't disambiguate
-		return nil, trace.BadParameter("too many credentials found, explicit user required")
-	}
-
-	duplicateWarning := false
-	var res *libfido2.Credential
-	for _, cred := range creds {
-		if cred.User.Name == user {
-			// Print information about matched credential, useful for debugging.
-			// ykman prints user IDs in hex, hence the unusual encoding choice below.
-			cID := base64.RawURLEncoding.EncodeToString(cred.ID)
-			uID := cred.User.ID
-			log.Debugf("FIDO2: Found resident credential for user %q, credential ID (b64) = %v, user ID (hex) = %x", user, cID, uID)
-			if res == nil {
-				res = cred
-				continue // Don't break, we want to warn about duplicates.
-			}
-			if !duplicateWarning {
-				duplicateWarning = true
-				log.Warnf("Found multiple credentials for %q, using first match", user)
-			}
-		}
-	}
-	if res == nil {
-		return nil, trace.BadParameter("no credentials for user %q", user)
-	}
-	return res, nil
+	}, actualUser, nil
 }
 
 func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
@@ -298,6 +252,56 @@ func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte
 		}
 	}
 	return "", libfido2.ErrNoCredentials
+}
+
+func pickAssertion(
+	assertions []*libfido2.Assertion, prompt LoginPrompt, user string, passwordless bool) (*libfido2.Assertion, error) {
+	switch l := len(assertions); {
+	// Shouldn't happen, but let's be safe and handle it anyway.
+	case l == 0:
+		return nil, errors.New("authenticator returned empty assertions")
+
+	// MFA or single account.
+	// Note that authenticators don't return the user name, display name or icon
+	// for a single account per RP.
+	// See the authenticatorGetAssertion response, user member (0x04):
+	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorgetassertion-response-structure
+	case !passwordless, l == 1:
+		return assertions[0], nil
+
+	// Explicit user required. First occurrence wins.
+	case user != "":
+		for _, assertion := range assertions {
+			if assertion.User.Name == user {
+				return assertion, nil
+			}
+		}
+		return nil, fmt.Errorf("no credentials for user %q", user)
+	}
+
+	// Prepare credentials and show picker.
+	creds := make([]*Credential, len(assertions))
+	credToAssertion := make(map[*Credential]*libfido2.Assertion)
+	for i, assertion := range assertions {
+		cred := &Credential{
+			ID: assertion.CredentialID,
+			User: User{
+				ID:   assertion.User.ID,
+				Name: assertion.User.Name,
+			},
+		}
+		credToAssertion[cred] = assertion
+		creds[i] = cred
+	}
+	chosen, err := prompt.PromptCredential(creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assertion, ok := credToAssertion[chosen]
+	if !ok {
+		return nil, fmt.Errorf("prompt returned invalid credential: %#v", chosen)
+	}
+	return assertion, nil
 }
 
 // fido2Register implements FIDO2Register.
@@ -437,8 +441,7 @@ func fido2Register(
 		return nil
 	}
 
-	const passwordless = false
-	if err := runOnFIDO2Devices(ctx, prompt, passwordless, filter, deviceCallback); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, filter, deviceCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -522,11 +525,12 @@ type deviceFilterFunc func(dev FIDODevice, info *deviceInfo) (ok bool, err error
 type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 
 // runPrompt defines the prompt operations necessary for runOnFIDO2Devices.
-type runPrompt LoginPrompt
+// (RegisterPrompt happens to match the minimal interface required.)
+type runPrompt RegisterPrompt
 
 func runOnFIDO2Devices(
 	ctx context.Context,
-	prompt runPrompt, passwordless bool,
+	prompt runPrompt,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
 	// Do we have readily available devices?
@@ -545,22 +549,15 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
-	var dev deviceWithInfo
-	if !prompted && shouldDoEagerPINPrompt(passwordless, devices) {
-		dev = devices[0] // single device guaranteed in this case
-	} else {
-		if !prompted {
-			prompt.PromptTouch() // about to select
-		}
-
-		d, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
-		switch {
-		case err != nil:
-			return trace.Wrap(err)
-		case !requiresPIN:
-			return nil
-		}
-		dev = d
+	if !prompted {
+		prompt.PromptTouch() // about to select
+	}
+	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case !requiresPIN:
+		return nil
 	}
 
 	// Selected device requires PIN, let's use the prompt and run the callback
@@ -573,30 +570,13 @@ func runOnFIDO2Devices(
 		return libfido2.ErrPinRequired
 	}
 
-	// Prompt again for a touch if MFA, but don't prompt for passwordless.
-	// The passwordless callback calls the prompt at a more appropriate time.
-	if !passwordless {
-		prompt.PromptTouch()
-	}
+	// Prompt a second touch after reading the PIN.
+	prompt.PromptTouch()
 
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.
 	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
 	return trace.Wrap(err)
-}
-
-func shouldDoEagerPINPrompt(passwordless bool, devices []deviceWithInfo) bool {
-	// Don't eagerly prompt for PIN if MFA, it usually doesn't require PINs.
-	// Also don't eagerly prompt if >1 device, the touch chooses the device and we
-	// can't know which device will be chosen.
-	if !passwordless || len(devices) > 1 {
-		return false
-	}
-
-	// Only eagerly prompt for PINs if not bio, biometric devices unlock with
-	// touch instead (explicit PIN not required).
-	info := devices[0].info
-	return info.clientPinSet && !info.bioEnroll
 }
 
 func findSuitableDevicesOrTimeout(
@@ -682,7 +662,16 @@ func selectDevice(
 	callbackWrapper := func(dev FIDODevice, info *deviceInfo, pin string) (requiresPIN bool, err error) {
 		// Attempt to select a device by running "deviceCallback" on it.
 		// For most scenarios this works, saving a touch.
-		if err = deviceCallback(dev, info, pin); !errors.Is(err, libfido2.ErrPinRequired) {
+		err = deviceCallback(dev, info, pin)
+		switch {
+		case errors.Is(err, libfido2.ErrPinRequired):
+			// Continued below.
+		case errors.Is(err, libfido2.ErrUnsupportedOption) && pin == "" && !info.uv && info.clientPinSet:
+			// The failing option is likely to be "UV", so we handle this the same as
+			// ErrPinRequired: see if the user selects this device, ask for the PIN and
+			// try again.
+			// Continued below.
+		default:
 			return
 		}
 
@@ -694,7 +683,7 @@ func selectDevice(
 		//  Another option is to put the authenticator into U2F mode.
 		const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
 		const cdh = "00000000000000000000000000000000"      // "random", size 32
-		_, err = dev.Assertion(rpID, []byte(cdh), nil /* credentials */, pin, &libfido2.AssertionOpts{
+		_, err = dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
 			UP: libfido2.True,
 		})
 		if errors.Is(err, libfido2.ErrNoCredentials) {
@@ -752,7 +741,7 @@ func selectDevice(
 	return resp.dev, resp.requiresPIN, trace.Wrap(resp.err)
 }
 
-// deviceInfo contains an aggregate of a device's informations and capabilities.
+// deviceInfo contains an aggregate of a device's information and capabilities.
 // Various fields match options under
 // https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.
 type deviceInfo struct {

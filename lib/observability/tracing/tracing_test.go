@@ -493,3 +493,55 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_Endpoint(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      Config
+		expected string
+	}{
+		{
+			name: "with http scheme",
+			cfg: Config{
+				Service:     "test",
+				ExporterURL: "http://localhost:8080",
+			},
+			expected: "localhost:8080",
+		},
+		{
+			name: "with https scheme",
+			cfg: Config{
+				Service:     "test",
+				ExporterURL: "https://localhost:8080/custom",
+			},
+			expected: "localhost:8080/custom",
+		},
+		{
+			name: "with grpc scheme",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "grpc://collector.opentelemetry.svc:4317",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "collector.opentelemetry.svc:4317",
+		},
+		{
+			name: "without a scheme",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "collector.opentelemetry.svc:4317",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "collector.opentelemetry.svc:4317",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, tt.cfg.CheckAndSetDefaults())
+			require.Equal(t, tt.expected, tt.cfg.Endpoint())
+		})
+	}
+}

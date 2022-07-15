@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -124,6 +125,14 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *Config) Endpoint() string {
+	if !strings.HasPrefix(c.ExporterURL, c.exporterURL.Scheme) {
+		return c.ExporterURL
+	}
+
+	return c.ExporterURL[len(c.exporterURL.Scheme)+3:]
+}
+
 var _ otlptrace.Client = (*noopClient)(nil)
 
 type noopClient struct{}
@@ -195,10 +204,10 @@ func NewClient(cfg Config) (otlptrace.Client, error) {
 	var traceClient otlptrace.Client
 	switch cfg.exporterURL.Scheme {
 	case "http", "https":
-		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
+		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.Endpoint()))
 		traceClient = otlptracehttp.NewClient(httpOptions...)
 	case "grpc":
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
+		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.Endpoint()))
 		traceClient = otlptracegrpc.NewClient(grpcOptions...)
 	default:
 		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
@@ -308,11 +317,9 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
-		resource.WithProcess(),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessExecutablePath(),
-		resource.WithProcessOwner(),
 		resource.WithProcessRuntimeName(),
 		resource.WithProcessRuntimeVersion(),
 		resource.WithProcessRuntimeDescription(),

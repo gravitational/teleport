@@ -112,6 +112,9 @@ const (
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
+	// HTTPRequestTimeout is a default timeout for HTTP requests
+	HTTPRequestTimeout = 30 * time.Second
+
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
 	// the browser
