@@ -21,28 +21,22 @@ import (
 var (
 	apiRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "dynamo",
-			Subsystem: "api",
-			Name:      "total",
-			Help:      "Number of requests to the dynamo api",
+			Name: "dynamo_api_total",
+			Help: "Number of requests to the dynamo api",
 		},
 		[]string{"type", "operation"},
 	)
 	apiRequestsFailed = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "dynamo",
-			Subsystem: "api",
-			Name:      "failed_total",
-			Help:      "Number of failed requests to the dynamo api",
+			Name: "dynamo_api_failed_total",
+			Help: "Number of failed requests to the dynamo api",
 		},
 		[]string{"type", "operation"},
 	)
 	apiRequestLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "dynamo",
-			Subsystem: "api",
-			Name:      "request_seconds",
-			Help:      "Request latency of the dynamo api",
+			Name: "dynamo_api_request_seconds",
+			Help: "Request latency of the dynamo api",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
