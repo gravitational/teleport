@@ -100,16 +100,16 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(ownershipErr)
 	}
 
-	r.addTeleportResourceOrigin(&teleportResource)
+	r.addTeleportResourceOrigin(teleportResource)
 
 	return teleportClient.UpsertRole(ctx, teleportResource)
 }
 
-func (r *RoleReconciler) addTeleportResourceOrigin(resource *types.Role) {
-	metadata := (*resource).GetMetadata()
+func (r *RoleReconciler) addTeleportResourceOrigin(resource types.Role) {
+	metadata := resource.GetMetadata()
 	if metadata.Labels == nil {
 		metadata.Labels = make(map[string]string)
 	}
 	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
-	(*resource).SetMetadata(metadata)
+	resource.SetMetadata(metadata)
 }

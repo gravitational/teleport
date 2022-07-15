@@ -103,7 +103,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(ownershipErr)
 	}
 
-	r.addTeleportResourceOrigin(&teleportResource)
+	r.addTeleportResourceOrigin(teleportResource)
 
 	if !exists {
 		return teleportClient.CreateUser(ctx, teleportResource)
@@ -111,11 +111,11 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	return teleportClient.UpdateUser(ctx, teleportResource)
 }
 
-func (r *UserReconciler) addTeleportResourceOrigin(resource *types.User) {
-	metadata := (*resource).GetMetadata()
+func (r *UserReconciler) addTeleportResourceOrigin(resource types.User) {
+	metadata := resource.GetMetadata()
 	if metadata.Labels == nil {
 		metadata.Labels = make(map[string]string)
 	}
 	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
-	(*resource).SetMetadata(metadata)
+	resource.SetMetadata(metadata)
 }

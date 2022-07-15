@@ -270,7 +270,7 @@ func TestAddTeleportResourceOriginUser(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r.addTeleportResourceOrigin(&tc.resource)
+			r.addTeleportResourceOrigin(tc.resource)
 			metadata := tc.resource.GetMetadata()
 			require.Contains(t, metadata.Labels, types.OriginLabel)
 			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
