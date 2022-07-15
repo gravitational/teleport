@@ -266,6 +266,15 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
+func (s *remoteSite) adviseReconnect() {
+	s.RLock()
+	defer s.RUnlock()
+	for _, conn := range s.connections {
+		s.Debugf("Sending reconnect: %s", conn.nodeID)
+		go conn.adviseReconnect()
+	}
+}
+
 func (s *remoteSite) GetStatus() string {
 	connInfo, err := s.getLastConnInfo()
 	if err != nil {

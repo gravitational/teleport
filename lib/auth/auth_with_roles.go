@@ -983,45 +983,40 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
 
-	var resources []types.ResourceWithLabels
-
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := a.authServer.IterateResourcePages(ctx, req, func(nextPage []types.ResourceWithLabels) (bool, error) {
-		for _, resource := range nextPage {
-			if len(resources) == limit {
-				break
-			}
-
-			if err := resourceChecker.CanAccess(resource); err != nil {
-				if trace.IsAccessDenied(err) {
-					continue
-				}
-
-				return false, trace.Wrap(err)
-			}
-
-			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
-			case err != nil:
-				return false, trace.Wrap(err)
-			case match:
-				resources = append(resources, resource)
-			}
+	var resp types.ListResourcesResponse
+	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
+		if len(resp.Resources) == limit {
+			resp.NextKey = backend.GetPaginationKey(resource)
+			return ErrDone
 		}
 
-		return len(resources) == limit, nil
-	})
-	if err != nil {
+		if err := resourceChecker.CanAccess(resource); err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil
+			}
+
+			return trace.Wrap(err)
+		}
+
+		switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
+		case err != nil:
+			return trace.Wrap(err)
+		case match:
+			resp.Resources = append(resp.Resources, resource)
+			return nil
+		}
+
+		return nil
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &types.ListResourcesResponse{
-		Resources: resources,
-		NextKey:   resp.NextKey,
-	}, nil
+	return &resp, nil
 }
 
 // resourceAccessChecker allows access to be checked differently per resource type.
@@ -1310,27 +1305,26 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	}
 
 	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
-		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(checker, nextPage)
-		if err != nil {
-			return false, trace.Wrap(err)
+	if err = a.authServer.IterateNodes(ctx, req, func(s types.Server) error {
+		if len(page) == limit {
+			nextKey = backend.GetPaginationKey(s)
+			return ErrDone
 		}
 
-		// add all matching nodes to page
-		for _, node := range filteredPage {
-			if len(page) == limit {
-				// page is filled, stop processing
-				break
+		if err := checker.CanAccess(s); err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil
 			}
-			if node.MatchAgainst(realLabels) {
-				page = append(page, node)
-			}
+
+			return trace.Wrap(err)
 		}
 
-		return len(page) == limit, nil
-	})
-	if err != nil {
+		if s.MatchAgainst(realLabels) {
+			page = append(page, s)
+		}
+
+		return nil
+	}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -2843,7 +2837,7 @@ func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) 
 		&types.WhereExpr{Equals: types.WhereExpr2{
 			L: &types.WhereExpr{Field: events.SessionEventID},
 			R: &types.WhereExpr{Literal: sid.String()},
-		}},
+		}}, sid.String(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3950,7 +3944,7 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if cond != nil {
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
@@ -3961,7 +3955,7 @@ func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 	}
 
 	// TODO(codingllama): Refactor cond out of SearchSessionEvents and simplify signature.
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
