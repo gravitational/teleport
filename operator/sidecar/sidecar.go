@@ -17,8 +17,9 @@ limitations under the License.
 package sidecar
 
 import (
-	log "github.com/sirupsen/logrus"
 	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

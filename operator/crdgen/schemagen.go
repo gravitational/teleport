@@ -19,10 +19,11 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
+
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
-	"strings"
 
 	"github.com/gobuffalo/flect"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"

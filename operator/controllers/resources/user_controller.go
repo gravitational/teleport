@@ -19,16 +19,15 @@ package resources
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/operator/sidecar"
 
 	"github.com/gravitational/teleport/api/types"
+	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/operator/sidecar"
+	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-
-	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
-	"github.com/gravitational/trace"
 )
 
 // UserReconciler reconciles a TeleportUser object

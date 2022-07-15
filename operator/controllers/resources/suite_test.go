@@ -18,16 +18,17 @@ package resources
 
 import (
 	"context"
+	"math/rand"
+	"path/filepath"
+	"testing"
+	"time"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/sirupsen/logrus"
-	"math/rand"
-	"path/filepath"
-	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/service"
