@@ -27,9 +27,6 @@ func init() {
 	SchemeBuilder.Register(&TeleportRole{}, &TeleportRoleList{})
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // TeleportRoleSpec defines the desired state of TeleportRole
 type TeleportRoleSpec types.RoleSpecV5
 

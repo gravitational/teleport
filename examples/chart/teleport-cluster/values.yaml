@@ -58,6 +58,8 @@ enterprise: false
 operator:
   # Set enabled to true to add the Kubernetes Teleport Operator
   enabled: false
+  # Kubernetes Teleport Operator image
+  image: quay.io/gravitational/teleport-operator
   # Resources to request for the operator container
   # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
   resources: {}
@@ -205,8 +207,6 @@ tls:
 image: quay.io/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: quay.io/gravitational/teleport-ent
-# Kubernetes Teleport Operator image
-operatorImage: quay.io/gravitational/teleport-operator
 # Teleport logging configuration
 log:
   # Log level for the Teleport process.

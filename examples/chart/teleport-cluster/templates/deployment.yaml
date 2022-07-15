@@ -207,7 +207,7 @@ spec:
 {{- end }}
 {{ if .Values.operator.enabled }}
       - name: "operator"
-        image: "{{ .Values.operatorImage }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+        image: "{{ .Values.operator.image }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         livenessProbe:
           httpGet:
@@ -221,9 +221,9 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-{{- if .Values.resources }}
+{{- if .Values.operator.resources }}
         resources:
-  {{- toYaml .Values.resources | nindent 10 }}
+  {{- toYaml .Values.operator.resources | nindent 10 }}
 {{- end }}
         volumeMounts:
         - mountPath: /etc/teleport

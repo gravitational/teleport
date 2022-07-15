@@ -29,12 +29,10 @@ adds operator permissions to ClusterRole:
       - resources.teleport.dev
       resources:
       - teleportroles
-      - teleportrolesstatus
+      - teleportroles/status
       - teleportusers
-      - teleportusersstatus
+      - teleportusers/status
       verbs:
-      - create
-      - delete
       - get
       - list
       - patch

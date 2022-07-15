@@ -13,7 +13,6 @@
         "tls",
         "image",
         "enterpriseImage",
-        "operatorImage",
         "log",
         "affinity",
         "annotations",
@@ -109,12 +108,17 @@
         "operator": {
             "$id": "#/properties/operator",
             "type": "object",
-            "required": ["enabled", "resources"],
+            "required": ["enabled"],
             "properties": {
                 "enabled": {
                     "$id": "#/properties/operator/properties/enabled",
                     "type": "boolean",
                     "default": false
+                },
+                "operatorImage": {
+                    "$id": "#/properties/operator/properties/image",
+                    "type": "string",
+                    "default": "quay.io/gravitational/teleport-operator"
                 },
                 "resources": {
                     "$id": "#/properties/operator/properties/resources",
@@ -380,11 +384,6 @@
             "$id": "#/properties/enterpriseImage",
             "type": "string",
             "default": "quay.io/gravitational/teleport-ent"
-        },
-        "operatorImage": {
-            "$id": "#/properties/operatorImage",
-            "type": "string",
-            "default": "quay.io/gravitational/teleport-operator"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
