@@ -572,7 +572,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	policySets := scx.Identity.AccessChecker.SessionPolicySets()
 
 	log.Warnf("creating auditd client")
-	auditdClient, err := NewAuditDClient()
+	auditdClient, err := NewAuditDClient(term.TTY().Name())
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("no permissiont to run auditd")
@@ -887,6 +887,10 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 
 // emitSessionEndEvent emits a session end event.
 func (s *session) emitSessionEndEvent() {
+	if err := s.auditd.SendSessionEnd(); err != nil {
+		s.log.Warnf("failed to emit user_end event")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

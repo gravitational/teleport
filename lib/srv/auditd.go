@@ -69,7 +69,7 @@ type AuditDClient struct {
 	ttyName  string
 }
 
-func NewAuditDClient() (*AuditDClient, error) {
+func NewAuditDClient(ttyName string) (*AuditDClient, error) {
 	s, err := libaudit.NewNetlinkConnection()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +100,6 @@ func NewAuditDClient() (*AuditDClient, error) {
 	}
 
 	addr := "127.0.0.1"
-	tty := "/dev/pts/0"
 
 	return &AuditDClient{
 		NetlinkConnection: s,
@@ -110,7 +109,7 @@ func NewAuditDClient() (*AuditDClient, error) {
 		hostname:          hostname,
 		user:              currentUser.Username, //TODO: fix me
 		address:           addr,
-		ttyName:           tty,
+		ttyName:           ttyName,
 	}, nil
 }
 
@@ -125,12 +124,31 @@ func (c *AuditDClient) SendLogin() error {
 	const op = "login"
 
 	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, success))
+
+	return c.sendMsg(uint16(libaudit.AUDIT_USER_LOGIN), MsgData)
+}
+
+// type=USER_END msg=audit(1657744078.476:5916): pid=275303 uid=0 auid=1000 ses=118 subj==unconfined msg='op=PAM:session_close grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct="jnyckowski" exe="/usr/sbin/sshd" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID="root" AUID="jnyckowski"
+
+func (c *AuditDClient) SendSessionEnd() error {
+	log.Warnf("sending login audit event")
+
+	//const msgDataTmpl = "op=PAM:session_close grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct=\"jnyckowski\" exe=\"/usr/sbin/sshd\" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID=\"root\" AUID=\"jnyckowski\""
+	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
+	const op = "session_close"
+
+	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, success))
+
+	return c.sendMsg(uint16(libaudit.AUDIT_USER_END), MsgData)
+}
+
+func (c *AuditDClient) sendMsg(eventType uint16, MsgData []byte) error {
 	sizeofData := len(MsgData)
 
 	msg := &libaudit.NetlinkMessage{
 		Header: syscall.NlMsghdr{
 			Len:   uint32(syscall.NLMSG_HDRLEN + sizeofData),
-			Type:  uint16(libaudit.AUDIT_USER_LOGIN),
+			Type:  eventType,
 			Flags: syscall.NLM_F_REQUEST | syscall.NLM_F_ACK,
 			Seq:   c.seqNum,
 			Pid:   uint32(c.pid),
@@ -151,10 +169,6 @@ func (c *AuditDClient) SendLogin() error {
 		return fmt.Errorf("unexpected number of responses from kernel for status request: %d", len(msgs))
 	}
 	log.Infof("reply: %v", msgs)
-	//m := msgs[0]
-	//if m.Header.Type != uint16(AUDIT_GET) {
-	//	return  fmt.Errorf("status request response type was invalid")
-	//}
 
 	return nil
 }
