@@ -151,7 +151,7 @@ func (c *ClusterNameV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("cluster name is required")
 	}
 	if c.Spec.ClusterID == "" {
-		return trace.BadParameter("cluster ID is required")
+		return trace.BadParameter("cluster ID is required - this error may also occur if you are using a newer version of tsh than the cluster supports or if you followed the wrong upgrade path when upgrading the cluster")
 	}
 	return nil
 }
