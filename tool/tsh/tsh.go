@@ -514,7 +514,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
-	app.Flag("debug", "Verbose logging to stdout").Short('d').Envar(debugEnvVar).BoolVar(&cf.Debug)
+	// we don't want to add `.Envar(debugEnvVar)` here:
+	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
+	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behaviour for this variable.
+	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
