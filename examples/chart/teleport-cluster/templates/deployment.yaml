@@ -10,6 +10,9 @@
 {{- if and .Values.acme .Values.tls.existingSecretName }}
 {{- fail "Cannot set both acme.enabled and tls.existingSecretName, choose one or the other" }}
 {{- end }}
+{{- define "imageVersion" -}}
+{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}
+{{- end }}
   {{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -119,7 +122,7 @@ spec:
 {{- end }}
       containers:
       - name: "teleport"
-        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+        image: '{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ template "imageVersion" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
@@ -207,7 +210,7 @@ spec:
 {{- end }}
 {{ if .Values.operator.enabled }}
       - name: "operator"
-        image: "{{ .Values.operator.image }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+        image: '{{ .Values.operator.image }}:{{ template "imageVersion" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         livenessProbe:
           httpGet:
