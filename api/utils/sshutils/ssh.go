@@ -178,6 +178,7 @@ func AsAuthMethod(sshCert *ssh.Certificate, privKey []byte) (ssh.AuthMethod, err
 	return ssh.PublicKeys(signer), nil
 }
 
+// TODO remove, now in keypair.go
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
 func AsAgentKeys(sshCert *ssh.Certificate, privKey []byte) ([]agent.AddedKey, error) {

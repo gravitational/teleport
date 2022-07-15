@@ -597,16 +597,17 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cc, ok := key.AppTLSCerts[appName]
+	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
 	}
-	cert, err := tls.X509KeyPair(cc, key.PrivateKeyPEM())
+
+	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(cert)
+	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
 		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
 	}
@@ -615,7 +616,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
 			appName)
 	}
-	return cert, nil
+	return tlsCert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.

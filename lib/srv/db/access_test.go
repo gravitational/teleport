@@ -1556,7 +1556,7 @@ func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, telepo
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCert, err := tls.X509KeyPair(clientCert, key.PrivateKeyPEM())
+	tlsCert, err := key.TLSCertificate(clientCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

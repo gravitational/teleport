@@ -133,7 +133,7 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 		return trace.Wrap(err)
 	}
 	// Store core key data.
-	if err := fs.writeBytes(key.PrivateKeyPEM(), fs.UserKeyPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.PrivateKeyData(), fs.UserKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := fs.writeBytes(key.PublicKeyPEM(), fs.sshCAsPath(key.KeyIndex)); err != nil {
@@ -282,7 +282,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := os.ReadFile(fs.UserKeyPath(idx))
+	privData, err := os.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
@@ -306,7 +306,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 
 	key := &Key{
 		KeyIndex: idx,
-		KeyPair:  NewRSAKeyPair(priv, pub),
+		KeyPair:  NewKeyPair(privData, pub),
 		TLSCert:  tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,

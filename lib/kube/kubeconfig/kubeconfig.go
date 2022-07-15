@@ -154,7 +154,7 @@ func Update(path string, v Values) error {
 		//
 		// Validate the provided credentials, to avoid partially-populated
 		// kubeconfig.
-		if len(v.Credentials.PrivateKeyPEM()) == 0 {
+		if len(v.Credentials.PrivateKeyPEMTODO()) == 0 {
 			return trace.BadParameter("private key missing in provided credentials")
 		}
 		if len(v.Credentials.TLSCert) == 0 {
@@ -163,7 +163,7 @@ func Update(path string, v Values) error {
 
 		config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
 			ClientCertificateData: v.Credentials.TLSCert,
-			ClientKeyData:         v.Credentials.PrivateKeyPEM(),
+			ClientKeyData:         v.Credentials.PrivateKeyPEMTODO(),
 		}
 
 		setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)

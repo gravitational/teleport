@@ -99,7 +99,7 @@ func newClientKey(t *testing.T) *client.Key {
 	require.NoError(t, err)
 
 	return &client.Key{
-		KeyPair: client.NewRSAKeyPair(privateKey, publicKey),
+		KeyPair: client.ParseRSAKeyPair(privateKey, publicKey),
 		Cert:    certificate,
 		TLSCert: tlsCert,
 		TrustedCA: []auth.TrustedCerts{
@@ -128,7 +128,7 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.PrivateKeyPEM()))
+	require.Equal(t, string(out), string(key.PrivateKeyData()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
@@ -146,7 +146,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.PrivateKeyPEM(),
+		key.PrivateKeyData(),
 		{'\n'},
 		key.Cert,
 		key.TLSCert,

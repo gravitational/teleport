@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1553,7 +1552,7 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	}
 	tc.HostLogin = certPrincipals[0]
 
-	identityAuth, err := authFromIdentity(key)
+	authMethod, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1566,7 +1565,7 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.AuthMethods = []ssh.AuthMethod{identityAuth}
+	tc.AuthMethods = []ssh.AuthMethod{authMethod}
 	tc.Interactive = false
 	tc.SkipLocalAuth = true
 
@@ -2839,7 +2838,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 		var (
 			key          *client.Key
-			identityAuth ssh.AuthMethod
 			expiryDate   time.Time
 			hostAuthFunc ssh.HostKeyCallback
 		)
@@ -2885,11 +2883,11 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		// With the key index fields properly set, preload this key into a local store.
 		c.PreloadKey = key
 
-		identityAuth, err = authFromIdentity(key)
+		authMethod, err := key.AsAuthMethod()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		c.AuthMethods = []ssh.AuthMethod{identityAuth}
+		c.AuthMethods = []ssh.AuthMethod{authMethod}
 
 		// Also create an in-memory agent to hold the key. If cluster is in
 		// proxy recording mode, agent forwarding will be required for
@@ -3214,15 +3212,6 @@ func refuseArgs(command string, args []string) error {
 	return nil
 }
 
-// authFromIdentity returns a standard ssh.Authmethod for a given identity file
-func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
-	signer, err := sshutils.NewSigner(k.PrivateKeyPEM(), k.Cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ssh.PublicKeys(signer), nil
-}
-
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
 	key, err := client.KeyFromIdentityFile(cf.IdentityFileIn)
@@ -3236,11 +3225,13 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO remove onShow? it doesn't actually work...
 	// unmarshal private key bytes into a *rsa.PrivateKey
-	priv, err := ssh.ParseRawPrivateKey(key.PrivateKeyPEM())
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	priv, err := ssh.ParseRawPrivateKey(key.PrivateKeyPEMTODO())
+	// if err != nil {
+	// ignore error, we might not have an rsa key...
+	// return trace.Wrap(err)
+	// }
 
 	pub, err := ssh.ParsePublicKey(key.PublicKeyPEM())
 	if err != nil {

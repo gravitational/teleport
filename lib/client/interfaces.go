@@ -195,7 +195,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		KeyPair:     NewRSAKeyPair(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		KeyPair:     ParseRSAKeyPair(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
 		Cert:        ident.Certs.SSH,
 		TLSCert:     ident.Certs.TLS,
 		TrustedCA:   trustedCA,
@@ -397,14 +397,16 @@ func (k *Key) CertRoles() ([]string, error) {
 	return roles, nil
 }
 
-// AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
-// of the []*agent.AddedKey slice need to be loaded into the agent!
 func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
-	cert, err := k.SSHCert()
+	sshCert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAgentKeys(cert, k.PrivateKeyPEM())
+	return k.KeyPair.AsAgentKeys(sshCert), nil
+}
+
+func (k *Key) Equals(other *Key) bool {
+	return k.KeyPair.Equals(other.KeyPair)
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
@@ -469,20 +471,20 @@ func (k *Key) CertValidBefore() (t time.Time, err error) {
 // used by Golang SSH library. This is how you actually use a Key to feed
 // it into the SSH lib.
 func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
-	cert, err := k.SSHCert()
+	sshSigner, err := k.SSHSigner()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAuthMethod(cert, k.PrivateKeyPEM())
+	return ssh.PublicKeys(sshSigner), nil
 }
 
-// AsSigner returns an ssh.Signer using the SSH certificate in this key.
-func (k *Key) AsSigner() (ssh.Signer, error) {
+// SSHSigner returns an ssh.Signer using the SSH certificate in this key.
+func (k *Key) SSHSigner() (ssh.Signer, error) {
 	cert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsSigner(cert, k.PrivateKeyPEM())
+	return sshutils.SSHSigner(cert, k.Signer())
 }
 
 // SSHCert returns parsed SSH certificate

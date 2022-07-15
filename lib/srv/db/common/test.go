@@ -135,7 +135,7 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tls.X509KeyPair(cert, key.PrivateKeyPEM())
+	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

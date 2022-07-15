@@ -139,6 +139,23 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 	return csr, nil
 }
 
+// Replaces GenerateCertificateRequestPEM
+// GenerateCertificateRequestPEMNew returns PEM-encoded certificate signing
+// request from the provided subject and private key.
+func GenerateCertificateRequestPEMNew(subject pkix.Name, privateKey crypto.PrivateKey) ([]byte, error) {
+	csr := &x509.CertificateRequest{
+		Subject: subject,
+	}
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrBytes,
+	}), nil
+}
+
 // GenerateCertificateRequestPEM returns PEM-encoded certificate signing
 // request from the provided subject and private key.
 func GenerateCertificateRequestPEM(subject pkix.Name, privateKeyBytes []byte) ([]byte, error) {

@@ -498,7 +498,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 			clusterName.GetClusterName(),
 		}
 	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.PrivateKeyPEM())
+	csr, err := tlsca.GenerateCertificateRequestPEMNew(subject, key.PrivateKey())
 	if err != nil {
 		return trace.Wrap(err)
 	}
