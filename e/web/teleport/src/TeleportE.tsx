@@ -7,7 +7,6 @@ import Teleport, {
 } from 'teleport/Teleport';
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
-import { LicenseEnforcer } from './License';
 import Login from './Login';
 import Recovery from './Recovery';
 import Main from './Main';
@@ -42,12 +41,7 @@ function publicRoutes() {
 }
 
 function privateRoutes() {
-  return (
-    <WaitingRoom>
-      <LicenseEnforcer />
-      {renderPrivateRoutes(Main)}
-    </WaitingRoom>
-  );
+  return <WaitingRoom>{renderPrivateRoutes(Main)}</WaitingRoom>;
 }
 
 export default TeleportE;

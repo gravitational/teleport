@@ -4,27 +4,43 @@ import { Box } from 'design';
 import { StyledMain } from 'teleport/Main';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from './Switchback';
+import { useBanner } from './useBanner';
+import { LicenseWarning } from './LicenseWarning/LicenseWarning';
 
 export const Banner: React.FC = ({ children }) => {
   const ctx = useTeleport();
+  const { license } = useBanner();
 
-  // Don't display banner.
-  if (!ctx.storeAccessRequests.getSessionExpiry()) {
-    return <>{children}</>;
+  const banners: JSX.Element[] = [];
+
+  if (license) {
+    banners.push(
+      <LicenseWarning
+        key="license-warning-banner"
+        severity={license.severity}
+        text={license.text}
+      />
+    );
+  }
+
+  if (ctx.storeAccessRequests.getSessionExpiry()) {
+    banners.push(
+      <SwitchBack key="access-request-banner" data-testid="banner" />
+    );
   }
 
   return (
-    <BannerWrapper>
-      <SwitchBack data-testid="banner" />
+    <BannersWrapper banners={banners.length}>
+      {banners}
       {children}
-    </BannerWrapper>
+    </BannersWrapper>
   );
 };
 export default Banner;
 
-const BannerWrapper = styled(Box)`
+const BannersWrapper = styled(Box)`
   ${StyledMain} {
-    height: calc(100% - 48px);
+    height: calc(100% - ${props => props.banners * 48}px);
   }
   min-width: 1000px;
 `;

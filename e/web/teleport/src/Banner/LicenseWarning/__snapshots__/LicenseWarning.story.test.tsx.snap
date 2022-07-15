@@ -1,0 +1,202 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render error license warning 1`] = `
+.c0 {
+  box-sizing: border-box;
+  height: 48px;
+  background-color: #f50057;
+  display: flex;
+  justify-content: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 32px;
+  padding-right: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c3 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+<div
+  class="c0"
+  data-testid="warning"
+  height="48px"
+>
+  <div
+    class="c1"
+    width="100%"
+  >
+    <div
+      class="c2"
+    >
+      <span
+        class="c3 icon icon-info_outline "
+        color="light"
+        font-size="3"
+      />
+      <div
+        class="c4"
+      >
+        Your Teleport license has expired. If you are the System Administrator, please reach out to your Account Manager and obtain a new license to continue using Teleport.
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render info license warning 1`] = `
+.c0 {
+  box-sizing: border-box;
+  height: 48px;
+  background-color: #039be5;
+  display: flex;
+  justify-content: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 32px;
+  padding-right: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c3 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+<div
+  class="c0"
+  data-testid="warning"
+  height="48px"
+>
+  <div
+    class="c1"
+    width="100%"
+  >
+    <div
+      class="c2"
+    >
+      <span
+        class="c3 icon icon-info_outline "
+        color="light"
+        font-size="3"
+      />
+      <div
+        class="c4"
+      >
+        Your Teleport license has expired. If you are the System Administrator, please reach out to your Account Manager and obtain a new license to continue using Teleport.
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render warning license warning 1`] = `
+.c0 {
+  box-sizing: border-box;
+  height: 48px;
+  background-color: #ff9100;
+  display: flex;
+  justify-content: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-left: 32px;
+  padding-right: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c3 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+<div
+  class="c0"
+  data-testid="warning"
+  height="48px"
+>
+  <div
+    class="c1"
+    width="100%"
+  >
+    <div
+      class="c2"
+    >
+      <span
+        class="c3 icon icon-info_outline "
+        color="light"
+        font-size="3"
+      />
+      <div
+        class="c4"
+      >
+        Your Teleport license has expired. If you are the System Administrator, please reach out to your Account Manager and obtain a new license to continue using Teleport.
+      </div>
+    </div>
+  </div>
+</div>
+`;
