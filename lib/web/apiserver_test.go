@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"compress/flate"
@@ -2183,6 +2184,74 @@ func TestTokenGeneration(t *testing.T) {
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
+}
+
+func TestSignMTLS(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com")
+
+	endpoint := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleDatabase},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	// download mTLS files from /webapi/sites/:site/sign
+
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign")
+	endpointSignURL, err := url.Parse(endpointSign)
+	require.NoError(t, err)
+
+	queryParams := endpointSignURL.Query()
+	queryParams.Set("hostname", "mypg.example.com")
+	queryParams.Set("ttl", "2h")
+	queryParams.Set("format", "db")
+	endpointSignURL.RawQuery = queryParams.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, endpointSignURL.String(), nil)
+	require.NoError(t, err)
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	anonHTTPClient := &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, resp.StatusCode, http.StatusOK)
+
+	archive, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	zipReader, err := zip.NewReader(bytes.NewReader(archive), resp.ContentLength)
+	require.NoError(t, err)
+	require.Len(t, zipReader.File, 3)
+
+	zipContentFileNames := []string{}
+	for _, zipContentFile := range zipReader.File {
+		zipContentFileNames = append(zipContentFileNames, zipContentFile.Name)
+	}
+
+	expectedFileNames := []string{"server.cas", "server.key", "server.crt"}
+	require.ElementsMatch(t, zipContentFileNames, expectedFileNames)
+
+	// the token is no longer valid, so trying again should return an error
+	req, err = http.NewRequest(http.MethodGet, endpointSignURL.String(), nil)
+	require.NoError(t, err)
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	resp2nd, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp2nd.Body.Close()
+	require.Equal(t, resp2nd.StatusCode, http.StatusForbidden)
 }
 
 func TestClusterDatabasesGet(t *testing.T) {

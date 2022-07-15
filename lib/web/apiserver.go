@@ -365,6 +365,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// Sign required files to setup mTLS in other services (eg DBs)
+	// GET /webapi/sites/:site/sign?hostname=<hostname>&ttl=<ttl>&format=<format>
+	h.GET("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair))
+
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
@@ -2694,6 +2698,60 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 		return fn(w, r, p, ctx, site)
 	})
+}
+
+// ProvisionTokenHandler is a authenticated handler that is called for some existing Token
+type ProvisionTokenAuthedHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite) (interface{}, error)
+
+// WithProvisionTokenAuth ensures that request is authenticated with a provision token.
+// Provision tokens, when used like this are invalidated as soon as used.
+// Doesn't matter if the underlying response was a success or an error.
+func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx := r.Context()
+		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
+
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.WithError(err).Warn("No auth headers.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		if err := h.consumeTokenForAPICall(ctx, creds.Password); err != nil {
+			h.log.WithError(err).Warn("Failed to authenticate.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		clusterName := p.ByName("site")
+		if clusterName == currentSiteShortcut {
+			res, err := h.GetProxyClient().GetClusterName()
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to query cluster name.")
+				return nil, trace.Wrap(err)
+			}
+			clusterName = res.GetClusterName()
+		}
+
+		site, err := h.cfg.Proxy.GetSite(clusterName)
+		if err != nil {
+			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
+			return nil, trace.Wrap(err)
+		}
+
+		return fn(w, r, p, site)
+	})
+}
+
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) error {
+	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
