@@ -139,16 +139,7 @@ func (m *APIMetrics) DescribeTableWithContext(ctx context.Context, input *dynamo
 	start := time.Now()
 	output, err := m.DynamoDBAPI.DescribeTableWithContext(ctx, input, opts...)
 
-	recordMetrics(m.tableType, "create_table", err, time.Since(start).Seconds())
-
-	return output, err
-}
-
-func (m *APIMetrics) Query(input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-	start := time.Now()
-	output, err := m.DynamoDBAPI.Query(input)
-
-	recordMetrics(m.tableType, "query", err, time.Since(start).Seconds())
+	recordMetrics(m.tableType, "describe_table", err, time.Since(start).Seconds())
 
 	return output, err
 }
