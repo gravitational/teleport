@@ -105,8 +105,8 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 	}, nil
 }
 
-//export runGoFunc
-func runGoFunc(handle C.uintptr_t) {
+//export runGoFuncHandle
+func runGoFuncHandle(handle C.uintptr_t) {
 	val := cgo.Handle(handle).Value()
 	fn, ok := val.(func())
 	if !ok {

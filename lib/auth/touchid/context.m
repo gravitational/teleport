@@ -27,8 +27,9 @@
 
 #include "common.h"
 
-// runGoFunc is provided via CGO exports.
-extern void runGoFunc(uintptr_t handle);
+// runGoFuncHandle is provided via CGO exports.
+// (#include "_cgo_export.h" also works.)
+extern void runGoFuncHandle(uintptr_t handle);
 
 LAContext *GetLAContextFromAuth(AuthContext *actx) {
   if (actx == NULL) {
@@ -55,7 +56,7 @@ int AuthContextGuard(AuthContext *actx, const char *reason, uintptr_t handle,
       localizedReason:[NSString stringWithUTF8String:reason]
                 reply:^void(BOOL success, NSError *_Nullable error) {
                   if (success) {
-                    runGoFunc(handle);
+                    runGoFuncHandle(handle);
                   } else {
                     res = -1;
                     nsError = [error localizedDescription];
