@@ -70,14 +70,14 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), profile.Cluster)
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var roleSet services.RoleSet
 	if isRoleSetRequiredForShowDatabases(cf) {
-		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, profile.Cluster)
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
 		if err != nil {
 			log.Debugf("Failed to fetch user roles: %v.", err)
 		}
@@ -89,7 +89,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
 }
 
 func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
