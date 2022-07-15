@@ -67,6 +67,7 @@ type TestCAConfig struct {
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
 // configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
@@ -107,17 +108,14 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		Spec: types.CertAuthoritySpecV2{
 			Type:        config.Type,
 			ClusterName: config.ClusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-					PrivateKey: keyBytes,
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
-			},
 		},
 	}
 
-	if config.Type == types.KindJWT {
+	// Match the key set to lib/auth/auth.go:newKeySet().
+	switch config.Type {
+	case types.DatabaseCA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
+	case types.KindJWT:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
 		publicKey, privateKey, err := jwt.GenerateKeyPair()
@@ -128,6 +126,16 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			PublicKey:  publicKey,
 			PrivateKey: privateKey,
 		}}
+	case types.UserCA, types.HostCA:
+		ca.Spec.ActiveKeys = types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
+				PrivateKey: keyBytes,
+			}},
+			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
+		}
+	default:
+		panic("unknown CA type")
 	}
 
 	if err := services.SyncCertAuthorityKeys(ca); err != nil {
