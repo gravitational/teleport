@@ -19,24 +19,24 @@ import (
 )
 
 var (
-	apiRequests = prometheus.NewCounterVec(
+	apiRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dynamo_api_total",
-			Help: "Number of requests to the dynamo api",
+			Name: "dynamo_requests_total",
+			Help: "Total number of requests to the DynamoDB API",
 		},
 		[]string{"type", "operation"},
 	)
-	apiRequestsFailed = prometheus.NewCounterVec(
+	apiRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dynamo_api_failed_total",
-			Help: "Number of failed requests to the dynamo api",
+			Name: "dynamo_requests",
+			Help: "Number of failed requests to the DynamoDB API by result",
 		},
-		[]string{"type", "operation"},
+		[]string{"type", "operation", "result"},
 	)
 	apiRequestLatencies = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "dynamo_api_request_seconds",
-			Help: "Request latency of the dynamo api",
+			Name: "dynamo_requests_seconds",
+			Help: "Request latency for the DynamoDB API",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
@@ -46,7 +46,7 @@ var (
 
 	dynamoCollectors = []prometheus.Collector{
 		apiRequests,
-		apiRequestsFailed,
+		apiRequestsTotal,
 		apiRequestLatencies,
 	}
 )
@@ -64,9 +64,12 @@ const (
 // recordMetrics updates the set of dynamo api metrics
 func recordMetrics(tableType TableType, operation string, err error, latency float64) {
 	labels := []string{string(tableType), operation}
+	apiRequestsTotal.WithLabelValues(labels...).Inc()
 	apiRequestLatencies.WithLabelValues(labels...).Observe(latency)
-	apiRequests.WithLabelValues(labels...).Inc()
+
+	result := "success"
 	if err != nil {
-		apiRequestsFailed.WithLabelValues(labels...).Inc()
+		result = "error"
 	}
+	apiRequests.WithLabelValues(append(labels, result)...).Inc()
 }
