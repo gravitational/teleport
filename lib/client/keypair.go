@@ -27,6 +27,7 @@ import (
 	"runtime"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"golang.org/x/crypto/ssh"
@@ -38,20 +39,22 @@ import (
 type KeyPair interface {
 	PrivateKey() crypto.PrivateKey
 
-	PublicKeyPEM() []byte
-
-	Signer() crypto.Signer
-
-	AsAgentKeys(sshCert *ssh.Certificate) []agent.AddedKey
-
 	// PrivateKeyPEM is data about a private key that we want to store on disk.
 	// This can be data necessary to retrieve the key, such as a yubikey card name
 	// and slot, or it can be a full PEM encoded private key.
 	PrivateKeyData() []byte
 
+	SSHPublicKeyPEM() []byte
+
+	Signer() crypto.Signer
+
+	CheckCert(*ssh.Certificate) error
+
+	AsAgentKeys(*ssh.Certificate) []agent.AddedKey
+
 	PPKFile() ([]byte, error)
 
-	TLSCertificate(certRaw []byte) (tls.Certificate, error)
+	TLSCertificate(tlsCert []byte) (tls.Certificate, error)
 
 	Equals(KeyPair) bool
 
@@ -69,9 +72,6 @@ func NewKeyPair(privateKeyData, pubPEM []byte) KeyPair {
 
 type RSAKeyPair struct {
 	rsaPrivateKey *rsa.PrivateKey
-	rsaPublicKey  *rsa.PublicKey
-	privateKeyPEM []byte
-	publicKeyPEM  []byte
 }
 
 func GenerateRSAKeyPair() (*RSAKeyPair, error) {
@@ -96,9 +96,6 @@ func ParseRSAKeyPair(priv, pub []byte) *RSAKeyPair {
 
 	return &RSAKeyPair{
 		rsaPrivateKey: rsaPrivateKey,
-		// TODO: check pub vs priv?
-		privateKeyPEM: priv,
-		publicKeyPEM:  pub,
 	}
 }
 
@@ -110,20 +107,46 @@ func (r *RSAKeyPair) Signer() crypto.Signer {
 	return r.rsaPrivateKey
 }
 
-func (r *RSAKeyPair) PublicKeyPEM() []byte {
+func (r *RSAKeyPair) CheckCert(sshCert *ssh.Certificate) error {
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	if !sshutils.KeysEqual(sshCert.Key, r.sshPublicKey()) {
+		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
+	}
+
+	// A valid principal is always passed in because the principals are not being
+	// checked here, but rather the validity period, signature, and algorithms.
+	certChecker := sshutils.CertChecker{
+		FIPS: isFIPS(),
+	}
+	if err := certChecker.CheckCert(sshCert.ValidPrincipals[0], sshCert); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (r *RSAKeyPair) SSHPublicKeyPEM() []byte {
+	return r.sshPublicKeyPEM()
+}
+
+func (r *RSAKeyPair) sshPublicKeyPEM() []byte {
+	return ssh.MarshalAuthorizedKey(r.sshPublicKey())
+}
+
+func (r *RSAKeyPair) sshPublicKey() ssh.PublicKey {
 	pub, err := ssh.NewPublicKey(&r.rsaPrivateKey.PublicKey)
 	if err != nil {
 		// TODO: handle error
 		panic(err)
 	}
-	return ssh.MarshalAuthorizedKey(pub)
-}
-
-func (r *RSAKeyPair) PrivateKeyPEMTODO() []byte {
-	return r.PrivateKeyData()
+	return pub
 }
 
 func (r *RSAKeyPair) PrivateKeyData() []byte {
+	return r.privateKeyPEM()
+}
+
+func (r *RSAKeyPair) privateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:    "RSA PRIVATE KEY",
 		Headers: nil,
@@ -131,9 +154,13 @@ func (r *RSAKeyPair) PrivateKeyData() []byte {
 	})
 }
 
+func (r *RSAKeyPair) PrivateKeyPEMTODO() []byte {
+	return r.privateKeyPEM()
+}
+
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (r *RSAKeyPair) PPKFile() ([]byte, error) {
-	ppkFile, err := ppk.ConvertToPPK(r.privateKeyPEM, r.publicKeyPEM)
+	ppkFile, err := ppk.ConvertToPPK(r.privateKeyPEM(), r.sshPublicKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,7 +168,7 @@ func (r *RSAKeyPair) PPKFile() ([]byte, error) {
 }
 
 func (r *RSAKeyPair) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
-	tlsCert, err := tls.X509KeyPair(certRaw, r.privateKeyPEM)
+	tlsCert, err := tls.X509KeyPair(certRaw, r.privateKeyPEM())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -154,7 +181,7 @@ func (r *RSAKeyPair) Equals(other KeyPair) bool {
 		return false
 	}
 
-	return subtle.ConstantTimeCompare(r.privateKeyPEM, rsa.privateKeyPEM) == 1
+	return subtle.ConstantTimeCompare(r.privateKeyPEM(), rsa.privateKeyPEM()) == 1
 }
 
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements

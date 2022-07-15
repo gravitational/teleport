@@ -185,7 +185,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 	return client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            key.PublicKeyPEM(),
+			PubKey:            key.SSHPublicKeyPEM(),
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
 			Pool:              nil,

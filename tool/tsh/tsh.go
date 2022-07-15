@@ -3233,7 +3233,7 @@ func onShow(cf *CLIConf) error {
 	// return trace.Wrap(err)
 	// }
 
-	pub, err := ssh.ParsePublicKey(key.PublicKeyPEM())
+	pub, err := ssh.ParsePublicKey(key.SSHPublicKeyPEM())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -136,7 +136,7 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.PrivateKeyData(), fs.UserKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.PublicKeyPEM(), fs.sshCAsPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.SSHPublicKeyPEM(), fs.sshCAsPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {

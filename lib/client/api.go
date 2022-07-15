@@ -3222,30 +3222,30 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if !pr.Auth.AllowPasswordless {
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
-		response, err = tc.pwdlessLogin(ctx, key.PublicKeyPEM())
+		response, err = tc.pwdlessLogin(ctx, key.SSHPublicKeyPEM())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.Local:
-		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.PublicKeyPEM())
+		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.SSHPublicKeyPEM())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case authType == constants.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.PublicKeyPEM(), constants.OIDC)
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.SSHPublicKeyPEM(), constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.PublicKeyPEM(), constants.SAML)
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.SSHPublicKeyPEM(), constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.PublicKeyPEM(), constants.Github)
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.SSHPublicKeyPEM(), constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
