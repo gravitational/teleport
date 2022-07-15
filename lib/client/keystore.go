@@ -305,9 +305,9 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 	}
 
 	key := &Key{
-		KeyIndex: idx,
-		KeyPair:  NewKeyPair(privData, pub),
-		TLSCert:  tlsCert,
+		KeyIndex:   idx,
+		PrivateKey: NewKeyPair(privData, pub),
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,
 		}},

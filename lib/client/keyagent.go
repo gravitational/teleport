@@ -524,7 +524,7 @@ func (a *LocalKeyAgent) addKey(key *Key) error {
 			return trace.Wrap(err)
 		}
 	} else {
-		if !storedKey.Equals(key) {
+		if !storedKey.Equal(key) {
 			a.log.Debugf("Deleting obsolete stored key with index %+v.", storedKey.KeyIndex)
 			if err := a.keyStore.DeleteKey(storedKey.KeyIndex); err != nil {
 				return trace.Wrap(err)

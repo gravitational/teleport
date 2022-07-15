@@ -474,7 +474,7 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	require.NoError(t, err)
 	return &Key{
 		KeyIndex:   idx,
-		KeyPair:    ParseRSAKeyPair(priv, pub),
+		PrivateKey: ParseRSAKeyPair(priv, pub),
 		Cert:       cert,
 		TLSCert:    tlsCert,
 		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},

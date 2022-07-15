@@ -529,9 +529,9 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}
 
 	return &Key{
-		KeyPair: ParseRSAKeyPair(privateKey, publicKey),
-		Cert:    certificate,
-		TLSCert: tlsCert,
+		PrivateKey: ParseRSAKeyPair(privateKey, publicKey),
+		Cert:       certificate,
+		TLSCert:    tlsCert,
 		KeyIndex: KeyIndex{
 			ProxyHost:   s.hostname,
 			Username:    username,

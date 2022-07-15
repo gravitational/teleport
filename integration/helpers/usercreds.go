@@ -125,9 +125,9 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	return &UserCreds{
 		HostCA: ca,
 		Key: client.Key{
-			KeyPair: client.ParseRSAKeyPair(priv, pub),
-			Cert:    sshCert,
-			TLSCert: x509Cert,
+			PrivateKey: client.ParseRSAKeyPair(priv, pub),
+			Cert:       sshCert,
+			TLSCert:    x509Cert,
 		},
 	}, nil
 }

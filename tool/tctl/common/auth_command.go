@@ -498,10 +498,13 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 			clusterName.GetClusterName(),
 		}
 	}
-	csr, err := tlsca.GenerateCertificateRequestPEMNew(subject, key.PrivateKey())
+
+	// TODO: this won't work with yubikey, only rsa, etc are supported.
+	csr, err := tlsca.GenerateCertificateRequestPEMNew(subject, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	resp, err := clusterAPI.GenerateDatabaseCert(ctx,
 		&proto.DatabaseCertRequest{
 			CSR: csr,

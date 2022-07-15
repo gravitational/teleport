@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -69,7 +70,7 @@ type Key struct {
 
 	// KeyPair is a private/public that can be used to sign new certificates
 	// with a certificate authority (AKA the Teleport Auth Server).
-	KeyPair
+	PrivateKey
 
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
@@ -103,9 +104,9 @@ func GenerateKey() (*Key, error) {
 	return NewKey(kp), nil
 }
 
-func NewKey(kp KeyPair) (key *Key) {
+func NewKey(kp PrivateKey) (key *Key) {
 	return &Key{
-		KeyPair:             kp,
+		PrivateKey:          kp,
 		KubeTLSCerts:        make(map[string][]byte),
 		DBTLSCerts:          make(map[string][]byte),
 		AppTLSCerts:         make(map[string][]byte),
@@ -195,7 +196,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		KeyPair:     ParseRSAKeyPair(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		PrivateKey:  ParseRSAKeyPair(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
 		Cert:        ident.Certs.SSH,
 		TLSCert:     ident.Certs.TLS,
 		TrustedCA:   trustedCA,
@@ -344,7 +345,7 @@ func (k *Key) SSHConfig(keyStore sshKnowHostGetter, host string) (*ssh.ClientCon
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
-	sshSigner, err := sshutils.SSHSigner(sshCert, k.Signer())
+	sshSigner, err := sshutils.SSHSigner(sshCert, k)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -402,11 +403,7 @@ func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return k.KeyPair.AsAgentKeys(sshCert), nil
-}
-
-func (k *Key) Equals(other *Key) bool {
-	return k.KeyPair.Equals(other.KeyPair)
+	return k.PrivateKey.AsAgentKeys(sshCert), nil
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
@@ -484,7 +481,7 @@ func (k *Key) SSHSigner() (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.SSHSigner(cert, k.Signer())
+	return sshutils.SSHSigner(cert, k)
 }
 
 // SSHCert returns parsed SSH certificate
@@ -513,14 +510,47 @@ func (k *Key) ActiveRequests() (services.RequestIDs, error) {
 
 // CheckCert makes sure the SSH certificate is valid.
 func (k *Key) CheckCert() error {
-	cert, err := k.SSHCert()
+	sshCert, err := k.SSHCert()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := k.KeyPair.CheckCert(cert); err != nil {
+	// Check that the certificate was for the current public key. If not, the
+	// public/private key pair may have been rotated.
+	if !sshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
+		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
+	}
+
+	// A valid principal is always passed in because the principals are not being
+	// checked here, but rather the validity period, signature, and algorithms.
+	certChecker := sshutils.CertChecker{
+		FIPS: isFIPS(),
+	}
+	if err := certChecker.CheckCert(sshCert.ValidPrincipals[0], sshCert); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (k *Key) SSHPublicKeyPEM() []byte {
+	return ssh.MarshalAuthorizedKey(k.SSHPublicKey())
+}
+
+func (k *Key) SSHPublicKey() ssh.PublicKey {
+	pub, err := ssh.NewPublicKey(k.Public())
+	if err != nil {
+		// TODO: handle error
+		panic(err)
+	}
+	return pub
+}
+
+// PPKFile returns a PuTTY PPK-formatted keypair
+func (k *Key) PPKFile() ([]byte, error) {
+	ppkFile, err := ppk.ConvertToPPK(k.PrivateKeyPEMTODO(), k.SSHPublicKeyPEM())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ppkFile, nil
 }
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host

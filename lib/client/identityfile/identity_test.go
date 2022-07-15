@@ -99,9 +99,9 @@ func newClientKey(t *testing.T) *client.Key {
 	require.NoError(t, err)
 
 	return &client.Key{
-		KeyPair: client.ParseRSAKeyPair(privateKey, publicKey),
-		Cert:    certificate,
-		TLSCert: tlsCert,
+		PrivateKey: client.ParseRSAKeyPair(privateKey, publicKey),
+		Cert:       certificate,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{
 			tc,
 		},

@@ -27,8 +27,6 @@ import (
 	"runtime"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -36,27 +34,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type KeyPair interface {
-	PrivateKey() crypto.PrivateKey
+// PrivateKey implements crypto.PrivateKey.
+type PrivateKey interface {
+	crypto.Signer
+	crypto.Decrypter
+	Equal(x crypto.PrivateKey) bool
 
 	// PrivateKeyPEM is data about a private key that we want to store on disk.
 	// This can be data necessary to retrieve the key, such as a yubikey card name
 	// and slot, or it can be a full PEM encoded private key.
 	PrivateKeyData() []byte
 
-	SSHPublicKeyPEM() []byte
-
-	Signer() crypto.Signer
-
-	CheckCert(*ssh.Certificate) error
-
 	AsAgentKeys(*ssh.Certificate) []agent.AddedKey
-
-	PPKFile() ([]byte, error)
-
 	TLSCertificate(tlsCert []byte) (tls.Certificate, error)
-
-	Equals(KeyPair) bool
 
 	// TODO: nontrivial to remove these remaining usages
 	PrivateKeyPEMTODO() []byte
@@ -65,13 +55,13 @@ type KeyPair interface {
 // NewKeyPair returns a new KeyPair for the given private key data and public key PEM.
 // For non-rsa keys, the privateKeyData is used to identity where we can get the key
 // data from, such as a specific yubikey card and slot.
-func NewKeyPair(privateKeyData, pubPEM []byte) KeyPair {
+func NewKeyPair(privateKeyData, pubPEM []byte) PrivateKey {
 	// TODO: handle other privateKeyData types
 	return ParseRSAKeyPair(privateKeyData, pubPEM)
 }
 
 type RSAKeyPair struct {
-	rsaPrivateKey *rsa.PrivateKey
+	*rsa.PrivateKey
 }
 
 func GenerateRSAKeyPair() (*RSAKeyPair, error) {
@@ -80,9 +70,7 @@ func GenerateRSAKeyPair() (*RSAKeyPair, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &RSAKeyPair{
-		rsaPrivateKey: priv,
-	}, nil
+	return &RSAKeyPair{priv}, nil
 }
 
 // Retuns a new RSAKeyPair from an existing PEM-encoded RSA key pair.
@@ -94,52 +82,7 @@ func ParseRSAKeyPair(priv, pub []byte) *RSAKeyPair {
 		panic(err)
 	}
 
-	return &RSAKeyPair{
-		rsaPrivateKey: rsaPrivateKey,
-	}
-}
-
-func (r *RSAKeyPair) PrivateKey() crypto.PrivateKey {
-	return r.rsaPrivateKey
-}
-
-func (r *RSAKeyPair) Signer() crypto.Signer {
-	return r.rsaPrivateKey
-}
-
-func (r *RSAKeyPair) CheckCert(sshCert *ssh.Certificate) error {
-	// Check that the certificate was for the current public key. If not, the
-	// public/private key pair may have been rotated.
-	if !sshutils.KeysEqual(sshCert.Key, r.sshPublicKey()) {
-		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
-	}
-
-	// A valid principal is always passed in because the principals are not being
-	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := sshutils.CertChecker{
-		FIPS: isFIPS(),
-	}
-	if err := certChecker.CheckCert(sshCert.ValidPrincipals[0], sshCert); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (r *RSAKeyPair) SSHPublicKeyPEM() []byte {
-	return r.sshPublicKeyPEM()
-}
-
-func (r *RSAKeyPair) sshPublicKeyPEM() []byte {
-	return ssh.MarshalAuthorizedKey(r.sshPublicKey())
-}
-
-func (r *RSAKeyPair) sshPublicKey() ssh.PublicKey {
-	pub, err := ssh.NewPublicKey(&r.rsaPrivateKey.PublicKey)
-	if err != nil {
-		// TODO: handle error
-		panic(err)
-	}
-	return pub
+	return &RSAKeyPair{rsaPrivateKey}
 }
 
 func (r *RSAKeyPair) PrivateKeyData() []byte {
@@ -150,21 +93,12 @@ func (r *RSAKeyPair) privateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:    "RSA PRIVATE KEY",
 		Headers: nil,
-		Bytes:   x509.MarshalPKCS1PrivateKey(r.rsaPrivateKey),
+		Bytes:   x509.MarshalPKCS1PrivateKey(r.PrivateKey),
 	})
 }
 
 func (r *RSAKeyPair) PrivateKeyPEMTODO() []byte {
 	return r.privateKeyPEM()
-}
-
-// PPKFile returns a PuTTY PPK-formatted keypair
-func (r *RSAKeyPair) PPKFile() ([]byte, error) {
-	ppkFile, err := ppk.ConvertToPPK(r.privateKeyPEM(), r.sshPublicKeyPEM())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ppkFile, nil
 }
 
 func (r *RSAKeyPair) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
@@ -175,13 +109,15 @@ func (r *RSAKeyPair) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func (r *RSAKeyPair) Equals(other KeyPair) bool {
-	rsa, ok := other.(*RSAKeyPair)
-	if !ok {
+func (r *RSAKeyPair) Equal(other crypto.PrivateKey) bool {
+	switch otherRSAKey := other.(type) {
+	case *RSAKeyPair:
+		return subtle.ConstantTimeCompare(r.privateKeyPEM(), otherRSAKey.privateKeyPEM()) == 1
+	case *rsa.PrivateKey:
+		return subtle.ConstantTimeCompare(r.privateKeyPEM(), (&RSAKeyPair{otherRSAKey}).privateKeyPEM()) == 1
+	default:
 		return false
 	}
-
-	return subtle.ConstantTimeCompare(r.privateKeyPEM(), rsa.privateKeyPEM()) == 1
 }
 
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements
@@ -193,7 +129,7 @@ func (r *RSAKeyPair) AsAgentKeys(sshCert *ssh.Certificate) []agent.AddedKey {
 	// On all OS'es, return the certificate with the private key embedded.
 	agents := []agent.AddedKey{
 		{
-			PrivateKey:       r.rsaPrivateKey,
+			PrivateKey:       r.PrivateKey,
 			Certificate:      sshCert,
 			Comment:          comment,
 			LifetimeSecs:     0,
@@ -216,7 +152,7 @@ func (r *RSAKeyPair) AsAgentKeys(sshCert *ssh.Certificate) []agent.AddedKey {
 		// WARNING: callers expect the returned slice to be __exactly as it is__
 
 		agents = append(agents, agent.AddedKey{
-			PrivateKey:       r.rsaPrivateKey,
+			PrivateKey:       r.PrivateKey,
 			Certificate:      nil,
 			Comment:          comment,
 			LifetimeSecs:     0,
