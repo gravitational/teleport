@@ -1932,6 +1932,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setIdentity(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.IdentityFileIn = path
+		return nil
+	}
+}
+
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)

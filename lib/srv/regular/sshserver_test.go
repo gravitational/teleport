@@ -2040,7 +2040,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.Equal(t, "hello again\n", string(out))
 }
 
-// upack holds all ssh signing artefacts needed for signing and checking user keys
+// upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
