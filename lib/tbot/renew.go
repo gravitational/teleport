@@ -293,6 +293,73 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg
 	}, nil
 }
 
+func getApp(ctx context.Context, client auth.ClientI, appName string) (types.Application, error) {
+	res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+		Limit:               int32(defaults.DefaultChunkSize),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(res.Resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	apps = types.DeduplicateApps(apps)
+
+	// Check app name in the (unlikely) event the server does not process
+	// filters.
+	for _, app := range apps {
+		if app.GetName() == appName {
+			return app, nil
+		}
+	}
+
+	return nil, trace.BadParameter("app %q not found", appName)
+}
+
+func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.AppConfig) (proto.RouteToApp, error) {
+	if appCfg.App == "" {
+		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
+	}
+
+	app, err := getApp(ctx, client, appCfg.App)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	// TODO: AWS?
+	ident := b.ident()
+	ws, err := client.CreateAppSession(ctx, types.CreateAppSessionRequest{
+		ClusterName: ident.ClusterName,
+		Username:    ident.X509Cert.Subject.CommonName,
+		PublicAddr:  app.GetPublicAddr(),
+	})
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	return proto.RouteToApp{
+		Name:        app.GetName(),
+		SessionID:   ws.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: ident.ClusterName,
+	}, nil
+}
+
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
 	expires time.Time,
@@ -343,6 +410,29 @@ func (b *Bot) generateImpersonatedIdentity(
 		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
 
 		return newIdent, trace.Wrap(err)
+	} else if destCfg.App != nil {
+		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		defer impClient.Close()
+
+		routeToApp, err := b.getRouteToApp(ctx, impClient, destCfg.App)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.RouteToApp = routeToApp
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		b.log.Infof("Generated identity for app %q", *destCfg.App)
+
+		return newIdent, nil
 	}
 
 	return ident, nil

@@ -78,6 +78,37 @@ func (kc *KubernetesCluster) CheckAndSetDefaults() error {
 	return nil
 }
 
+// AppConfig is a cert request for app access.
+type AppConfig struct {
+	App string `yaml:"app,omitempty"`
+}
+
+func (ac *AppConfig) UnmarshalYAML(node *yaml.Node) error {
+	// As with KubernetesCluster, this is a plain string field that we want to
+	// implement CheckAndSetDefaults().
+
+	var app string
+	if err := node.Decode(&app); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ac.App = app
+	return nil
+}
+
+func (ac *AppConfig) MarshalYAML() (interface{}, error) {
+	// The marshaler needs to match the unmarshaler.
+	return ac.App, nil
+}
+
+func (ac *AppConfig) CheckAndSetDefaults() error {
+	if ac.App == "" {
+		return trace.BadParameter("app name must not be empty")
+	}
+
+	return nil
+}
+
 // DestinationConfig configures a user certificate destination.
 type DestinationConfig struct {
 	DestinationMixin `yaml:",inline"`
@@ -97,6 +128,10 @@ type DestinationConfig struct {
 	// KubernetesCluster is a cluster to request access to. Mutually exclusive
 	// with `database` and other special cert requests.
 	KubernetesCluster *KubernetesCluster `yaml:"kubernetes_cluster,omitempty"`
+
+	// App is an app access request. Mutually exclusive with `database`,
+	//`kubernetes_cluster`, and other special cert requests.
+	App *AppConfig `yaml:"app,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -145,6 +180,7 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	certRequests := []interface{ CheckAndSetDefaults() error }{
 		dc.Database,
 		dc.KubernetesCluster,
+		dc.App,
 	}
 	notNilCount := 0
 	for _, request := range certRequests {
