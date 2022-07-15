@@ -90,7 +90,7 @@ func newListenerAndLocalProxy(cfg Config, port string) (*newListenerAndLocalProx
 		return nil, trace.Wrap(err)
 	}
 
-	localProxy, err := newLocalProxy(cfg, listener, closeContext)
+	localProxy, err := newLocalProxy(closeContext, cfg, listener)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +99,7 @@ func newListenerAndLocalProxy(cfg Config, port string) (*newListenerAndLocalProx
 	return &newListenerAndLocalProxyResult{localPort, listener, closeContext, closeCancel, localProxy}, nil
 }
 
-func newLocalProxy(cfg Config, listener net.Listener, closeContext context.Context) (*alpn.LocalProxy, error) {
+func newLocalProxy(closeContext context.Context, cfg Config, listener net.Listener) (*alpn.LocalProxy, error) {
 	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
