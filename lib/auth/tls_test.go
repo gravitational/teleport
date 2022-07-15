@@ -1080,7 +1080,7 @@ func TestAppServerCRUD(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	clt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	clt, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{

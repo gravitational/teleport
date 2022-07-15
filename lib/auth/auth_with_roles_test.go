@@ -2881,7 +2881,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleAdmin).I))
+	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
 	s := &ServerWithRoles{
