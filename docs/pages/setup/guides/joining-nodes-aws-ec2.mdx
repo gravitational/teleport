@@ -63,10 +63,9 @@ more in the following guide:
   See [Installation](../../installation.mdx) for details.
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
-  installed.
-  
-The Node should not have an existing data dir (`/var/lib/teleport` by default). 
-  Remove the data directory if this instance has previously joined a Teleport cluster.
+  installed. The Node should not have an existing data dir (`/var/lib/teleport` by default). 
+  Remove the data directory if this instance has previously joined a Teleport cluster.  
+
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
@@ -84,10 +83,10 @@ The Node should not have an existing data dir (`/var/lib/teleport` by default).
   ```
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
-  installed.
-  
-- AWS EC2 node should not have an existing data dir (e.g. `/var/lib/teleport`).
-  Remove if this instance has previously joined a Teleport cluster.
+    installed. The Node should not have an existing data dir
+    (`/var/lib/teleport` by default). Remove the data directory if this
+    instance has previously joined a Teleport cluster.
+
 </TabItem>
 </Tabs>
 
@@ -216,13 +215,14 @@ proxy_service:
   type="note"
   title="IMPORTANT"
 >
-  The data directory (`/var/lib/teleport` by default) must be empty prior to launching the
-  Node. If this Node had previously joined by another method (e.g. token or IAM) the host UUID will not match the expected name 
-  (<AWS Account number>-<instance id>) and will not be allowed to join.
+  The data directory (`/var/lib/teleport` by default) must be empty prior to
+  launching the Node. If this Node had previously joined by another method (e.g.
+  token or IAM) the host UUID will not match the expected name (`<AWS Account
+  number>-<instance id>`) and will not be allowed to join.
 </Admonition>
 
 
-Start Teleport on the node and confirm that it is able to connect to and join
+Start Teleport on the Node and confirm that it is able to connect to and join
 your cluster. You're all set!
 
 ## Configuring the EC2 join method for Multiple AWS Accounts
