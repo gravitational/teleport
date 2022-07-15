@@ -93,7 +93,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.TCPPortAllocator == nil {
-		return trace.BadParameter("missing TCPPortAllocator")
+		c.TCPPortAllocator = NetTCPPortAllocator{}
 	}
 
 	return nil
