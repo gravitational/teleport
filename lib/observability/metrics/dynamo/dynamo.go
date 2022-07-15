@@ -60,3 +60,13 @@ const (
 	// Events is a table used to store audit events.
 	Events TableType = "events"
 )
+
+// recordMetrics updates the set of dynamo api metrics
+func recordMetrics(tableType TableType, operation string, err error, latency float64) {
+	labels := []string{string(tableType), operation}
+	apiRequestLatencies.WithLabelValues(labels...).Observe(latency)
+	apiRequests.WithLabelValues(labels...).Inc()
+	if err != nil {
+		apiRequestsFailed.WithLabelValues(labels...).Inc()
+	}
+}
