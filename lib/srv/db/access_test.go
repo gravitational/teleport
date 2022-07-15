@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -813,6 +814,13 @@ func TestAccessMongoDB(t *testing.T) {
 
 						// Create user/role with the requested permissions.
 						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
+						// Mongo driver establish servers connection to the upstream mongo server
+						// To decrease the deal during dialing Mongo TestServer by Engine wait for
+						// PrecomputeKeys.
+						require.Eventually(t, func() bool {
+							return native.PrecomputeKeysCount() > 3
+						}, time.Minute, time.Second, "failed to wait for pre-computed keys ")
 
 						// Try to connect to the database as this user.
 						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)

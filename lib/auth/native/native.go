@@ -97,6 +97,11 @@ func PrecomputeKeys() {
 	})
 }
 
+// PrecomputeKeysCount return current number of pre-computed keys.
+func PrecomputeKeysCount() int {
+	return len(precomputedKeys)
+}
+
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
 // This will pull from a precomputed cache of ready to use keys if PrecomputeKeys was enabled.
 func GenerateKeyPair() ([]byte, []byte, error) {
