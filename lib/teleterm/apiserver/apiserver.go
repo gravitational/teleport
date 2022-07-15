@@ -15,13 +15,13 @@
 package apiserver
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 
-	"crypto/tls"
-	"crypto/x509"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 
