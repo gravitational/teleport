@@ -47,14 +47,9 @@ type UserCommand struct {
 	allowedDatabaseUsers []string
 	allowedDatabaseNames []string
 	allowedAWSRoleARNs   []string
-	createRoles          []string
+	allowedRoles         []string
 
 	ttl time.Duration
-
-	// updateRoles contains new roles for update users command
-	updateRoles string
-	// updateLogins contains new logins for update users command
-	updateLogins string
 
 	// format is the output format, e.g. text or json
 	format string
@@ -84,7 +79,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 
-	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
+	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
@@ -95,7 +90,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate = users.Command("update", "Update user account")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
-		StringsVar(&u.createRoles)
+		StringsVar(&u.allowedRoles)
 	u.userUpdate.Flag("set-logins", "List of allowed SSH logins for the user, replaces current logins").
 		StringsVar(&u.allowedLogins)
 	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
@@ -211,12 +206,12 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
 func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
-	u.createRoles = flattenSlice(u.createRoles)
+	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
 	// Validate roles (server does not do this yet).
-	for _, roleName := range u.createRoles {
+	for _, roleName := range u.allowedRoles {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
 			return trace.Wrap(err)
 		}
@@ -238,7 +233,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	}
 
 	user.SetTraits(traits)
-	user.SetRoles(u.createRoles)
+	user.SetRoles(u.allowedRoles)
 
 	if err := client.CreateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
@@ -300,8 +295,8 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	}
 
 	updateMessages := make(map[string][]string)
-	if len(u.createRoles) > 0 {
-		roles := flattenSlice(u.createRoles)
+	if len(u.allowedRoles) > 0 {
+		roles := flattenSlice(u.allowedRoles)
 		for _, role := range roles {
 			if _, err := client.GetRole(ctx, role); err != nil {
 				return trace.Wrap(err)
