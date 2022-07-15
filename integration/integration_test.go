@@ -6548,6 +6548,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 		return tconf
 	}
 	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig())
+	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
 	// Create a Teleport instance with a Node.
 	nodeConfig := func() *service.Config {

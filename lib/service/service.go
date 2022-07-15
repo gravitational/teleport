@@ -2903,6 +2903,7 @@ type proxyListeners struct {
 	proxy            net.Listener
 	grpc             net.Listener
 	reverseTunnelMux *multiplexer.Mux
+	minimalTLS       *multiplexer.WebListener
 }
 
 // dbListeners groups database access listeners.
@@ -2966,6 +2967,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.reverseTunnelMux != nil {
 		l.reverseTunnelMux.Close()
+	}
+	if l.minimalTLS != nil {
+		l.minimalTLS.Close()
 	}
 }
 
@@ -3380,6 +3384,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// Register web proxy server
 	var webServer *http.Server
 	var webHandler *web.APIHandler
+	var minimalWebServer *http.Server
+	var minimalWebHandler *web.APIHandler
 
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
@@ -3459,7 +3465,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if listeners.reverseTunnelMux != nil {
-			if err := process.initMinimalReverseTunnel(listeners, tlsConfigWeb, cfg, webConfig, log); err != nil {
+			if minimalWebServer, minimalWebHandler, err = process.initMinimalReverseTunnel(listeners, tlsConfigWeb, cfg, webConfig, log); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -3804,6 +3810,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if webHandler != nil {
 				warnOnErr(webHandler.Close(), log)
 			}
+			if minimalWebServer != nil {
+				warnOnErr(minimalWebServer.Close(), log)
+			}
+			if minimalWebHandler != nil {
+				warnOnErr(minimalWebHandler.Close(), log)
+			}
 			warnOnErr(sshProxy.Close(), log)
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
@@ -3833,11 +3845,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if webServer != nil {
 				warnOnErr(webServer.Shutdown(ctx), log)
 			}
+			if minimalWebServer != nil {
+				warnOnErr(minimalWebServer.Shutdown(ctx), log)
+			}
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Shutdown(ctx), log)
 			}
 			if webHandler != nil {
 				warnOnErr(webHandler.Close(), log)
+			}
+			if minimalWebHandler != nil {
+				warnOnErr(minimalWebHandler.Close(), log)
 			}
 			if grpcServer != nil {
 				grpcServer.GracefulStop()
@@ -3864,7 +3882,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) error {
+func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) (*http.Server, *web.APIHandler, error) {
 	var minimalWebServer *http.Server
 	var minimalWebHandler *web.APIHandler
 
@@ -3872,17 +3890,18 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		Listener: tls.NewListener(listeners.reverseTunnelMux.TLS(), tlsConfigWeb),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
+	listeners.minimalTLS = minimalListener
 
 	minimalProxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	webConfig.MinimalReverseTunnelRoutesOnly = true
 	minimalWebHandler, err = web.NewHandler(webConfig)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	minimalProxyLimiter.WrapHandle(minimalWebHandler)
 
@@ -3912,7 +3931,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		log.Info("Exited.")
 		return nil
 	})
-	return nil
+	return minimalWebServer, minimalWebHandler, nil
 }
 
 // kubeDialAddr returns Proxy Kube service address used for dialing local kube service
