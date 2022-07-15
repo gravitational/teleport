@@ -122,8 +122,6 @@ type touchIDContext struct {
 }
 
 func (c *touchIDContext) Guard(fn func()) error {
-	authCtx := getNativeContext(c)
-
 	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
@@ -135,7 +133,7 @@ func (c *touchIDContext) Guard(fn func()) error {
 	var errMsgC *C.char
 	defer C.free(unsafe.Pointer(errMsgC))
 
-	res := C.AuthContextGuard(authCtx, reasonC, C.uintptr_t(handle), &errMsgC)
+	res := C.AuthContextGuard(c.ctx, reasonC, C.uintptr_t(handle), &errMsgC)
 	if res != 0 {
 		errMsg := C.GoString(errMsgC)
 		return errorFromStatus("guard", int(res), errMsg)
