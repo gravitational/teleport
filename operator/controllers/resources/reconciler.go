@@ -85,7 +85,9 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	if isMarkedToBeDeleted {
 		if hasDeletionFinalizer {
 			log.Info("deleting object in Teleport")
-			if err := r.DeleteExternal(ctx, obj); err != nil {
+			if err := r.DeleteExternal(ctx, obj); !trace.IsNotFound(err) {
+			     return ctrl.Result{}, trace.Wrap(err)
+			}
 				// if the object was already deleted in Teleport, we can continue our flow
 				// Any other error will be returned
 				if !trace.IsNotFound(err) {
@@ -108,17 +110,13 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 		log.Info("adding finalizer")
 		controllerutil.AddFinalizer(obj, DeletionFinalizer)
 
-		if err := r.Update(ctx, obj); err != nil {
-			return ctrl.Result{}, trace.Wrap(err, "failed to add finalizer")
-		}
-		return ctrl.Result{}, nil
+		err := r.Update(ctx, obj)
+		
+		return ctrl.Result{}, trace.Wrap(err, "failed to add finalizer")
 	}
 
 	// Create or update
 	log.Info("upsert object in Teleport")
-	if err := r.UpsertExternal(ctx, obj); err != nil {
-		return ctrl.Result{}, trace.Wrap(err)
-	}
-
-	return ctrl.Result{}, nil
+       err := r.UpsertExternal(ctx, obj)
+       return ctrl.Result{}, trace.Wrap(err)
 }

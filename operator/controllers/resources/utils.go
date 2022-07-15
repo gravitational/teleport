@@ -16,11 +16,8 @@ const (
 // isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
 // value is kubernetes.
 func isResourceOriginKubernetes(resource types.Resource) bool {
-	metadata := resource.GetMetadata()
-	if label, ok := metadata.Labels[types.OriginLabel]; ok {
-		return label == types.OriginKubernetes
-	}
-	return false
+	label := resource.GetMetadata().Labels[types.OriginLabel]
+	return label == types.OriginKubernetes
 }
 
 // checkOwnership takes an existing resource and validates the operator owns it.
