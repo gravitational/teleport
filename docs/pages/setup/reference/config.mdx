@@ -277,13 +277,24 @@ auth_service:
         # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
-        # second_factor can be 'off', 'on', 'optional', 'otp', 'webauthn' or
-        # 'u2f'.
-        # - 'on' requires otp and either webauthn (preferred) or u2f.
-        # - 'optional' allows otp and either webauthn (preferred) or u2f.
-        # - 'otp', 'webauthn' and 'u2f' require their corresponding second
-        #   factor type.
+        # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
+        # - 'on' requires either otp or webauthn second factor.
+        # - 'optional' allows otp and webauthn second factor.
+        # - 'otp' and 'webauthn' require the corresponding second factor.
         second_factor: otp
+
+        # Sets whether passwordless authorization is allowed.
+        # Passwordless requires WebAuthn.
+        # Defaults to "true".
+        #passwordless: true
+
+        # Sets the authenticator connector for SSO (Enterprise) or the default
+        # connector for "local" authentication.
+        # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
+        # See Passwordless for local
+        # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
+        # Defaults to "local".
+        #connector_name: local
 
         # this section is used if second_factor is set to 'on', 'optional' or
         # 'webauthn'.
@@ -333,47 +344,12 @@ auth_service:
           # second factor modes 'on' and 'optional'.
           disabled: false
 
-        # this section is used if second_factor is set to 'u2f'
+        # the U2F section is kept for legacy purposes and to support existing
+        # U2F registrations.
         u2f:
-            # public address of the Teleport proxy, _including_ the `https://`
-            # prefix. If you use a port number other than 443, include it as
-            # well.
-            #
-            # Examples:
-            # - "https://example.com" (uses default port 443)
-            # - "https://example.com:3080" (uses non-default port 3080)
-            #
-            # IMPORTANT: app_id must never change in the lifetime of the
-            # cluster, because it's recorded in the registration data on the
-            # U2F device. If the app_id changes, all existing U2F key
-            # registrations will become invalid and all users who use U2F as
-            # the second factor will need to re-register.
+            # app ID used by U2F registrations.
+            # Keep it in your config to avoid having to re-register U2F devices.
             app_id: https://localhost:3080
-
-            # list of allowed addresses of the Teleport proxy checked during
-            # authentication attempts. This list is used to prevent malicious
-            # websites and proxies from requesting U2F challenges on behalf of
-            # the legitimate proxy.
-            facets:
-            # app_id should always also be listed as a facet
-            - https://localhost:3080
-            - https://localhost
-            # localhost allows non-https facets as well
-            - localhost:3080
-            - localhost
-
-            # optional list of certificate authorities (as local file paths or
-            # in-line PEM certificate string) for U2F [device
-            # attestation](https://fidoalliance.org/specs/fido-u2f-v1.0-nfc-bt-amendment-20150514/fido-u2f-overview.html#verifying-that-a-u2f-device-is-genuine)
-            # verification. This field allows you to restrict which U2F device
-            # vendors you trust. Devices from other vendors will be rejected
-            # during registration. By default, any vendor is allowed.
-            device_attestation_cas:
-            - /path/to/u2f_ca.pem
-            - |
-              -----BEGIN CERTIFICATE-----
-              ...
-              -----END CERTIFICATE-----
 
         # Locking mode determines how to apply lock views locally available to
         # a Teleport component; can be strict or best_effort.

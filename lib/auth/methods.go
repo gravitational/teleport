@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -134,9 +135,23 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	return user, trace.Wrap(err)
 }
 
-// authenticateWebauthnError is the generic error message returned for failed
-// WebAuthn authentication attempts.
-const authenticateWebauthnError = "invalid Webauthn response"
+var (
+	// authenticateWebauthnError is the generic error returned for failed WebAuthn
+	// authentication attempts.
+	authenticateWebauthnError = trace.AccessDenied("invalid Webauthn response")
+	// invalidUserPassError is the error for when either the provided username or
+	// password is incorrect.
+	invalidUserPassError = trace.AccessDenied("invalid username or password")
+	// invalidUserpass2FError is the error for when either the provided username,
+	// password, or second factor is incorrect.
+	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+)
+
+// IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
+// password, or second factor.
+func IsInvalidLocalCredentialError(err error) bool {
+	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
+}
 
 // authenticateUser authenticates a user through various methods (password, MFA,
 // passwordless)
@@ -155,7 +170,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 
 	// Try 2nd-factor-enabled authentication schemes first.
 	var authenticateFn func() (*types.MFADevice, error)
-	var failMsg string // failMsg kept obscure on purpose, use logging for details
+	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
 	case req.Webauthn != nil:
@@ -168,7 +183,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return dev, trace.Wrap(err)
 		}
-		failMsg = authenticateWebauthnError
+		authErr = authenticateWebauthnError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -179,7 +194,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 			return res.mfaDev, nil
 		}
-		failMsg = "invalid username, password or second factor"
+		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
@@ -195,12 +210,12 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 				return nil, "", trace.Wrap(fieldErr)
 			}
 
-			return nil, "", trace.AccessDenied(failMsg)
+			return nil, "", trace.Wrap(authErr)
 		case dev == nil:
 			log.Debugf(
 				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v): %v.",
 				req.Webauthn != nil, req.OTP != nil, err)
-			return nil, "", trace.AccessDenied(failMsg)
+			return nil, "", trace.Wrap(authErr)
 		default:
 			return dev, user, nil
 		}
@@ -248,7 +263,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		// provide obscure message on purpose, while logging the real
 		// error server side
 		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, "", trace.AccessDenied("invalid username or password")
+		return nil, "", trace.Wrap(invalidUserPassError)
 	}
 	return nil, user, nil
 }
@@ -262,7 +277,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
-		return nil, "", trace.AccessDenied(authenticateWebauthnError)
+		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
 
 	// A distinction between passwordless and "plain" MFA is that we can't
@@ -270,7 +285,7 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// We do grab it here so successful logins go through the regular process.
 	if err := s.WithUserLock(user, func() error { return nil }); err != nil {
 		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
-		return nil, user, trace.AccessDenied(authenticateWebauthnError)
+		return nil, user, trace.Wrap(authenticateWebauthnError)
 	}
 
 	return dev, user, nil

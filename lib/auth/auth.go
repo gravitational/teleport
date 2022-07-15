@@ -913,7 +913,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -964,7 +964,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
-			teleport.TraitLogins: {req.Username},
+			constants.TraitLogins: {req.Username},
 		},
 		routeToCluster: req.Cluster,
 		dbService:      req.RouteToDatabase.ServiceName,
@@ -2257,8 +2257,44 @@ func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID s
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
+	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
+	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
+	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
+	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: a.ServerID,
+	}
+	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
+		return trace.Wrap(err)
+	}
 	a.inventory.RegisterControlStream(ics, hello)
+	return nil
+}
+
+// MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
+// server upon hello exchange.
+func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe()
+	go func() {
+		select {
+		case msg := <-upstream.Recv():
+			hello, ok := msg.(proto.UpstreamInventoryHello)
+			if !ok {
+				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
+				return
+			}
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+				upstream.CloseWithError(err)
+				return
+			}
+		case <-upstream.Done():
+		case <-a.CloseContext().Done():
+			upstream.Close()
+		}
+	}()
+	return downstream
 }
 
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
@@ -2510,35 +2546,11 @@ func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
-func (a *Server) pruneResourceRequestRoles(ctx context.Context, req types.AccessRequest) error {
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	user, err := a.GetUser(req.GetUser(), false /* withSecrets */)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(services.PruneResourceRequestRoles(
-		ctx,
-		req,
-		a.GetCache(),
-		clusterName.GetClusterName(),
-		user.GetTraits(),
-	))
-}
-
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
 	if err := services.ValidateAccessRequestForUser(ctx, a, req,
 		// if request is in state pending, variable expansion must be applied
 		services.ExpandVars(req.GetState().IsPending()),
 	); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.pruneResourceRequestRoles(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2840,47 +2852,31 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return a.GetCache().GetNodes(ctx, namespace)
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
-		var resp *types.ListResourcesResponse
-		switch {
-		case req.ResourceType == types.KindWindowsDesktop:
-			wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-				WindowsDesktopFilter: req.WindowsDesktopFilter,
-				Limit:                int(req.Limit),
-				StartKey:             req.StartKey,
-				PredicateExpression:  req.PredicateExpression,
-				Labels:               req.Labels,
-				SearchKeywords:       req.SearchKeywords,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = &types.ListResourcesResponse{
-				Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
-				NextKey:   wResp.NextKey,
-			}
-		default:
-			dResp, err := a.ListResources(ctx, req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = dResp
-		}
-
-		stop, err := f(resp.Resources)
+		resp, err := a.ListResources(ctx, req)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || resp.NextKey == "" {
-			return resp, nil
+		for _, resource := range resp.Resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
+		}
+
+		if resp.NextKey == "" {
+			return nil
 		}
 
 		req.StartKey = resp.NextKey
@@ -3173,6 +3169,26 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 
 // ListResources returns paginated resources depending on the resource type..
 func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// Because WindowsDesktopService does not contain the desktop resources,
+	// this is not implemented at the cache level and requires the workaround
+	// here in order to support KindWindowsDesktop for ListResources.
+	if req.ResourceType == types.KindWindowsDesktop {
+		wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: req.WindowsDesktopFilter,
+			Limit:                int(req.Limit),
+			StartKey:             req.StartKey,
+			PredicateExpression:  req.PredicateExpression,
+			Labels:               req.Labels,
+			SearchKeywords:       req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ListResourcesResponse{
+			Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
+			NextKey:   wResp.NextKey,
+		}, nil
+	}
 	return a.GetCache().ListResources(ctx, req)
 }
 

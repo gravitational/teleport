@@ -9,41 +9,6 @@ config file using Teleport Helm charts.
 This setup can be useful when you already have an existing Teleport cluster and would like to start running it in Kubernetes, or when
 migrating your setup from a legacy version of the Helm charts.
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-
-Teleport Cloud users should consult the following guide, which shows
-you how to connect a Teleport Kubernetes Service agent to an existing Teleport
-cluster:
-
-<TileSet>
-<Tile
-title="Connect a Kubernetes Cluster to Teleport"
-href="./agent.mdx"
-icon="kubernetes"
->
-</Tile>
-</TileSet>
-
-You can also view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-href="./custom.mdx/?scope=oss"
-title="Open Source"
-icon="stack"
->
-</Tile>
-<Tile
-href="./custom.mdx/?scope=enterprise"
-title="Enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ## Prerequisites
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
@@ -273,5 +238,3 @@ $ helm --namespace teleport uninstall teleport
 
 You can follow our [Getting Started with Teleport guide](../guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
 Teleport cluster.
-
-</ScopedBlock>

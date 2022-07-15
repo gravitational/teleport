@@ -1369,6 +1369,57 @@ func TestDebugFlag(t *testing.T) {
 	require.True(t, cfg.Debug)
 }
 
+func TestMergingCAPinConfig(t *testing.T) {
+	tests := []struct {
+		desc       string
+		cliPins    []string
+		configPins string // this goes into the yaml in bracket syntax [val1,val2,...]
+		want       []string
+	}{
+		{
+			desc:       "pin taken from cli only",
+			cliPins:    []string{"cli-pin"},
+			configPins: "",
+			want:       []string{"cli-pin"},
+		},
+		{
+			desc:       "pin taken from file config only",
+			cliPins:    []string{},
+			configPins: "fc-pin",
+			want:       []string{"fc-pin"},
+		},
+		{
+			desc:       "non-empty pins from cli override file config",
+			cliPins:    []string{"cli-pin1", "", "cli-pin2", ""},
+			configPins: "fc-pin",
+			want:       []string{"cli-pin1", "cli-pin2"},
+		},
+		{
+			desc:       "all empty pins from cli do not override file config",
+			cliPins:    []string{"", ""},
+			configPins: "fc-pin1,fc-pin2",
+			want:       []string{"fc-pin1", "fc-pin2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				CAPins: tt.cliPins,
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(
+					configWithCAPins,
+					tt.configPins,
+				))),
+			}
+			cfg := service.MakeDefaultConfig()
+			require.Empty(t, cfg.CAPins)
+			err := Configure(&clf, cfg)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.want, cfg.CAPins)
+		})
+	}
+}
+
 func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
 		path   string

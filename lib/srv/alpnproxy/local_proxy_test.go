@@ -118,6 +118,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	t.Cleanup(func() {
 		err := lp.Close()
 		require.NoError(t, err)
+		hs.Close()
 	})
 	go func() {
 		err := lp.StartAWSAccessProxy(context.Background())

@@ -104,6 +104,7 @@ db_service:
   {{- end }}
   {{- if .MemoryDBDiscoveryRegions }}
   # MemoryDB databases auto-discovery.
+  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
   - types: ["memorydb"]
     # AWS regions to register databases from.
     regions:

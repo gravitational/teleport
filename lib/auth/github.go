@@ -458,10 +458,10 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 			claims.Username, connector.GetName())
 	}
 	p.traits = map[string][]string{
-		teleport.TraitLogins:     {p.username},
-		teleport.TraitKubeGroups: p.kubeGroups,
-		teleport.TraitKubeUsers:  p.kubeUsers,
-		teleport.TraitTeams:      claims.Teams,
+		constants.TraitLogins:     {p.username},
+		constants.TraitKubeGroups: p.kubeGroups,
+		constants.TraitKubeUsers:  p.kubeUsers,
+		teleport.TraitTeams:       claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
