@@ -31,7 +31,16 @@ function makePresents(test = false) {
     ];
   }
 
-  return ['@babel/preset-env', ...presents];
+  return [
+    [
+      '@babel/preset-env',
+      {
+        targets:
+          'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version',
+      },
+    ],
+    ...presents,
+  ];
 }
 
 module.exports = {

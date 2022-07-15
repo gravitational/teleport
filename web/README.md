@@ -169,3 +169,16 @@ proxy_service:
 ```
 
 Then start the dev server like `yarn start-teleport --target=https://proxy.127.0.0.1.nip.io:3080` and access it at https://proxy.127.0.0.1.nip.io:8080.
+
+### Adding Packages/Dependencies
+
+We use Yarn Workspaces to manage dependencies.
+
+- [Introducing Workspaces](https://yarnpkg.com/blog/2017/08/02/introducing-workspaces)
+- [Workspaces Documentation](https://yarnpkg.com/en/docs/workspaces)
+
+The easiest way to add a package is to add a line to the workspace's `package.json` file and then run `yarn install` from
+the root of this repository.
+
+Keep in mind that there should only be a single `yarn.lock` in this repository, here at the top level. If you add packages
+via `yarn workspace <workspace-name> add <package-name>`, it will create a `packages/<package-name>/yarn.lock` file, which should not be checked in.
