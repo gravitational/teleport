@@ -46,7 +46,7 @@ func (b *Bot) initializeConfig() {
 	// Initialize tbot config
 	b.cfg = &config.BotConfig{
 		Onboarding: &config.OnboardingConfig{
-			Token:      "",         // Field should be populated later, before running
+			TokenValue: "",         // Field should be populated later, before running
 			CAPins:     []string{}, // Field should be populated later, before running
 			JoinMethod: types.JoinMethodToken,
 		},
@@ -83,7 +83,7 @@ func (b *Bot) GetClient(ctx context.Context) (auth.ClientI, error) {
 		return nil, trace.Errorf("bot not started yet")
 	}
 	// If the bot has not joined the cluster yet or not generated client certs we bail out
-	// This is either temporary or the bot is dead and the manager will shutdown everything.
+	// This is either temporary or the bot is dead and the manager will shut down everything.
 	if botCert, err := b.cfg.Storage.Memory.Read(identity.TLSCertKey); err != nil || len(botCert) == 0 {
 		return nil, trace.Retry(err, "bot cert not yet present")
 	}
@@ -149,7 +149,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 	log.Infof("Token generated %s", token)
 
-	b.cfg.Onboarding.Token = token
+	b.cfg.Onboarding.TokenValue = token
 
 	// Getting the cluster CA Pins to be able to join regardless of the cert SANs.
 	localCAResponse, err := b.rootClient.GetClusterCACert(ctx)
