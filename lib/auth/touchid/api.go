@@ -218,7 +218,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	case cc.Response.User.Name == "":
 		return nil, errors.New("user name required")
 	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
-		return nil, fmt.Errorf("cannot fulfil authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
+		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
 	for _, param := range cc.Response.Parameters {
@@ -229,7 +229,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		}
 	}
 	if !ok {
-		return nil, errors.New("cannot fulfil credential parameters, only ES256 are supported")
+		return nil, errors.New("cannot fulfill credential parameters, only ES256 are supported")
 	}
 
 	rpID := cc.Response.RelyingParty.ID
