@@ -1,0 +1,8 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: db
+dbCustomCASecretName: "db-custom-ca-cert"
+databases:
+- name: aurora
+  uri: "postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432"
+  protocol: "postgres"

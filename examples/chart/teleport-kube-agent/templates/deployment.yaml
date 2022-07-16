@@ -95,8 +95,8 @@ spec:
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
-        - mountPath: /etc/teleport-secrets
-          name: "auth-token"
+        - mountPath: /etc/teleport-secrets # includes custom caCert and auth token
+          name: "teleport-secrets"
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
@@ -162,8 +162,8 @@ spec:
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
-        - mountPath: /etc/teleport-secrets
-          name: "auth-token"
+        - mountPath: /etc/teleport-secrets # includes custom caCert and auth token
+          name: "teleport-secrets"
           readOnly: true
         - mountPath: /var/lib/teleport
           name: {{ default "data" .Values.existingDataVolume }}
@@ -174,9 +174,15 @@ spec:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
-      - name: "auth-token"
-        secret:
-          secretName: {{ .Values.secretName }}
+      - name: teleport-secrets
+        projected:
+          sources:
+          - secret:
+              name: {{ .Values.secretName }} # Auth Token
+{{- if .Values.dbCustomCASecretName }}
+          - secret:
+              name: {{ .Values.dbCustomCASecretName }} # customCACert secret
+{{ end }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}
