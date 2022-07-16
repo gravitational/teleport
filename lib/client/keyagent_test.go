@@ -529,7 +529,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}
 
 	return &Key{
-		PrivateKey: ParseRSAKeyPair(privateKey, publicKey),
+		PrivateKey: ParseRSAPrivateKey(privateKey, publicKey),
 		Cert:       certificate,
 		TLSCert:    tlsCert,
 		KeyIndex: KeyIndex{

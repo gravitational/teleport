@@ -136,7 +136,7 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.PrivateKeyData(), fs.UserKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := fs.writeBytes(key.SSHPublicKeyPEM(), fs.sshCAsPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.SSHPublicKeyPEM(), fs.publicKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
@@ -207,7 +207,7 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 	files := []string{
 		fs.UserKeyPath(idx),
-		fs.sshCAsPath(idx),
+		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
 	for _, fn := range files {
@@ -282,16 +282,6 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	privData, err := os.ReadFile(fs.UserKeyPath(idx))
-	if err != nil {
-		fs.log.Error(err)
-		return nil, trace.ConvertSystemError(err)
-	}
-	pub, err := os.ReadFile(fs.sshCAsPath(idx))
-	if err != nil {
-		fs.log.Error(err)
-		return nil, trace.ConvertSystemError(err)
-	}
 	tlsCertFile := fs.tlsCertPath(idx)
 	tlsCert, err := os.ReadFile(tlsCertFile)
 	if err != nil {
@@ -304,9 +294,33 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.ConvertSystemError(err)
 	}
 
+	// Get Private key from key device or from disk
+	var pk PrivateKey
+	pk, err = GetYkPrivateKey()
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		privData, err := os.ReadFile(fs.UserKeyPath(idx))
+		if err != nil {
+			fs.log.Error(err)
+			return nil, trace.ConvertSystemError(err)
+		}
+		pub, err := os.ReadFile(fs.publicKeyPath(idx))
+		if err != nil {
+			fs.log.Error(err)
+			return nil, trace.ConvertSystemError(err)
+		}
+		pk, err = ParsePrivateKey(privData, pub)
+		if err != nil {
+			fs.log.Error(err)
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
 	key := &Key{
 		KeyIndex:   idx,
-		PrivateKey: NewKeyPair(privData, pub),
+		PrivateKey: pk,
 		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,
@@ -533,6 +547,11 @@ func (fs *fsLocalNonSessionKeyStore) UserKeyPath(idx KeyIndex) string {
 	return keypaths.UserKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// publicKeyPath returns the public key path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) publicKeyPath(idx KeyIndex) string {
+	return keypaths.SSHCAsPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
 // tlsCertPath returns the TLS certificate path given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) tlsCertPath(idx KeyIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
@@ -551,11 +570,6 @@ func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 // PPKFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) PPKFilePath(idx KeyIndex) string {
 	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
-}
-
-// sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
-func (fs *fsLocalNonSessionKeyStore) sshCAsPath(idx KeyIndex) string {
-	return keypaths.SSHCAsPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 //  appCertPath returns the TLS certificate path for the given KeyIndex and app name.

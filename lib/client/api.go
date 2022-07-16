@@ -2922,7 +2922,8 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		//
 		// Instead, load SSH certs for all clusters we have (by passing an
 		// empty string to certsForCluster).
-		signers, err := tc.localAgent.certsForCluster("")
+		// TODO: revert this change
+		signers, err := tc.localAgent.certsForCluster(tc.SiteName)
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
 		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {

@@ -224,7 +224,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		},
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
-			PrivateKey:          client.ParseRSAKeyPair(sessCtx.session.GetPriv(), ssh.MarshalAuthorizedKey(priv.PublicKey())),
+			PrivateKey:          client.ParseRSAPrivateKey(sessCtx.session.GetPriv(), ssh.MarshalAuthorizedKey(priv.PublicKey())),
 			Cert:                sessCtx.session.GetPub(),
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),

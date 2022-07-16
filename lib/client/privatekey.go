@@ -24,20 +24,22 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"runtime"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // PrivateKey implements crypto.PrivateKey.
 type PrivateKey interface {
-	crypto.Signer
-	crypto.Decrypter
+	// Implement crypto.Signer and crypto.PrivateKey
+	Public() crypto.PublicKey
+	Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	Equal(x crypto.PrivateKey) bool
 
 	// PrivateKeyPEM is data about a private key that we want to store on disk.
@@ -52,29 +54,21 @@ type PrivateKey interface {
 	PrivateKeyPEMTODO() []byte
 }
 
-// NewKeyPair returns a new KeyPair for the given private key data and public key PEM.
-// For non-rsa keys, the privateKeyData is used to identity where we can get the key
-// data from, such as a specific yubikey card and slot.
-func NewKeyPair(privateKeyData, pubPEM []byte) PrivateKey {
-	// TODO: handle other privateKeyData types
-	return ParseRSAKeyPair(privateKeyData, pubPEM)
-}
-
-type RSAKeyPair struct {
+type RSAPrivateKey struct {
 	*rsa.PrivateKey
 }
 
-func GenerateRSAKeyPair() (*RSAKeyPair, error) {
+func GenerateRSAPrivateKey() (*RSAPrivateKey, error) {
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &RSAKeyPair{priv}, nil
+	return &RSAPrivateKey{priv}, nil
 }
 
-// Retuns a new RSAKeyPair from an existing PEM-encoded RSA key pair.
-func ParseRSAKeyPair(priv, pub []byte) *RSAKeyPair {
+// Returns a new RSAPrivateKey from an existing PEM-encoded RSA key pair.
+func ParseRSAPrivateKey(priv, pub []byte) *RSAPrivateKey {
 	privPEM, _ := pem.Decode(priv)
 	rsaPrivateKey, err := x509.ParsePKCS1PrivateKey(privPEM.Bytes)
 	if err != nil {
@@ -82,14 +76,14 @@ func ParseRSAKeyPair(priv, pub []byte) *RSAKeyPair {
 		panic(err)
 	}
 
-	return &RSAKeyPair{rsaPrivateKey}
+	return &RSAPrivateKey{rsaPrivateKey}
 }
 
-func (r *RSAKeyPair) PrivateKeyData() []byte {
+func (r *RSAPrivateKey) PrivateKeyData() []byte {
 	return r.privateKeyPEM()
 }
 
-func (r *RSAKeyPair) privateKeyPEM() []byte {
+func (r *RSAPrivateKey) privateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:    "RSA PRIVATE KEY",
 		Headers: nil,
@@ -97,24 +91,24 @@ func (r *RSAKeyPair) privateKeyPEM() []byte {
 	})
 }
 
-func (r *RSAKeyPair) PrivateKeyPEMTODO() []byte {
+func (r *RSAPrivateKey) PrivateKeyPEMTODO() []byte {
 	return r.privateKeyPEM()
 }
 
-func (r *RSAKeyPair) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
-	tlsCert, err := tls.X509KeyPair(certRaw, r.privateKeyPEM())
+func (r *RSAPrivateKey) TLSCertificate(certRaw []byte) (cert tls.Certificate, err error) {
+	cert, err = tls.X509KeyPair(certRaw, r.privateKeyPEM())
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return cert, trace.Wrap(err)
 	}
-	return tlsCert, nil
+	return cert, nil
 }
 
-func (r *RSAKeyPair) Equal(other crypto.PrivateKey) bool {
+func (r *RSAPrivateKey) Equal(other crypto.PrivateKey) bool {
 	switch otherRSAKey := other.(type) {
-	case *RSAKeyPair:
+	case *RSAPrivateKey:
 		return subtle.ConstantTimeCompare(r.privateKeyPEM(), otherRSAKey.privateKeyPEM()) == 1
 	case *rsa.PrivateKey:
-		return subtle.ConstantTimeCompare(r.privateKeyPEM(), (&RSAKeyPair{otherRSAKey}).privateKeyPEM()) == 1
+		return subtle.ConstantTimeCompare(r.privateKeyPEM(), (&RSAPrivateKey{otherRSAKey}).privateKeyPEM()) == 1
 	default:
 		return false
 	}
@@ -122,7 +116,7 @@ func (r *RSAKeyPair) Equal(other crypto.PrivateKey) bool {
 
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
-func (r *RSAKeyPair) AsAgentKeys(sshCert *ssh.Certificate) []agent.AddedKey {
+func (r *RSAPrivateKey) AsAgentKeys(sshCert *ssh.Certificate) []agent.AddedKey {
 	// put a teleport identifier along with the teleport user into the comment field
 	comment := fmt.Sprintf("teleport:%v", sshCert.KeyId)
 

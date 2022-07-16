@@ -37,6 +37,7 @@ require (
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-mysql-org/go-mysql v1.5.0
+	github.com/go-piv/piv-go v1.9.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b

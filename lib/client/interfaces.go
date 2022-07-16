@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -93,18 +92,42 @@ type Key struct {
 	TrustedCA []auth.TrustedCerts
 }
 
+var defaultKeyOpts = piv.Key{
+	Algorithm:   piv.AlgorithmEC256,
+	PINPolicy:   piv.PINPolicyNever,
+	TouchPolicy: piv.TouchPolicyNever,
+}
+
 // GenerateKey generates a new unsigned key. Such key must be signed by a
 // Teleport CA (auth server) before it becomes useful.
 func GenerateKey() (*Key, error) {
-	kp, err := GenerateRSAKeyPair()
-	if err != nil {
+	// Attempt to generate a yubikey private key.
+	if pk, err := GenerateYkPrivateKey(defaultKeyOpts); err == nil {
+		return newKey(pk), nil
+	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewKey(kp), nil
+	// If no yubikey card is found, generate a lone RSA key.
+	pk, err := GenerateRSAPrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return newKey(pk), nil
 }
 
-func NewKey(kp PrivateKey) (key *Key) {
+// ParsePrivateKey returns a new KeyPair for the given private key data and public key PEM.
+func ParsePrivateKey(privateKeyData, pubPEM []byte) (PrivateKey, error) {
+	if pk, err := GetYkPrivateKey(); err == nil {
+		return pk, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	return ParseRSAPrivateKey(privateKeyData, pubPEM), nil
+}
+
+func newKey(kp PrivateKey) (key *Key) {
 	return &Key{
 		PrivateKey:          kp,
 		KubeTLSCerts:        make(map[string][]byte),
@@ -196,7 +219,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		PrivateKey:  ParseRSAKeyPair(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		PrivateKey:  ParseRSAPrivateKey(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
 		Cert:        ident.Certs.SSH,
 		TLSCert:     ident.Certs.TLS,
 		TrustedCA:   trustedCA,
@@ -306,11 +329,11 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters
 	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
 	// Use Issuer CN from the certificate to populate the correct SNI in
 	// requests.
-	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS cert")
-	}
-	tlsConfig.ServerName = apiutils.EncodeClusterName(leaf.Issuer.CommonName)
+	// leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	// if err != nil {
+	// 	return nil, trace.Wrap(err, "failed to parse TLS cert")
+	// }
+	// tlsConfig.ServerName = apiutils.EncodeClusterName(leaf.Issuer.CommonName)
 	return tlsConfig, nil
 }
 
