@@ -123,13 +123,18 @@ func mkdir(p string) error {
 	stat, err := os.Stat(p)
 	if trace.IsNotFound(err) {
 		if err := os.MkdirAll(p, botfs.DefaultDirMode); err != nil {
+			//If the user running does not have permission to create the bot dir
+			if errors.Is(err, fs.ErrPermission) {
+				return trace.BadParameter("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
+			}
 			return trace.Wrap(err)
 		}
 
 		log.Infof("Created directory %q", p)
 	} else if err != nil {
+		//This error permission can occur if unable to read into the data dir
 		if errors.Is(err, fs.ErrPermission) {
-			log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
+			return trace.BadParameter("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
 		}
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
