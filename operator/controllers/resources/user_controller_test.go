@@ -44,6 +44,8 @@ func TestUserCreation(t *testing.T) {
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
 
+	teleportCreateDummyRole(t, "a", tClient, ctx)
+	teleportCreateDummyRole(t, "b", tClient, ctx)
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, k8sClient, ns.Name, userName)
 
@@ -83,6 +85,9 @@ func TestUserDeletionDrift(t *testing.T) {
 
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
+
+	teleportCreateDummyRole(t, "a", tClient, ctx)
+	teleportCreateDummyRole(t, "b", tClient, ctx)
 
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, k8sClient, ns.Name, userName)
@@ -131,6 +136,12 @@ func TestUserUpdate(t *testing.T) {
 
 	tClient := clientForTeleport(t, teleportServer, operatorName)
 	k8sClient := startKubernetesOperator(t, tClient)
+
+	teleportCreateDummyRole(t, "a", tClient, ctx)
+	teleportCreateDummyRole(t, "b", tClient, ctx)
+	teleportCreateDummyRole(t, "x", tClient, ctx)
+	teleportCreateDummyRole(t, "y", tClient, ctx)
+	teleportCreateDummyRole(t, "z", tClient, ctx)
 
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
@@ -183,7 +194,7 @@ func TestUserUpdate(t *testing.T) {
 	}, &k8sUserNewVersion)
 	require.NoError(t, err)
 
-	k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "admin", "root")
+	k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "y")
 	err = k8sClient.Update(ctx, &k8sUserNewVersion)
 	require.NoError(t, err)
 
@@ -193,7 +204,7 @@ func TestUserUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// TeleportUser updated with new roles
-		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "admin", "root"})
+		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 }
 

@@ -18,6 +18,7 @@ package resources
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/auth"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -143,19 +144,7 @@ func TestRoleUpdate(t *testing.T) {
 	}, &r)
 	require.True(t, kerrors.IsNotFound(err))
 
-	// The role is created in Teleport
-	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Logins: []string{"a", "b"},
-		},
-	})
-	require.NoError(t, err)
-	metadata := tRole.GetMetadata()
-	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
-	tRole.SetMetadata(metadata)
-
-	err = tClient.UpsertRole(ctx, tRole)
-	require.NoError(t, err)
+	err = teleportCreateDummyRole(t, roleName, tClient, ctx)
 
 	// The role is created in K8S
 	k8sRole := resourcesv5.TeleportRole{
@@ -200,6 +189,23 @@ func TestRoleUpdate(t *testing.T) {
 		// TeleportRole updated with new roles
 		return assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z", "admin", "root"})
 	})
+}
+
+func teleportCreateDummyRole(t *testing.T, roleName string, tClient auth.ClientI, ctx context.Context) error {
+	// The role is created in Teleport
+	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	metadata := tRole.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tRole.SetMetadata(metadata)
+
+	err = tClient.UpsertRole(ctx, tRole)
+	require.NoError(t, err)
+	return err
 }
 
 func k8sCreateDummyRole(ctx context.Context, t *testing.T, kc kclient.Client, namespace, roleName string) {
