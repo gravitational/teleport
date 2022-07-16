@@ -282,13 +282,13 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
-				return nil, trace.Wrap(err, fmt.Sprintf("Could not load Teleport host UUID file at %s. "+
+				return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
 					"Please make sure that Teleport is up and running prior to using tctl.",
-					filepath.Join(cfg.DataDir, utils.HostUUIDFile)))
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
 			} else if errors.Is(err, fs.ErrPermission) {
-				return nil, trace.Wrap(err, fmt.Sprintf("Teleport does not have permission to read Teleport host UUID file at %s. "+
+				return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
 					"Ensure that you are running as a user with appropriate permissions.",
-					filepath.Join(cfg.DataDir, utils.HostUUIDFile)))
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
 			}
 			return nil, trace.Wrap(err)
 		}
