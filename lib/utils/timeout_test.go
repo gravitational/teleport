@@ -24,28 +24,20 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 	"time"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-// TimeoutSuite helps us to test ObeyTimeout mechanism. We use HTTP server/client
-// machinery to test timeouts
-type TimeoutSuite struct {
-	server *httptest.Server
-}
-
-var _ = check.Suite(&TimeoutSuite{})
-
-func (s *TimeoutSuite) SetUpSuite(c *check.C) {
-	//
-	// set up an HTTP server which listens and responds to queries
-	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func setUpServer(t *testing.T) *httptest.Server {
+	// Set up an HTTP server which listens and responds to queries.
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		// GET /slow?delay=10ms sleeps for a given delay, then returns word "slow"
 		case "/slow":
 			delay, err := time.ParseDuration(r.URL.Query().Get("delay"))
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 			time.Sleep(delay)
 			fmt.Fprintf(w, "slow")
 
@@ -56,26 +48,32 @@ func (s *TimeoutSuite) SetUpSuite(c *check.C) {
 	}))
 }
 
-func (s *TimeoutSuite) TearDownSuite(c *check.C) {
-	s.server.Close()
-}
+func TestSlowOperation(t *testing.T) {
+	t.Parallel()
 
-func (s *TimeoutSuite) TestSlowOperation(c *check.C) {
+	server := setUpServer(t)
+	defer server.Close()
+
 	client := newClient(time.Millisecond * 5)
-	resp, err := client.Get(s.server.URL + "/slow?delay=20ms")
+	resp, err := client.Get(server.URL + "/slow?delay=20ms")
 	if err == nil {
 		resp.Body.Close()
 	}
 	// must fail with I/O timeout
-	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Matches, "^.*i/o timeout$")
+	require.NotNil(t, err)
+	require.ErrorContains(t, err, "i/o timeout")
 }
 
-func (s *TimeoutSuite) TestNormalOperation(c *check.C) {
+func TestNormalOperation(t *testing.T) {
+	t.Parallel()
+
+	server := setUpServer(t)
+	defer server.Close()
+
 	client := newClient(time.Millisecond * 100)
-	resp, err := client.Get(s.server.URL + "/ping")
-	c.Assert(err, check.IsNil)
-	c.Assert(bodyText(resp), check.Equals, "pong")
+	resp, err := client.Get(server.URL + "/ping")
+	require.NoError(t, err)
+	require.Equal(t, bodyText(resp), "pong")
 }
 
 // newClient helper returns HTTP client configured to use a connection

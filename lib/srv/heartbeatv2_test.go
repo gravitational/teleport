@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -132,7 +132,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		// test need to run longer.
 		select {
 		case <-ctx.Done():
-			return nil, trace.Errorf("context canceled while waiting for next control stream")
+			return nil, fmt.Errorf("context canceled while waiting for next control stream")
 		case stream := <-streamC:
 			return stream, nil
 		}
