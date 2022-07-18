@@ -123,7 +123,6 @@ func mkdir(p string) error {
 	stat, err := os.Stat(p)
 	if trace.IsNotFound(err) {
 		if err := os.MkdirAll(p, botfs.DefaultDirMode); err != nil {
-			//If the user running does not have permission to create the bot dir
 			if errors.Is(err, fs.ErrPermission) {
 				return trace.Wrap(err, "Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
 			}
