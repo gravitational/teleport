@@ -19,18 +19,16 @@ package srv
 import (
 	"os"
 	"os/user"
+	"testing"
 
 	"github.com/gravitational/trace"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type TermSuite struct {
-}
+func TestGetOwner(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&TermSuite{})
-
-func (s *TermSuite) TestGetOwner(c *check.C) {
 	tests := []struct {
 		inUserLookup  LookupUser
 		inGroupLookup LookupGroup
@@ -74,10 +72,10 @@ func (s *TermSuite) TestGetOwner(c *check.C) {
 
 	for _, tt := range tests {
 		uid, gid, mode, err := getOwner("", tt.inUserLookup, tt.inGroupLookup)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
-		c.Assert(uid, check.Equals, tt.outUID)
-		c.Assert(gid, check.Equals, tt.outGID)
-		c.Assert(mode, check.Equals, tt.outMode)
+		require.Equal(t, tt.outUID, uid)
+		require.Equal(t, tt.outGID, gid)
+		require.Equal(t, tt.outMode, mode)
 	}
 }
