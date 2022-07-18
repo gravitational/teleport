@@ -30,7 +30,7 @@ import (
 // Channel is a wrapper around ssh.Channel that adds tracing support.
 type Channel struct {
 	ssh.Channel
-	tracingSupported bool
+	tracingSupported tracingCapability
 	opts             []tracing.Option
 }
 
