@@ -41,6 +41,8 @@ import (
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		input     string
 		comment   string
@@ -83,6 +85,8 @@ func TestParseAccessRequestIDs(t *testing.T) {
 }
 
 func TestSession_newRecorder(t *testing.T) {
+	t.Parallel()
+
 	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
@@ -304,6 +308,8 @@ func TestSession_newRecorder(t *testing.T) {
 }
 
 func TestSession_emitAuditEvent(t *testing.T) {
+	t.Parallel()
+
 	logger := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentAuth,
 	})
@@ -418,6 +424,8 @@ func TestStopUnstarted(t *testing.T) {
 // TestParties tests the party mechanisms within an interactive session,
 // including party leave, party disconnect, and empty session lingerAndDie.
 func TestParties(t *testing.T) {
+	t.Parallel()
+
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -505,6 +513,8 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 }
 
 func TestSessionRecordingModes(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		desc                 string
 		sessionRecordingMode constants.SessionRecordingMode
