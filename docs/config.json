@@ -1221,8 +1221,8 @@
       "permanent": true
     },
     {
-      "source": "/docs/setup/reference/license/",
-      "destination": "/docs/enterprise/license/",
+      "source": "/setup/reference/license/",
+      "destination": "/enterprise/license/",
       "permanent": true
     },
     {
@@ -1261,18 +1261,18 @@
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/agent/",
-      "destination": "/docs/kubernetes-access/getting-started/",
+      "source": "/kubernetes-access/getting-started/agent/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/cluster/",
-      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "source": "/kubernetes-access/getting-started/cluster/",
+      "destination": "/getting-started/kubernetes-cluster/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/local/",
-      "destination": "/docs/getting-started/local-kubernetes/",
+      "source": "/kubernetes-access/getting-started/local/",
+      "destination": "/getting-started/local-kubernetes/",
       "permanent": true
     },
     {
