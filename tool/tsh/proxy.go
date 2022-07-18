@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -98,40 +99,47 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 		return nil, trace.Wrap(err)
 	}
 
-	var proxyAddr string
+	// Without jump hosts, we will be connecting to the current Teleport client
+	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
-		// If no jump host is provided, use the currently logged into/requested proxy.
-		proxyAddr = tc.WebProxyAddr
-		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
-	} else {
-		// Don't clean up the target host when using jump host,
-		// let Proxy Template logic parse the full targetHost.
-		proxyAddr = tc.JumpHosts[0].Addr.Addr
+		proxyHost, proxyPort := tc.SSHProxyHostPort()
+		if tc.TLSRoutingEnabled {
+			proxyHost, proxyPort = tc.WebProxyHostPort()
+		}
+		return &sshProxyParams{
+			proxyHost:   proxyHost,
+			proxyPort:   strconv.Itoa(proxyPort),
+			targetHost:  cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName),
+			targetPort:  targetPort,
+			clusterName: tc.SiteName,
+			tlsRouting:  tc.TLSRoutingEnabled,
+		}, nil
 	}
 
-	// Ping proxy to retrieve up to date cluster information such as
-	// cluster name, SSH proxy address, and tls routing configuration.
+	// When jump host is specified, we will be connecting to the jump host's
+	// proxy directly. Call its ping endpoint to figure out the cluster details
+	// such as cluster name, SSH proxy address, etc.
 	ping, err := webclient.Find(&webclient.Config{
 		Context:   cf.Context,
-		ProxyAddr: proxyAddr,
+		ProxyAddr: tc.JumpHosts[0].Addr.Addr,
 		Insecure:  tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := ping.Proxy.SSHProxyHostPort()
+	sshProxyHost, sshProxyPort, err := ping.Proxy.SSHProxyHostPort()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &sshProxyParams{
-		proxyHost:   proxyHost,
-		proxyPort:   proxyPort,
+		proxyHost:   sshProxyHost,
+		proxyPort:   sshProxyPort,
 		targetHost:  targetHost,
 		targetPort:  targetPort,
-		clusterName: tc.SiteName,
-		tlsRouting:  tc.TLSRoutingEnabled,
+		clusterName: ping.ClusterName,
+		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
 	}, nil
 }
 
