@@ -166,6 +166,8 @@ type SampleFlags struct {
 	CAPin string
 	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
 	JoinMethod string
+	// NodeName is the name of the teleport node
+	NodeName string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -187,7 +189,12 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
 
 	var g Global
-	g.NodeName = conf.Hostname
+
+	if flags.NodeName != "" {
+		g.NodeName = flags.NodeName
+	} else {
+		g.NodeName = conf.Hostname
+	}
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"

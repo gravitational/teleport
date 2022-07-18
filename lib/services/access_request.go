@@ -143,7 +143,7 @@ type DynamicAccessOracle interface {
 
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
-func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+func CalculateAccessCapabilities(ctx context.Context, clt RequestValidatorGetter, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
@@ -596,10 +596,14 @@ func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
 	return types.TraitMappingSet(tm)
 }
 
-type UserAndRoleGetter interface {
+// RequestValidatorGetter is the interface required by the request validation
+// functions used to get necessary resources.
+type RequestValidatorGetter interface {
 	UserGetter
 	RoleGetter
 	GetRoles(ctx context.Context) ([]types.Role, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
 
 // appendRoleMatchers constructs all role matchers for a given
@@ -774,7 +778,7 @@ Outer:
 	return len(needsAllow) == 0, nil
 }
 
-func NewReviewPermissionChecker(ctx context.Context, getter UserAndRoleGetter, username string) (ReviewPermissionChecker, error) {
+func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
@@ -828,7 +832,7 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
-	getter        UserAndRoleGetter
+	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
 	opts          struct {
@@ -849,7 +853,7 @@ type RequestValidator struct {
 }
 
 // NewRequestValidator configures a new RequestValidor for the specified user.
-func NewRequestValidator(ctx context.Context, getter UserAndRoleGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
+func NewRequestValidator(ctx context.Context, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
@@ -1061,31 +1065,39 @@ func (m *RequestValidator) push(role types.Role) error {
 // and adds them to the request.
 func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req types.AccessRequest) error {
 	if !m.opts.expandVars {
-		// don't set the roles if expandVars is not set, they have probably
-		// already been set and we are just validating the request
+		// Don't set the roles if expandVars is not set, they have probably
+		// already been set and we are just validating the request.
 		return nil
 	}
 	if len(req.GetRequestedResourceIDs()) == 0 {
-		// this is not a search-based request
+		// This is not a resource request.
 		return nil
 	}
 	if len(req.GetRoles()) > 0 {
-		// roles were explicitly requested, don't change them
+		// Roles were explicitly requested, don't change them.
 		return nil
 	}
 
+	// First collect all possible search_as_roles.
 	var rolesToRequest []string
 	for _, roleName := range m.Roles.AllowSearch {
 		if !m.CanSearchAsRole(roleName) {
 			continue
 		}
-		// Here we fill in all possible search_as_roles, they should be pruned
-		// by PruneResourceRequestRoles in a later step.
 		rolesToRequest = append(rolesToRequest, roleName)
 	}
 	if len(rolesToRequest) == 0 {
 		return trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`)
 	}
+
+	// Prune the list of roles to request to only those which may be necessary
+	// to access the requested resources.
+	var err error
+	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint(), rolesToRequest)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	req.SetRoles(rolesToRequest)
 	return nil
 }
@@ -1245,7 +1257,7 @@ func ExpandVars(expand bool) ValidateRequestOption {
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequestForUser(ctx context.Context, getter UserAndRoleGetter, req types.AccessRequest, opts ...ValidateRequestOption) error {
+func ValidateAccessRequestForUser(ctx context.Context, getter RequestValidatorGetter, req types.AccessRequest, opts ...ValidateRequestOption) error {
 	v, err := NewRequestValidator(ctx, getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1301,13 +1313,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 	}
 }
 
-// PruneResourceRequestGetter is the access interface necessary for PruneResourceRequestRoles.
-type PruneResourceRequestGetter interface {
-	GetRole(ctx context.Context, name string) (types.Role, error)
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
-// PruneResourceRequestRoles takes an access request and does one of two things:
+// pruneResourceRequestRoles takes an access request and does one of two things:
 // 1. If it is a role request, returns it unchanged.
 // 2. If it is a resource request, all available `search_as_roles` for the user
 //    should have been populated on the request by `ValidateAccessReqeustForUser`.
@@ -1318,40 +1324,42 @@ type PruneResourceRequestGetter interface {
 //      should be satisfied by exactly 1 role. The first such role will be
 //      requested, all others will be pruned unless they are necessary to access
 //      a different resource in the set.
-func PruneResourceRequestRoles(
+func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
-	req types.AccessRequest,
-	getter PruneResourceRequestGetter,
-	clusterName string,
-	userTraits map[string][]string,
-) error {
-	if len(req.GetRequestedResourceIDs()) == 0 {
-		// This is not a resource request, don't change it.
-		return nil
+	resourceIDs []types.ResourceID,
+	loginHint string,
+	roles []string,
+) ([]string, error) {
+	if len(resourceIDs) == 0 {
+		// This is not a resource request, nothing to do
+		return roles, nil
 	}
 
-	resourceIDs := req.GetRequestedResourceIDs()
+	clusterNameResource, err := m.getter.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClusterName := clusterNameResource.GetClusterName()
+
 	for _, resourceID := range resourceIDs {
-		if resourceID.ClusterName != clusterName {
+		if resourceID.ClusterName != localClusterName {
 			_, debugf := rbacDebugLogger()
 			debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
 				`All available "search_as_roles" will be requested.`,
 				types.ResourceIDToString(resourceID))
-			return nil
+			return roles, nil
 		}
 	}
 
-	allRoles, err := FetchRoles(req.GetRoles(), getter, userTraits)
+	allRoles, err := FetchRoles(roles, m.getter, m.user.GetTraits())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	resources, err := getResources(ctx, getter, req.GetRequestedResourceIDs())
+	resources, err := getResources(ctx, m.getter, resourceIDs)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	loginHint := req.GetLoginHint()
 
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
@@ -1359,7 +1367,7 @@ func PruneResourceRequestRoles(
 		for _, role := range allRoles {
 			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
 				// Role does not allow access to this resource. We will prune it
@@ -1379,23 +1387,22 @@ func PruneResourceRequestRoles(
 		}
 	}
 	if len(necessaryRoles) == 0 {
-		resourcesStr, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		return trace.BadParameter(
+		return nil, trace.BadParameter(
 			`no roles configured in the "search_as_roles" for this user allow `+
 				`access to any requested resources. The user may already have `+
 				`access to all requested resources with their existing roles. `+
 				`resources: %s roles: %v login: %q`,
-			resourcesStr, req.GetRoles(), loginHint)
+			resourcesStr, roles, loginHint)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
 		prunedRoles = append(prunedRoles, role)
 	}
-	req.SetRoles(prunedRoles)
-	return nil
+	return prunedRoles, nil
 }
 
 func fewestLogins(roles []types.Role) []types.Role {
@@ -1448,7 +1455,7 @@ func roleAllowsResource(
 	return true, nil
 }
 
-func getResources(ctx context.Context, getter PruneResourceRequestGetter, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+func getResources(ctx context.Context, getter RequestValidatorGetter, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
 		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
