@@ -1525,29 +1525,25 @@ func TestListResources_WithRoles(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
-	const nodePerPool = 3
+	const dbPerPool = 3
 
-	// inserts a pool nodes with different labels
-	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
-		for i := 0; i < nodeCount; i++ {
+	// inserts a pool dbs with different labels
+	insertDatabases := func(ctx context.Context, t *testing.T, srv *Server, dbCount int, labels map[string]string) {
+		for i := 0; i < dbCount; i++ {
 			name := uuid.New()
-			addr := fmt.Sprintf("node-%s.example.com", name)
+			addr := fmt.Sprintf("db-%s.example.com", name)
 
-			node := &types.ServerV2{
-				Kind:    types.KindNode,
-				Version: types.V2,
-				Metadata: types.Metadata{
-					Name:      name,
-					Namespace: defaults.Namespace,
-					Labels:    labels,
-				},
-				Spec: types.ServerSpecV2{
-					Addr:       addr,
-					PublicAddr: addr,
-				},
-			}
+			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+				Labels:    labels,
+			}, types.DatabaseServerSpecV3{
+				HostID:   name,
+				Hostname: addr,
+			})
+			require.NoError(t, err)
 
-			_, err := srv.UpsertNode(ctx, node)
+			_, err = srv.UpsertDatabaseServer(ctx, dbServer)
 			require.NoError(t, err)
 		}
 	}
@@ -1557,12 +1553,12 @@ func TestListResources_WithRoles(t *testing.T) {
 		role, err := types.NewRole(name, types.RoleSpecV4{
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
-				NodeLabels: types.Labels{
+				DatabaseLabels: types.Labels{
 					"*": []string{types.Wildcard},
 				},
 			},
 			Deny: types.RoleConditions{
-				NodeLabels: labels,
+				DatabaseLabels: labels,
 			},
 		})
 		require.NoError(t, err)
@@ -1625,11 +1621,11 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// create the nodes and role
 	for name, data := range pool {
-		insertNodes(ctx, t, srv.Auth(), nodePerPool, data.labels)
+		insertDatabases(ctx, t, srv.Auth(), dbPerPool, data.labels)
 		createRole(ctx, t, srv.Auth(), name, data.denied)
 	}
 
-	nodeCount := len(pool) * nodePerPool
+	nodeCount := len(pool) * dbPerPool
 
 	cases := []struct {
 		name     string
@@ -1644,27 +1640,27 @@ func TestListResources_WithRoles(t *testing.T) {
 		{
 			name:     "role a",
 			roles:    []string{"a"},
-			expected: nodeCount - nodePerPool,
+			expected: nodeCount - dbPerPool,
 		},
 		{
 			name:     "role a,b",
 			roles:    []string{"a", "b"},
-			expected: nodeCount - (2 * nodePerPool),
+			expected: nodeCount - (2 * dbPerPool),
 		},
 		{
 			name:     "role a,b,c",
 			roles:    []string{"a", "b", "c"},
-			expected: nodeCount - (3 * nodePerPool),
+			expected: nodeCount - (3 * dbPerPool),
 		},
 		{
 			name:     "role a,b,c,d",
 			roles:    []string{"a", "b", "c", "d"},
-			expected: nodeCount - (4 * nodePerPool),
+			expected: nodeCount - (4 * dbPerPool),
 		},
 		{
 			name:     "role a,b,c,d,e",
 			roles:    []string{"a", "b", "c", "d", "e"},
-			expected: nodeCount - (5 * nodePerPool),
+			expected: nodeCount - (5 * dbPerPool),
 		},
 	}
 
@@ -1691,9 +1687,10 @@ func TestListResources_WithRoles(t *testing.T) {
 			var key string
 			for {
 				resp, nextKey, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-					ResourceType: types.KindNode,
+					Namespace:    defaults.Namespace,
+					ResourceType: types.KindDatabaseServer,
 					StartKey:     key,
-					Limit:        nodePerPool,
+					Limit:        dbPerPool,
 				})
 				require.NoError(t, err)
 
