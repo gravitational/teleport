@@ -130,7 +130,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
 	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
-	watcher, err := b.client().NewWatcher(ctx, types.Watch{
+	watcher, err := b.Client().NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{
