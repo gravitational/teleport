@@ -133,6 +133,7 @@ var _ HostUsersBackend = &testHostUserBackend{}
 
 func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	t.Parallel()
+
 	backend := newTestUserMgmt()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -173,6 +174,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 
 func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	t.Parallel()
+
 	backend := newTestUserMgmt()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -219,6 +221,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 
 func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	t.Parallel()
+
 	type userAndGroups struct {
 		user   string
 		groups []string
@@ -265,4 +268,33 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	}
 	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
 	require.NoError(t, users.DeleteAllUsers())
+}
+
+func TestSudoersSanitization(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		user         string
+		userExpected string
+	}{
+		{
+			user:         "testuser",
+			userExpected: "testuser",
+		},
+		{
+			user:         "test.user",
+			userExpected: "test_user",
+		},
+		{
+			user:         "test.us~er",
+			userExpected: "test_us_er",
+		},
+		{
+			user:         "test../../us~er",
+			userExpected: "test______us_er",
+		},
+	} {
+		actual := sanitizeSudoersName(tc.user)
+		require.Equal(t, tc.userExpected, actual)
+	}
 }

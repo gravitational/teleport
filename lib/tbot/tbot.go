@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 type Bot struct {
@@ -39,10 +42,13 @@ type Bot struct {
 	reloadChan chan struct{}
 
 	// These are protected by getter/setters with mutex locks
-	mu      sync.Mutex
-	_client auth.ClientI
-	_ident  *identity.Identity
-	started bool
+	mu         sync.Mutex
+	_client    auth.ClientI
+	_ident     *identity.Identity
+	_authPong  *proto.PingResponse
+	_proxyPong *webclient.PingResponse
+	_cas       map[types.CertAuthType][]types.CertAuthority
+	started    bool
 }
 
 func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}) *Bot {
@@ -54,10 +60,13 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 		cfg:        cfg,
 		log:        log,
 		reloadChan: reloadChan,
+
+		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
 }
 
-func (b *Bot) client() auth.ClientI {
+// Client retrieves the current auth client.
+func (b *Bot) Client() auth.ClientI {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -102,6 +111,108 @@ func (b *Bot) markStarted() error {
 	return nil
 }
 
+// certAuthorities returns cached CAs of the given type.
+func (b *Bot) certAuthorities(caType types.CertAuthType) []types.CertAuthority {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b._cas[caType]
+}
+
+// clearCertAuthorities purges the CA cache. This should be run at least as
+// frequently as CAs are rotated.
+func (b *Bot) clearCertAuthorities() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b._cas = map[types.CertAuthType][]types.CertAuthority{}
+}
+
+// GetCertAuthorities returns the possibly cached CAs of the given type and
+// requests them from the server if unavailable.
+func (b *Bot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+	if cas := b.certAuthorities(caType); len(cas) > 0 {
+		return cas, nil
+	}
+
+	cas, err := b.Client().GetCertAuthorities(ctx, caType, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b._cas[caType] = cas
+	return cas, nil
+}
+
+// authPong returns the last ping response from the auth server. It may be nil
+// if no ping has succeeded.
+func (b *Bot) authPong() *proto.PingResponse {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b._authPong
+}
+
+// AuthPing pings the auth server and returns the (possibly cached) response.
+func (b *Bot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+	if authPong := b.authPong(); authPong != nil {
+		return authPong, nil
+	}
+
+	pong, err := b.Client().Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b._authPong = &pong
+
+	return &pong, nil
+}
+
+// proxyPong returns the last proxy ping response. It may be nil if no proxy
+// ping has succeeded.
+func (b *Bot) proxyPong() *webclient.PingResponse {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b._proxyPong
+}
+
+// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
+// Note that it relies on the auth server being configured with a sane proxy
+// public address.
+func (b *Bot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	if proxyPong := b.proxyPong(); proxyPong != nil {
+		return proxyPong, nil
+	}
+
+	// Note: this relies on the auth server's proxy address. We could
+	// potentially support some manual parameter here in the future if desired.
+	authPong, err := b.AuthPing(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyPong, err := webclient.Ping(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: authPong.ProxyPublicAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b._proxyPong = proxyPong
+
+	return proxyPong, nil
+}
+
 func (b *Bot) Run(ctx context.Context) error {
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
@@ -111,20 +222,15 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	watcher, err := b.client().NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{{
-			Kind: types.KindCertAuthority,
-		}},
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	eg.Go(func() error {
+		return trace.Wrap(b.renewLoop(egCtx))
+	})
 
-	go b.watchCARotations(watcher)
-
-	defer watcher.Close()
-
-	return trace.Wrap(b.renewLoop(ctx))
+	return eg.Wait()
 }
 
 func (b *Bot) initialize(ctx context.Context) error {
@@ -143,40 +249,53 @@ func (b *Bot) initialize(ctx context.Context) error {
 		return trace.Wrap(err, "could not read bot storage destination from config")
 	}
 
-	configTokenHashBytes := []byte{}
-	if b.cfg.Onboarding != nil && b.cfg.Onboarding.Token != "" {
-		sha := sha256.Sum256([]byte(b.cfg.Onboarding.Token))
-		configTokenHashBytes = []byte(hex.EncodeToString(sha[:]))
-	}
-
 	var authClient auth.ClientI
 
+	fetchNewIdentity := true
 	// First, attempt to load an identity from storage.
 	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil && !hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes) {
-		identStr, err := describeTLSIdentity(ident)
-		if err != nil {
-			return trace.Wrap(err)
+	if err == nil {
+		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasToken() {
+			// try to grab the token to see if it's changed, as we'll need to fetch a new identity if it has
+			if token, err := b.cfg.Onboarding.Token(); err == nil {
+				sha := sha256.Sum256([]byte(token))
+				configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
+
+				fetchNewIdentity = hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes)
+			} else {
+				// we failed to get the token, we'll continue on trying to use the existing identity
+				b.log.WithError(err).Error("There was an error loading the token")
+
+				fetchNewIdentity = false
+
+				b.log.Info("Using the last good identity")
+			}
 		}
 
-		b.log.Infof("Successfully loaded bot identity, %s", identStr)
+		if !fetchNewIdentity {
+			identStr, err := describeTLSIdentity(ident)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		if err := b.checkIdentity(ident); err != nil {
-			return trace.Wrap(err)
+			b.log.Infof("Successfully loaded bot identity, %s", identStr)
+
+			if err := b.checkIdentity(ident); err != nil {
+				return trace.Wrap(err)
+			}
+
+			if b.cfg.Onboarding != nil {
+				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
+			}
+
+			authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
+	}
 
-		if b.cfg.Onboarding != nil {
-			b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
-		}
-
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		// If the identity can't be loaded, assume we're starting fresh and
-		// need to generate our initial identity from a token
-
+	if fetchNewIdentity {
 		if ident != nil {
 			// If ident is set here, we detected a token change above.
 			b.log.Warnf("Detected a token change, will attempt to fetch a new identity.")

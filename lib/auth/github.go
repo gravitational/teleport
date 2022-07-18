@@ -39,6 +39,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrGithubNoTeams results from a github user not beloging to any teams.
+var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
+
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
@@ -453,9 +456,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	// Calculate logins, kubegroups, roles, and traits.
 	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.roles) == 0 {
-		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
-			claims.Username, connector.GetName())
+		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
 	p.traits = map[string][]string{
 		constants.TraitLogins:     {p.username},

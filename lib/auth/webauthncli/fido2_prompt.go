@@ -106,6 +106,6 @@ func (p *DefaultPrompt) PromptCredential(creds []*Credential) (*Credential, erro
 			return creds[num-1], nil
 		}
 
-		fmt.Fprintf(p.out, "Invalid user choice: %q", numOrName)
+		fmt.Fprintf(p.out, "Invalid user choice: %q\n", numOrName)
 	}
 }
