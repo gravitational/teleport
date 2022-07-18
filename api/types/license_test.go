@@ -36,7 +36,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		License.GetSupportsModeratedSessions,
 		License.GetSupportsMachineID,
 		License.GetSupportsResourceAccessRequests,
-		License.GetIsTrial,
+		License.GetTrial,
 	}
 
 	// unsetFields returns a list of license fields getters minus
@@ -113,9 +113,9 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		},
 		{
 			name:        "Set Trial Support",
-			setter:      License.SetIsTrial,
-			getter:      License.GetIsTrial,
-			unsetFields: unsetFields(License.GetIsTrial),
+			setter:      License.SetTrial,
+			getter:      License.GetTrial,
+			unsetFields: unsetFields(License.GetTrial),
 		},
 	}
 
@@ -146,7 +146,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsModeratedSessions()))
 	require.False(t, bool(license.GetSupportsMachineID()))
 	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
-	require.False(t, bool(license.GetIsTrial()))
+	require.False(t, bool(license.GetTrial()))
 }
 
 func fnName(i interface{}) string {

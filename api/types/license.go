@@ -86,10 +86,10 @@ type License interface {
 	// SetSupportsResourceAccessRequests sets resource access requests support flag
 	SetSupportsResourceAccessRequests(Bool)
 
-	// GetIsTrial returns the trial flag
-	GetIsTrial() Bool
-	// SetIsTrial sets the trial flag
-	SetIsTrial(Bool)
+	// GetTrial returns the trial flag
+	GetTrial() Bool
+	// SetTrial sets the trial flag
+	SetTrial(Bool)
 
 	// SetLabels sets metadata labels
 	SetLabels(labels map[string]string)
@@ -334,14 +334,14 @@ func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
 	c.Spec.SupportsResourceAccessRequests = value
 }
 
-// GetIsTrial returns the trial flag
-func (c *LicenseV3) GetIsTrial() Bool {
-	return c.Spec.IsTrial
+// GetTrial returns the trial flag
+func (c *LicenseV3) GetTrial() Bool {
+	return c.Spec.Trial
 }
 
-// SetIsTrial sets the trial flag
-func (c *LicenseV3) SetIsTrial(value Bool) {
-	c.Spec.IsTrial = value
+// SetTrial sets the trial flag
+func (c *LicenseV3) SetTrial(value Bool) {
+	c.Spec.Trial = value
 }
 
 // String represents a human readable version of license enabled features
@@ -350,7 +350,7 @@ func (c *LicenseV3) String() string {
 	if !c.Expiry().IsZero() {
 		features = append(features, fmt.Sprintf("expires at %v", c.Expiry()))
 	}
-	if c.GetIsTrial() {
+	if c.GetTrial() {
 		features = append(features, "is trial")
 	}
 	if c.GetReportsUsage() {
@@ -419,6 +419,6 @@ type LicenseSpecV3 struct {
 	SupportsMachineID Bool `json:"machine_id,omitempty"`
 	// SupportsResourceAccessRequests turns resource access request support on or off
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
-	// IsTrial is true for trial licenses
-	IsTrial Bool `json:"is_trial,omitempty"`
+	// Trial is true for trial licenses
+	Trial Bool `json:"trial,omitempty"`
 }
