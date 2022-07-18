@@ -18,8 +18,9 @@ package resources
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/auth"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,7 +145,8 @@ func TestRoleUpdate(t *testing.T) {
 	}, &r)
 	require.True(t, kerrors.IsNotFound(err))
 
-	err = teleportCreateDummyRole(t, roleName, tClient, ctx)
+	err = teleportCreateDummyRole(ctx, t, roleName, tClient)
+	require.NoError(t, err)
 
 	// The role is created in K8S
 	k8sRole := resourcesv5.TeleportRole{
@@ -191,7 +193,7 @@ func TestRoleUpdate(t *testing.T) {
 	})
 }
 
-func teleportCreateDummyRole(t *testing.T, roleName string, tClient auth.ClientI, ctx context.Context) error {
+func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) error {
 	// The role is created in Teleport
 	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{

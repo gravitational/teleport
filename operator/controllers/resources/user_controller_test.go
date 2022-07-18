@@ -44,8 +44,8 @@ func TestUserCreation(t *testing.T) {
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(t, "a", tClient, ctx)
-	teleportCreateDummyRole(t, "b", tClient, ctx)
+	teleportCreateDummyRole(ctx, t, "a", tClient)
+	teleportCreateDummyRole(ctx, t, "b", tClient)
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, k8sClient, ns.Name, userName)
 
@@ -86,8 +86,8 @@ func TestUserDeletionDrift(t *testing.T) {
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
 
-	teleportCreateDummyRole(t, "a", tClient, ctx)
-	teleportCreateDummyRole(t, "b", tClient, ctx)
+	teleportCreateDummyRole(ctx, t, "a", tClient)
+	teleportCreateDummyRole(ctx, t, "b", tClient)
 
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, k8sClient, ns.Name, userName)
@@ -137,11 +137,11 @@ func TestUserUpdate(t *testing.T) {
 	tClient := clientForTeleport(t, teleportServer, operatorName)
 	k8sClient := startKubernetesOperator(t, tClient)
 
-	teleportCreateDummyRole(t, "a", tClient, ctx)
-	teleportCreateDummyRole(t, "b", tClient, ctx)
-	teleportCreateDummyRole(t, "x", tClient, ctx)
-	teleportCreateDummyRole(t, "y", tClient, ctx)
-	teleportCreateDummyRole(t, "z", tClient, ctx)
+	teleportCreateDummyRole(ctx, t, "a", tClient)
+	teleportCreateDummyRole(ctx, t, "b", tClient)
+	teleportCreateDummyRole(ctx, t, "x", tClient)
+	teleportCreateDummyRole(ctx, t, "y", tClient)
+	teleportCreateDummyRole(ctx, t, "z", tClient)
 
 	ns := createNamespaceForTest(t, k8sClient)
 	userName := validRandomResourceName("user-")
