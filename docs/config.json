@@ -82,7 +82,7 @@
             },
             {
               "title": "Upgrading the Teleport Binary",
-              "slug": "/setup/admin/graceful-restarts/"
+              "slug": "/setup/admin/upgrading-the-teleport-binary/"
             },
             {
               "title": "Run Teleport as a Daemon",
@@ -1324,6 +1324,11 @@
       "source": "/access-controls/guides/u2f/",
       "destination": "/access-controls/guides/webauthn/",
       "permanent": true
+    },
+    {
+    	"source": "/setup/admin/graceful-restarts/",
+        "destination": "/setup/admin/upgrading-the-teleport-binary/",
+    	"permanent": true
     }
   ]
 }
