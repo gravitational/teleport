@@ -564,7 +564,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 	traits := map[string][]string{
-		teleport.TraitLogins: []string{user.Username},
+		constants.TraitLogins: {user.Username},
 	}
 	alice.SetTraits(traits)
 

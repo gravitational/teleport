@@ -40,6 +40,7 @@ type mockGetter struct {
 	dbServers   map[string]types.DatabaseServer
 	appServers  map[string]types.AppServer
 	desktops    map[string]types.WindowsDesktop
+	clusterName string
 }
 
 // user inserts a new user with the specified roles and returns the username.
@@ -111,6 +112,13 @@ func (m *mockGetter) ListResources(ctx context.Context, req proto.ListResourcesR
 		}
 	}
 	return resp, nil
+}
+
+func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: m.clusterName,
+		ClusterID:   "testid",
+	})
 }
 
 // TestReviewThresholds tests various review threshold scenarios
@@ -1017,8 +1025,9 @@ func TestRolesForResourceRequest(t *testing.T) {
 			}
 
 			g := &mockGetter{
-				roles: roles,
-				users: users,
+				roles:       roles,
+				users:       users,
+				clusterName: "my-cluster",
 			}
 
 			req, err := types.NewAccessRequestWithResources(
@@ -1042,6 +1051,8 @@ func TestRolesForResourceRequest(t *testing.T) {
 func TestPruneRequestRoles(t *testing.T) {
 	ctx := context.Background()
 
+	clusterName := "my-cluster"
+
 	g := &mockGetter{
 		roles:       make(map[string]types.Role),
 		users:       make(map[string]types.User),
@@ -1050,6 +1061,7 @@ func TestPruneRequestRoles(t *testing.T) {
 		dbServers:   make(map[string]types.DatabaseServer),
 		appServers:  make(map[string]types.AppServer),
 		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
 	}
 
 	// set up test roles
@@ -1201,8 +1213,6 @@ func TestPruneRequestRoles(t *testing.T) {
 	})
 	require.NoError(t, err)
 	g.desktops[desktop.GetName()] = desktop
-
-	clusterName := "my-cluster"
 
 	testCases := []struct {
 		desc               string
@@ -1384,9 +1394,6 @@ func TestPruneRequestRoles(t *testing.T) {
 			req.SetLoginHint(tc.loginHint)
 
 			err = ValidateAccessRequestForUser(ctx, g, req, ExpandVars(true))
-			require.NoError(t, err)
-
-			err = PruneResourceRequestRoles(ctx, req, g, clusterName, g.users[user].GetTraits())
 			if tc.expectError {
 				require.Error(t, err)
 				return
@@ -1395,6 +1402,9 @@ func TestPruneRequestRoles(t *testing.T) {
 
 			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
 				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
+			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
+				"Length of rtm does not match number of roles. rtm: %v roles %v",
+				req.GetRoleThresholdMapping(), req.GetRoles())
 		})
 	}
 }
