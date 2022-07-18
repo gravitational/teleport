@@ -220,6 +220,9 @@ spec:
         # The minimum amount of users that need to match the filter expression
         # in order to satisfy the policy.
         count: 1
+        # The action to take if a moderator leaves a session, causing the policy to no longer be satisfied.
+        # This may be either "terminate" or "pause". An empty or unknown value will default to "terminate".
+        on_leave: "terminate"
 
     # Moderated Sessions policy that dictates the ability to join sessions
     join_sessions:
