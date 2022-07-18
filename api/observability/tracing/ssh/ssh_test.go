@@ -125,7 +125,7 @@ func newServer(t *testing.T, handler func(*ssh.ServerConn, <-chan ssh.NewChannel
 }
 
 type handler struct {
-	tracingSupported bool
+	tracingSupported tracingCapability
 	errChan          chan error
 	ctx              context.Context
 }
@@ -154,7 +154,7 @@ func (h handler) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs
 
 func (h handler) requestHandler(req *ssh.Request) {
 	switch {
-	case req.Type == TracingChannel && h.tracingSupported:
+	case req.Type == TracingChannel && h.tracingSupported == tracingSupported:
 		if err := req.Reply(true, nil); err != nil {
 			h.errChan <- err
 		}
@@ -168,11 +168,11 @@ func (h handler) requestHandler(req *ssh.Request) {
 		}()
 
 		switch h.tracingSupported {
-		case false:
+		case tracingUnsupported:
 			if subtle.ConstantTimeCompare(req.Payload, []byte(testPayload)) != 1 {
 				h.errChan <- errors.New("payload mismatch")
 			}
-		case true:
+		case tracingSupported:
 			var envelope Envelope
 			if err := json.Unmarshal(req.Payload, &envelope); err != nil {
 				h.errChan <- trace.Wrap(err, "failed to unmarshal envelope")
@@ -198,11 +198,11 @@ func (h handler) channelHandler(ch ssh.NewChannel) {
 	switch ch.ChannelType() {
 	case TracingChannel:
 		switch h.tracingSupported {
-		case false:
+		case tracingUnsupported:
 			if err := ch.Reject(ssh.UnknownChannelType, "unknown channel type"); err != nil {
 				h.errChan <- trace.Wrap(err, "failed to reject channel")
 			}
-		case true:
+		case tracingSupported:
 			ch.Accept()
 			return
 		}
@@ -267,15 +267,15 @@ func (h handler) subsystemHandler(req *ssh.Request) {
 func TestClient(t *testing.T) {
 	cases := []struct {
 		name             string
-		tracingSupported bool
+		tracingSupported tracingCapability
 	}{
 		{
 			name:             "server supports tracing",
-			tracingSupported: true,
+			tracingSupported: tracingSupported,
 		},
 		{
 			name:             "server does not support tracing",
-			tracingSupported: false,
+			tracingSupported: tracingSupported,
 		},
 	}
 
@@ -304,7 +304,7 @@ func TestClient(t *testing.T) {
 				tracing.WithTracerProvider(tp),
 				tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})),
 			)
-			require.Equal(t, handler.tracingSupported, client.tracingSupported)
+			require.Equal(t, handler.tracingSupported, client.capability)
 
 			ctx, span := tp.Tracer("test").Start(context.Background(), "test")
 			t.Cleanup(func() { span.End() })
@@ -356,31 +356,32 @@ func TestWrapPayload(t *testing.T) {
 	cases := []struct {
 		name             string
 		ctx              context.Context
-		supported        bool
+		supported        tracingCapability
 		propagator       propagation.TextMapPropagator
 		payloadAssertion require.ComparisonAssertionFunc
 	}{
 		{
 			name:             "unsupported returns provided payload",
 			ctx:              recordingCtx,
+			supported:        tracingUnsupported,
 			payloadAssertion: require.Equal,
 		},
 		{
 
 			name:             "non-recording spans aren't propagated",
-			supported:        true,
+			supported:        tracingSupported,
 			ctx:              nonRecordingCtx,
 			payloadAssertion: require.Equal,
 		},
 		{
 			name:             "empty trace context is not propagated",
-			supported:        true,
+			supported:        tracingSupported,
 			ctx:              emptyCtx,
 			payloadAssertion: require.Equal,
 		},
 		{
 			name:       "recording spans are propagated",
-			supported:  true,
+			supported:  tracingSupported,
 			ctx:        recordingCtx,
 			propagator: propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}),
 			payloadAssertion: func(t require.TestingT, i interface{}, i2 interface{}, i3 ...interface{}) {

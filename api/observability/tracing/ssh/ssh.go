@@ -191,8 +191,8 @@ func createEnvelope(ctx context.Context, propagator propagation.TextMapPropagato
 // wrapPayload wraps the provided payload within an envelope if tracing is
 // enabled and there is any tracing information to propagate. Otherwise, the
 // original payload is returned
-func wrapPayload(ctx context.Context, supported bool, propagator propagation.TextMapPropagator, payload []byte) []byte {
-	if !supported {
+func wrapPayload(ctx context.Context, supported tracingCapability, propagator propagation.TextMapPropagator, payload []byte) []byte {
+	if supported != tracingSupported {
 		return payload
 	}
 
