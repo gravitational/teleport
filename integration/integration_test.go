@@ -1044,6 +1044,8 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 }
 
+// testEscapeSequenceTriggers asserts that both escape handling works, and that
+// it can be reliably switched off via config.
 func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 	type testCase struct {
 		name                  string
@@ -1108,7 +1110,14 @@ func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testEscapeSequenceYesTrigger(t *testing.T, terminal *Terminal, sess <-chan error) {
+	// Given a running terminal connected to a remote  shell via an active
+	// Teleport SSH session, where Teleport has escape sequence processing
+	// ENABLED...
+
+	// When I enter some text containing the SSH disconnect escape string
 	terminal.Type("\a~.\n\r")
+
+	// Expect that the session will terminate shortly and without error
 	select {
 	case err := <-sess:
 		require.NoError(t, err)
@@ -1118,15 +1127,33 @@ func testEscapeSequenceYesTrigger(t *testing.T, terminal *Terminal, sess <-chan 
 }
 
 func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan error) {
-	terminal.Type("\a~.\n\r")
-	terminal.Type("\aecho hi\n\r")
+	// Given a running terminal connected to a remote shell via an active
+	// Teleport SSH session, where Teleport has escape sequence processing
+	// DISABLED...
 
+	// When I enter some text containing SSH escape string, followed by some
+	// arbitrary text....
+	terminal.Type("\a~.\n\r")
+	terminal.Type("\aecho made it to here!\n\r")
+
+	// Expect that the session will NOT be disconnected by the escape sequence,
+	// and so the arbitrary text will eventually end up in the terminal buffer.
 	require.Eventually(t, func() bool {
-		// if the session didn't end, we should see the output of the last write
-		return strings.Contains(terminal.Output(1000), "hi")
+		select {
+		case err := <-sess:
+			require.FailNow(t, "Session ended unexpectedly with %v", err)
+			return false
+
+		default:
+			// if the session didn't end, we should see the output of the last write
+			return strings.Contains(terminal.AllOutput(), "made it to here!")
+		}
 	}, time.Second*15, time.Millisecond*100)
 
+	// When I issue an explicit `exit` command to clean up the remote shell
 	terminal.Type("\aexit 0\n\r")
+
+	// Expect that the session will terminate shortly and without error
 	select {
 	case err := <-sess:
 		require.NoError(t, err)
