@@ -41,6 +41,25 @@ OIDC supports multiple types of token (`id_token`: a JWT encoding information ab
 
 ### Auth server support
 
+We will re-use the existing endpoints around joining as much as possible. This means that the main entry-point for joining will be the existing `RegisterUsingToken` method.
+
+We will introduce a new token type, `oidc-jwt`, and add an additional field to the Token resource to allow the issuer URL to be specified (`issuer_url`).
+
+Registration flow:
+
+1. Client is configured by the user to use `oidc-jwt` joining with a specific provider. The client then uses the provider-specific logic to obtain a token.
+2. The client will call the `RegisterUsingToken` endpoint, providing the OIDC JWT token that it has collected, and specifying the name of the Teleport provisioning token which should be used to verify it.
+3. The server will attempt to fetch the Token resource for the specified token.
+4. The server will check JWT header to ensure the `alg` is one we have allow-listed (RS[256, 384, 512])
+5. The server will check the `kid` of the JWT header, and obtain the relevant JWK from the cache or from the specified issuers well-known JWKS endpoint. It will then use the JWK to validate the token has been signed by the issuer.
+6. Other key claims of the JWT will be validated:
+  - Ensure the Issued At Time (iat) is in the past.
+  - Ensure the Expiry Time (exp) is in the future.
+7. The user's [configured Common Expression Language rule](#configuration) for the token will be evaluated against the claims, to ensure that the token is allowed to register with the Teleport cluster.
+8. Certificates will be generated for the client. The generated certificates will be non-renewable, as the client will proceed through the same steps to generate new certificates. This prevents exfiltratred credentials being used to repeatedly generate more credentials, maintaining access to the system.
+
+We will re-use `go-jose@v2` for validation of JWTs, since this library is already in use within Teleport.
+
 #### Caching JWKs
 
 Special attention should be given to the logic around caching the JWKs.
@@ -55,6 +74,8 @@ We should keep in mind the following considerations:
 
 - When we are presented with a JWT with a previously unseen `kid`, we should re-check the issuer's JWKs, as they may have begun issuing tokens with a new JWK.
 - We should ensure that the TTL of the cache entries is relatively short, as we want to allow an issuer to revoke a JWK that has been stolen.
+
+We will implement this cache in-memory, as the data set is relatively small and it's cheap for us to repopulate this after a service restart.
 
 #### Configuration
 
@@ -79,7 +100,7 @@ Users must also configure the `issuer_url`. This must be a host on which there i
 
 ### Node support
 
-Node here not only refers to a Teleport node, but also to a `tbot` instance.
+Node here not only refers to a Teleport node, but also to various other participants within a Teleport cluster (e.g tbot, kube agent etc).
 
 We will need to support collecting the token from the environment. This will differ on each platform. Some offer the token via a metadata service, and others directly inject it via an environment variable. Where possible, we should encourage the user to configure the token to be generated with an audience of their Teleport cluster, however, not all providers support this (e.g GitLab CI/CD).
 
@@ -120,6 +141,19 @@ claims.sub == "777666555444333222111"
 In order to verify the JWT, we have to fetch the public key from the issuers's JWKS endpoint. If this connection is not secured (e.g HTTPS), it would be possible for a malicious actor to intercept the request and return a public key they've used to sign the JWT with.
 
 We should require that the configured issuer URL is HTTPS to mitigate this.
+
+#### Vulnerabilities in JWT and JWT signing algorithms
+
+This section is included, since historically, there have been a large number of cases of vulnerabilities introduced into software because of misunderstandings and mistakes in JWT validation.
+
+One of the largest vulnerabilities in JWT validation relates to the fact that the JWT itself specifies which signing algorithm has been used, and should be used for validation. In cases where the server does not ensure that this algorithm falls within a set, there are two key exploitation paths:
+
+- Leaving a JWT unsigned, and setting the algorithm header to `none` means that JWT validation will succeed in libraries that have not been designed to prevent this flaw.
+- In cases where a service uses asymmetric algorithms for JWT signing, some libraries are vulnerable to accepting a JWT that has been signed used a symmetric algorithm, with the public key of the issuer used as the pre-shared key.
+
+By enforcing an allow-list (to only common battle-tested asymmetric algorithms) of algorithms, and checking this list as part of JWT validation, we mitigate these two vulnerabilities.
+
+Configuring an allow-list also allows us to remove algorithms if a vulnerability is discovered in a specific one.
 
 ## References and Resources
 
