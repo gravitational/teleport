@@ -574,13 +574,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
-		serverMeta: apievents.ServerMetadata{
-			ServerID:        scx.srv.HostUUID(),
-			ServerLabels:    scx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: r.Srv.GetNamespace(),
-			ServerHostname:  r.Srv.GetInfo().GetHostname(),
-			ServerAddr:      scx.ServerConn.LocalAddr().String(),
-		},
+		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteError
@@ -693,7 +687,7 @@ func (s *session) Close() error {
 
 	// Remove the session from the backend.
 	if s.scx.srv.GetSessionServer() != nil {
-		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.getNamespace(), s.id)
+		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.scx.srv.GetNamespace(), s.id)
 		if err != nil {
 			s.log.Errorf("Failed to remove active session: %v: %v. "+
 				"Access to backend may be degraded, check connectivity to backend.",
@@ -905,7 +899,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 // Must be called under session Lock.
 func (s *session) launch(ctx *ServerContext) error {
 	s.log.Debugf("Launching session %v.", s.id)
-	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
+	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
 	s.io.On()
 
@@ -1118,8 +1112,8 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		Streamer:     streamer,
 		SessionID:    s.id,
 		Clock:        s.registry.clock,
-		Namespace:    ctx.srv.GetNamespace(),
-		ServerID:     ctx.srv.HostUUID(),
+		Namespace:    s.serverMeta.ServerNamespace,
+		ServerID:     s.serverMeta.ServerID,
 		RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		ClusterName:  ctx.ClusterName,
@@ -1396,14 +1390,6 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	}
 }
 
-func (s *session) getNamespace() string {
-	return s.registry.Srv.GetNamespace()
-}
-
-func (s *session) getHostname() string {
-	return s.registry.Srv.GetInfo().GetHostname()
-}
-
 // exportPartyMembers exports participants in the in-memory map of party
 // members.
 func (s *session) exportPartyMembers() []rsession.Party {
@@ -1456,7 +1442,7 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 			partyList := s.exportPartyMembers()
 
 			err := sessionServer.UpdateSession(ctx, rsession.UpdateRequest{
-				Namespace: s.getNamespace(),
+				Namespace: scx.srv.GetNamespace(),
 				ID:        s.id,
 				Parties:   &partyList,
 			})
