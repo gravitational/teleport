@@ -473,7 +473,8 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust
+test:  test-go
+#test: test-helm test-sh test-ci test-api test-go test-rust
 
 # Runs bot Go tests.
 #
@@ -506,7 +507,7 @@ test-helm-update-snapshots:
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go: FLAGS ?= -race -shuffle on
-test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh )
+test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh  )
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -run TestAccessMongoDB -count=10 --failfast -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
