@@ -931,6 +931,7 @@
       "min_version": "3.6"
     },
     "teleport": {
+      "major_version": "9",
       "version": "9.3.9",
       "golang": "1.17",
       "plugin": {
