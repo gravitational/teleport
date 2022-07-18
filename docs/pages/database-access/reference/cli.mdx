@@ -161,7 +161,7 @@ $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=219
 <Details title="Setting up RBAC for signing database certificates">
 
 The `tctl` user must have permissions to impersonate the Teleport Database
-Service user, `Db`, in order to generate a signed database certificate. To add
+Service role, `Db`, in order to generate a signed database certificate. To add
 these impersonation privileges to your Teleport user, run the following
 commands.
 
