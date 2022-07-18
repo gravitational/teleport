@@ -8,13 +8,13 @@ exports[`clipboard error 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -36,20 +36,20 @@ exports[`clipboard error 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -59,12 +59,6 @@ exports[`clipboard error 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -108,15 +102,7 @@ exports[`clipboard error 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
-.c13 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +125,7 @@ exports[`clipboard error 1`] = `
   min-width: 450px;
 }
 
-.c13 a {
+.c11 a {
   color: #FFFFFF;
 }
 
@@ -176,33 +162,18 @@ exports[`clipboard error 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -210,7 +181,7 @@ exports[`clipboard error 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
       kind="danger"
     >
       clipboard error
@@ -230,13 +201,13 @@ exports[`connected settings false 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -258,20 +229,20 @@ exports[`connected settings false 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -281,12 +252,6 @@ exports[`connected settings false 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -330,14 +295,6 @@ exports[`connected settings false 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
 <div>
   <div
     class="c0"
@@ -371,33 +328,18 @@ exports[`connected settings false 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -419,13 +361,13 @@ exports[`connected settings true 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -447,20 +389,20 @@ exports[`connected settings true 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -470,12 +412,6 @@ exports[`connected settings true 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -517,14 +453,6 @@ exports[`connected settings true 1`] = `
   font-weight: 600;
   font-size: 22px;
   align-self: 'center';
-}
-
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
 }
 
 <div>
@@ -560,33 +488,18 @@ exports[`connected settings true 1`] = `
             style="color: rgba(255, 255, 255, 0.87);"
             title="Clipboard Sharing Enabled"
           />
-          <div
-            class="c4"
-            title="Recording In Progress"
-          >
-            <div
-              class="c9"
-              style="background-color: rgb(255, 82, 82);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.87);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -608,13 +521,13 @@ exports[`connection error 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -636,20 +549,20 @@ exports[`connection error 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -659,12 +572,6 @@ exports[`connection error 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -708,15 +615,7 @@ exports[`connection error 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
-.c13 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -739,7 +638,7 @@ exports[`connection error 1`] = `
   min-width: 450px;
 }
 
-.c13 a {
+.c11 a {
   color: #FFFFFF;
 }
 
@@ -776,33 +675,18 @@ exports[`connection error 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -810,7 +694,7 @@ exports[`connection error 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
       kind="danger"
     >
       some connection error
@@ -823,7 +707,7 @@ exports[`connection error 1`] = `
 `;
 
 exports[`disconnected 1`] = `
-.c13 {
+.c11 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
@@ -836,13 +720,13 @@ exports[`disconnected 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -864,20 +748,20 @@ exports[`disconnected 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -889,7 +773,7 @@ exports[`disconnected 1`] = `
   padding-right: 16px;
 }
 
-.c10 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -936,14 +820,6 @@ exports[`disconnected 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
 <div>
   <div
     class="c0"
@@ -977,33 +853,18 @@ exports[`disconnected 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -1011,10 +872,10 @@ exports[`disconnected 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
     >
       <div
-        class="c10"
+        class="c12"
       >
         Session successfully disconnected
       </div>
@@ -1034,13 +895,13 @@ exports[`fetch error 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1062,20 +923,20 @@ exports[`fetch error 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -1085,12 +946,6 @@ exports[`fetch error 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -1134,15 +989,7 @@ exports[`fetch error 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
-.c13 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1165,7 +1012,7 @@ exports[`fetch error 1`] = `
   min-width: 450px;
 }
 
-.c13 a {
+.c11 a {
   color: #FFFFFF;
 }
 
@@ -1202,33 +1049,18 @@ exports[`fetch error 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -1236,7 +1068,7 @@ exports[`fetch error 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
       kind="danger"
     >
       some fetch  error
@@ -1256,13 +1088,13 @@ exports[`unintended disconnect 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1284,20 +1116,20 @@ exports[`unintended disconnect 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -1307,12 +1139,6 @@ exports[`unintended disconnect 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -1356,15 +1182,7 @@ exports[`unintended disconnect 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
-.c13 {
+.c11 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1387,7 +1205,7 @@ exports[`unintended disconnect 1`] = `
   min-width: 450px;
 }
 
-.c13 a {
+.c11 a {
   color: #FFFFFF;
 }
 
@@ -1424,33 +1242,18 @@ exports[`unintended disconnect 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -1458,7 +1261,7 @@ exports[`unintended disconnect 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
       kind="danger"
     >
       Session disconnected for an unknown reason
@@ -1471,7 +1274,7 @@ exports[`unintended disconnect 1`] = `
 `;
 
 exports[`webauthn prompt 1`] = `
-.c13 {
+.c11 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
@@ -1484,13 +1287,13 @@ exports[`webauthn prompt 1`] = `
   color: #FFFFFF;
 }
 
-.c12 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c11 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1512,20 +1315,20 @@ exports[`webauthn prompt 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c11 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:disabled {
+.c9:disabled {
   color: rgba(255,255,255,0.3);
 }
 
-.c11:hover,
-.c11:focus {
+.c9:hover,
+.c9:focus {
   background: rgba(255,255,255,0.1);
 }
 
@@ -1535,12 +1338,6 @@ exports[`webauthn prompt 1`] = `
   margin: 0px;
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c0 {
@@ -1584,14 +1381,6 @@ exports[`webauthn prompt 1`] = `
   align-self: 'center';
 }
 
-.c9 {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-}
-
 <div>
   <div
     class="c0"
@@ -1625,33 +1414,18 @@ exports[`webauthn prompt 1`] = `
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c4"
-            title="Not Recording"
-          >
-            <div
-              class="c9"
-              style="background-color: rgba(255, 255, 255, 0.56);"
-            />
-            <div
-              class="c10"
-              style="color: rgba(255, 255, 255, 0.56);"
-            >
-              Recording
-            </div>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c11"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c12 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
               color="light"
             />
           </button>
@@ -1659,7 +1433,7 @@ exports[`webauthn prompt 1`] = `
       </div>
     </nav>
     <div
-      class="c13"
+      class="c11"
     />
     <canvas
       style="display: none; flex: 1;"

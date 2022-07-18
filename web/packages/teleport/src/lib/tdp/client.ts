@@ -42,6 +42,8 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
   protected socket: WebSocket | undefined;
   private socketAddr: string;
+  sharedDirectory: FileSystemDirectoryHandle | undefined;
+
   private logger = Logger.create('TDPClient');
 
   constructor(socketAddr: string) {
@@ -221,6 +223,32 @@ export default class Client extends EventEmitterWebAuthnSender {
       jsonString: JSON.stringify(data),
     });
     this.send(msg);
+  }
+
+  private sharedDirectoryReady() {
+    if (!this.sharedDirectory) {
+      this.handleError(
+        new Error(
+          'attempted to use a shared directory before one was initialized'
+        )
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  sendSharedDirectoryAnnounce() {
+    if (!this.sharedDirectoryReady()) return;
+    this.socket.send(
+      this.codec.encodeSharedDirectoryAnnounce({
+        completionId: 0, // This is always the first request.
+        // Hardcode directoryId for now since we only support sharing 1 directory.
+        // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
+        directoryId: 2,
+        name: this.sharedDirectory.name,
+      })
+    );
   }
 
   resize(spec: ClientScreenSpec) {

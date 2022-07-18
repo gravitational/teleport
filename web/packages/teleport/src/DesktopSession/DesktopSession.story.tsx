@@ -46,7 +46,6 @@ const props: State = {
     permission: { state: '' },
     errorText: '',
   },
-  isRecording: false,
   tdpClient: fakeClient(),
   username: 'user',
   onWsOpen: () => {},
@@ -55,7 +54,6 @@ const props: State = {
   disconnected: false,
   setDisconnected: () => {},
   setClipboardState: () => {},
-  setIsRecording: () => {},
   canShareDirectory: true,
   isSharingDirectory: false,
   setIsSharingDirectory: () => {},
@@ -113,7 +111,6 @@ export const ConnectedSettingsFalse = () => {
         permission: { state: '' },
         errorText: '',
       }}
-      isRecording={false}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
@@ -140,7 +137,6 @@ export const ConnectedSettingsTrue = () => {
         permission: { state: 'granted' },
         errorText: '',
       }}
-      isRecording={true}
       isSharingDirectory={true}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);

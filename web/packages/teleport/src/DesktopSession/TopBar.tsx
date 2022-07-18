@@ -24,7 +24,6 @@ export default function TopBar(props: Props) {
   const {
     userHost,
     clipboardSharingEnabled,
-    isRecording,
     onDisconnect,
     canShareDirectory,
     isSharingDirectory,
@@ -70,19 +69,6 @@ export default function TopBar(props: Props) {
                 : 'Clipboard Sharing Disabled'
             }
           />
-          <Flex
-            title={isRecording ? 'Recording In Progress' : 'Not Recording'}
-            alignItems="center"
-          >
-            <StyledRecordingIndicator
-              style={{
-                backgroundColor: isRecording
-                  ? theme.colors.error.light
-                  : theme.colors.text.secondary,
-              }}
-            />
-            <Text style={primaryOnTrue(isRecording)}>Recording</Text>
-          </Flex>
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}
@@ -108,18 +94,9 @@ const StyledFolderShared = styled(FolderShared)`
   align-self: 'center';
 `;
 
-const StyledRecordingIndicator = styled.div`
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
-`;
-
 type Props = {
   userHost: string;
   clipboardSharingEnabled: boolean;
-  isRecording: boolean;
   canShareDirectory: boolean;
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;

@@ -37,6 +37,7 @@ export enum MessageType {
   MOUSE_WHEEL_SCROLL = 8,
   ERROR = 9,
   MFA_JSON = 10,
+  SHARED_DIRECTORY_ANNOUNCE = 11,
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
@@ -82,6 +83,13 @@ export type MfaJson = {
   // TODO(isaiah) make this a type that ensures it's the same as MessageTypeEnum.U2F_CHALLENGE and MessageTypeEnum.WEBAUTHN_CHALLENGE
   mfaType: 'u' | 'n';
   jsonString: string;
+};
+
+// | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
+export type SharedDirectoryAnnounce = {
+  completionId: number;
+  directoryId: number;
+  name: string;
 };
 
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
@@ -380,6 +388,31 @@ export default class Codec {
 
     view.setUint8(offset++, MessageType.MFA_JSON);
     view.setUint8(offset++, mfaJson.mfaType.charCodeAt(0));
+    view.setUint32(offset, dataUtf8array.length);
+    offset += uint32Length;
+    dataUtf8array.forEach(byte => {
+      view.setUint8(offset++, byte);
+    });
+
+    return buffer;
+  }
+
+  // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
+  encodeSharedDirectoryAnnounce(
+    sharedDirAnnounce: SharedDirectoryAnnounce
+  ): Message {
+    const dataUtf8array = this.encoder.encode(sharedDirAnnounce.name);
+
+    const bufLen = byteLength + 3 * uint32Length + dataUtf8array.length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_ANNOUNCE);
+    view.setUint32(offset, sharedDirAnnounce.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, sharedDirAnnounce.directoryId);
+    offset += uint32Length;
     view.setUint32(offset, dataUtf8array.length);
     offset += uint32Length;
     dataUtf8array.forEach(byte => {
