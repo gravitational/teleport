@@ -22,22 +22,25 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -1253,5 +1256,99 @@ func newTestServices(t *testing.T) Services {
 		ClusterConfiguration: configService,
 		Events:               local.NewEventsService(bk, configService.GetClusterConfig),
 		IAuditLog:            events.NewDiscardAuditLog(),
+	}
+}
+
+type mockCache struct {
+	Cache
+
+	nodes      []types.Server
+	nodesError error
+}
+
+func (m mockCache) ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error) {
+	if m.nodesError != nil {
+		return nil, "", m.nodesError
+	}
+
+	if req.StartKey != "" {
+		return nil, "", nil
+	}
+
+	return m.nodes, "", nil
+}
+
+func TestIterateNodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.Server, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.New(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(s types.Server) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListNodes fails",
+			cache: mockCache{nodesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{nodes: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(s types.Server) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{nodes: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(s types.Server) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{nodes: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(s types.Server) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateNodes(ctx, proto.ListNodesRequest{
+				Namespace: apidefaults.Namespace,
+				Limit:     tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
 	}
 }

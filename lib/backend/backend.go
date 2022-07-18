@@ -263,6 +263,16 @@ func NextPaginationKey(r types.Resource) string {
 	return string(nextKey([]byte(r.GetName())))
 }
 
+// GetPaginationKey returns the pagination key given resource.
+func GetPaginationKey(r types.Resource) string {
+	switch resourceWithType := r.(type) {
+	case types.DatabaseServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	default:
+		return r.GetName()
+	}
+}
+
 // MaskKeyName masks the given key name.
 // e.g "123456789" -> "******789"
 func MaskKeyName(keyName string) []byte {
@@ -354,3 +364,7 @@ func Key(parts ...string) []byte {
 type NoMigrations struct{}
 
 func (NoMigrations) Migrate(context.Context) error { return nil }
+
+func internalKey(internalPrefix string, parts ...string) []byte {
+	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
+}

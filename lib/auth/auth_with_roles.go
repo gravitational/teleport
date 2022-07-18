@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -29,6 +28,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -683,11 +684,16 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 	req.Labels = nil
 
 	page = make([]types.Server, 0, limit)
-	nextKey, err = a.authServer.IterateNodePages(ctx, req, func(nextPage []types.Server) (bool, error) {
+	if err := a.authServer.IterateNodes(ctx, req, func(s types.Server) error {
+		if len(page) == limit {
+			nextKey = backend.GetPaginationKey(s)
+			return ErrDone
+		}
+
 		// Retrieve and filter pages of nodes until we can fill a page or run out of nodes.
-		filteredPage, err := a.filterNodes(nextPage)
+		filteredPage, err := a.filterNodes([]types.Server{s})
 		if err != nil {
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// add all matching nodes to page
@@ -698,18 +704,13 @@ func (a *ServerWithRoles) filterAndListNodes(ctx context.Context, req proto.List
 			}
 			if node.MatchAgainst(realLabels) {
 				page = append(page, node)
+				return nil
 			}
 		}
 
-		return len(page) == limit, nil
-	})
-	if err != nil {
+		return nil
+	}); err != nil {
 		return nil, "", trace.Wrap(err)
-	}
-
-	// Filled a page, reset nextKey in case the last node was cut out.
-	if len(page) == limit {
-		nextKey = backend.NextPaginationKey(page[len(page)-1])
 	}
 
 	return page, nextKey, nil
