@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -1228,6 +1229,9 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
+		if errors.Is(err, auth.ErrGithubNoTeams) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 
 		return client.LoginFailedBadCallbackRedirectURL
 	}
@@ -1329,6 +1333,10 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 					return redURL.String()
 				}
 			}
+		}
+
+		if errors.Is(err, auth.ErrOIDCNoRoles) {
+			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
 		return client.LoginFailedBadCallbackRedirectURL
