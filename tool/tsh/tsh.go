@@ -970,10 +970,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		return handleUnimplementedError(ctx, err, cf)
 	}
 
-	if err := displayLicenseWarnings(&cf); err != nil {
-		log.WithError(err).Debug("failed to display license warnings")
-	}
-
 	return trace.Wrap(err)
 }
 
@@ -1439,7 +1435,27 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	return trace.Wrap(onStatus(cf))
+	if err := onStatus(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := displayLicenseWarnings(cf.Context, tc); err != nil {
+		log.WithError(err).Debug("failed to display license warnings")
+	}
+
+	return nil
+}
+
+// displayLicenseWarnings displays license out of compliance warnings.
+func displayLicenseWarnings(ctx context.Context, tc *client.TeleportClient) error {
+	resp, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, warning := range resp.LicenseWarnings {
+		fmt.Fprintln(os.Stderr, warning)
+	}
+	return nil
 }
 
 // setupNoninteractiveClient sets up existing client to use
