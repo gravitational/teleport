@@ -113,12 +113,12 @@ type APIServer struct {
 
 func LoadKeyPair(certsDir string) (credentials.TransportCredentials, error) {
 	certificate, err := tls.LoadX509KeyPair(
-		filepath.Join(certsDir, "server.crt"), filepath.Join(certsDir, "server.key"))
+		filepath.Join(certsDir, "cert.crt"), filepath.Join(certsDir, "cert.key"))
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load server certificates")
 	}
 
-	caCert, err := os.ReadFile(filepath.Join(certsDir, "ca.crt"))
+	caCert, err := os.ReadFile(filepath.Join(certsDir, "cert.crt"))
 
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to read CA file")
