@@ -33,7 +33,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -41,12 +40,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -1352,12 +1353,12 @@ func TestNodesCRUD(t *testing.T) {
 			require.Len(t, nodes, 1)
 			require.Empty(t, cmp.Diff([]types.Server{node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-			require.Equal(t, backend.NextPaginationKey(node2), nextKey)
+			require.Empty(t, nextKey)
 
 			nodes, nextKey, err = clt.ListNodes(ctx, proto.ListNodesRequest{
 				Namespace: apidefaults.Namespace,
 				Limit:     1,
-				StartKey:  nextKey,
+				StartKey:  "node3",
 			})
 			require.NoError(t, err)
 			require.Empty(t, nodes)
