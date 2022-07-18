@@ -139,6 +139,12 @@ When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
 configuring Database Access with self-hosted database instances.
 
+<Admonition type="note" title="Note">
+  For database formats, `tctl` must be run on an Auth Service host or the remote
+  user must be be able to impersonate the built-in `Db` role and user. See the [impersonation guide](../../access-controls/guides/impersonation.mdx)
+  for details on how to allow impersonation.
+</Admonition>
+
 ```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=2190h
