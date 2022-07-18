@@ -54,10 +54,9 @@ from Teleport's events API, and forwards them to Fluentd.
   <TabItem label="Helm">
   ```code
   $ helm repo add teleport https://charts.releases.teleport.dev/
-  $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
   ```
 
-  See the Helm chart example under [Step 6/6. Start the event handler plugin](#step-66-start-the-event-handler-plugin) to see how to create `teleport-plugin-event-handler-values.yaml`!
+  See the Helm Chart example under [Step 6/6. Start the event handler plugin](#step-66-start-the-event-handler-plugin) to see how to create `teleport-plugin-event-handler-values.yaml`!
 
   </TabItem>
 </Tabs>
@@ -226,7 +225,7 @@ command.
 $ tctl auth sign --format=tls --user=teleport-event-handler --out=auth
 ```
 
-This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
+This command should result in three PEM-encoded files, `auth.crt`, `auth.key`,
 and `auth.cas` (certificate, private key, and CA certs, respectively).
 
 </TabItem>
@@ -235,13 +234,13 @@ and `auth.cas` (certificate, private key, and CA certs, respectively).
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
-The above sequence should result in one PEM-encoded file: `terraform-identity`.
+The above sequence should result in one PEM-encoded file, `terraform-identity`.
 
 </TabItem>
-<TabItem label="Helm chart" scope={["cloud"]}>
+<TabItem label="Helm Chart" scope={["cloud"]}>
 
-If you are planning to use the Helm chart, you'll need to generate the keys
-with the `file` format, then create a secret in Kubernetes:
+If you are planning to use the Helm Chart, you'll need to generate the keys
+with the `file` format, then create a secret in Kubernetes.
 
 Create the identity using the following command:
 
@@ -255,7 +254,7 @@ Then create the Kubernetes secret:
 $ kubectl create secret generic teleport-event-handler-identity --from-file=auth_id=identity
 ```
 
-These commands should result in a PEM-encoded file: `identity`, and a secret
+These commands should result in a PEM-encoded file, `identity`, and a secret
 in Kubernetes with the name `teleport-event-handler-identity`.
 
 </TabItem>
@@ -354,9 +353,9 @@ root_cas = "auth.cas"
 ```
 
 </TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Helm chart">
+<TabItem scope={["oss", "enterprise"]} label="Helm Chart">
 
-Use the following template to create values file:
+Use the following template to create `teleport-plugin-event-handler-values.yaml`:
 
 ```yaml
 eventHandler:
@@ -380,6 +379,12 @@ fluentd:
 
 persistentVolumeClaim:
   enabled: true
+```
+
+To install the event handler to Kubernetes, run the following command:
+
+```code
+$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
 ```
 
 </TabItem>
