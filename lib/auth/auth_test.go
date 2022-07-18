@@ -1262,9 +1262,6 @@ func newTestServices(t *testing.T) Services {
 type mockCache struct {
 	Cache
 
-	resources      []types.Resource
-	resourcesError error
-
 	nodes      []types.Server
 	nodesError error
 }
