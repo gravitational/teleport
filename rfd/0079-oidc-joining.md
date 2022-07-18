@@ -91,12 +91,25 @@ spec:
   roles: [Node]
   join_method: oidc-jwt
   issuer_url: https://accounts.google.com
-  allow: claims.aud == "noah.teleport.sh" && claims.google.compute_engine.project_id == "my-project" && claims.google.compute_engine.instance_name == "an-instance"
+  allow:
+  - aud: "noah.teleport.sh"
+    google:
+      compute_engine:
+        project_id: "my-project"
+        instance_name: "an-instance"
 ```
 
-To allow the user to configure rules for what identities will be accepted, we will use the [Common Expression Language (CEL)](https://github.com/google/cel-spec). This allows a large degree of flexibility in the complexity of rules users can configure, but still allows simple expressions.
+To allow the user to configure rules for what identities will be accepted, we will leverage the `allow` field similar to how it works with the IAM joining. This performs partial equality/matching with the YAML provided, and the claims within the token. As long as all fields configured in one block match with those in the token, then it will be considered valid for registration. This provides a rough mechanism for configuring AND/OR logic.
 
-Users must also configure the `issuer_url`. This must be a host on which there is a compliant `/.well-known/openid-configuration` endpoint.
+To do this, we will need to change the structure of `ProvisionTokenSpecV2`, as the data under `Allow` is currently specifically designed around IAM joining. I suggest that we change this from `repeated TokenRule` to `repeated google.protobuf.Any`, and then [unmarshal it to a more specific message type](https://pkg.go.dev/google.golang.org/protobuf/types/known/anypb#hdr-Unmarshaling_an_Any) based on the value of `JoinMethod`. This will allow us more flexibility going forward as we introduce more joining methods, and avoid polluting a single message type with configuration values that apply to all joining methods.
+
+Users must also configure the `issuer_url`. This must be a host on which there is a compliant `/.well-known/openid-configuration` endpoint. Information about the structure of this endpoint can be found in the [OIDC Core and Discovery specifications.](#references-and-resources)
+
+#### Extracting claims as metadata for generated credentials
+
+The JWTs issued by providers often contain claims that would be useful when auditing actions. We can extract these claims, and embed them into the certificates during registration. This additional metadata can then be audit logged when the certificates are used, allowing actions to be attributed to specific CI runs or individual VMs.
+
+In order to implement OIDC joining in a timely manner, we should consider this out of scope for this initial implementation.
 
 ### Node support
 
@@ -166,7 +179,7 @@ OIDC Specifications:
 Providers of Workload Identity. These are platforms we can support once OIDC joining is added:
 
 - [Github Actions](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect)
-- GCP (GCE, GCB)
+- [GCP (GCE, GCB)](https://cloud.google.com/compute/docs/instances/verifying-instance-identity#token_format)
 - [CircleCI](https://circleci.com/docs/openid-connect-tokens)
 - [GitLab](https://docs.gitlab.com/ee/ci/cloud_services/)
 - [SPIFFE/SPIRE](https://spiffe.io/docs/latest/keyless/): This presents an interesting use case for tokenless joining in a variety of environment.
