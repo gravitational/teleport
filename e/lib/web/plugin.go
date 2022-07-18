@@ -107,6 +107,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.GET("/enterprise/cloud/recovery/token/:token", p.withCloud(p.getAccountRecoveryTokenHandle))
 		h.POST("/enterprise/cloud/recovery/codes", p.withCloud(p.createAccountRecoveryCodesHandle))
 		h.GET("/enterprise/cloud/recovery/codes", h.WithAuth(p.getAccountRecoveryCodesMetadataHandle))
+
+		// Upgrade window related endpoints.
+		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHandle))
+		h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHandle))
 	}
 
 	return nil

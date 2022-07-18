@@ -198,6 +198,26 @@ func (ac *cloudWithRoles) SendAccountRecovered(ctx context.Context, req *v1.Send
 	return ac.plugin.cloudClient.SendAccountRecovered(ctx, req)
 }
 
+// UpdateAccountUpgradeWindowStart updates the start of the account upgrade window for cloud users.
+func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStart(ctx context.Context, req *v1.UpdateAccountUpgradeWindowStartRequest) (*v1.EmptyResponse, error) {
+	_, err := ac.plugin.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.UpdateAccountUpgradeWindowStart(ctx, req)
+}
+
+// GetAccountUpgradeWindowStart returns the start of the account upgrade window for cloud users.
+func (ac *cloudWithRoles) GetAccountUpgradeWindowStart(ctx context.Context, req *v1.EmptyRequest) (*v1.GetAccountUpgradeWindowStartResponse, error) {
+	_, err := ac.plugin.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetAccountUpgradeWindowStart(ctx, req)
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
