@@ -40,14 +40,13 @@ This RFD focuses only on AWS EKS clusters. Similar ideas will be explored in the
 
 The initial work proposed by this RFD is to remove the usage of `ServerV2` objects for representing Kubernetes Servers in Teleport API. Currently, [`ServerV2`][serverv2] has a field `KubernetesClusters` which holds the list of Kubernetes clusters proxied by the Kubernetes Server.
 
-To remove usage of `ServerV2` for servers other than the SSH server, we must introduce the `KubernetesServerV3`, which holds the information about the clusters proxied by it as well as the server status.
+To remove usage of `ServerV2` for servers other than the SSH server, we must introduce the `KubernetesServerV3`, which holds the information about the cluster proxied by it as well as the server status. Each Kubernetes is represented by a different `KubernetesServerV3`.
 
 ```protobuf
 // KubernetesServerV3 represents a Kubernetes server.
 message KubernetesServerV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
-
     // Kind is the Kubernetes server resource kind. Always "kube_server".
     string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
     // SubKind is an optional resource subkind.
@@ -71,8 +70,10 @@ message KubernetesServerSpecV3 {
     // Rotation contains the Kubernetes server CA rotation information.
     Rotation Rotation = 4
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
-    // Clusters is the list of Kubernetes Clusters proxied by this Kubernetes server.
-    repeated KubernetesClusterV3 Clusters = 5 [ (gogoproto.jsontag) = "cluster" ];
+    // Cluster is a Kubernetes Cluster proxied by this Kubernetes server.
+    KubernetesClusterV3 Cluster = 5 [ (gogoproto.jsontag) = "cluster" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
 }
 
 ```
