@@ -96,7 +96,7 @@ func SingleProxyPortSetupOn(addr string) func(*testing.T, *[]service.FileDescrip
 	}
 }
 
-// SingleProxyPortSetup generates an InstanceConfig that allows proxying of multiple protocols 
+// SingleProxyPortSetup generates an InstanceConfig that allows proxying of multiple protocols
 // over a single port.
 func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
 	return SingleProxyPortSetupOn("127.0.0.1")(t, fds)
