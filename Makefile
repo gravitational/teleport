@@ -1091,7 +1091,7 @@ deb:
 # check binary compatibility with different OSes
 .PHONY: test-compat
 test-compat:
-	./build.assets/build-test.sh
+	./build.assets/build-test-compat.sh
 
 .PHONY: ensure-webassets
 ensure-webassets:
