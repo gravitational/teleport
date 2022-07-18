@@ -23,8 +23,8 @@ export default {
 };
 
 export const Basic = () => (
-  <Flex>
-    <Box width={1 / 2} bg="pink" p={5} mr={5}>
+  <Flex gap={5}>
+    <Box width={1 / 2} bg="pink" p={5}>
       Box one
     </Box>
     <Box width={1 / 2} bg="orange" p={5}>
@@ -34,8 +34,8 @@ export const Basic = () => (
 );
 
 export const Wrapped = () => (
-  <Flex flexWrap="wrap">
-    <Box width={[1, 1 / 2]} bg="pink" p={5} mb={2}>
+  <Flex flexWrap="wrap" gap={2}>
+    <Box width={[1, 1 / 2]} bg="pink" p={5}>
       Box one
     </Box>
     <Box width={[1, 1 / 2]} bg="orange" p={5}>
