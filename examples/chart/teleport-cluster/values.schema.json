@@ -79,6 +79,31 @@
             "type": "boolean",
             "default": false
         },
+        "publicAddress": {
+            "$id": "#/properties/publicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "sshPublicAddress": {
+            "$id": "#/properties/sshPublicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "tunnelPublicAddress": {
+            "$id": "#/properties/tunnelPublicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "postgresPublicAddress": {
+            "$id": "#/properties/postgresPublicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "mongoPublicAddress": {
+            "$id": "#/properties/mongoPublicAddress",
+            "type": "string",
+            "default": ""
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
