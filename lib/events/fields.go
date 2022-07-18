@@ -30,7 +30,7 @@ func ValidateServerMetadata(event apievents.AuditEvent, serverID string) error {
 	if !ok {
 		return nil
 	}
-	if !getter.GetForwarded() && getter.GetServerID() != serverID {
+	if getter.GetForwardedBy() != "" && getter.GetServerID() != serverID {
 		return trace.BadParameter("server %q can't emit event with server ID %q", serverID, getter.GetServerID())
 	}
 	if ns := getter.GetServerNamespace(); ns != "" && !types.IsValidNamespace(ns) {

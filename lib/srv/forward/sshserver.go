@@ -361,7 +361,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
-		Forwarded:       true,
+		ForwardedBy:     s.hostUUID,
 	}
 }
 
