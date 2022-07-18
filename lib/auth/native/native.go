@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -58,6 +59,13 @@ var generateKeyPairImplFunc = generateKeyPairImpl
 
 // UnsafeSetGenerateKeyPairFunc sets a custom function what will be used for key pair generation.
 func UnsafeSetGenerateKeyPairFunc(fn func() ([]byte, []byte, error)) {
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("failed to get runtime.Caller")
+	}
+	if !strings.HasSuffix(file, "_test.go") {
+		panic("UnsafeSetGenerateKeyPairFunc call is only allowed from go test files")
+	}
 	generateKeyPairImplFunc = fn
 }
 
