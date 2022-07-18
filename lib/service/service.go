@@ -3886,8 +3886,13 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	var minimalWebServer *http.Server
 	var minimalWebHandler *web.APIHandler
 
+	internalListener := listeners.reverseTunnelMux.TLS()
+	if !cfg.Proxy.DisableTLS {
+		internalListener = tls.NewListener(internalListener, tlsConfigWeb)
+	}
+
 	minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-		Listener: tls.NewListener(listeners.reverseTunnelMux.TLS(), tlsConfigWeb),
+		Listener: internalListener,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
