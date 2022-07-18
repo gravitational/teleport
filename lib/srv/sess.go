@@ -357,14 +357,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			Code:        events.TerminalResizeCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.Srv.GetNamespace(),
-			// TODO(joel): update hostname here
-			ServerHostname: s.Srv.GetInfo().GetHostname(),
-			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: session.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
@@ -499,6 +492,9 @@ type session struct {
 	// an ongoing lingerAndDie goroutine. This is used by joining parties
 	// to cancel the goroutine and prevent the session from closing prematurely.
 	lingerAndDieCancel func()
+
+	// serverMeta contains metadata about the target node of this session.
+	serverMeta apievents.ServerMetadata
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -578,6 +574,13 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		serverMeta: apievents.ServerMetadata{
+			ServerID:        scx.srv.HostUUID(),
+			ServerLabels:    scx.srv.GetInfo().GetAllLabels(),
+			ServerNamespace: r.Srv.GetNamespace(),
+			ServerHostname:  r.Srv.GetInfo().GetHostname(),
+			ServerAddr:      scx.ServerConn.LocalAddr().String(),
+		},
 	}
 
 	sess.io.OnWriteError = sess.onWriteError
@@ -728,14 +731,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 			ID:          uuid.New().String(),
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:     ctx.srv.HostUUID(),
-			ServerLabels: ctx.srv.GetInfo().GetAllLabels(),
-			// TODO(joel): update hostname here
-			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-			ServerNamespace: ctx.srv.GetNamespace(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -771,14 +767,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			// TODO(joel): update hostname here
-			ServerHostname: s.getHostname(),
-			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
@@ -824,14 +813,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			Code:        events.SessionLeaveCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			// TODO(joel): update hostname here
-			ServerHostname: s.getHostname(),
-			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -880,14 +862,7 @@ func (s *session) emitSessionEndEvent() {
 			Code:        events.SessionEndCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			// TODO(joel): update hostname here
-			ServerHostname: s.getHostname(),
-			ServerAddr:     ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -1762,12 +1737,11 @@ func (p *party) closeUnderSessionLock() {
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID: s.id.String(),
-		Kind:      string(types.SSHSessionKind),
-		State:     types.SessionState_SessionStatePending,
-		// TODO(joel): update hostname here
-		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
-		Address:      s.scx.srv.ID(),
+		SessionID:    s.id.String(),
+		Kind:         string(types.SSHSessionKind),
+		State:        types.SessionState_SessionStatePending,
+		Hostname:     s.serverMeta.ServerHostname,
+		Address:      s.serverMeta.ServerID,
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
 		HostUser:     teleportUser,
