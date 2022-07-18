@@ -154,7 +154,9 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
+
 	tracker.Start()
+	t.Cleanup(tracker.StopAll)
 
 	lease := <-tracker.Acquire()
 
@@ -236,7 +238,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent.tracker.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
-	err := agent.Start(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
 
@@ -293,7 +299,10 @@ func TestAgentStart(t *testing.T) {
 		return nil
 	}
 
-	err := agent.Start(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 
 	require.NoError(t, err)
 	require.Equal(t, 1, int(atomic.LoadInt32(openChannels)), "Expected only heartbeat channel to be opened.")
