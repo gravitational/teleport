@@ -1,5 +1,34 @@
 # Changelog
 
+## 10.0.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed "unsupported option" error when using passwordless with some hardware keys. [#14198](https://github.com/gravitational/teleport/pull/14198)
+* Fixed issue with automatic user provisioning creading invalid sudoer files for some usernames. [#14364](https://github.com/gravitational/teleport/pull/14364)
+* Fixed a number of issues with X11 forwarding on Mac and Windows. [#14437](https://github.com/gravitational/teleport/pull/14437)
+* Fixed interoperability issues between newer OpenSSH clients and Teleport. [#14442](https://github.com/gravitational/teleport/pull/14442)
+* Fixed issue causing Teleport instances running both Auth and Node services to emit `TeleportDegraded` events. [#14314](https://github.com/gravitational/teleport/pull/14314)
+* Fixed issue with HTTP proxy basic auth not being respected. [#14322](https://github.com/gravitational/teleport/pull/14322)
+* Fixed issue with blank `--ca-pin` flag overriding configuration. [#14361](https://github.com/gravitational/teleport/pull/14361)
+* Fixed potential panic in Desktop Access. [#14445](https://github.com/gravitational/teleport/pull/14445)
+* Fixed issue with App Access redirect to a URL containing "nil". [#14393](https://github.com/gravitational/teleport/pull/14393)
+* Fixed issues with resource request approvals in Web UI. [#14444](https://github.com/gravitational/teleport/pull/14444)
+* Fixed issue with resource request approvals for Windows Desktops. [#14452](https://github.com/gravitational/teleport/pull/14452)
+* Fixed issue with Machine ID ignoring configured certificate TTL. [#14338](https://github.com/gravitational/teleport/pull/14338)
+* Fixed issue with resource list results being different between Web UI and CLI. [#14472](https://github.com/gravitational/teleport/pull/14472)
+* Added TouchID prompt message to `tsh`. [#14186](https://github.com/gravitational/teleport/pull/14186)
+* Added hint about `--user` flag to `tsh login`. [#14253](https://github.com/gravitational/teleport/pull/14253)
+* Added ability to update user principals using `tctl users update --set-logins` command. [#14390](https://github.com/gravitational/teleport/pull/14390)
+* Added CA rotation support to Machine ID. [#14431](https://github.com/gravitational/teleport/pull/14431)
+* Added `--format` flag to `tsh proxy aws` command. [#14447](https://github.com/gravitational/teleport/pull/14447)
+* Improved `tsh login` error message when Proxy public address is not set. [#14338](https://github.com/gravitational/teleport/pull/14338)
+* Improved `tsh db ls` performance for users with many roles. [#14284](https://github.com/gravitational/teleport/pull/14284)
+* Start PostgreSQL listener when Proxy runs in `--insecure-no-tls` mode. [#14327](https://github.com/gravitational/teleport/pull/14327)
+* Create PuTTY compatible key pair on `tsh login`. [#14383](https://github.com/gravitational/teleport/pull/14383)
+* Display Kubernetes session in the list of active sessions in Web UI. [#14360](https://github.com/gravitational/teleport/pull/14360)
+* Reduced the number of cache reads in healthy clusters. [#14304](https://github.com/gravitational/teleport/pull/14304)
+
 ## 10.0.0
 
 Teleport 10 is a major release that brings the following new features.
