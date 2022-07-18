@@ -551,7 +551,7 @@ func pickCredential(
 	// Single credential or specific user requested.
 	// A requested user means that all credentials are for that user, so there
 	// would be nothing to pick.
-	case l == 1 && userRequested:
+	case l == 1 || userRequested:
 		return &infos[0], nil
 	}
 
