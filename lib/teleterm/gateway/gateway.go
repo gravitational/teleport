@@ -58,7 +58,6 @@ func New(cfg Config) (*Gateway, error) {
 
 type newListenerAndLocalProxyResult struct {
 	LocalPort    string
-	listener     net.Listener
 	closeContext context.Context
 	closeCancel  context.CancelFunc
 	localProxy   *alpn.LocalProxy
@@ -98,7 +97,6 @@ func newListenerAndLocalProxy(cfg Config, port string) (*newListenerAndLocalProx
 	ok = true
 	return &newListenerAndLocalProxyResult{
 			LocalPort:    localPort,
-			listener:     listener,
 			closeContext: closeContext,
 			closeCancel:  closeCancel,
 			localProxy:   localProxy},
