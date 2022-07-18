@@ -243,8 +243,8 @@ func (g *Gateway) SetLocalPortAndRestart(port string) error {
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
 func (g *Gateway) LocalPortInt() int {
-	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
-	// it'll always be a random integer value, not a service name that needs actual lookup.
+	// Ignoring the error here as Teleterm allows the user to pick only integer values for the port,
+	// so the string itself will never be a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
 	port, _ := strconv.Atoi(g.cfg.LocalPort)
 	return port
