@@ -224,7 +224,8 @@ Service reads these parameters to configure its interactions with S3:
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-- `use_fips_endpoint=true` -  set to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) S3 endpoints will be used. If `false`, normal S3 endpoints will be used. If this parameter is unset, Teleport will use the value of the environment variable `AWS_USE_FIPS_ENDPOINT` to determine which endpoint to use use. FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
+- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
 ### S3 Server Side Encryption
 
 Teleport supports using a custom AWS KMS Customer Managed Key for encrypting objects uploaded to S3.
@@ -450,7 +451,7 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
-- `use_fips_endpoint=true` -  set to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used. If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used. FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
+- `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
 
 <Admonition
   type="warning"
@@ -542,6 +543,27 @@ To enable these options you will need to update the IAM Role for Teleport.
     "Resource": "*"
 }
 ```
+
+### Configuring AWS FIPS endpoints
+
+This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
+
+Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
+If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
+FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
+
+Config option priority is applied in the order `QueryParameter > --fips > AWS_USE_FIPS_ENDPOINT`, or:
+* Setting query parameter in the config as shown above
+* Using the `--fips` flag when running Teleport
+* Using the AWS environment variable
+
+<Admonition
+  type="warning"
+  title="A warning about AWS_USE_FIPS_ENDPOINT"
+>
+  Setting this environment variable to true will enable FIPS endpoints for all AWS resource types. Some FIPS endpoints
+  are not supported in certain regions or environments or are only supported in GovCloud.
+</Admonition>
 
 ## GCS
 
