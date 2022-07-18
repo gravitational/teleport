@@ -376,7 +376,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	handler.handler.sshPort = sshPort
 
 	t.Cleanup(func() {
-		// In particular close the lock watchers by cancelling the context.
+		// In particular close the lock watchers by canceling the context.
 		s.cancel()
 
 		s.webServer.Close()
@@ -543,110 +543,134 @@ func Test_clientMetaFromReq(t *testing.T) {
 	}, got)
 }
 
-func TestSAMLSuccess(t *testing.T) {
+func TestSAML(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	s := newWebSuite(t)
-	input := fixtures.SAMLOktaConnectorV2
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-	var raw services.UnknownResource
-	err := decoder.Decode(&raw)
-	require.NoError(t, err)
-
-	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-	err = services.ValidateSAMLConnector(connector)
-	require.NoError(t, err)
-
-	role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
+	tests := []struct {
+		name                string
+		rawConnector        string
+		validSession        bool
+		expectedRedirectURL string
+	}{
+		{
+			name:                "success",
+			rawConnector:        fixtures.SAMLOktaConnectorV2,
+			validSession:        true,
+			expectedRedirectURL: "/after",
 		},
-		Allow: types.RoleConditions{
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Namespaces: []string{apidefaults.Namespace},
-			Rules: []types.Rule{
-				types.NewRule(types.Wildcard, services.RW()),
-			},
+		{
+			name:                "fail to map claims to roles",
+			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
+			validSession:        false,
+			expectedRedirectURL: client.LoginFailedUnauthorizedRedirectURL,
 		},
-	})
-	require.NoError(t, err)
-	role.SetLogins(types.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(s.ctx, role)
-	require.NoError(t, err)
+	}
 
-	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
-	require.NoError(t, err)
-	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
-	clt := s.clientNoRedirects()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := newWebSuite(t)
+			input := tc.rawConnector
 
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			var raw services.UnknownResource
+			err := decoder.Decode(&raw)
+			require.NoError(t, err)
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
-	require.NoError(t, err)
-	req, err := http.NewRequest("GET", baseURL.String(), nil)
-	require.NoError(t, err)
-	addCSRFCookieToReq(req, csrfToken)
-	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
-	require.NoError(t, err)
+			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
+			require.NoError(t, err)
 
-	// we got a redirect
-	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
-	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
-	u, err := url.Parse(locationURL)
-	require.NoError(t, err)
-	require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
-	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
-	require.NoError(t, err)
-	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
-	require.NoError(t, err)
-	doc := etree.NewDocument()
-	err = doc.ReadFromBytes(buf)
-	require.NoError(t, err)
-	id := doc.Root().SelectAttr("ID")
-	require.NotNil(t, id)
+			role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
+				},
+				Allow: types.RoleConditions{
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces: []string{apidefaults.Namespace},
+					Rules: []types.Rule{
+						types.NewRule(types.Wildcard, services.RW()),
+					},
+				},
+			})
+			require.NoError(t, err)
+			role.SetLogins(types.Allow, []string{s.user})
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
 
-	authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
-	require.NoError(t, err)
+			err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
+			require.NoError(t, err)
+			s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
+			clt := s.clientNoRedirects()
 
-	// now swap the request id to the hardcoded one in fixtures
-	authRequest.ID = fixtures.SAMLOktaAuthRequestID
-	authRequest.CSRFToken = csrfToken
-	err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
-	require.NoError(t, err)
+			csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	// now respond with pre-recorded request to the POST url
-	in := &bytes.Buffer{}
-	fw, err := flate.NewWriter(in, flate.DefaultCompression)
-	require.NoError(t, err)
+			baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
+			require.NoError(t, err)
+			req, err := http.NewRequest("GET", baseURL.String(), nil)
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, csrfToken)
+			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+			require.NoError(t, err)
 
-	_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
-	require.NoError(t, err)
-	err = fw.Close()
-	require.NoError(t, err)
-	encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
-	require.NotNil(t, encodedResponse)
+			// we got a redirect
+			urlPattern := regexp.MustCompile(`URL='([^']*)'`)
+			locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
+			u, err := url.Parse(locationURL)
+			require.NoError(t, err)
+			require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
+			data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
+			require.NoError(t, err)
+			buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
+			require.NoError(t, err)
+			doc := etree.NewDocument()
+			err = doc.ReadFromBytes(buf)
+			require.NoError(t, err)
+			id := doc.Root().SelectAttr("ID")
+			require.NotNil(t, id)
 
-	// now send the response to the server to exchange it for auth session
-	form := url.Values{}
-	form.Add("SAMLResponse", encodedResponse)
-	req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	addCSRFCookieToReq(req, csrfToken)
-	require.NoError(t, err)
-	authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
+			authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
+			require.NoError(t, err)
 
-	require.NoError(t, err)
-	require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
-	// we have got valid session
-	require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
-	// we are being redirected to original URL
-	require.Equal(t, "/after", authRe.Headers().Get("Location"))
+			// now swap the request id to the hardcoded one in fixtures
+			authRequest.ID = fixtures.SAMLOktaAuthRequestID
+			authRequest.CSRFToken = csrfToken
+			err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
+			require.NoError(t, err)
+
+			// now respond with pre-recorded request to the POST url
+			in := &bytes.Buffer{}
+			fw, err := flate.NewWriter(in, flate.DefaultCompression)
+			require.NoError(t, err)
+
+			_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
+			require.NoError(t, err)
+			err = fw.Close()
+			require.NoError(t, err)
+			encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
+			require.NotNil(t, encodedResponse)
+
+			// now send the response to the server to exchange it for auth session
+			form := url.Values{}
+			form.Add("SAMLResponse", encodedResponse)
+			req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
+			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			addCSRFCookieToReq(req, csrfToken)
+			require.NoError(t, err)
+			authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
+			if tc.validSession {
+				// we have got valid session
+				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
+			}
+			require.Equal(t, tc.expectedRedirectURL, authRe.Headers().Get("Location"))
+		})
+	}
 }
 
 func TestWebSessionsCRUD(t *testing.T) {
@@ -3298,6 +3322,46 @@ func TestParseSSORequestParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetUserOrResetToken(t *testing.T) {
+	env := newWebPack(t, 1)
+	ctx := context.Background()
+	username := "someuser"
+
+	// Create a username.
+	teleUser, err := types.NewUser(username)
+	require.NoError(t, err)
+	teleUser.SetLogins([]string{"login1"})
+	require.NoError(t, env.server.Auth().CreateUser(ctx, teleUser))
+
+	// Create a reset password token and secrets.
+	resetToken, err := env.server.Auth().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: username,
+		Type: auth.UserTokenTypeResetPasswordInvite,
+	})
+	require.NoError(t, err)
+
+	pack := env.proxies[0].authPack(t, "foo")
+
+	// the default roles of foo don't have users read but we need it on our tests
+	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
+	require.NoError(t, err)
+	fooAllowRules := fooRole.GetRules(types.Allow)
+	fooAllowRules = append(fooAllowRules, types.NewRule(types.KindUser, services.RO()))
+	fooRole.SetRules(types.Allow, fooAllowRules)
+	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
+	require.NoError(t, err)
+	require.Contains(t, string(resp.Bytes()), "login1")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, resp.Code(), http.StatusOK)
+
+	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
+	require.True(t, trace.IsNotFound(err))
 }
 
 type authProviderMock struct {

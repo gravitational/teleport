@@ -538,6 +538,10 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
+	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
+	// is updated. Used only for teleport cloud.
+	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )

@@ -204,14 +204,16 @@ func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 		fs.sshCAsPath(idx),
 		fs.tlsCertPath(idx),
 	}
-	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows
-	if runtime.GOOS == constants.WindowsOS {
-		files = append(files, fs.PPKFilePath(idx))
-	}
 	for _, fn := range files {
 		if err := os.Remove(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
+	}
+	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
+	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
+	// as such, deletion should be best-effort and not generate an error if it fails.
+	if runtime.GOOS == constants.WindowsOS {
+		os.Remove(fs.PPKFilePath(idx))
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.

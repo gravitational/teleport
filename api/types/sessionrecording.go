@@ -44,7 +44,7 @@ type SessionRecordingConfig interface {
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
-// SessionRecordingConfigV2 labelled as originating from config file.
+// SessionRecordingConfigV2 labeled as originating from config file.
 func NewSessionRecordingConfigFromConfigFile(spec SessionRecordingConfigSpecV2) (SessionRecordingConfig, error) {
 	return newSessionRecordingConfigWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,

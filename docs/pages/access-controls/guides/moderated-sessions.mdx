@@ -56,6 +56,12 @@ The following are required options for `require_session_join`:
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 |`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
 
+The following fields are optional for `require_session_join`:
+
+|Option|Type|Description|
+|---|---|---|
+|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
+
 #### Example
 
 The policy below specifies that the `prod-access` role must have a minimum of
@@ -177,6 +183,20 @@ Require policies can have a variable amount of users that need to match the
 filter expression in order to satisfy the policy. The `count` field of a require
 policy is a positive integer value that specifies the minimum amount of users
 this policy requires.
+
+### On leave
+
+The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
+
+There are two possible actions to take in this scenario:
+1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+
+By default, Teleport treats an empty string in this field as the same as `terminate`.
+That is, the session is terminated instantly and all participants are disconnected.
+
+If all require policies attached to the session owner are set to `"pause"`, the session will instead pause
+but the session will remain open. This discards all input from session participants and buffers the most recent output until the session can resume.
 
 ## Backwards compatibility with Server Access
 
