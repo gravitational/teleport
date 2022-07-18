@@ -22,8 +22,6 @@
 # not shared libraries not installed by default in different OSes
 # and ensure that Glibc version is sufficient.
 
-set -e
-
 DISTROS=(
   "ubuntu:14.04"
   "ubuntu:16.04"
@@ -49,13 +47,29 @@ DISTROS=(
   "fedora:latest"
 )
 
+# Global variable to propagate error code from all commands.
+# It will be set to non-zero value if any of run commands returns an error.
+EXIT_CODE=0
+
+# Run binary in a Docker container and propagate returned exit code.
+#
+# Arguments:
+# $1 - distro name
+# $2 - binary to run
+function run_docker {
+  docker run --rm -v"$(pwd)":/teleport "$1" "${@:2}"
+  EXIT_CODE=$((EXIT_CODE || $?))
+}
+
 for DISTRO in "${DISTROS[@]}";
 do
-  echo "Checking ${DISTRO}"
+  echo "============ Checking ${DISTRO} ============"
   docker pull "${DISTRO}"
-  docker run --rm -v"$(pwd)":/teleport "$DISTRO" /teleport/build/teleport version
-  docker run --rm -v"$(pwd)":/teleport "$DISTRO" /teleport/build/tsh version
-  docker run --rm -v"$(pwd)":/teleport "$DISTRO" /teleport/build/tctl version
-  docker run --rm -v"$(pwd)":/teleport "$DISTRO" /teleport/build/tbot version
+
+  run_docker "$DISTRO" /teleport/build/teleport version
+  run_docker "$DISTRO" /teleport/build/tsh version
+  run_docker "$DISTRO" /teleport/build/tctl version
+  run_docker "$DISTRO" /teleport/build/tbot version
 done
 
+exit $EXIT_CODE
