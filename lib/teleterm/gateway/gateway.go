@@ -96,7 +96,13 @@ func newListenerAndLocalProxy(cfg Config, port string) (*newListenerAndLocalProx
 	}
 
 	ok = true
-	return &newListenerAndLocalProxyResult{localPort, listener, closeContext, closeCancel, localProxy}, nil
+	return &newListenerAndLocalProxyResult{
+			LocalPort:    localPort,
+			listener:     listener,
+			closeContext: closeContext,
+			closeCancel:  closeCancel,
+			localProxy:   localProxy},
+		nil
 }
 
 func newLocalProxy(closeContext context.Context, cfg Config, listener net.Listener) (*alpn.LocalProxy, error) {
