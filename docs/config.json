@@ -78,7 +78,7 @@
             },
             {
               "title": "Upgrading the Teleport Binary",
-              "slug": "/setup/admin/graceful-restarts/"
+              "slug": "/setup/admin/upgrading-the-teleport-binary/"
             },
             {
               "title": "Run Teleport as a Daemon",
@@ -1206,6 +1206,11 @@
     {
       "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
       "destination": "/setup/helm-reference/teleport-kube-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/graceful-restarts/",
+      "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
     }
   ]
