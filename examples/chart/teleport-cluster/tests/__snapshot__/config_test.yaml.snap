@@ -878,6 +878,45 @@ matches snapshot for proxy-listener-mode.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for public-addresses.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'loadbalancer.example.com:443'
+          ssh_public_addr: 'loadbalancer.example.com:3023'
+          tunnel_public_addr: 'loadbalancer.example.com:3024'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          postgres_listen_addr: 0.0.0.0:5432
+          postgres_public_addr: 'loadbalancer.example.com:5432'
+          mongo_listen_addr: 0.0.0.0:27017
+          mongo_public_addr: 'loadbalancer.example.com:27017'
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for resources.yaml:
   1: |
     apiVersion: v1

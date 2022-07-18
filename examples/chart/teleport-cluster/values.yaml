@@ -37,6 +37,21 @@ proxyListenerMode: ""
 separatePostgresListener: false
 separateMongoListener: false
 
+# Public cluster address, including port. Defaults to `clusterName` on 443 port.
+publicAddress: ""
+# Public cluster SSH address, including port. Defaults to `publicAddress` on 3023 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+sshPublicAddress: ""
+# Public cluster tunnel SSH address, including port. Defaults to `publicAddress` on 3024 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+tunnelPublicAddress: ""
+# Public cluster postgres listener address, including port. Defaults to `publicAddress` on 5432 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
+postgresPublicAddress: ""
+# Public cluster mongo listener address, including port. Defaults to `publicAddress` on 27017 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
+mongoPublicAddress: ""
+
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
 # For HA configurations, see either the "highAvailability.certManager" or "tls" values.

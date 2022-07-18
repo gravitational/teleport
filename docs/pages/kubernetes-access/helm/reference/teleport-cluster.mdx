@@ -198,6 +198,132 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
   </TabItem>
 </Tabs>
 
+## `publicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.public_addr` | ❌ |
+
+`publicAddress` controls the advertised address for TLS connections.
+
+When `publicAddress` is not set, the address used is [`clusterName`](#clusterName) on port 443.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  publicAddress: loadbalancer.example.com:443
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set publicAddress=loadbalancer.example.com:443
+  ```
+  </TabItem>
+</Tabs>
+
+
+## `sshPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.ssh_public_addr` | ❌ |
+
+`sshPublicAddress` controls the advertised address for SSH clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `sshPublicAddress` is not set, the address is inferred from [`publicAddress`](#publicAddress) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3023.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  sshPublicAddress: loadbalancer.example.com:3023
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sshPublicAddress=loadbalancer.example.com:3023
+  ```
+  </TabItem>
+</Tabs>
+
+## `tunnelPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.tunnel_public_addr` | ❌ |
+
+`tunnelPublicAddress` controls the advertised address to trusted clusters or nodes joining via node-tunneling.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `tunnelPublicAddress` is not set, the address is inferred from [`publicAddress`](#publicAddress) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3024.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tunnelPublicAddress: 'loadbalancer.example.com:3024'
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set tunnelPublicAddress='loadbalancer.example.com:3024'
+  ```
+  </TabItem>
+</Tabs>
+
+## `postgresPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.postgres_public_addr` | ❌ |
+
+`postgresPublicAddress` controls the advertised address to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separatePostgresListener`](#separatePostgresListener) enabled.
+
+When `postgresPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
+Default port is 5432.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  postgresPublicAddress: 'loadbalancer.example.com:5432'
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set postgresPublicAddress='loadbalancer.example.com:5432'
+  ```
+  </TabItem>
+</Tabs>
+
+## `mongoPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.mongo_public_addr` | ❌ |
+
+`mongoPublicAddress` controls the advertised address to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separateMongoListener`](#separatePostgresListener) enabled.
+
+When `mongoPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
+Default port is 27017.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mongoPublicAddress: 'loadbalancer.example.com:27017'
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mongoPublicAddress='loadbalancer.example.com:27017'
+  ```
+  </TabItem>
+</Tabs>
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |

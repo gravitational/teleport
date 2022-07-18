@@ -1,0 +1,9 @@
+clusterName: helm-lint
+publicAddress: "loadbalancer.example.com:443"
+sshPublicAddress: "loadbalancer.example.com:3023"
+tunnelPublicAddress: "loadbalancer.example.com:3024"
+postgresPublicAddress: "loadbalancer.example.com:5432"
+mongoPublicAddress: "loadbalancer.example.com:27017"
+
+separatePostgresListener: true
+separateMongoListener: true
