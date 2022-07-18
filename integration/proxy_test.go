@@ -270,8 +270,8 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterListeners(helpers.StandardListenerSetup),
-		withLeafClusterListeners(helpers.StandardListenerSetup),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
