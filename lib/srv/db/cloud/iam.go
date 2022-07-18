@@ -217,6 +217,10 @@ func (c *IAM) getPolicyName() (string, error) {
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
+		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
+			c.log.Debug("No credentials provider. Skipping IAM task for database %v.", task.database.GetName())
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
@@ -304,13 +308,13 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 				PolicyName: aws.String(policyName),
 				RoleName:   aws.String(identity.GetName()),
 			})
-			return common.ConvertError(err)
+			return awslib.ConvertIAMError(err)
 		case awslib.User:
 			_, err := iamClient.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
 				PolicyName: aws.String(policyName),
 				UserName:   aws.String(identity.GetName()),
 			})
-			return common.ConvertError(err)
+			return awslib.ConvertIAMError(err)
 		default:
 			return trace.BadParameter("can only fetch policies for roles or users, got %v", identity)
 		}
@@ -346,7 +350,7 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 		})
 	}
 
-	if err != nil && !trace.IsNotFound(common.ConvertError(err)) {
+	if err != nil && !trace.IsNotFound(awslib.ConvertIAMError(err)) {
 		c.log.WithError(err).Errorf("Failed to delete inline policy %q for %v. It is recommended to remove this policy since it is no longer required.", oldPolicyName, identity)
 	}
 }

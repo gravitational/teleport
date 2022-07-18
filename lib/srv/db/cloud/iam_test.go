@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -317,7 +318,7 @@ func TestAWSIAMDeleteOldPolicy(t *testing.T) {
 			RoleName:   aws.String("test-role"),
 			PolicyName: aws.String("teleport-host-id"),
 		})
-		return trace.IsNotFound(common.ConvertError(err))
+		return trace.IsNotFound(awslib.ConvertIAMError(err))
 	}
 	require.Eventually(t, isPolicyDeleted, 2*time.Second, 100*time.Millisecond)
 }
