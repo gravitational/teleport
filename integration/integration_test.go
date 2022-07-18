@@ -90,7 +90,7 @@ type integrationTest func(t *testing.T, suite *integrationTestSuite)
 func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Attempt to set a logger for the test. Be warned that parts of the
-		// Teleport codebase do not honour the logger passed in via config and
+		// Teleport codebase do not honor the logger passed in via config and
 		// will create their own. Do not expect to catch _all_ output with this.
 		s.Log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
@@ -100,7 +100,7 @@ func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 }
 
 // TestIntegrations acts as the master test suite for all integration tests
-// requiring standardised setup and teardown.
+// requiring standardized setup and teardown.
 func TestIntegrations(t *testing.T) {
 	// TODO: break all of these subtests out into individual tests so that we get
 	//       better progress reporting, rather than have to wait for the entire

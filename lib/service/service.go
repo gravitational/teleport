@@ -3652,7 +3652,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
 		if listeners.db.postgres != nil {
 			process.RegisterCriticalFunc("proxy.db.postgres", func() error {
-				log.Infof("Starting Database Postgres proxy server on %v.", listeners.db.postgres.Addr)
+				log.Infof("Starting Database Postgres proxy server on %v.", listeners.db.postgres.Addr())
 				if err := dbProxyServer.ServePostgres(listeners.db.postgres); err != nil {
 					log.WithError(err).Warn("Postgres proxy server exited with error.")
 				}
