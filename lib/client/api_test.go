@@ -22,7 +22,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -31,23 +30,16 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
-
-// register test suite
-type APITestSuite struct{}
-
-// bootstrap check
-func TestClientAPI(t *testing.T) { check.TestingT(t) }
-
-var _ = check.Suite(&APITestSuite{})
 
 func TestParseProxyHostString(t *testing.T) {
 	t.Parallel()
@@ -186,7 +178,7 @@ func TestParseProxyHostString(t *testing.T) {
 	}
 }
 
-func (s *APITestSuite) TestNew(c *check.C) {
+func TestNew(t *testing.T) {
 	conf := Config{
 		Host:      "localhost",
 		HostLogin: "vincent",
@@ -197,68 +189,69 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 	err := conf.ParseProxyHost("proxy")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	tc, err := NewClient(&conf)
-	c.Assert(err, check.IsNil)
-	c.Assert(tc, check.NotNil)
+	require.NoError(t, err)
+	require.NotNil(t, tc)
 
 	la := tc.LocalAgent()
-	c.Assert(la, check.NotNil)
+	require.NotNil(t, la)
 }
 
-func (s *APITestSuite) TestParseLabels(c *check.C) {
+func TestParseLabels(t *testing.T) {
 	// simplest case:
 	m, err := ParseLabelSpec("key=value")
-	c.Assert(m, check.NotNil)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.DeepEquals, map[string]string{
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string]string{
 		"key": "value",
-	})
+	}))
+
 	// multiple values:
 	m, err = ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
-	c.Assert(m, check.NotNil)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.HasLen, 3)
-	c.Assert(m["role"], check.Equals, "master")
-	c.Assert(m["type"], check.Equals, "database")
-	c.Assert(m["ver"], check.Equals, "mongoDB v1,2")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Len(t, m, 3)
+	require.Equal(t, m["role"], "master")
+	require.Equal(t, m["type"], "database")
+	require.Equal(t, m["ver"], "mongoDB v1,2")
 
 	// multiple and unicode:
 	m, err = ParseLabelSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
-	c.Assert(err, check.IsNil)
-	c.Assert(m, check.NotNil)
-	c.Assert(m, check.HasLen, 3)
-	c.Assert(m["服务器环境"], check.Equals, "测试")
-	c.Assert(m["操作系统类别"], check.Equals, "Linux")
-	c.Assert(m["机房"], check.Equals, "华北")
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.Len(t, m, 3)
+	require.Equal(t, m["服务器环境"], "测试")
+	require.Equal(t, m["操作系统类别"], "Linux")
+	require.Equal(t, m["机房"], "华北")
 
 	// invalid specs
 	m, err = ParseLabelSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
-	c.Assert(m, check.IsNil)
-	c.Assert(err, check.NotNil)
+	require.Nil(t, m)
+	require.NotNil(t, err)
 	m, err = ParseLabelSpec(`type="database",role,master`)
-	c.Assert(m, check.IsNil)
-	c.Assert(err, check.NotNil)
+	require.Nil(t, m)
+	require.NotNil(t, err)
 }
 
-func (s *APITestSuite) TestPortsParsing(c *check.C) {
+func TestPortsParsing(t *testing.T) {
 	// empty:
 	ports, err := ParsePortForwardSpec(nil)
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.IsNil)
+	require.Nil(t, ports)
+	require.NoError(t, err)
 	ports, err = ParsePortForwardSpec([]string{})
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.IsNil)
+	require.Nil(t, ports)
+	require.NoError(t, err)
 	// not empty (but valid)
 	spec := []string{
 		"80:remote.host:180",
 		"10.0.10.1:443:deep.host:1443",
 	}
 	ports, err = ParsePortForwardSpec(spec)
-	c.Assert(err, check.IsNil)
-	c.Assert(ports, check.HasLen, 2)
-	c.Assert(ports, check.DeepEquals, ForwardedPorts{
+	require.NoError(t, err)
+	require.Len(t, ports, 2)
+	require.Empty(t, cmp.Diff(ports, ForwardedPorts{
 		{
 			SrcIP:    "127.0.0.1",
 			SrcPort:  80,
@@ -271,20 +264,21 @@ func (s *APITestSuite) TestPortsParsing(c *check.C) {
 			DestHost: "deep.host",
 			DestPort: 1443,
 		},
-	})
+	}))
+
 	// back to strings:
 	clone := ports.String()
-	c.Assert(spec[0], check.Equals, clone[0])
-	c.Assert(spec[1], check.Equals, clone[1])
+	require.Equal(t, spec[0], clone[0])
+	require.Equal(t, spec[1], clone[1])
 
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
-	c.Assert(ports, check.IsNil)
-	c.Assert(err, check.ErrorMatches, "^Invalid port forwarding spec: .foo.*")
+	require.Nil(t, ports)
+	require.ErrorContains(t, err, "Invalid port forwarding spec:")
 }
 
-func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
+func TestDynamicPortsParsing(t *testing.T) {
 	tests := []struct {
 		spec    []string
 		isError bool
@@ -374,13 +368,13 @@ func (s *APITestSuite) TestDynamicPortsParsing(c *check.C) {
 	for _, tt := range tests {
 		specs, err := ParseDynamicPortForwardSpec(tt.spec)
 		if tt.isError {
-			c.Assert(err, check.NotNil)
+			require.NotNil(t, err)
 			continue
 		} else {
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		}
 
-		c.Assert(specs, check.DeepEquals, tt.output)
+		require.Empty(t, cmp.Diff(specs, tt.output))
 	}
 }
 
@@ -526,7 +520,7 @@ func (s *mockSigner) PublicKey() ssh.PublicKey {
 }
 
 func (s *mockSigner) Sign(rand io.Reader, b []byte) (*ssh.Signature, error) {
-	return nil, trace.Errorf("mockSigner does not implement Sign")
+	return nil, fmt.Errorf("mockSigner does not implement Sign")
 }
 
 // Signers implements agent.Agent.Signers.
