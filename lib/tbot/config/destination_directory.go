@@ -131,7 +131,7 @@ func mkdir(p string) error {
 
 		log.Infof("Created directory %q", p)
 	} else if err != nil {
-		//This error permission can occur if unable to read into the data dir
+		// this can occur if we are unable to read the data dir
 		if errors.Is(err, fs.ErrPermission) {
 			return trace.Wrap(err, "Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", p)
 		}
