@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -254,8 +255,9 @@ func TestAgentStart(t *testing.T) {
 	callback := newCallback()
 	agent.stateCallback = callback.callback
 
-	openChannels := 0
-	sentPings := 0
+	openChannels := new(int32)
+	sentPings := new(int32)
+	versionReplies := new(int32)
 
 	waitForVersion := make(chan struct{})
 	go func() {
@@ -269,10 +271,10 @@ func TestAgentStart(t *testing.T) {
 		// global requests during startup.
 		<-waitForVersion
 
-		openChannels++
+		atomic.AddInt32(openChannels, 1)
 		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
 		return &mockSSHChannel{MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
-			sentPings++
+			atomic.AddInt32(sentPings, 1)
 
 			assert.Equal(t, name, "ping", "Unexpected request name.")
 			assert.False(t, wantReply, "Expected no reply wanted.")
@@ -280,11 +282,11 @@ func TestAgentStart(t *testing.T) {
 		}}, make(<-chan *ssh.Request), nil
 	}
 
-	versionReplies := 0
 	client.MockReply = func(r *ssh.Request, b1 bool, b2 []byte) error {
+		atomic.AddInt32(versionReplies, 1)
+
 		// Unblock once we receive a version reply.
 		close(waitForVersion)
-		versionReplies++
 
 		assert.Equal(t, versionRequest, r.Type, "Unexpected request type.")
 		assert.Equal(t, teleport.Version, string(b2), "Unexpected version.")
@@ -294,9 +296,9 @@ func TestAgentStart(t *testing.T) {
 	err := agent.Start(context.Background())
 
 	require.NoError(t, err)
-	require.Equal(t, 1, openChannels, "Expected only heartbeat channel to be opened.")
-	require.GreaterOrEqual(t, 1, sentPings, "Expected at least 1 ping to be sent.")
-	require.Equal(t, 1, versionReplies, "Expected 1 version reply.")
+	require.Equal(t, 1, int(atomic.LoadInt32(openChannels)), "Expected only heartbeat channel to be opened.")
+	require.GreaterOrEqual(t, 1, int(atomic.LoadInt32(sentPings)), "Expected at least 1 ping to be sent.")
+	require.Equal(t, 1, int(atomic.LoadInt32(versionReplies)), "Expected 1 version reply.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)
