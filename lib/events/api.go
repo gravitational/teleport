@@ -578,6 +578,9 @@ type ServerMetadataGetter interface {
 
 	// GetClusterName returns the originating teleport cluster name
 	GetClusterName() string
+
+	// GetForwarded returns true if the event wasn't emitted by the node it's referring to.
+	GetForwarded() bool
 }
 
 // ServerMetadataSetter represents interface

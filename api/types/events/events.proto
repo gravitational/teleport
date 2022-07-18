@@ -92,6 +92,10 @@ message ServerMetadata {
     // session occurred on.
     map<string, string> ServerLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "server_labels,omitempty" ];
+
+    // Forwarded tells us if the metadata was sent by the node itself or by another node in it's
+    // place. We can't verify emit permissions for these events so care should be taken with them.
+    bool Forwarded = 6 [ (gogoproto.jsontag) = "forwarded,omitempty" ];
 }
 
 // Connection contains connection info
