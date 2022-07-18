@@ -56,7 +56,7 @@ Registration flow:
   - Ensure the Issued At Time (iat) is in the past.
   - Ensure the Expiry Time (exp) is in the future.
 7. The user's [configured Common Expression Language rule](#configuration) for the token will be evaluated against the claims, to ensure that the token is allowed to register with the Teleport cluster.
-8. Certificates will be generated for the client. The generated certificates will be non-renewable, as the client will proceed through the same steps to generate new certificates. This prevents exfiltratred credentials being used to repeatedly generate more credentials, maintaining access to the system.
+8. Certificates will be generated for the client. In the case of bot certificates, they will be treated as non-renewable, to match the behaviour of IAM registration for bot certificates.
 
 We will re-use `go-jose@v2` for validation of JWTs, since this library is already in use within Teleport.
 
