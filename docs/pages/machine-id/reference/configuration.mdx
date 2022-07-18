@@ -30,6 +30,13 @@ onboarding:
     join_method: "token"
 
     # Token used to join the cluster. (only required for join_method: token)
+    #
+    # This can also be an absolute path to a file containing the token.
+    # The token can live in a temporary file that's deleted after tbot is first launched, 
+    # but if tbot has to re-authenticate with the Auth Service, it will fail.
+    # 
+    # File path example:
+    # token: /var/lib/teleport/tokenjoin
     token: "00000000000000000000000000000000"
 
     # CA Path used to validate the identity of the Teleport Auth Server on first connect.
