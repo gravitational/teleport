@@ -1299,12 +1299,11 @@ func onLogin(cf *CLIConf) error {
 			}
 			return trace.Wrap(onStatus(cf))
 
+		// otherwise just pass through to standard login
 		default:
 
 		}
 	}
-
-	// otherwise just use standard login
 
 	if cf.Username == "" {
 		cf.Username = tc.Username
