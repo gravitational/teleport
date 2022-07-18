@@ -52,7 +52,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -60,6 +59,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -2763,52 +2764,58 @@ func (a *Server) ListNodes(ctx context.Context, req proto.ListNodesRequest) ([]t
 	return a.GetCache().ListNodes(ctx, req)
 }
 
-// NodePageFunc is a function to run on each page iterated over.
-type NodePageFunc func(next []types.Server) (stop bool, err error)
-
-// IterateNodePages can be used to iterate over pages of nodes.
-func (a *Server) IterateNodePages(ctx context.Context, req proto.ListNodesRequest, f NodePageFunc) (string, error) {
+// IterateNodes can be used to iterate over pages of nodes.
+func (a *Server) IterateNodes(ctx context.Context, req proto.ListNodesRequest, f func(types.Server) error) error {
 	for {
 		nextPage, nextKey, err := a.ListNodes(ctx, req)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
+		for _, srv := range nextPage {
+			if err := f(srv); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
 		// Iterator stopped before end of pages or
 		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if nextKey == "" {
+			return nil
 		}
 
 		req.StartKey = nextKey
 	}
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.Resource) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (string, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.Resource) error) error {
 	for {
-		nextPage, nextKey, err := a.ListResources(ctx, req)
+		resources, nextKey, err := a.ListResources(ctx, req)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(nextPage)
-		if err != nil {
-			return "", trace.Wrap(err)
+		for _, resource := range resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || nextKey == "" {
-			return nextKey, nil
+		if nextKey == "" {
+			return nil
 		}
 
 		req.StartKey = nextKey
