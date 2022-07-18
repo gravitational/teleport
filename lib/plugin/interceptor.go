@@ -41,7 +41,7 @@ type interceptor struct {
 }
 
 // NewInterceptor creates a new Interceptor.
-func NewInterceptor() *interceptor {
+func NewInterceptor() Interceptor {
 	return &interceptor{}
 }
 
