@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package destination
+package bot
 
 // Destination can persist renewable certificates.
 type Destination interface {
