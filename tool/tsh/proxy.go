@@ -307,15 +307,19 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, err := pickActiveDatabase(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootCluster, err := client.RootClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rootCluster, err := client.RootClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -358,7 +362,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, cf.SiteName,
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
