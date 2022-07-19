@@ -18,7 +18,7 @@ requests.
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 Open-source Teleport users can get a preview of how Access Requests work by
-requesting a role via the Teleport CLI. Full access request functionality,
+requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
 
@@ -169,7 +169,7 @@ Waiting for request approval...
 
 The command will automatically wait until the request is approved.
 
-## Step 6/8. Approve the access request
+## Step 6/8. Approve the Access Request
 
 First, log in as `bob`.
 
@@ -177,7 +177,7 @@ First, log in as `bob`.
 $ tsh login --proxy teleport.example.com --user bob
 ```
 
-Then list, review, and approve the access request.
+Then list, review, and approve the Access Request.
 
 ```code
 $ tsh request ls
@@ -206,7 +206,7 @@ Successfully submitted review.  Request state: APPROVED
 <Notice type="tip">
 Check out our
 [Access Request Integrations](#integrating-with-an-external-tool)
-to notify the right people about new access requests.
+to notify the right people about new Access Requests.
 </Notice>
 
 ## Step 7/8. Access the requested resource
@@ -270,8 +270,8 @@ $ tsh request drop
 
 ### Automatically request access for SSH
 
-Once you have configured resource access requests,
-`tsh ssh` is able to automatically create a resource access request for you when access is denied,
+Once you have configured Resource Access Requests,
+`tsh ssh` is able to automatically create a Resource Access Request for you when access is denied,
 allowing you to skip the `tsh request search` and `tsh request create` steps.
 
 ```code
