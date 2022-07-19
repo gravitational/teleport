@@ -265,7 +265,7 @@ func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.D
 	return databases[0], nil
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.DatabaseConfig) (proto.RouteToDatabase, error) {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.Database) (proto.RouteToDatabase, error) {
 	if dbCfg.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -326,7 +326,7 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	return nil, trace.BadParameter("app %q not found", appName)
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.AppConfig) (proto.RouteToApp, error) {
+func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
 	if appCfg.App == "" {
 		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
 	}

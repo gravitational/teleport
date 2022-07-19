@@ -23,8 +23,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DatabaseConfig is the config for a database access request.
-type DatabaseConfig struct {
+// Database is the config for a database access request.
+type Database struct {
 	// Service is the service name of the Teleport database. Generally this is
 	// the name of the Teleport resource.
 	Service string `yaml:"service,omitempty"`
@@ -36,7 +36,7 @@ type DatabaseConfig struct {
 	Username string `yaml:"username,omitempty"`
 }
 
-func (dc *DatabaseConfig) CheckAndSetDefaults() error {
+func (dc *Database) CheckAndSetDefaults() error {
 	if dc.Service == "" {
 		return trace.BadParameter("database `service` field must specify a database service name")
 	}
@@ -78,12 +78,12 @@ func (kc *KubernetesCluster) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AppConfig is a cert request for app access.
-type AppConfig struct {
+// App is a cert request for app access.
+type App struct {
 	App string `yaml:"app,omitempty"`
 }
 
-func (ac *AppConfig) UnmarshalYAML(node *yaml.Node) error {
+func (ac *App) UnmarshalYAML(node *yaml.Node) error {
 	// As with KubernetesCluster, this is a plain string field that we want to
 	// implement CheckAndSetDefaults().
 
@@ -96,12 +96,12 @@ func (ac *AppConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (ac *AppConfig) MarshalYAML() (interface{}, error) {
+func (ac *App) MarshalYAML() (interface{}, error) {
 	// The marshaler needs to match the unmarshaler.
 	return ac.App, nil
 }
 
-func (ac *AppConfig) CheckAndSetDefaults() error {
+func (ac *App) CheckAndSetDefaults() error {
 	if ac.App == "" {
 		return trace.BadParameter("app name must not be empty")
 	}
@@ -123,7 +123,7 @@ type DestinationConfig struct {
 
 	// Database is a database to request access to. Mutually exclusive with
 	// `kubernetes_cluster` and other special cert requests.
-	Database *DatabaseConfig `yaml:"database,omitempty"`
+	Database *Database `yaml:"database,omitempty"`
 
 	// KubernetesCluster is a cluster to request access to. Mutually exclusive
 	// with `database` and other special cert requests.
@@ -131,7 +131,7 @@ type DestinationConfig struct {
 
 	// App is an app access request. Mutually exclusive with `database`,
 	//`kubernetes_cluster`, and other special cert requests.
-	App *AppConfig `yaml:"app,omitempty"`
+	App *App `yaml:"app,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since

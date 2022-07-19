@@ -133,7 +133,7 @@ func TestDatabaseRequest(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 
 	dest := botConfig.Destinations[0]
-	dest.Database = &config.DatabaseConfig{
+	dest.Database = &config.Database{
 		Service:  "foo",
 		Database: "bar",
 		Username: "baz",
@@ -165,6 +165,7 @@ func TestDatabaseRequest(t *testing.T) {
 
 func TestAppRequest(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	const appName = "foo"
 	log := libutils.NewLoggerForTests()
@@ -189,9 +190,9 @@ func TestAppRequest(t *testing.T) {
 	// Wait for the app to become available. Sometimes this takes a bit
 	// of time in CI.
 	require.Eventually(t, func() bool {
-		_, err := getApp(context.Background(), rootClient, appName)
+		_, err := getApp(ctx, rootClient, appName)
 		return err == nil
-	}, 5*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Create a role to grant access to the app.
 	const roleName = "app-role"
@@ -204,14 +205,14 @@ func TestAppRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+	require.NoError(t, rootClient.UpsertRole(ctx, role))
 
 	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 
 	dest := botConfig.Destinations[0]
-	dest.App = &config.AppConfig{
+	dest.App = &config.App{
 		App: appName,
 	}
 
@@ -224,7 +225,7 @@ func TestAppRequest(t *testing.T) {
 	b._ident = ident
 
 	impersonatedIdent, err := b.generateImpersonatedIdentity(
-		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
+		ctx, ident.X509Cert.NotAfter, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 
