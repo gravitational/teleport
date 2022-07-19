@@ -84,13 +84,18 @@
             "type": "string",
             "default": ""
         },
-        "sshPublicAddress": {
-            "$id": "#/properties/sshPublicAddress",
+        "kubePublicAddress": {
+            "$id": "#/properties/kubePublicAddress",
             "type": "string",
             "default": ""
         },
-        "tunnelPublicAddress": {
-            "$id": "#/properties/tunnelPublicAddress",
+        "mongoPublicAddress": {
+            "$id": "#/properties/mongoPublicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "mysqlPublicAddress": {
+            "$id": "#/properties/mysqlPublicAddress",
             "type": "string",
             "default": ""
         },
@@ -99,8 +104,13 @@
             "type": "string",
             "default": ""
         },
-        "mongoPublicAddress": {
-            "$id": "#/properties/mongoPublicAddress",
+        "sshPublicAddress": {
+            "$id": "#/properties/sshPublicAddress",
+            "type": "string",
+            "default": ""
+        },
+        "tunnelPublicAddress": {
+            "$id": "#/properties/tunnelPublicAddress",
             "type": "string",
             "default": ""
         },

@@ -108,7 +108,13 @@ data:
   {{- end }}
   {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
+    {{- if .Values.kubePublicAddress }}
+      kube_public_addr: '{{ .Values.kubePublicAddress }}'
+    {{- end }}
       mysql_listen_addr: 0.0.0.0:3036
+    {{- if .Values.mysqlPublicAddress }}
+      mysql_public_addr: '{{ .Values.mysqlPublicAddress }}'
+    {{- end }}
     {{- if .Values.separatePostgresListener }}
       postgres_listen_addr: 0.0.0.0:5432
       {{- if .Values.postgresPublicAddress }}
