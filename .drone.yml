@@ -1215,6 +1215,18 @@ steps:
       - docker push $OSS_IMAGE_NAME_PROD
       - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
 ---
 kind: pipeline
 type: kubernetes
@@ -5997,6 +6009,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a4c8abaefef008b4602f58e3403bab8dec09d0125ed6e1fb1576d8003d8b52f8
+hmac: bb679eaea3ac522b5b53657f339ec88586936fd1f550445e63f1b02c548207dc
 
 ...
