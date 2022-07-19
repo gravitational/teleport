@@ -2534,7 +2534,7 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 }
 
 // ListDatabaseServersWithFilters returns all registered database proxy servers.
-func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
+func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, pc *ProxyClient, customFilter *proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListDatabaseServersWithFilters",
@@ -2542,18 +2542,12 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
 	filter := customFilter
 	if filter == nil {
 		filter = tc.DefaultResourceFilter()
 	}
 
-	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
+	servers, err := pc.FindDatabaseServersByFilters(ctx, *filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2590,7 +2584,7 @@ func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.
 }
 
 // ListDatabases returns all registered databases.
-func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
+func (tc *TeleportClient) ListDatabases(ctx context.Context, pc *ProxyClient, customFilter *proto.ListResourcesRequest) ([]types.Database, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListDatabases",
@@ -2598,7 +2592,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 	)
 	defer span.End()
 
-	servers, err := tc.ListDatabaseServersWithFilters(ctx, customFilter)
+	servers, err := tc.ListDatabaseServersWithFilters(ctx, pc, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

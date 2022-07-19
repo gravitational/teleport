@@ -243,7 +243,14 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := getDatabase(cf, tc, cf.DatabaseService)
+
+	pc, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer pc.Close()
+
+	database, err := getDatabase(cf, tc, pc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -254,7 +261,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		Database:    cf.DatabaseName,
 	}
 
-	if err := databaseLogin(cf, tc, routeToDatabase, database); err != nil {
+	if err := databaseLogin(cf, tc, pc, routeToDatabase, database); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -263,7 +270,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	return nil
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteToDatabase, db types.Database) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, dbRoute tlsca.RouteToDatabase, db types.Database) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", dbRoute, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
@@ -282,7 +289,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbRoute tlsca.RouteTo
 		return trace.Wrap(err)
 	}
 
-	if err := checkRoute(tc, cf, profile, &dbRoute, db); err != nil {
+	if err := checkRoute(cf, pc, profile, &dbRoute, db); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -634,14 +641,6 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
 	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
-		if arg.database == nil {
-			var err error
-			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
-			if err != nil {
-				return localProxyOpts{}, trace.Wrap(err)
-			}
-		}
-
 		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
 		if mysqlServerVersionProto != "" {
 			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
@@ -675,11 +674,19 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dbRoute, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+
+	pc, err := tc.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, tc, profile, dbRoute, db); err != nil {
+	defer pc.Close()
+
+	dbRoute, db, err := getDatabaseInfo(cf, tc, pc, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := maybeDatabaseLogin(cf, tc, pc, profile, dbRoute, db); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -722,10 +729,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 // getDatabaseInfo fetches information about the database from tsh profile if DB is active in profile. Otherwise,
 // the ListDatabases endpoint is called.
-func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
 	dbRoute, err := pickActiveDatabase(cf)
 	if err == nil {
-		db, err := getDatabase(cf, tc, dbRoute.ServiceName)
+		db, err := getDatabase(cf, tc, pc, dbRoute.ServiceName)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -734,7 +741,7 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	if !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
-	db, err := getDatabase(cf, tc, dbName)
+	db, err := getDatabase(cf, tc, pc, dbName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -746,10 +753,10 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	}, db, nil
 }
 
-func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.Database, error) {
+func getDatabase(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, dbName string) (types.Database, error) {
 	var databases []types.Database
 	err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		allDatabases, err := tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
+		allDatabases, err := tc.ListDatabases(cf.Context, pc, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
 		})
@@ -772,7 +779,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -800,7 +807,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca
 	}
 
 	// Call API and check is a user needs to use MFA to connect to the database.
-	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, database)
+	mfaRequired, err := isMFADatabaseAccessRequired(cf, tc, pc, database)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -809,14 +816,14 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca
 
 // maybeDatabaseLogin checks if cert is still valid or DB connection requires
 // MFA. If yes trigger db login logic.
-func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) error {
-	reloginNeeded, err := needDatabaseRelogin(cf, tc, dbRoute, profile)
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) error {
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, pc, dbRoute, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if reloginNeeded {
-		return trace.Wrap(databaseLogin(cf, tc, *dbRoute, db))
+		return trace.Wrap(databaseLogin(cf, tc, pc, *dbRoute, db))
 	}
 	return nil
 }
@@ -853,12 +860,8 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
 // requires MFA.
-func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase) (bool, error) {
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName)
+func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClient, database *tlsca.RouteToDatabase) (bool, error) {
+	cluster, err := pc.ConnectToCluster(cf.Context, tc.SiteName)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -885,8 +888,8 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // Standard RBAC checks are still enforced
 // at connection time - this check just attempts to "fail fast" with
 // a user-friendly error.
-func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) (err error) {
-	roleSet, err := fetchCurrentClusterRoleSet(tc, cf, profile)
+func checkRoute(cf *CLIConf, pc *client.ProxyClient, profile *client.ProfileStatus, dbRoute *tlsca.RouteToDatabase, db types.Database) (err error) {
+	roleSet, err := fetchCurrentClusterRoleSet(pc, cf, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -932,13 +935,8 @@ func checkRoute(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileS
 }
 
 // fetchCurrentClusterRoleSet fetches a user's roles for the active cluster
-func fetchCurrentClusterRoleSet(tc *client.TeleportClient, cf *CLIConf, profile *client.ProfileStatus) (services.RoleSet, error) {
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context)
+func fetchCurrentClusterRoleSet(pc *client.ProxyClient, cf *CLIConf, profile *client.ProfileStatus) (services.RoleSet, error) {
+	cluster, err := pc.ConnectToCurrentCluster(cf.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
