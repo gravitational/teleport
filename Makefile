@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.0
+VERSION=10.0.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -747,7 +747,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**'
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'docs/pages/includes/**/*.go'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)

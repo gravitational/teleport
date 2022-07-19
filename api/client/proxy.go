@@ -19,6 +19,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,23 +29,37 @@ import (
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
-func DialProxy(ctx context.Context, proxyAddr, addr string) (net.Conn, error) {
-	return DialProxyWithDialer(ctx, proxyAddr, addr, &net.Dialer{})
+func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
+	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP Proxy using a specified dialer.
-func DialProxyWithDialer(ctx context.Context, proxyAddr, addr string, dialer ContextDialer) (net.Conn, error) {
-	conn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+func DialProxyWithDialer(ctx context.Context, proxyURL *url.URL, addr string, dialer ContextDialer) (net.Conn, error) {
+	if proxyURL == nil {
+		return nil, trace.BadParameter("missing proxy url")
+	}
+	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
 	if err != nil {
-		log.Warnf("Unable to dial to proxy: %v: %v.", proxyAddr, err)
+		log.Warnf("Unable to dial to proxy: %v: %v.", proxyURL.Host, err)
 		return nil, trace.ConvertSystemError(err)
 	}
 
+	header := make(http.Header)
+	if proxyURL.User != nil {
+		// dont use User.String() because it performs url encoding (rfc 1738),
+		// which we don't want in our header
+		password, _ := proxyURL.User.Password()
+		// empty user/pass is permitted by the spec. The minimum required is a single colon.
+		// see: https://datatracker.ietf.org/doc/html/rfc1945#section-11
+		creds := proxyURL.User.Username() + ":" + password
+		basicAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(creds))
+		header.Add("Proxy-Authorization", basicAuth)
+	}
 	connectReq := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Opaque: addr},
 		Host:   addr,
-		Header: make(http.Header),
+		Header: header,
 	}
 
 	if err := connectReq.Write(conn); err != nil {
