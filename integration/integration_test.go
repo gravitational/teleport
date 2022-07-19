@@ -698,12 +698,11 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	// addNode adds a node to the teleport instance, returning its uuid.
 	// All nodes added this way have the same hostname.
 	addNode := func() (string, error) {
-		nodeSSHPort := helpers.NewPortValue()
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = Host
 
 		tconf.SSH.Enabled = true
-		tconf.SSH.Addr.Addr = net.JoinHostPort(teleportSvr.Hostname, fmt.Sprintf("%v", nodeSSHPort))
+		tconf.SSH.Addr.Addr = helpers.NewListenerOn(t, teleportSvr.Hostname, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 		node, err := teleportSvr.StartNode(tconf)
 		if err != nil {
@@ -1747,7 +1746,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	//
 	// The least bad option is to duplicate all of SiteA's Listener FDs and
 	// inject those duplicates prior to restarting the SiteA cluster.
-	aFdCache := helpers.CloneFDs(t, a.Fds)
+	aFdCache := helpers.DupFDs(t, a.Fds)
 
 	fmt.Println("!!!! Creating SITE-B")
 	b := suite.newNamedTeleportInstance(t, "site-B")
