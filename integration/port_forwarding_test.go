@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 )
 
@@ -148,19 +147,16 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdout = term
 			cl.Stdin = term
 
-			sid := "test-session-id"
-			t.Setenv(sshutils.SessionEnvVar, sid)
-
 			sshSessionCtx, sshSessionCancel := context.WithCancel(ctx)
 			go cl.SSH(sshSessionCtx, []string{}, false)
 			defer sshSessionCancel()
 
 			sessionEstablished := func() bool {
-				tracker, err := site.GetSessionTracker(ctx, sid)
-				if err != nil {
+				trackers, err := site.GetActiveSessionTrackers(ctx)
+				if err != nil || len(trackers) == 0 {
 					return false
 				}
-				return tracker.GetState() == types.SessionState_SessionStateRunning
+				return trackers[0].GetState() == types.SessionState_SessionStateRunning
 			}
 			require.Eventually(t, sessionEstablished, time.Second*5, time.Millisecond*100)
 
