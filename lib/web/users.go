@@ -275,8 +275,8 @@ type userAPIGetter interface {
 
 type userTraits struct {
 	Logins        *[]string `json:"logins,omitempty"`
-	DatabaseUsers *[]string `json:"dbUsers,omitempty"`
-	DatabaseNames *[]string `json:"dbNames,omitempty"`
+	DatabaseUsers *[]string `json:"databaseUsers,omitempty"`
+	DatabaseNames *[]string `json:"databaseNames,omitempty"`
 	KubeUsers     *[]string `json:"kubeUsers,omitempty"`
 	KubeGroups    *[]string `json:"kubeGroups,omitempty"`
 	WindowsLogins *[]string `json:"windowsLogins,omitempty"`

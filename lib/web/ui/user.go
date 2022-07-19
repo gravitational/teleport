@@ -37,9 +37,9 @@ type userTraits struct {
 	Logins []string `json:"logins,omitempty"`
 	// DatabaseUsers is the list of db usernames that a
 	// user is allowed to open db connections as.
-	DatabaseUsers []string `json:"dbUsers,omitempty"`
+	DatabaseUsers []string `json:"databaseUsers,omitempty"`
 	// DatabaseNames is the list of db names that a user can connect to.
-	DatabaseNames []string `json:"dbNames,omitempty"`
+	DatabaseNames []string `json:"databaseNames,omitempty"`
 	// KubeUsers is the list of allowed kube logins.
 	KubeUsers []string `json:"kubeUsers,omitempty"`
 	// KubeGroups is the list of KubeGroups Trait for the user.
