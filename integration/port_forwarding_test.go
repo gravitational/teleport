@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -34,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/trace"
 )
 
@@ -72,6 +72,8 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+
 	testCases := []struct {
 		desc                  string
 		portForwardingAllowed bool
@@ -146,14 +148,21 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdout = term
 			cl.Stdin = term
 
-			sshSessionCtx, sshSessionCancel := context.WithCancel(context.Background())
+			sid := "test-session-id"
+			t.Setenv(sshutils.SessionEnvVar, sid)
+
+			sshSessionCtx, sshSessionCancel := context.WithCancel(ctx)
 			go cl.SSH(sshSessionCtx, []string{}, false)
 			defer sshSessionCancel()
 
-			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_, err = waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
-			require.NoError(t, err)
+			sessionEstablished := func() bool {
+				tracker, err := site.GetSessionTracker(ctx, sid)
+				if err != nil {
+					return false
+				}
+				return tracker.GetState() == types.SessionState_SessionStateRunning
+			}
+			require.Eventually(t, sessionEstablished, time.Second*5, time.Millisecond*100)
 
 			// When everything is *finally* set up, and I attempt to use the
 			// forwarded connection
