@@ -19,9 +19,7 @@ package helpers
 import (
 	"fmt"
 	"net"
-	"os"
 	"strconv"
-	"syscall"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/service"
@@ -246,26 +244,4 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 // given to a teleport instance on startup in order to suppl
 func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
 	return NewListenerOn(t, "127.0.0.1", ty, fds)
-}
-
-// DupFDs clones a collection of file descriptors. Cleanup functions are
-// added to the test to ensure the FDs are closed at the end of the test.
-// Any errors in the duplication result in an immediate test failure.
-func DupFDs(t *testing.T, srcFDs []service.FileDescriptor) []service.FileDescriptor {
-	result := make([]service.FileDescriptor, 0, len(srcFDs))
-	for _, src := range srcFDs {
-		clonedFD, err := syscall.Dup(int(src.File.Fd()))
-		require.NoError(t, err)
-
-		newFile := os.NewFile(uintptr(clonedFD), src.File.Name())
-		t.Cleanup(func() { newFile.Close() })
-
-		result = append(result, service.FileDescriptor{
-			Type:    src.Type,
-			Address: src.Address,
-			File:    newFile,
-		})
-	}
-
-	return result
 }

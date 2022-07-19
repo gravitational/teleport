@@ -1735,17 +1735,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	username := suite.Me.Username
 
 	a := suite.newNamedTeleportInstance(t, "site-A")
-
-	// The Listener FDs injected into SiteA will be closed when SiteA restarts
-	// later in in the test, rendering them all invalid. This will make SiteA
-	// fail when it attempts to start back up again. We can't just inject a
-	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
-	//
-	// The least bad option is to duplicate all of SiteA's Listener FDs and
-	// inject those duplicates prior to restarting the SiteA cluster.
-	aFdCache := helpers.DupFDs(t, a.Fds)
-
 	b := suite.newNamedTeleportInstance(t, "site-B")
 
 	a.AddUser(username, []string{username})
@@ -1779,6 +1768,17 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
+
+	// The Listener FDs injected into SiteA will be closed when SiteA restarts
+	// later in in the test, rendering them all invalid. This will make SiteA
+	// fail when it attempts to start back up again. We can't just inject a
+	// totally new listener config into SiteA when it restarts, or SiteB won't
+	// be able to  find it.
+	//
+	// The least bad option is to duplicate all of SiteA's Listener FDs and
+	// inject those duplicates prior to restarting the SiteA cluster.
+	aFdCache, err := a.Process.ExportFileDescriptors()
+	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(a.Tunnel, 2), 10*time.Second, 1*time.Second,
@@ -1964,16 +1964,6 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	a := suite.newNamedTeleportInstance(t, "cluster-a")
 	b := suite.newNamedTeleportInstance(t, "cluster-b")
 
-	// The Listener FDs injected into SiteA will be closed when SiteA restarts
-	// later in in the test, rendering them all invalid. This will make SiteA
-	// fail when it attempts to start back up again. We can't just inject a
-	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
-	//
-	// The least bad option is to duplicate all of SiteA's Listener FDs and
-	// inject those duplicates prior to restarting the SiteA cluster.
-	aFdCache := helpers.DupFDs(t, a.Fds)
-
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
@@ -1982,6 +1972,17 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
+
+	// The Listener FDs injected into SiteA will be closed when SiteA restarts
+	// later in in the test, rendering them all invalid. This will make SiteA
+	// fail when it attempts to start back up again. We can't just inject a
+	// totally new listener config into SiteA when it restarts, or SiteB won't
+	// be able to  find it.
+	//
+	// The least bad option is to duplicate all of SiteA's Listener FDs and
+	// inject those duplicates prior to restarting the SiteA cluster.
+	aFdCache, err := a.Process.ExportFileDescriptors()
+	require.NoError(t, err)
 
 	sshPort, _, _ := a.StartNodeAndProxy(t, "cluster-a-node")
 
