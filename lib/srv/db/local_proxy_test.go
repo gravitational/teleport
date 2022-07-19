@@ -32,7 +32,7 @@ import (
 // through the local authenticated ALPN proxy.
 func TestLocalProxyPostgres(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
@@ -60,7 +60,7 @@ func TestLocalProxyPostgres(t *testing.T) {
 // through the local authenticated ALPN proxy.
 func TestLocalProxyMySQL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -87,7 +87,7 @@ func TestLocalProxyMySQL(t *testing.T) {
 // through the local authenticated ALPN proxy.
 func TestLocalProxyMongoDB(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
@@ -114,7 +114,7 @@ func TestLocalProxyMongoDB(t *testing.T) {
 // through the local authenticated ALPN proxy.
 func TestLocalProxyRedis(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()

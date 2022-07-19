@@ -34,7 +34,7 @@ import (
 // TestInitCACert verifies automatic download of root certs for cloud databases.
 func TestInitCACert(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t)
 
@@ -169,7 +169,7 @@ func TestInitCACert(t *testing.T) {
 // it was already downloaded before.
 func TestInitCACertCaching(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t)
 
@@ -433,7 +433,7 @@ func TestTLSConfiguration(t *testing.T) {
 				dbType := dbType
 				t.Run(dbType, func(t *testing.T) {
 					ctx, cancel := context.WithCancel(context.Background())
-					t.Cleanup(func() { cancel() })
+					t.Cleanup(cancel)
 
 					cfg := &setupTLSTestCfg{
 						commonName: tt.commonName,

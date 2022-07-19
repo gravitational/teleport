@@ -33,7 +33,7 @@ import (
 // TestHA tests scenario with multiple database services proxying the same database.
 func TestHA(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t)
 	go testCtx.startProxy()

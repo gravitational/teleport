@@ -36,7 +36,7 @@ import (
 // line.
 func TestProxyProtocolPostgres(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
@@ -65,7 +65,7 @@ func TestProxyProtocolPostgres(t *testing.T) {
 // line.
 func TestProxyProtocolMySQL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -94,7 +94,7 @@ func TestProxyProtocolMySQL(t *testing.T) {
 // line.
 func TestProxyProtocolMongo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
@@ -120,7 +120,7 @@ func TestProxyProtocolMongo(t *testing.T) {
 
 func TestProxyProtocolRedis(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
@@ -158,7 +158,7 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -187,7 +187,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -212,7 +212,7 @@ func TestProxyClientDisconnectDueToCertExpiration(t *testing.T) {
 // disconnected when there is a matching lock in force.
 func TestProxyClientDisconnectDueToLockInForce(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -254,7 +254,7 @@ func setConfigClientIdleTimoutAndDisconnectExpiredCert(ctx context.Context, t *t
 
 func TestExtractMySQLVersion(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.25")))
 	go testCtx.startHandlingConnections()

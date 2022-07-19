@@ -236,7 +236,7 @@ func TestAWSMetadata(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -295,7 +295,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

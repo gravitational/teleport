@@ -34,7 +34,7 @@ import (
 // connections.
 func TestAuditPostgres(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
@@ -82,7 +82,7 @@ func TestAuditPostgres(t *testing.T) {
 // connections.
 func TestAuditMySQL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
@@ -114,7 +114,7 @@ func TestAuditMySQL(t *testing.T) {
 // connections.
 func TestAuditMongo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
@@ -149,7 +149,7 @@ func TestAuditMongo(t *testing.T) {
 
 func TestAuditRedis(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
@@ -192,7 +192,7 @@ func TestAuditRedis(t *testing.T) {
 // connections.
 func TestAuditSQLServer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
 	go testCtx.startHandlingConnections()

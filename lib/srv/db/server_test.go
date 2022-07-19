@@ -37,7 +37,7 @@ import (
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
@@ -80,7 +80,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	allowDbUsers := []string{types.Wildcard}
 	allowDbNames := []string{types.Wildcard}
@@ -187,7 +187,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 
 func TestHeartbeatEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	dbOne, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbOne",

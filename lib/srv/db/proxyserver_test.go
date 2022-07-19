@@ -37,7 +37,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
@@ -141,7 +141,7 @@ func TestProxyRateLimiting(t *testing.T) {
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
@@ -249,7 +249,7 @@ func TestProxyRateLimiting(t *testing.T) {
 
 func TestProxyMySQLVersion(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedMySQL("mysql", mysql.WithServerVersion("8.0.12")),

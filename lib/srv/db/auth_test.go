@@ -41,7 +41,7 @@ import (
 // to cloud databases such as RDS, Redshift, Cloud SQL.
 func TestAuthTokens(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t,
 		withRDSPostgres("postgres-rds-correct-token", rdsAuthToken),
@@ -228,7 +228,7 @@ func TestDBCertSigning(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	privateKey, _, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)

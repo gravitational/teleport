@@ -35,7 +35,7 @@ import (
 // changes to database resources.
 func TestWatcher(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t)
 
@@ -128,7 +128,7 @@ func TestWatcher(t *testing.T) {
 // evaluated for the dynamic registered resources.
 func TestWatcherCloudDynamicResource(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	t.Cleanup(cancel)
 
 	testCtx := setupTestContext(ctx, t)
 
