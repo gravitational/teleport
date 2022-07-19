@@ -27,8 +27,6 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
 ## Step 1/7. Enable Cloud SQL IAM authentication
 
 Teleport uses [IAM database authentication](https://cloud.google.com/sql/docs/postgres/authentication)
@@ -122,7 +120,7 @@ Assign it the "Service Account Token Creator" role:
 
 <Admonition type="note" title="Service account permissions">
   "Service Account Token Creator", "Cloud SQL Viewer", and "Cloud SQL Admin"
-  IAM roles include more permissions than the database agent needs. To further
+  IAM roles include more permissions than the Database Service needs. To further
   restrict the service account, you can create a role that includes only the
   following permissions:
   ```ini

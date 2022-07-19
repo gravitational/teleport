@@ -599,7 +599,7 @@ func TestExecLongCommand(t *testing.T) {
 // sets ServerContext session.
 func TestOpenExecSessionSetsSession(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -1339,6 +1339,7 @@ func TestPTY(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
+
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
 	defer se.Close()
