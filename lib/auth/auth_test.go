@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1993,6 +1995,42 @@ func TestFilterResources(t *testing.T) {
 				Limit:        tt.limit,
 			}, tt.filterFn)
 			tt.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestCAGeneration(t *testing.T) {
+	const (
+		clusterName = "cluster1"
+		HostUUID    = "0000-000-000-0000"
+	)
+	native.PrecomputeKeys()
+	// Cache key for better performance as we don't care about the value being unique.
+	privKey, pubKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	ksConfig := keystore.Config{
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+			return privKey, pubKey, nil
+		},
+		HostUUID: HostUUID,
+	}
+	keyStore, err := keystore.NewKeyStore(ksConfig)
+	require.NoError(t, err)
+
+	for _, caType := range types.CertAuthTypes {
+		t.Run(string(caType), func(t *testing.T) {
+			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			keySet, err := newKeySet(keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+			require.NoError(t, err)
+
+			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
+			require.Equal(t, len(testKeySet.SSH) > 0, len(keySet.SSH) > 0,
+				"test CA and production CA have different SSH keys for type %v", caType)
+			require.Equal(t, len(testKeySet.TLS) > 0, len(keySet.TLS) > 0,
+				"test CA and production CA have different TLS keys for type %v", caType)
+			require.Equal(t, len(testKeySet.JWT) > 0, len(keySet.JWT) > 0,
+				"test CA and production CA have different JWT keys for type %v", caType)
 		})
 	}
 }
