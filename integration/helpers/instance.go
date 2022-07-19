@@ -893,11 +893,10 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
-func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
+func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, webProxyPort, sshProxyPort int) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
+
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
@@ -917,13 +916,16 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Auth.Enabled = false
 
 	tconf.Proxy.Enabled = true
-	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
-	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
+	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
+	sshProxyPort = Port(t, tconf.Proxy.SSHAddr.Addr)
+	tconf.Proxy.WebAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxyWeb, &tconf.FileDescriptors)
+	webProxyPort = Port(t, tconf.Proxy.WebAddr.Addr)
 	tconf.Proxy.DisableReverseTunnel = true
 	tconf.Proxy.DisableWebService = true
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+	tconf.SSH.Addr.Addr = NewListenerOn(t, i.Hostname, service.ListenerNodeSSH, &tconf.FileDescriptors)
+	sshPort = Port(t, tconf.SSH.Addr.Addr)
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -939,9 +941,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	i.Nodes = append(i.Nodes, process)
 
 	// Build a list of expected events to wait for before unblocking based off
@@ -953,13 +953,12 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	log.Debugf("Teleport node and proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-	return nil
+
+	return
 }
 
 // ProxyConfig is a set of configuration parameters for Proxy

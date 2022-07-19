@@ -1735,12 +1735,27 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	username := suite.Me.Username
 
+	fmt.Println("!!!! Creating SITE-A")
+
 	a := suite.newNamedTeleportInstance(t, "site-A")
+
+	// The Listener FDs injected into SiteA will be closed when SiteA restarts
+	// later in in the test, rendering them all invalid. This will make SiteA
+	// fail when it attempts to start back up again. We can't just inject a
+	// totally new listener config into SiteA when it restarts, or SiteB won't
+	// be able to  find it.
+	//
+	// The least bad option is to duplicate all of SiteA's Listener FDs and
+	// inject those duplicates prior to restarting the SiteA cluster.
+	aFdCache := helpers.CloneFDs(t, a.Fds)
+
+	fmt.Println("!!!! Creating SITE-B")
 	b := suite.newNamedTeleportInstance(t, "site-B")
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
+	fmt.Println("!!!! Generating instance configs")
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: proxyRecordMode,
 	})
@@ -1761,19 +1776,27 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	bcfg.Proxy.DisableWebInterface = true
 	bcfg.SSH.Enabled = false
 
+	fmt.Println("!!!! Creating SITE-A instance")
 	require.NoError(t, b.CreateEx(t, a.Secrets.AsSlice(), bcfg))
 	t.Cleanup(func() { require.NoError(t, b.StopAll()) })
+
+	fmt.Println("!!!! Creating SITE-B instance")
 	require.NoError(t, a.CreateEx(t, b.Secrets.AsSlice(), acfg))
 	t.Cleanup(func() { require.NoError(t, a.StopAll()) })
 
+	fmt.Println("!!!! Starting ")
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
+
+	fmt.Println("!!!! Clusters are running, waiting for tunnel...")
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(a.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 	require.Eventually(t, waitForClusters(b.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
+
+	fmt.Println("!!!! Tunnel is up")
 
 	var (
 		outputA bytes.Buffer
@@ -1845,12 +1868,15 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
+	fmt.Println("!!!! RESTARTING SITE A")
+
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
 	err = tc.SSH(context.TODO(), cmd, false)
 	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
 
 	// Reset and start "Site-A" again
+	a.Config.FileDescriptors = aFdCache
 	require.NoError(t, a.Reset())
 	require.NoError(t, a.Start())
 
@@ -1907,8 +1933,14 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	// this address instead.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
-	a := suite.newNamedTeleportInstance(t, "site-A", WithNodeName(addr))
-	b := suite.newNamedTeleportInstance(t, "site-B", WithNodeName(addr))
+	a := suite.newNamedTeleportInstance(t, "site-A",
+		WithNodeName(addr),
+		WithListeners(helpers.StandardListenerSetupOn(addr)),
+	)
+	b := suite.newNamedTeleportInstance(t, "site-B",
+		WithNodeName(addr),
+		WithListeners(helpers.StandardListenerSetupOn(addr)),
+	)
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
@@ -1955,9 +1987,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
 
-	nodePorts := helpers.NewPortSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
-	require.NoError(t, a.StartNodeAndProxy("cluster-a-node", sshPort, proxyWebPort, proxySSHPort))
+	sshPort, _, _ := a.StartNodeAndProxy(t, "cluster-a-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
@@ -2099,9 +2129,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := helpers.NewPortSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
-	require.NoError(t, aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort))
+	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
@@ -2447,9 +2475,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	nodePorts := helpers.NewPortSlice(3)
-	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
-	require.NoError(t, aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort))
+	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
@@ -5800,7 +5826,7 @@ func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg 
 	return output.String(), nil
 }
 
-type InstanceConfigOption func(config *helpers.InstanceConfig)
+type InstanceConfigOption func(t *testing.T, config *helpers.InstanceConfig)
 
 func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterName string, opts ...InstanceConfigOption) *helpers.TeleInstance {
 	cfg := helpers.InstanceConfig{
@@ -5813,19 +5839,27 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 	}
 
 	for _, opt := range opts {
-		opt(&cfg)
+		opt(t, &cfg)
 	}
 
 	if cfg.Listeners == nil {
-		cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
+		cfg.Listeners = helpers.StandardListenerSetupOn(cfg.NodeName)(t, &cfg.Fds)
 	}
+
+	fmt.Println("!!!! ", "Nodename:", cfg.NodeName, "Listener:", cfg.Listeners.Web)
 
 	return helpers.NewInstance(t, cfg)
 }
 
 func WithNodeName(nodeName string) InstanceConfigOption {
-	return func(config *helpers.InstanceConfig) {
+	return func(_ *testing.T, config *helpers.InstanceConfig) {
 		config.NodeName = nodeName
+	}
+}
+
+func WithListeners(setupFn helpers.InstanceListenerSetupFunc) InstanceConfigOption {
+	return func(t *testing.T, config *helpers.InstanceConfig) {
+		config.Listeners = setupFn(t, &config.Fds)
 	}
 }
 
@@ -6300,23 +6334,17 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	})
 
 	require.NoError(t, root.Start())
-	require.NoError(t, leaf.Start())
-
 	t.Cleanup(func() { root.StopAll() })
+
+	require.NoError(t, leaf.Start())
 	t.Cleanup(func() { leaf.StopAll() })
 
 	require.NoError(t, trustedCluster.CheckAndSetDefaults())
 	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
 	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
-	rootSSHPort := helpers.NewPortValue()
-	rootProxySSHPort := helpers.NewPortValue()
-	rootProxyWebPort := helpers.NewPortValue()
-	require.NoError(t, root.StartNodeAndProxy("root-zero", rootSSHPort, rootProxyWebPort, rootProxySSHPort))
-	leafSSHPort := helpers.NewPortValue()
-	leafProxySSHPort := helpers.NewPortValue()
-	leafProxyWebPort := helpers.NewPortValue()
-	require.NoError(t, leaf.StartNodeAndProxy("leaf-zero", leafSSHPort, leafProxyWebPort, leafProxySSHPort))
+	_, _, rootProxySSHPort := root.StartNodeAndProxy(t, "root-zero")
+	_, _, _ = leaf.StartNodeAndProxy(t, "leaf-zero")
 
 	// Add any extra services.
 	if extraServices != nil {

@@ -19,7 +19,9 @@ package helpers
 import (
 	"fmt"
 	"net"
+	"os"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/service"
@@ -53,6 +55,8 @@ func NewPortSlice(n int) []int {
 	return ports.PopIntSlice(n)
 }
 
+// InstanceListeners represents the listener configuration for a test cluster.
+// Each address field is expecetd to be hull host:port pair.
 type InstanceListeners struct {
 	Web               string
 	SSH               string
@@ -65,17 +69,32 @@ type InstanceListeners struct {
 	IsSinglePortSetup bool
 }
 
+// InstanceListenerSetupFunc defines a function type used for specifying the
+// listener setup for a given test. InstanceListenerSetupFuncs are useful when
+// you need to have some distance between the test configuration and actually
+// executing the listener setup.
 type InstanceListenerSetupFunc func(*testing.T, *[]service.FileDescriptor) *InstanceListeners
 
-func StandardListenerSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
-	return &InstanceListeners{
-		Web:           NewListener(t, service.ListenerProxyWeb, fds),
-		SSH:           NewListener(t, service.ListenerNodeSSH, fds),
-		Auth:          NewListener(t, service.ListenerAuth, fds),
-		SSHProxy:      NewListener(t, service.ListenerProxySSH, fds),
-		ReverseTunnel: NewListener(t, service.ListenerProxyTunnel, fds),
-		MySQL:         NewListener(t, service.ListenerProxyMySQL, fds),
+// StandardListenerSetupOn returns a InstanceListenerSetupFunc that will create
+// a new InstanceListeners configured with each service listening on its own
+// port, all bound to the supplied address
+func StandardListenerSetupOn(addr string) func(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return func(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+		return &InstanceListeners{
+			Web:           NewListenerOn(t, addr, service.ListenerProxyWeb, fds),
+			SSH:           NewListenerOn(t, addr, service.ListenerNodeSSH, fds),
+			Auth:          NewListenerOn(t, addr, service.ListenerAuth, fds),
+			SSHProxy:      NewListenerOn(t, addr, service.ListenerProxySSH, fds),
+			ReverseTunnel: NewListenerOn(t, addr, service.ListenerProxyTunnel, fds),
+			MySQL:         NewListenerOn(t, addr, service.ListenerProxyMySQL, fds),
+		}
 	}
+}
+
+// StandardListenerSetup creates an InstanceListeners configures with each service
+// listening on its own port, all bound to the loopback address
+func StandardListenerSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
+	return StandardListenerSetupOn(Loopback)(t, fds)
 }
 
 // SingleProxyPortSetupOn creates a constructor function that will in turn generate an
@@ -99,7 +118,7 @@ func SingleProxyPortSetupOn(addr string) func(*testing.T, *[]service.FileDescrip
 // SingleProxyPortSetup generates an InstanceConfig that allows proxying of multiple protocols
 // over a single port.
 func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
-	return SingleProxyPortSetupOn("127.0.0.1")(t, fds)
+	return SingleProxyPortSetupOn(Loopback)(t, fds)
 }
 
 func WebReverseTunnelMuxPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
@@ -186,7 +205,7 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 	l, err := net.Listen("tcp", hostAddr+":0")
 	require.NoError(t, err)
 	defer l.Close()
-	addr := l.Addr().String()
+	addr := net.JoinHostPort(hostAddr, PortStr(t, l.Addr().String()))
 
 	// File() returns a dup of the listener's file descriptor as an *os.File, so
 	// the original net.Listener still needs to be closed.
@@ -223,4 +242,26 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 // given to a teleport instance on startup in order to suppl
 func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
 	return NewListenerOn(t, "127.0.0.1", ty, fds)
+}
+
+// DupFDs clones a collection of file descriptors. Cleanup functions are
+// added to the test to ensure the FDs are closed at the end of the test.
+// Any errors in the duplication result in an immediate test failure.
+func DupFDs(t *testing.T, srcFDs []service.FileDescriptor) []service.FileDescriptor {
+	result := make([]service.FileDescriptor, 0, len(srcFDs))
+	for _, src := range srcFDs {
+		clonedFD, err := syscall.Dup(int(src.File.Fd()))
+		require.NoError(t, err)
+
+		newFile := os.NewFile(uintptr(clonedFD), src.File.Name())
+		t.Cleanup(func() { newFile.Close() })
+
+		result = append(result, service.FileDescriptor{
+			Type:    src.Type,
+			Address: src.Address,
+			File:    newFile,
+		})
+	}
+
+	return result
 }
