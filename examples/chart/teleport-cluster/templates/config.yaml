@@ -95,38 +95,38 @@ data:
     {{- toYaml .Values.labels | nindent 8 }}
   {{- end }}
     proxy_service:
-  {{- if .Values.publicAddress }}
-      public_addr: '{{ .Values.publicAddress }}'
+  {{- if .Values.publicAddr }}
+      public_addr: '{{ .Values.publicAddr }}'
   {{- else }}
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
   {{- end }}
-  {{- if .Values.sshPublicAddress }}
-      ssh_public_addr: '{{ .Values.sshPublicAddress }}'
+  {{- if .Values.sshPublicAddr }}
+      ssh_public_addr: '{{ .Values.sshPublicAddr }}'
   {{- end }}
-  {{- if .Values.tunnelPublicAddress }}
-      tunnel_public_addr: '{{ .Values.tunnelPublicAddress }}'
+  {{- if .Values.tunnelPublicAddr }}
+      tunnel_public_addr: '{{ .Values.tunnelPublicAddr }}'
   {{- end }}
   {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
-    {{- if .Values.kubePublicAddress }}
-      kube_public_addr: '{{ .Values.kubePublicAddress }}'
+    {{- if .Values.kubePublicAddr }}
+      kube_public_addr: '{{ .Values.kubePublicAddr }}'
     {{- end }}
       mysql_listen_addr: 0.0.0.0:3036
-    {{- if .Values.mysqlPublicAddress }}
-      mysql_public_addr: '{{ .Values.mysqlPublicAddress }}'
+    {{- if .Values.mysqlPublicAddr }}
+      mysql_public_addr: '{{ .Values.mysqlPublicAddr }}'
     {{- end }}
     {{- if .Values.separatePostgresListener }}
       postgres_listen_addr: 0.0.0.0:5432
-      {{- if .Values.postgresPublicAddress }}
-      postgres_public_addr: '{{ .Values.postgresPublicAddress }}'
+      {{- if .Values.postgresPublicAddr }}
+      postgres_public_addr: '{{ .Values.postgresPublicAddr }}'
       {{- else }}
       postgres_public_addr: {{ .Values.clusterName }}:5432
       {{- end }}
     {{- end }}
     {{- if .Values.separateMongoListener }}
       mongo_listen_addr: 0.0.0.0:27017
-      {{- if .Values.mongoPublicAddress }}
-      mongo_public_addr: '{{ .Values.mongoPublicAddress }}'
+      {{- if .Values.mongoPublicAddr }}
+      mongo_public_addr: '{{ .Values.mongoPublicAddr }}'
       {{- else }}
       mongo_public_addr: {{ .Values.clusterName }}:27017
       {{- end }}

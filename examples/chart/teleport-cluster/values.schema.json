@@ -79,38 +79,38 @@
             "type": "boolean",
             "default": false
         },
-        "publicAddress": {
-            "$id": "#/properties/publicAddress",
+        "publicAddr": {
+            "$id": "#/properties/publicAddr",
             "type": "string",
             "default": ""
         },
-        "kubePublicAddress": {
-            "$id": "#/properties/kubePublicAddress",
+        "kubePublicAddr": {
+            "$id": "#/properties/kubePublicAddr",
             "type": "string",
             "default": ""
         },
-        "mongoPublicAddress": {
-            "$id": "#/properties/mongoPublicAddress",
+        "mongoPublicAddr": {
+            "$id": "#/properties/mongoPublicAddr",
             "type": "string",
             "default": ""
         },
-        "mysqlPublicAddress": {
-            "$id": "#/properties/mysqlPublicAddress",
+        "mysqlPublicAddr": {
+            "$id": "#/properties/mysqlPublicAddr",
             "type": "string",
             "default": ""
         },
-        "postgresPublicAddress": {
-            "$id": "#/properties/postgresPublicAddress",
+        "postgresPublicAddr": {
+            "$id": "#/properties/postgresPublicAddr",
             "type": "string",
             "default": ""
         },
-        "sshPublicAddress": {
-            "$id": "#/properties/sshPublicAddress",
+        "sshPublicAddr": {
+            "$id": "#/properties/sshPublicAddr",
             "type": "string",
             "default": ""
         },
-        "tunnelPublicAddress": {
-            "$id": "#/properties/tunnelPublicAddress",
+        "tunnelPublicAddr": {
+            "$id": "#/properties/tunnelPublicAddr",
             "type": "string",
             "default": ""
         },
