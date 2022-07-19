@@ -17,13 +17,12 @@ limitations under the License.
 package web
 
 import (
-	"archive/zip"
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -89,80 +88,68 @@ func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	outputDir, err := os.MkdirTemp("", "teleport-auth-sign")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer os.RemoveAll(outputDir)
-
 	key.TLSCert = resp.Cert
 	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
+
+	virtualFS := identityfile.NewInMemoryConfigWriter()
+
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
-		OutputPath:           outputDir + "/server",
+		OutputPath:           "server",
 		Key:                  key,
 		Format:               req.Format,
 		OverwriteDestination: true,
+		Writer:               virtualFS,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	archiveBaseName := fmt.Sprintf("teleport_mTLS_%s.zip", req.Hostname)
-	archiveFullPath := fmt.Sprintf("%s/%s", outputDir, archiveBaseName)
+	archiveName := fmt.Sprintf("teleport_mTLS_%s.tar.gz", req.Hostname)
 
-	if err := buildArchiveFromFiles(filesWritten, archiveFullPath); err != nil {
+	archiveBytes, err := archiveFromFiles(filesWritten, virtualFS)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Set file name
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%v"`, archiveBaseName))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%v"`, archiveName))
 
-	// ServeFile sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
+	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
-	http.ServeFile(w, r, archiveFullPath)
+	http.ServeContent(w, r, archiveName, time.Now(), bytes.NewReader(archiveBytes.Bytes()))
 
 	return nil, nil
 }
 
-func buildArchiveFromFiles(files []string, zipLocation string) error {
-	// We remove the entire directory above.
-	// No need to remove each file seperatly.
-	archive, err := os.Create(zipLocation)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer archive.Close()
+// archiveFromFiles builds a Tar Gzip archive in memory, reading the files from the virtual FS
+func archiveFromFiles(files []string, virtualFS identityfile.InMemoryConfigWriter) (*bytes.Buffer, error) {
+	archiveBytes := &bytes.Buffer{}
 
-	zipWriter := zip.NewWriter(archive)
-	defer zipWriter.Close()
+	gzipWriter := gzip.NewWriter(archiveBytes)
+	defer gzipWriter.Close()
 
-	for _, fullFilename := range files {
-		baseFilename := filepath.Base(fullFilename)
-		if err := addFileToZipWriter(fullFilename, baseFilename, zipWriter); err != nil {
-			return trace.Wrap(err)
+	tarWriter := tar.NewWriter(gzipWriter)
+	defer tarWriter.Close()
+
+	for _, filename := range files {
+		bs, err := virtualFS.Read(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := tarWriter.WriteHeader(&tar.Header{
+			Name: filename,
+			Size: int64(len(bs)),
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := tarWriter.Write(bs); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
-	return nil
-}
-
-func addFileToZipWriter(fullFilename string, baseFilename string, zipWriter *zip.Writer) error {
-	f, err := os.Open(fullFilename)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer f.Close()
-
-	zipFileWriter, err := zipWriter.Create(baseFilename)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := io.Copy(zipFileWriter, f); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return archiveBytes, nil
 }
 
 type signCertKeyPairReq struct {

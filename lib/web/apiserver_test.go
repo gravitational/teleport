@@ -17,10 +17,11 @@ limitations under the License.
 package web
 
 import (
-	"archive/zip"
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
@@ -2191,7 +2192,7 @@ func TestSignMTLS(t *testing.T) {
 	clusterName := env.server.ClusterName()
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil)
 
 	endpoint := pack.clt.Endpoint("webapi", "token")
 	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
@@ -2204,7 +2205,6 @@ func TestSignMTLS(t *testing.T) {
 	require.NoError(t, err)
 
 	// download mTLS files from /webapi/sites/:site/sign
-
 	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign")
 	endpointSignURL, err := url.Parse(endpointSign)
 	require.NoError(t, err)
@@ -2219,39 +2219,47 @@ func TestSignMTLS(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
 
-	anonHTTPClient := &http.Client{Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}}
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 
 	resp, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, resp.StatusCode, http.StatusOK)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	archive, err := io.ReadAll(resp.Body)
+	gzipReader, err := gzip.NewReader(resp.Body)
 	require.NoError(t, err)
 
-	zipReader, err := zip.NewReader(bytes.NewReader(archive), resp.ContentLength)
-	require.NoError(t, err)
-	require.Len(t, zipReader.File, 3)
+	tarReader := tar.NewReader(gzipReader)
 
-	zipContentFileNames := []string{}
-	for _, zipContentFile := range zipReader.File {
-		zipContentFileNames = append(zipContentFileNames, zipContentFile.Name)
+	tarContentFileNames := []string{}
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
+		tarContentFileNames = append(tarContentFileNames, header.Name)
 	}
 
 	expectedFileNames := []string{"server.cas", "server.key", "server.crt"}
-	require.ElementsMatch(t, zipContentFileNames, expectedFileNames)
+	require.ElementsMatch(t, tarContentFileNames, expectedFileNames)
 
 	// the token is no longer valid, so trying again should return an error
 	req, err = http.NewRequest(http.MethodGet, endpointSignURL.String(), nil)
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
 
-	resp2nd, err := anonHTTPClient.Do(req)
+	respSecondCall, err := anonHTTPClient.Do(req)
 	require.NoError(t, err)
-	defer resp2nd.Body.Close()
-	require.Equal(t, resp2nd.StatusCode, http.StatusForbidden)
+	defer respSecondCall.Body.Close()
+	require.Equal(t, http.StatusForbidden, respSecondCall.StatusCode)
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
