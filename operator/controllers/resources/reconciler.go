@@ -86,12 +86,12 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	// Delete
 	if isMarkedToBeDeleted {
 		if hasDeletionFinalizer {
-			log.Info("deleting object in Teleport", kind, name)
+			log.Info("deleting object in Teleport", "kind", kind, "name", name)
 			if err := r.DeleteExternal(ctx, obj); !trace.IsNotFound(err) {
 				return ctrl.Result{}, trace.Wrap(err)
 			}
 
-			log.Info("removing finalizer", kind, name)
+			log.Info("removing finalizer", "kind", kind, "name", name)
 			controllerutil.RemoveFinalizer(obj, DeletionFinalizer)
 			if err := r.Update(ctx, obj); err != nil {
 				return ctrl.Result{}, trace.Wrap(err, "failed to remove finalizer after deleting in teleport")
@@ -103,7 +103,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	}
 
 	if !hasDeletionFinalizer {
-		log.Info("adding finalizer", kind, name)
+		log.Info("adding finalizer", "kind", kind, "name", name)
 		controllerutil.AddFinalizer(obj, DeletionFinalizer)
 
 		err := r.Update(ctx, obj)
@@ -112,7 +112,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	}
 
 	// Create or update
-	log.Info("upsert object in Teleport", kind, name)
+	log.Info("upsert object in Teleport", "kind", kind, "name", name)
 	err := r.UpsertExternal(ctx, obj)
 	return ctrl.Result{}, trace.Wrap(err)
 }
