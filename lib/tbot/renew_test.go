@@ -162,3 +162,83 @@ func TestDatabaseRequest(t *testing.T) {
 	require.Equal(t, "baz", route.Username)
 	require.Equal(t, "mysql", route.Protocol)
 }
+
+func TestAppRequest(t *testing.T) {
+	t.Parallel()
+
+	const appName = "foo"
+	log := libutils.NewLoggerForTests()
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	fc.Apps.Service = libconfig.Service{
+		EnabledFlag: "true",
+	}
+	fc.Apps.Apps = []*libconfig.App{
+		{
+			Name:       appName,
+			PublicAddr: "foo.example.com",
+			URI:        "http://foo.example.com:1234",
+			StaticLabels: map[string]string{
+				"env": "dev",
+			},
+		},
+	}
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Wait for the database to become available. Sometimes this takes a bit
+	// of time in CI.
+	require.Eventually(t, func() bool {
+		_, err := getApp(context.Background(), rootClient, appName)
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Create a role to grant access to the database.
+	const roleName = "app-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{
+				"*": utils.Strings{"*"},
+			},
+			AppLabels: types.Labels{
+				"env": utils.Strings{"dev"},
+			},
+			// Rules: []types.Rule{
+			// 	types.NewRule("app", []string{"read", "list"}),
+			// },
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
+
+	// Make and join a new bot instance.
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
+	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
+
+	dest := botConfig.Destinations[0]
+	dest.App = &config.AppConfig{
+		App: appName,
+	}
+
+	// Onboard the bot.
+	b := New(botConfig, log, nil)
+	ident, err := b.getIdentityFromToken()
+	require.NoError(t, err)
+
+	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
+	b._ident = ident
+
+	impersonatedIdent, err := b.generateImpersonatedIdentity(
+		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
+	)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(impersonatedIdent.X509Cert.Subject, impersonatedIdent.X509Cert.NotAfter)
+	require.NoError(t, err)
+
+	route := tlsIdent.RouteToApp
+	require.Equal(t, appName, route.Name)
+	require.Equal(t, "foo.example.com", route.PublicAddr)
+	require.NotEmpty(t, route.SessionID)
+}
