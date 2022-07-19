@@ -1261,14 +1261,15 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	p, err := newTestPack(context.Background(), t.TempDir())
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -1285,7 +1286,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(context.Background(), req)
+	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
