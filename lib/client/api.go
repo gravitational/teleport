@@ -2848,8 +2848,7 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	var err error
 	var proxyClient *ProxyClient
 
-	// Use a channel to signal when a response is
-	// returned from connectToProxy.
+	// Use a channel to signal when a response is returned from connectToProxy.
 	connectDone := make(chan struct {
 		*ProxyClient
 		error
