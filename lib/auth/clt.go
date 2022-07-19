@@ -1515,6 +1515,9 @@ type IdentityService interface {
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
 	GetCurrentUser(ctx context.Context) (types.User, error)
 
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
+
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
 
@@ -1651,6 +1654,9 @@ type ProvisioningService interface {
 
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+
+	// CreateToken creates a new provision token for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
 
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken

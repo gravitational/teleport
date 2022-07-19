@@ -70,9 +70,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +92,7 @@ type integrationTest func(t *testing.T, suite *integrationTestSuite)
 func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Attempt to set a logger for the test. Be warned that parts of the
-		// Teleport codebase do not honour the logger passed in via config and
+		// Teleport codebase do not honor the logger passed in via config and
 		// will create their own. Do not expect to catch _all_ output with this.
 		s.Log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
@@ -100,7 +102,7 @@ func (s *integrationTestSuite) bind(test integrationTest) func(t *testing.T) {
 }
 
 // TestIntegrations acts as the master test suite for all integration tests
-// requiring standardised setup and teardown.
+// requiring standardized setup and teardown.
 func TestIntegrations(t *testing.T) {
 	suite := newSuite(t)
 
@@ -153,6 +155,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+	t.Run("SFTP", suite.bind(testSFTP))
+	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -618,10 +622,9 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	helpers.SetTestTimeouts(100 * time.Millisecond)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
+	// If the test is re-executing itself, handle the appropriate sub-command.
 	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 
@@ -787,7 +790,9 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 
 // testSSHTracker verifies that an SSH session creates a tracker for sessions.
 func testSSHTracker(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
 
@@ -1059,6 +1064,97 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
 	require.NoError(t, err)
+}
+
+func testEscapeSequenceTriggers(t *testing.T, suite *integrationTestSuite) {
+	type testCase struct {
+		name                  string
+		f                     func(t *testing.T, terminal *Terminal, sess <-chan error)
+		enableEscapeSequences bool
+	}
+
+	testCases := []testCase{
+		{
+			name:                  "yes",
+			f:                     testEscapeSequenceYesTrigger,
+			enableEscapeSequences: true,
+		},
+		{
+			name:                  "no",
+			f:                     testEscapeSequenceNoTrigger,
+			enableEscapeSequences: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			teleport := suite.newTeleport(t, nil, true)
+			defer teleport.StopAll()
+
+			site := teleport.GetSiteAPI(helpers.Site)
+			require.NotNil(t, site)
+
+			terminal := NewTerminal(250)
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:                 suite.Me.Username,
+				Cluster:               helpers.Site,
+				Host:                  Host,
+				EnableEscapeSequences: testCase.enableEscapeSequences,
+			})
+			require.NoError(t, err)
+
+			cl.Stdout = terminal
+			cl.Stdin = terminal
+			sess := make(chan error)
+			go func() {
+				sess <- cl.SSH(ctx, []string{}, false)
+			}()
+
+			require.Eventually(t, func() bool {
+				trackers, err := site.GetActiveSessionTrackers(ctx)
+				require.NoError(t, err)
+				return len(trackers) == 1
+			}, time.Second*15, time.Millisecond*100)
+
+			select {
+			case err := <-sess:
+				require.FailNow(t, "session should not have ended", err)
+			default:
+			}
+
+			testCase.f(t, terminal, sess)
+		})
+	}
+}
+
+func testEscapeSequenceYesTrigger(t *testing.T, terminal *Terminal, sess <-chan error) {
+	terminal.Type("\a~.\n\r")
+	select {
+	case err := <-sess:
+		require.NoError(t, err)
+	case <-time.After(time.Second * 15):
+		require.FailNow(t, "session should have ended")
+	}
+}
+
+func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan error) {
+	terminal.Type("\a~.\n\r")
+	terminal.Type("\aecho hi\n\r")
+
+	require.Eventually(t, func() bool {
+		// if the session didn't end, we should see the output of the last write
+		return strings.Contains(terminal.Output(1000), "hi")
+	}, time.Second*15, time.Millisecond*100)
+
+	terminal.Type("\aexit 0\n\r")
+	select {
+	case err := <-sess:
+		require.NoError(t, err)
+	case <-time.After(time.Second * 15):
+		require.FailNow(t, "session should have ended")
+	}
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -6431,4 +6527,95 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testSFTP(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport instance.
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	client, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// Create SFTP session.
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
+
+	// Create file that will be uploaded and downloaded.
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "testfile")
+	testFile, err := os.Create(testFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
+
+	_, err = testFile.WriteString("This is test data.")
+	require.NoError(t, err)
+	require.NoError(t, testFile.Sync())
+
+	// Test stat'ing a file.
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
+
+	// Test downloading a file.
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
+
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
+
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
+
+	// Test uploading a file.
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
+
+	// Ensure SFTP audit events are present.
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+	require.NoError(t, err)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }

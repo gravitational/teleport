@@ -127,7 +127,7 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 		case streams <- stream:
 			return nil
 		case <-ctx.Done():
-			return trace.BadParameter("request has been cancelled")
+			return trace.BadParameter("request has been canceled")
 		}
 	}
 }

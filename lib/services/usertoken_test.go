@@ -13,25 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package services
 
 import (
+	"fmt"
+	"testing"
 	"time"
-
-	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/fixtures"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-type UserTokenSuite struct{}
+func TestUserTokenUnmarshal(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&UserTokenSuite{})
-
-func (r *UserTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	type testCase struct {
 		description string
@@ -73,14 +74,14 @@ func (r *UserTokenSuite) TestUnmarshal(c *check.C) {
 	}
 
 	for _, tc := range testCases {
-		comment := check.Commentf("test case %q", tc.description)
+		comment := fmt.Sprintf("test case %q", tc.description)
 		out, err := UnmarshalUserToken([]byte(tc.input))
-		c.Assert(err, check.IsNil, comment)
-		fixtures.DeepCompare(c, tc.expected, out)
+		require.NoError(t, err, comment)
+		require.Empty(t, cmp.Diff(tc.expected, out))
 		data, err := MarshalUserToken(out)
-		c.Assert(err, check.IsNil, comment)
+		require.NoError(t, err, comment)
 		out2, err := UnmarshalUserToken(data)
-		c.Assert(err, check.IsNil, comment)
-		fixtures.DeepCompare(c, tc.expected, out2)
+		require.NoError(t, err, comment)
+		require.Empty(t, cmp.Diff(tc.expected, out2))
 	}
 }
