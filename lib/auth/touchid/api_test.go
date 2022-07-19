@@ -22,10 +22,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -34,6 +36,11 @@ import (
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
+
+func init() {
+	// Make tests silent.
+	touchid.PromptWriter = io.Discard
+}
 
 func TestRegisterAndLogin(t *testing.T) {
 	n := *touchid.Native
@@ -69,7 +76,8 @@ func TestRegisterAndLogin(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*touchid.Native = &fakeNative{}
+			fake := &fakeNative{}
+			*touchid.Native = fake
 
 			webUser := test.webUser
 			origin := test.origin
@@ -81,6 +89,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 			reg, err := touchid.Register(origin, (*wanlib.CredentialCreation)(cc))
 			require.NoError(t, err, "Register failed")
+			assert.Equal(t, 1, fake.userPrompts, "unexpected number of Registation prompts")
 
 			// We have to marshal and parse ccr due to an unavoidable quirk of the
 			// webauthn API.
@@ -106,6 +115,7 @@ func TestRegisterAndLogin(t *testing.T) {
 			assertionResp, actualUser, err := touchid.Login(origin, user, assertion)
 			require.NoError(t, err, "Login failed")
 			assert.Equal(t, test.wantUser, actualUser, "actualUser mismatch")
+			assert.Equal(t, 2, fake.userPrompts, "unexpected number of Login prompts")
 
 			// Same as above: easiest way to validate the assertion is to marshal
 			// and then parse the body.
@@ -334,6 +344,158 @@ func TestLogin_findsCorrectCredential(t *testing.T) {
 	}
 }
 
+func TestLogin_noCredentials_failsWithoutUserInteraction(t *testing.T) {
+	n := *touchid.Native
+	t.Cleanup(func() {
+		*touchid.Native = n
+	})
+
+	fake := &fakeNative{}
+	*touchid.Native = fake
+
+	const origin = "https://goteleport.com"
+	baseAssertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   "goteleport.com",
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+	mfaAssertion := *baseAssertion
+	mfaAssertion.Response.UserVerification = protocol.VerificationDiscouraged
+	mfaAssertion.Response.AllowedCredentials = []protocol.CredentialDescriptor{
+		{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: []byte{1, 2, 3, 4, 5}, // arbitrary
+		},
+	}
+
+	// Run empty credentials tests first.
+	for _, test := range []struct {
+		name      string
+		user      string
+		assertion *wanlib.CredentialAssertion
+	}{
+		{
+			name:      "passwordless empty user",
+			assertion: baseAssertion,
+		},
+		{
+			name:      "passwordless explicit user",
+			user:      "llama",
+			assertion: baseAssertion,
+		},
+		{
+			name:      "MFA empty user",
+			user:      "", // Typically MFA comes with an empty user
+			assertion: &mfaAssertion,
+		},
+		{
+			name:      "MFA explicit user",
+			user:      "llama",
+			assertion: &mfaAssertion,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake.userPrompts = 0 // reset before test
+			_, _, err := touchid.Login(origin, test.user, test.assertion)
+			assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
+			assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
+		})
+	}
+
+	// Register a couple of credentials for the following tests.
+	const userLlama = "llama"
+	const userAlpaca = "alpaca"
+	rrk := true
+	cc1 := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary, not important here
+			RelyingParty: protocol.RelyingPartyEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "Teleport",
+				},
+				ID: baseAssertion.Response.RelyingPartyID,
+			},
+			User: protocol.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: userLlama,
+				},
+				DisplayName: "Llama",
+				ID:          []byte{1, 1, 1, 1, 1},
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				RequireResidentKey: &rrk,
+				UserVerification:   protocol.VerificationRequired,
+			},
+			Attestation: protocol.PreferDirectAttestation,
+		},
+	}
+	cc2 := *cc1
+	cc2.Response.User = protocol.UserEntity{
+		CredentialEntity: protocol.CredentialEntity{
+			Name: userAlpaca,
+		},
+		DisplayName: "Alpaca",
+		ID:          []byte{1, 1, 1, 1, 2},
+	}
+	for _, cc := range []*wanlib.CredentialCreation{cc1, &cc2} {
+		reg, err := touchid.Register(origin, cc)
+		require.NoError(t, err, "Register failed")
+		require.NoError(t, reg.Confirm(), "Confirm failed")
+	}
+
+	mfaAllCreds := mfaAssertion
+	mfaAllCreds.Response.AllowedCredentials = nil
+	for _, c := range fake.creds {
+		mfaAllCreds.Response.AllowedCredentials = append(mfaAllCreds.Response.AllowedCredentials, protocol.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: []byte(c.id),
+		})
+	}
+
+	// Test absence of user prompts with existing credentials.
+	for _, test := range []struct {
+		name      string
+		user      string
+		assertion *wanlib.CredentialAssertion
+	}{
+		{
+			name:      "passwordless existing credentials",
+			user:      "camel", // not registered
+			assertion: baseAssertion,
+		},
+		{
+			name:      "MFA unknown credential IDs (1)",
+			user:      "",            // any user
+			assertion: &mfaAssertion, // missing correct credential IDs
+		},
+		{
+			name:      "MFA unknown credential IDs (2)",
+			user:      userLlama,     // known user
+			assertion: &mfaAssertion, // missing correct credential IDs
+		},
+		{
+			name:      "MFA credentials for another user",
+			user:      "camel",      // unknown user
+			assertion: &mfaAllCreds, // credential IDs correct but for other users
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fake.userPrompts = 0 // reset before test
+			_, _, err := touchid.Login(origin, test.user, test.assertion)
+			assert.ErrorIs(t, err, touchid.ErrCredentialNotFound, "Login error mismatch")
+			assert.Zero(t, fake.userPrompts, "Login caused user interaction with no credentials")
+		})
+	}
+}
+
 type credentialHandle struct {
 	rpID, user string
 	id         string
@@ -350,6 +512,10 @@ type fakeNative struct {
 	// lastAuthnCredential is the last credential ID used in a successful
 	// Authenticate call.
 	lastAuthnCredential string
+
+	// userPrompts counts the number of user-visible prompts that would be caused
+	// by various methods.
+	userPrompts int
 }
 
 func (f *fakeNative) Diag() (*touchid.DiagResult, error) {
@@ -363,7 +529,28 @@ func (f *fakeNative) Diag() (*touchid.DiagResult, error) {
 	}, nil
 }
 
-func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, error) {
+type fakeAuthContext struct {
+	countPrompts func(ctx touchid.AuthContext)
+	prompted     bool
+}
+
+func (c *fakeAuthContext) Guard(fn func()) error {
+	c.countPrompts(c)
+	fn()
+	return nil
+}
+
+func (c *fakeAuthContext) Close() {
+	c.prompted = false
+}
+
+func (f *fakeNative) NewAuthContext() touchid.AuthContext {
+	return &fakeAuthContext{
+		countPrompts: f.countPrompts,
+	}
+}
+
+func (f *fakeNative) Authenticate(actx touchid.AuthContext, credentialID string, data []byte) ([]byte, error) {
 	var key *ecdsa.PrivateKey
 	for _, cred := range f.creds {
 		if cred.id == credentialID {
@@ -375,12 +562,25 @@ func (f *fakeNative) Authenticate(credentialID string, data []byte) ([]byte, err
 		return nil, touchid.ErrCredentialNotFound
 	}
 
+	f.countPrompts(actx)
 	sig, err := key.Sign(rand.Reader, data, crypto.SHA256)
 	if err != nil {
 		return nil, err
 	}
 	f.lastAuthnCredential = credentialID
 	return sig, nil
+}
+
+func (f *fakeNative) countPrompts(actx touchid.AuthContext) {
+	switch c, ok := actx.(*fakeAuthContext); {
+	case ok && c.prompted:
+		return // Already prompted
+	case ok:
+		c.prompted = true
+		fallthrough
+	default:
+		f.userPrompts++
+	}
 }
 
 func (f *fakeNative) DeleteCredential(credentialID string) error {

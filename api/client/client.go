@@ -1870,6 +1870,16 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	return trail.FromGRPC(err)
 }
 
+// CreateToken creates a provision token.
+func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", token)
+	}
+	_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GenerateToken generates a new auth token for the given service roles.
 // This token can be used by corresponding services to authenticate with
 // the Auth server and get a signed certificate and private key.

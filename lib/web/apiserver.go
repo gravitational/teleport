@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -316,7 +317,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
-	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
+	//h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
+	//h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
+
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
@@ -561,6 +566,49 @@ func (h *Handler) Close() error {
 
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return OK(), nil
+}
+
+// handleGetUserOrResetToken has two handlers:
+// - read user
+// - return reset password token
+// It has two because the expected route for reading a user overlaps with an already existing one
+// Using `GET /webapi/users/:username` invalidates the `GET /webapi/users/password/token/:token` route
+// An alternative would be using the resource's singular name `GET /webapi/user/:username` but it invalidates the `GET /webapi/user/status` route
+// So, instead we'll use `GET /webapi/users/*wildcard`, parse the path/params and call the appropriate handler
+func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	// do we have multiple path fields or just one
+	relativePath := p.ByName("wildcard")
+	relativePath = strings.TrimPrefix(relativePath, "/") // relativePath might start with "/", removing it helps reasoning
+	pathFields := strings.Split(relativePath, "/")
+
+	params := httprouter.Params{}
+
+	handleFunc := httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		http.NotFound(w, r)
+		return nil, nil
+	})
+
+	// having one means we have an username
+	if len(pathFields) == 1 {
+		params = httprouter.Params{httprouter.Param{
+			Key:   "username",
+			Value: pathFields[0],
+		}}
+
+		handleFunc = h.WithAuth(h.getUserHandle)
+	}
+
+	// if we have exactly 3 and they look like /password/token/:token
+	if len(pathFields) == 3 && pathFields[0] == "password" && pathFields[1] == "token" && pathFields[2] != "" {
+		params = httprouter.Params{httprouter.Param{
+			Key:   "token",
+			Value: pathFields[2],
+		}}
+
+		handleFunc = httplib.MakeHandler(h.getResetPasswordTokenHandle)
+	}
+
+	handleFunc(w, r, params)
 }
 
 // getUserContext returns user context
@@ -1159,6 +1207,9 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
+		if errors.Is(err, auth.ErrGithubNoTeams) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 
 		return client.LoginFailedBadCallbackRedirectURL
 	}
@@ -1260,6 +1311,10 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 					return redURL.String()
 				}
 			}
+		}
+
+		if errors.Is(err, auth.ErrOIDCNoRoles) {
+			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
 		return client.LoginFailedBadCallbackRedirectURL

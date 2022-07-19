@@ -82,7 +82,7 @@
             },
             {
               "title": "Upgrading the Teleport Binary",
-              "slug": "/setup/admin/graceful-restarts/"
+              "slug": "/setup/admin/upgrading-the-teleport-binary/"
             },
             {
               "title": "Run Teleport as a Daemon",
@@ -988,6 +988,7 @@
       "min_version": "3.6"
     },
     "teleport": {
+      "major_version": "11",
       "version": "9.0.4",
       "golang": "1.17",
       "plugin": {
@@ -1220,8 +1221,8 @@
       "permanent": true
     },
     {
-      "source": "/docs/setup/reference/license/",
-      "destination": "/docs/enterprise/license/",
+      "source": "/setup/reference/license/",
+      "destination": "/enterprise/license/",
       "permanent": true
     },
     {
@@ -1260,18 +1261,18 @@
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/agent/",
-      "destination": "/docs/kubernetes-access/getting-started/",
+      "source": "/kubernetes-access/getting-started/agent/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/cluster/",
-      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "source": "/kubernetes-access/getting-started/cluster/",
+      "destination": "/getting-started/kubernetes-cluster/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/local/",
-      "destination": "/docs/getting-started/local-kubernetes/",
+      "source": "/kubernetes-access/getting-started/local/",
+      "destination": "/getting-started/local-kubernetes/",
       "permanent": true
     },
     {
@@ -1323,6 +1324,11 @@
       "source": "/access-controls/guides/u2f/",
       "destination": "/access-controls/guides/webauthn/",
       "permanent": true
+    },
+    {
+    	"source": "/setup/admin/graceful-restarts/",
+        "destination": "/setup/admin/upgrading-the-teleport-binary/",
+    	"permanent": true
     }
   ]
 }

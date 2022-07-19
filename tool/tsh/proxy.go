@@ -21,9 +21,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"os"
-	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
@@ -31,10 +32,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -68,11 +70,24 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		}
 	}
 
-	if proxyParams.tlsRouting {
-		return trace.Wrap(sshProxyWithTLSRouting(cf, tc, *proxyParams))
-	}
+	return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+}
 
-	return trace.Wrap(sshProxy(tc, *proxyParams))
+// sshProxyParams combines parameters for establishing an SSH proxy used
+// as a ProxyCommand for SSH clients.
+type sshProxyParams struct {
+	// proxyHost is the Teleport proxy host name.
+	proxyHost string
+	// proxyPort is the Teleport proxy port.
+	proxyPort string
+	// targetHost is the target SSH node host name.
+	targetHost string
+	// targetPort is the target SSH node port.
+	targetPort string
+	// clusterName is the cluster where the SSH node resides.
+	clusterName string
+	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
+	tlsRouting bool
 }
 
 // getSSHProxyParams prepares parameters for establishing an SSH proxy.
@@ -122,6 +137,16 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	}, nil
 }
 
+// cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
+// Before the `cut -d` command was used for this purpose but to support multi-platform OpenSSH clients the logic
+// it was moved tsh proxy ssh command.
+// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
+func cleanTargetHost(targetHost, proxyHost, siteName string) string {
+	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
+	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
+	return targetHost
+}
+
 // setupJumpHost configures the client for connecting to the jump host's proxy.
 func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams) error {
 	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
@@ -145,94 +170,141 @@ func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams)
 	})
 }
 
-// sshProxyParams combines parameters for establishing an SSH proxy used
-// as a ProxyCommand for SSH clients.
-type sshProxyParams struct {
-	// proxyHost is the Teleport proxy host name.
-	proxyHost string
-	// proxyPort is the Teleport proxy port.
-	proxyPort string
-	// targetHost is the target SSH node host name.
-	targetHost string
-	// targetPort is the target SSH node port.
-	targetPort string
-	// clusterName is the cluster where the SSH node resides.
-	clusterName string
-	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
-	tlsRouting bool
-}
-
-// cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
-// Before the `cut -d` command was used for this purpose but to support multi-platform OpenSSH clients the logic
-// it was moved tsh proxy ssh command.
-// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
-func cleanTargetHost(targetHost, proxyHost, siteName string) string {
-	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
-	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
-	return targetHost
-}
-
-func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, params sshProxyParams) error {
-	pool, err := tc.LocalAgent().ClientCertPool(params.clusterName)
+// sshProxy opens up a new SSH session connected to the Teleport Proxy's SSH proxy subsystem,
+// This is the equivalent of `ssh -o 'ForwardAgent yes' -p port %r@host -s proxy:%h:%p`.
+// If tls routing is enabled, the connection to RemoteProxyAddr is wrapped with TLS protocol.
+func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) error {
+	upstreamConn, err := dialSSHProxy(ctx, tc, sp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig := &tls.Config{
-		RootCAs: pool,
-	}
+	defer upstreamConn.Close()
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    net.JoinHostPort(params.proxyHost, params.proxyPort),
-		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolProxySSH},
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		SNI:                params.proxyHost,
-		SSHUser:            tc.HostLogin,
-		SSHUserHost:        fmt.Sprintf("%s:%s", params.targetHost, params.targetPort),
-		SSHHostKeyCallback: tc.HostKeyCallback,
-		SSHTrustedCluster:  params.clusterName,
-		ClientTLSConfig:    tlsConfig,
+	client, err := makeSSHClient(ctx, upstreamConn, upstreamConn.RemoteAddr().String(), &ssh.ClientConfig{
+		User: tc.HostLogin,
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
+		},
+		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer lp.Close()
-	if err := lp.SSHProxy(cf.Context, tc.LocalAgent()); err != nil {
+	defer client.Close()
+
+	sess, err := client.NewSession(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sess.Close()
+
+	err = agent.ForwardToAgent(client.Client, tc.LocalAgent())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = agent.RequestAgentForwarding(sess)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
+	if err = sess.RequestSubsystem(proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := proxySession(ctx, sess); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func sshProxy(tc *libclient.TeleportClient, params sshProxyParams) error {
-	sshPath, err := getSSHPath()
+func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) (net.Conn, error) {
+	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+
+	if !sp.tlsRouting {
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
+	}
+
+	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs:            pool,
+		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+		ServerName:         sp.proxyHost,
+	}
+
+	conn, err := (&tls.Dialer{Config: tlsConfig}).DialContext(ctx, "tcp", remoteProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+func proxySubsystemName(userHost, cluster string) string {
+	subsystem := fmt.Sprintf("proxy:%s", userHost)
+	if cluster != "" {
+		return fmt.Sprintf("%s@%s", subsystem, cluster)
+	}
+	return fmt.Sprintf("proxy:%s", userHost)
+}
+
+func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
+	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracessh.NewClient(cc, chs, reqs), nil
+}
+
+func proxySession(ctx context.Context, sess *ssh.Session) error {
+	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
-	knownHostsPath := keypaths.KnownHostsPath(keysDir)
-
-	args := []string{
-		"-A",
-		// TODO: remove once we finish deprecating SHA1
-		"-o", fmt.Sprintf("PubkeyAcceptedKeyTypes=+%s", ssh.CertAlgoRSAv01),
-		"-o", fmt.Sprintf("UserKnownHostsFile=%s", knownHostsPath),
-		"-p", params.proxyPort,
-		params.proxyHost,
-		"-s",
-		fmt.Sprintf("proxy:%s:%s@%s", params.targetHost, params.targetPort, params.clusterName),
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if tc.HostLogin != "" {
-		args = append([]string{"-l", tc.HostLogin}, args...)
+	errC := make(chan error, 3)
+	go func() {
+		defer sess.Close()
+		_, err := io.Copy(os.Stdout, stdout)
+		errC <- err
+	}()
+	go func() {
+		defer sess.Close()
+		_, err := io.Copy(stdin, os.Stdin)
+		errC <- err
+	}()
+	go func() {
+		defer sess.Close()
+		_, err := io.Copy(os.Stderr, stderr)
+		errC <- err
+	}()
+	var errs []error
+	for i := 0; i < 3; i++ {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-errC:
+			if err != nil && !utils.IsOKNetworkError(err) {
+				errs = append(errs, err)
+			}
+		}
 	}
-
-	log.Debugf("Executing proxy command: %v %v.", sshPath, strings.Join(args, " "))
-
-	child := exec.Command(sshPath, args...)
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-	return trace.Wrap(child.Run())
+	return trace.NewAggregate(errs...)
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
@@ -240,19 +312,23 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, err := pickActiveDatabase(cf)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
 		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -297,7 +373,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, cf.SiteName,
+		cmd, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -479,6 +555,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"envVars":     envVars,
 		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
+		"format":      cf.Format,
 	}
 
 	template := awsHTTPSProxyTemplate
@@ -568,25 +645,80 @@ Use the following command to connect to the database:
   $ {{.command}}
 `))
 
+const (
+	envVarFormatText                 = "text"
+	envVarFormatUnix                 = "unix"
+	envVarFormatWindowsCommandPrompt = "command-prompt"
+	envVarFormatWindowsPowershell    = "powershell"
+)
+
+var envVarFormats = []string{
+	envVarFormatUnix,
+	envVarFormatWindowsCommandPrompt,
+	envVarFormatWindowsPowershell,
+	envVarFormatText,
+}
+
+func envVarFormatFlagDescription() string {
+	return fmt.Sprintf(
+		"Optional format to print the commands for setting environment variables, one of: %s.",
+		strings.Join(envVarFormats, ", "),
+	)
+}
+
+func envVarDefaultFormat() string {
+	if runtime.GOOS == constants.WindowsOS {
+		return envVarFormatWindowsPowershell
+	}
+	return envVarFormatUnix
+}
+
+// envVarCommand returns the command to set environment variables based on the
+// format.
+//
+// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+func envVarCommand(format, key, value string) (string, error) {
+	switch format {
+	case envVarFormatUnix:
+		return fmt.Sprintf("export %s=%s", key, value), nil
+
+	case envVarFormatWindowsCommandPrompt:
+		return fmt.Sprintf("set %s=%s", key, value), nil
+
+	case envVarFormatWindowsPowershell:
+		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+
+	case envVarFormatText:
+		return fmt.Sprintf("%s=%s", key, value), nil
+
+	default:
+		return "", trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+var awsTemplateFuncs = template.FuncMap{
+	"envVarCommand": envVarCommand,
+}
+
 // awsHTTPSProxyTemplate is the message that gets printed to a user when an
 // HTTPS proxy is started.
-var awsHTTPSProxyTemplate = template.Must(template.New("").Parse(
+var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
-  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
-  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
-  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
-  HTTPS_PROXY={{.envVars.HTTPS_PROXY}}
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+  {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
 `))
 
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = template.Must(template.New("").Parse(
+var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
 	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
 
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
-  AWS_ACCESS_KEY_ID={{.envVars.AWS_ACCESS_KEY_ID}}
-  AWS_SECRET_ACCESS_KEY={{.envVars.AWS_SECRET_ACCESS_KEY}}
-  AWS_CA_BUNDLE={{.envVars.AWS_CA_BUNDLE}}
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
 `))

@@ -57,17 +57,31 @@ func promptPlatform() {
 	}
 }
 
+// AuthContext is an optional, shared authentication context.
+// Allows reusing a single authentication prompt/gesture between different
+// functions, provided the functions are invoked in a short time interval.
+// Only used by native touchid implementations.
+type AuthContext interface {
+	// Guard guards the invocation of fn behind an authentication check.
+	Guard(fn func()) error
+	// Close closes the context, releasing any held resources.
+	Close()
+}
+
 // nativeTID represents the native Touch ID interface.
 // Implementors must provide a global variable called `native`.
 type nativeTID interface {
 	Diag() (*DiagResult, error)
+
+	// NewAuthContext creates a new AuthContext.
+	NewAuthContext() AuthContext
 
 	// Register creates a new credential in the Secure Enclave.
 	Register(rpID, user string, userHandle []byte) (*CredentialInfo, error)
 
 	// Authenticate authenticates using the specified credential.
 	// Requires user interaction.
-	Authenticate(credentialID string, digest []byte) ([]byte, error)
+	Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error)
 
 	// FindCredentials finds credentials without user interaction.
 	// An empty user means "all users".
@@ -218,7 +232,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	case cc.Response.User.Name == "":
 		return nil, errors.New("user name required")
 	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
-		return nil, fmt.Errorf("cannot fulfil authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
+		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
 	for _, param := range cc.Response.Parameters {
@@ -229,7 +243,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		}
 	}
 	if !ok {
-		return nil, errors.New("cannot fulfil credential parameters, only ES256 are supported")
+		return nil, errors.New("cannot fulfill credential parameters, only ES256 are supported")
 	}
 
 	rpID := cc.Response.RelyingParty.ID
@@ -281,7 +295,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	}
 
 	promptPlatform()
-	sig, err := native.Authenticate(credentialID, attData.digest)
+	sig, err := native.Authenticate(nil /* actx */, credentialID, attData.digest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -433,8 +447,6 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 		return nil, "", errors.New("relying party ID required")
 	}
 
-	// TODO(codingllama): Share the same LAContext between search and
-	//  authentication, so we can protect both with user interaction.
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)
 	switch {
@@ -457,15 +469,25 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.
 	if !ok {
 		return nil, "", ErrCredentialNotFound
 	}
-	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
+
+	// Guard first read of chosen credential with an explicit check.
+	// A more meaningful check can be made once the credential picker is
+	// implemented.
+	actx := native.NewAuthContext()
+	defer actx.Close()
+	promptPlatform()
+	if err := actx.Guard(func() {
+		log.Debugf("Touch ID: using credential %q", cred.CredentialID)
+	}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	promptPlatform()
-	sig, err := native.Authenticate(cred.CredentialID, attData.digest)
+	sig, err := native.Authenticate(actx, cred.CredentialID, attData.digest)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
