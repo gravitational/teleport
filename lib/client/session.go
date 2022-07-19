@@ -551,15 +551,15 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	return ns.regularSession(ctx, func(s *ssh.Session) error {
 		var err error
 
-		runContext, cancel := context.WithCancel(ctx)
+		runDone := make(chan error)
 		go func() {
-			defer cancel()
 			err = s.Run(strings.Join(cmd, " "))
+			runDone <- err
 		}()
 
 		select {
 		// Run returned a result, return that back to the caller.
-		case <-runContext.Done():
+		case err := <-runDone:
 			return trace.Wrap(err)
 		// The passed in context timed out. This is often due to the user hitting
 		// Ctrl-C.

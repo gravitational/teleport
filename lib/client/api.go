@@ -2848,17 +2848,24 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	var err error
 	var proxyClient *ProxyClient
 
-	// Use connectContext and the cancel function to signal when a response is
+	// Use a channel to signal when a response is
 	// returned from connectToProxy.
-	connectContext, cancel := context.WithCancel(ctx)
+	connectDone := make(chan struct {
+		*ProxyClient
+		error
+	})
 	go func() {
-		defer cancel()
 		proxyClient, err = tc.connectToProxy(ctx)
+		connectDone <- struct {
+			*ProxyClient
+			error
+		}{proxyClient, err}
 	}()
 
 	select {
 	// ConnectToProxy returned a result, return that back to the caller.
-	case <-connectContext.Done():
+	case pair := <-connectDone:
+		proxyClient, err := pair.ProxyClient, pair.error
 		return proxyClient, trace.Wrap(formatConnectToProxyErr(err))
 	// The passed in context timed out. This is often due to the network being
 	// down and the user hitting Ctrl-C.
