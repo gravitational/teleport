@@ -44,7 +44,7 @@ When a Proxy itself restarts, the new instance begins with zero reverse tunnels 
 
 ### Reverse tunnels in proxy peering mode
 
-In proxy peering mode, reverse tunnel agents become fully available as soon as they are connected to at least one proxy that's reachable by other proxies (and they heartbeat as such). It should be easy to maintain availability across a restart of an agent (as long as we add some grace period during the shutdown of the previous instance). Restarting a proxy in-place has the same problems that in-place restarting causes when in mesh mode, and should be avoided in this case as well. Spinning up a new proxy in proxy peering mode incurs no downtime, as the newly added proxy will be able to serve user connections immediately, by connecting to the other proxies - shutting down a proxy ungracefully will cause a loss of connectivity for all agents that are connected to just that proxy, however.
+In proxy peering mode, reverse tunnel agents become fully available as soon as they are connected to at least one proxy that's reachable by other proxies (and they heartbeat as such). It should be easy to maintain availability across a restart of an agent (as long as we add some grace period during the shutdown of the previous instance). Restarting a proxy in-place has the same problems that in-place restarting causes when in mesh mode, compounded by the fact that peers that expect to contact a specific proxy by UUID might end up talking to an instance that doesn't have the expected tunnels. As such, in-place restarts for Proxies should also be avoided in proxy peering mode. Spinning up a new proxy in proxy peering mode incurs no downtime, as the newly added proxy will be able to serve user connections immediately, by connecting to the other proxies - shutting down a proxy ungracefully will cause a loss of connectivity for all agents that are connected to just that proxy, however.
 
 Leaf clusters will always connect to their parent cluster in mesh mode, so the advantages of proxy peering mode are not relevant in that case.
 
@@ -68,19 +68,24 @@ A Proxy that's not also doubling as Auth (a configuration that's discouraged for
 
 Any peripheral agent roles can be restarted/upgraded in place (this is often the only option for reverse tunnel SSH service on non-ephemeral machines), but it's probably easier to run non-SSH services in some ephemeral container anyway. For the SSH service, care should be taken to either use the Teleport-managed SIGHUP restart/upgrade or to _ungracefully_ stop and start Teleport instead of waiting for a graceful shutdown to end before starting up a new instance, as the graceful shutdown has no (internal) timeout, so an existing SSH session in a forgotten terminal is going to prevent any new connection; the SIGHUP restart/upgrade fires up the new instance and waits for it to be ready before beginning the shutdown of the old one, so it's not susceptible to this issue. Readiness is currently signaled as soon as a single reverse tunnel connection is established, but that's only sufficient when running in proxy peering mode - in mesh mode, connectivity is still going to be impacted until the agent has connected to all proxies. If only a single agent (or a handful of services) needs to connect the expected time for this is quite small (growing superlinearly with the amount of proxies, sadly), but if a mass restart is triggered on a large cluster, the bottleneck could actually shift to the proxies themselves, as they need to process all the inbound connections from nodes. The planned automatic upgrade system will only trigger upgrades on a few nodes at a time for this reason, and so should any bespoke upgrade system if maintaining availability is critical.
 
-## Potential future steps
+## Future steps
+
+### Uncontroversial
 
 * Remove the old-style `session.Session`: already underway, will be completed in v11.
-* Allow running different Auth builds from the same major version at the same time (potentially restricted to only two versions, upgrading from old to new): potentially good value, requires engineering care and prevents us from running migrations outside of major version upgrades.
-* Properly deprecate in-place upgrades when `auth_service` is enabled and `auth_servers` is pointing to just localhost (auth and other services in the same process).
-* Add a grace period on shutdown of reverse tunnel agents and servers: will delay shutdowns - potentially for nothing, if the shutdown is meant to be a shutdown rather than a restart and we're not in proxy peering mode, but we could extend the internal "shutdown" protocol to also carry this information, as we always know if we have spawned a new Teleport ourselves or not.
 * Backport the reconnection advisory mechanism for reverse tunnels: done.
-* Don't close the proxy peering listeners when shutting down rather than restarting.
-* Deprecate in-place restarts for Proxies in proxy peering mode.
-* Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted. Bonus: HSM auth servers could be made to enter service immediately rather than wait for a CA rotation cycle, and it should be possible to allow for nodes to join the cluster halfway through a rotation.
-* Don't close and restart the reverse tunnel connection from leaf clusters after CA rotations.
-* Allow for multiple Auth replicas to be spun up at the same time, and have them all wait for some time instead of erroring out when failing to grab the migration lock.
 * Write user-facing docs regarding best practices around rollouts and upgrades with regards to downtime.
-* Add waiting for reverse tunnels before shutting down the old service for peripheral nodes - agent pool saturation plus a timeout?
+  * Deprecate in-place upgrades when `auth_service` is enabled and `auth_servers` is pointing to just localhost (auth and other services in the same process).
+  * Deprecate in-place restarts for Proxies in proxy peering mode: should be mentioned in both the upgrade guide and the proxy peering docs.
+* Add a way to distinguish between shutdowns and in-place (Teleport-initiated) restarts.
+  * Add a forced delay period (or some check based on reverse tunnel count) when restarting reverse tunnel agents.
+  * Add a forced delay period (or some check based on reverse tunnel count) when shutting down the proxy in proxy peering mode, and don't close the proxy peering listeners.
 * Add support for graceful shutdowns to kube, db and desktop access.
-* Define scenarios that warrant specific test cases (and write tests for those scenarios).
+
+### Not uncontroversial
+
+* Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted.
+  * Bonus: HSM auth servers could be made to enter service immediately rather than wait for a CA rotation cycle, and it should be possible to allow for nodes to join the cluster halfway through a rotation.
+  * Don't close and restart the reverse tunnel connection from leaf clusters after CA rotations.
+* Allow running different Auth builds from the same major version at the same time (potentially restricted to only two versions, upgrading from old to new, and requiring a shut down when downgrading): potentially good value, requires engineering care and prevents us from running migrations outside of major version upgrades.
+* Allow for multiple Auth replicas to be spun up at the same time, and have them all wait for some time instead of erroring out when failing to grab the migration lock.
