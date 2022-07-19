@@ -471,7 +471,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				// context is canceled to allow the agent to drain.
 				go a.Stop()
 			default:
-				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := a.client.Reply(r, false, nil)
 				if err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
