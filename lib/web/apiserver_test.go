@@ -1191,7 +1191,7 @@ func TestTerminal(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
 	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream := termHandler.asTerminalStream(context.Background(), ws)
 
 	_, err = io.WriteString(stream, "echo vinsong\r\n")
 	require.NoError(t, err)
@@ -1276,7 +1276,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, err)
 
 			// Test we can write.
-			stream := termHandler.asTerminalStream(ws)
+			stream := termHandler.asTerminalStream(context.Background(), ws)
 			_, err = io.WriteString(stream, "echo alpacas\r\n")
 			require.Nil(t, err)
 			require.Nil(t, waitForOutput(stream, "alpacas"))
@@ -1460,7 +1460,7 @@ func TestWebAgentForward(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
 	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream := termHandler.asTerminalStream(context.Background(), ws)
 
 	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
@@ -1480,7 +1480,7 @@ func TestActiveSessions(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
 	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream := termHandler.asTerminalStream(context.Background(), ws)
 
 	// To make sure we have a session.
 	_, err = io.WriteString(stream, "echo vinsong\r\n")
@@ -1525,7 +1525,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
 	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream := termHandler.asTerminalStream(context.Background(), ws)
 
 	// to make sure we have a session
 	_, err = io.WriteString(stream, "expr 137 + 39\r\n")
@@ -4212,7 +4212,7 @@ func login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, re
 
 func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
 	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(conn)
+	stream := termHandler.asTerminalStream(context.Background(), conn)
 	_, err := io.WriteString(stream, "echo foo\r\n")
 	require.NoError(t, err)
 

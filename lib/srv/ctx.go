@@ -290,7 +290,7 @@ type ServerContext struct {
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time
