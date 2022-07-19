@@ -38,25 +38,25 @@ separatePostgresListener: false
 separateMongoListener: false
 
 # Public cluster address, including port. Defaults to `clusterName` on 443 port.
-publicAddress: ""
-# Public cluster kube address, including port. Defaults to `publicAddress` on 3026 port.
+publicAddr: ""
+# Public cluster kube address, including port. Defaults to `publicAddr` on 3026 port.
 # Only used when `proxyListenerMode` is not 'multiplex'.
-kubePublicAddress: ""
-# Public cluster mongo listener address, including port. Defaults to `publicAddress` on 27017 port.
+kubePublicAddr: ""
+# Public cluster mongo listener address, including port. Defaults to `publicAddr` on 27017 port.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
-mongoPublicAddress: ""
-# Public cluster MySQL address, including port. Defaults to `publicAddress` on 3036 port.
+mongoPublicAddr: ""
+# Public cluster MySQL address, including port. Defaults to `publicAddr` on 3036 port.
 # Only used when `proxyListenerMode` is not 'multiplex'.
-mysqlPublicAddress: ""
-# Public cluster postgres listener address, including port. Defaults to `publicAddress` on 5432 port.
+mysqlPublicAddr: ""
+# Public cluster postgres listener address, including port. Defaults to `publicAddr` on 5432 port.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
-postgresPublicAddress: ""
-# Public cluster SSH address, including port. Defaults to `publicAddress` on 3023 port.
+postgresPublicAddr: ""
+# Public cluster SSH address, including port. Defaults to `publicAddr` on 3023 port.
 # Only used when `proxyListenerMode` is not 'multiplex'.
-sshPublicAddress: ""
-# Public cluster tunnel SSH address, including port. Defaults to `publicAddress` on 3024 port.
+sshPublicAddr: ""
+# Public cluster tunnel SSH address, including port. Defaults to `publicAddr` on 3024 port.
 # Only used when `proxyListenerMode` is not 'multiplex'.
-tunnelPublicAddress: ""
+tunnelPublicAddr: ""
 
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
