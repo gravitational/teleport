@@ -186,26 +186,20 @@ func TestAppRequest(t *testing.T) {
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
-	// Wait for the database to become available. Sometimes this takes a bit
+	// Wait for the app to become available. Sometimes this takes a bit
 	// of time in CI.
 	require.Eventually(t, func() bool {
 		_, err := getApp(context.Background(), rootClient, appName)
 		return err == nil
 	}, 5*time.Second, 100*time.Millisecond)
 
-	// Create a role to grant access to the database.
+	// Create a role to grant access to the app.
 	const roleName = "app-role"
 	role, err := types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
-			DatabaseLabels: types.Labels{
-				"*": utils.Strings{"*"},
-			},
 			AppLabels: types.Labels{
 				"env": utils.Strings{"dev"},
 			},
-			// Rules: []types.Rule{
-			// 	types.NewRule("app", []string{"read", "list"}),
-			// },
 		},
 	})
 	require.NoError(t, err)
