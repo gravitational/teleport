@@ -1964,6 +1964,16 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	a := suite.newNamedTeleportInstance(t, "cluster-a")
 	b := suite.newNamedTeleportInstance(t, "cluster-b")
 
+	// The Listener FDs injected into SiteA will be closed when SiteA restarts
+	// later in in the test, rendering them all invalid. This will make SiteA
+	// fail when it attempts to start back up again. We can't just inject a
+	// totally new listener config into SiteA when it restarts, or SiteB won't
+	// be able to  find it.
+	//
+	// The least bad option is to duplicate all of SiteA's Listener FDs and
+	// inject those duplicates prior to restarting the SiteA cluster.
+	aFdCache := helpers.DupFDs(t, a.Fds)
+
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
@@ -2015,6 +2025,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	a.Config.Proxy.KeyPairs = nil
 
 	// Restart cluster "a".
+	a.Config.FileDescriptors = aFdCache
 	require.NoError(t, a.Reset())
 	require.NoError(t, a.Start())
 
