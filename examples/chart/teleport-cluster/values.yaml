@@ -37,6 +37,7 @@ proxyListenerMode: ""
 separatePostgresListener: false
 separateMongoListener: false
 
+# Do not set any of these values unless you explicitly need to. Teleport always uses the cluster name by default.
 # Public cluster address, including port. Defaults to `clusterName` on 443 port.
 publicAddr: ""
 # Public cluster kube address, including port. Defaults to `publicAddr` on 3026 port.
