@@ -24,8 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func TestIsTracingSupported(t *testing.T) {
-
+func TestTracingSupported(t *testing.T) {
 	rejected := &ssh.OpenChannelError{
 		Reason:  ssh.Prohibited,
 		Message: "rejected!",
@@ -186,11 +185,11 @@ func TestNewSession(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		assertionFunc func(t *testing.T, clt *Client, session *ssh.Session, err error)
+		assertionFunc func(t *testing.T, clt *Client, session *Session, err error)
 	}{
 		{
 			name: "session prohibited",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// creating a new session should return any errors captured when creating the client
 				// and not actually probe the server
 				require.Error(t, err)
@@ -202,7 +201,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name: "other failure to open tracing channel",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// this time through we should probe the server without getting a prohibited error,
 				// but things still failed, so we shouldn't know the capability
 				require.NoError(t, err)
@@ -214,7 +213,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name: "active session",
-			assertionFunc: func(t *testing.T, clt *Client, sess *ssh.Session, err error) {
+			assertionFunc: func(t *testing.T, clt *Client, sess *Session, err error) {
 				// all is good now, we should have an active session
 				require.NoError(t, err)
 				require.NotNil(t, sess)

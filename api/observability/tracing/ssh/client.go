@@ -204,7 +204,7 @@ func (c *Client) OpenChannel(ctx context.Context, name string, data []byte) (*Ch
 
 // NewSession creates a new SSH session that is passed tracing context
 // so that spans may be correlated properly over the ssh connection.
-func (c *Client) NewSession(ctx context.Context) (*ssh.Session, error) {
+func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	_, span := tracer.Start(
@@ -223,6 +223,8 @@ func (c *Client) NewSession(ctx context.Context) (*ssh.Session, error) {
 	defer span.End()
 
 	c.mu.Lock()
+
+	capability := c.capability
 
 	// If the TracingChannel was rejected when the client was created,
 	// the connection was prohibited due to a lock or session control.
@@ -249,8 +251,95 @@ func (c *Client) NewSession(ctx context.Context) (*ssh.Session, error) {
 		c.capability = capability
 	}
 
+	capability = c.capability
+
 	c.mu.Unlock()
 
-	session, err := c.Client.NewSession()
-	return session, trace.Wrap(err)
+	wrapper := &clientWrapper{
+		capability: capability,
+		Conn:       c.Client.Conn,
+		opts:       c.opts,
+		ctx:        ctx,
+		contexts:   make(map[string][]context.Context),
+	}
+
+	client := &ssh.Client{
+		Conn: wrapper,
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Session{
+		Session:    session,
+		capability: capability,
+		opts:       c.opts,
+		wrapper:    wrapper,
+	}, nil
+}
+
+type clientWrapper struct {
+	ssh.Conn
+	capability tracingCapability
+	ctx        context.Context
+	opts       []tracing.Option
+
+	lock     sync.Mutex
+	contexts map[string][]context.Context
+}
+
+func (c *clientWrapper) addContext(name string, ctx context.Context) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.contexts[name] = append(c.contexts[name], ctx)
+}
+
+func (c *clientWrapper) nextContext(name string) context.Context {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	contexts, ok := c.contexts[name]
+	switch {
+	case !ok, len(contexts) <= 0:
+		return context.Background()
+	case len(contexts) == 1:
+		delete(c.contexts, name)
+		return contexts[0]
+	default:
+		c.contexts[name] = contexts[1:]
+		return contexts[0]
+	}
+}
+
+func (c *clientWrapper) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	config := tracing.NewConfig(c.opts)
+	tracer := config.TracerProvider.Tracer(instrumentationName)
+	ctx, span := tracer.Start(
+		c.ctx,
+		fmt.Sprintf("ssh.OpenChannel/%s", name),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			append(
+				peerAttr(c.Conn.RemoteAddr()),
+				semconv.RPCServiceKey.String("ssh.Client"),
+				semconv.RPCMethodKey.String("OpenChannel"),
+				semconv.RPCSystemKey.String("ssh"),
+			)...,
+		),
+	)
+	defer span.End()
+
+	ch, reqs, err := c.Conn.OpenChannel(name, wrapPayload(ctx, c.capability, config.TextMapPropagator, data))
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+	}
+
+	return sessionChannel{
+		Channel: ch,
+		wrapper: c,
+	}, reqs, err
 }
