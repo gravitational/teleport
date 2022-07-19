@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -39,6 +40,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -46,29 +48,6 @@ func onListDatabases(cf *CLIConf) error {
 	if cf.ListAll {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
-	tc, err := makeClient(cf, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	var databases []types.Database
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		databases, err = tc.ListDatabases(cf.Context, nil /* custom filter */)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxy, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cluster, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cluster.Close()
 
 	// Retrieve profile to be able to show which databases user is logged into.
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -76,20 +55,59 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+	tc, err := makeClient(cf, false)
 	if err != nil {
-		log.Debugf("Failed to fetch user roles: %v.", err)
+		return trace.Wrap(err)
 	}
 
-	sort.Slice(databases, func(i, j int) bool {
-		return databases[i].GetName() < databases[j].GetName()
+	var proxy *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxy, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxy.Close()
+
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var roleSet services.RoleSet
+	if isRoleSetRequiredForShowDatabases(cf) {
+		roleSet, err = fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+		if err != nil {
+			log.Debugf("Failed to fetch user roles: %v.", err)
+		}
+	}
 
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(showDatabases(cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+
+	sort.Sort(types.Databases(databases))
+	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+}
+
+func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
+	return cf.Format == "" || teleport.Text == strings.ToLower(cf.Format)
+}
+
+func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
+	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer cluster.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return roleSet, nil
 }
 
 type databaseListing struct {
@@ -120,45 +138,78 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	var dbListings databaseListings
+	// Fetch database listings for profiles in parallel. Set an arbitrary limit
+	// just in case.
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(4)
+
+	dbListingsResultChan := make(chan databaseListings)
+	dbListingsCollectChan := make(chan databaseListings)
+	go func() {
+		var dbListings databaseListings
+		for {
+			select {
+			case items := <-dbListingsCollectChan:
+				dbListings = append(dbListings, items...)
+			case <-groupCtx.Done():
+				dbListingsResultChan <- dbListings
+				return
+			}
+		}
+	}()
+
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		result, err := tc.ListDatabasesAllClusters(cf.Context, nil /* custom filter */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		proxy, err := tc.ConnectToProxy(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		var errors []error
-		for clusterName, databases := range result {
-			cluster, err := proxy.ConnectToCluster(cf.Context, clusterName)
+		group.Go(func() error {
+			proxy, err := tc.ConnectToProxy(groupCtx)
 			if err != nil {
-				errors = append(errors, err)
-				continue
+				return trace.Wrap(err)
 			}
+			defer proxy.Close()
 
-			roleSet, err := services.FetchAllClusterRoles(cf.Context, cluster, profile.Roles, profile.Traits)
+			sites, err := proxy.GetSites(groupCtx)
 			if err != nil {
-				log.Debugf("Failed to fetch user roles: %v.", err)
+				return trace.Wrap(err)
 			}
 
-			for _, database := range databases {
-				dbListings = append(dbListings, databaseListing{
-					Proxy:    profile.ProxyURL.Host,
-					Cluster:  clusterName,
-					roleSet:  roleSet,
-					Database: database,
-				})
+			var dbListings databaseListings
+			for _, site := range sites {
+				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				var roleSet services.RoleSet
+				if isRoleSetRequiredForShowDatabases(cf) {
+					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
+					if err != nil {
+						log.Debugf("Failed to fetch user roles: %v.", err)
+					}
+				}
+
+				for _, database := range databases {
+					dbListings = append(dbListings, databaseListing{
+						Proxy:    profile.ProxyURL.Host,
+						Cluster:  site.Name,
+						roleSet:  roleSet,
+						Database: database,
+					})
+				}
 			}
-		}
-		return trace.NewAggregate(errors...)
+
+			dbListingsCollectChan <- dbListings
+			return nil
+		})
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if err := group.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -196,19 +247,23 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
+	routeToDatabase := tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
 		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
-	}, false)
-	if err != nil {
+	}
+
+	if err := databaseLogin(cf, tc, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Print after-connect message.
+	fmt.Println(formatDatabaseConnectMessage(cf.SiteName, routeToDatabase))
 	return nil
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase, quiet bool) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
@@ -260,15 +315,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, db, *profile)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Print after-connect message.
-	if !quiet {
-		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
-		return nil
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // onDatabaseLogout implements "tsh db logout" command.
@@ -627,15 +674,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
-	relogin, err := needRelogin(cf, tc, routeToDatabase, profile)
-	if err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
-	}
-	if relogin {
-		if err := databaseLogin(cf, tc, *routeToDatabase, true); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	key, err := tc.LocalAgent().GetCoreKey()
@@ -723,7 +763,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -756,6 +796,20 @@ func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteTo
 		return false, trace.Wrap(err)
 	}
 	return mfaRequired, nil
+}
+
+// maybeDatabaseLogin checks if cert is still valid or DB connection requires
+// MFA. If yes trigger db login logic.
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase) error {
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, db, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if reloginNeeded {
+		return trace.Wrap(databaseLogin(cf, tc, *db))
+	}
+	return nil
 }
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.

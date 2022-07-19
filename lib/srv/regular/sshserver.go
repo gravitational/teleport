@@ -214,6 +214,8 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
+	// awsMatchers are used to match EC2 instances
+	awsMatchers []services.AWSMatcher
 }
 
 // GetClock returns server clock implementation
@@ -654,6 +656,14 @@ func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerO
 func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 	return func(s *Server) error {
 		s.inventoryHandle = handle
+		return nil
+	}
+}
+
+// SetAWSMatchers sets the matchers used for matching EC2 instances
+func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
+	return func(s *Server) error {
+		s.awsMatchers = matchers
 		return nil
 	}
 }

@@ -76,7 +76,7 @@ type KeepAliver interface {
 	// KeepAlives allows to receive keep alives
 	KeepAlives() chan<- KeepAlive
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases

@@ -59,6 +59,19 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 	return getUsers(clt)
 }
 
+func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	username := params.ByName("username")
+	if username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	return getUser(username, clt)
+}
+
 func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -107,26 +120,26 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 // It only updates the traits that have a non-nil value in saveUserRequest
 // This allows the partial update of the properties
 func updateUserTraits(req *saveUserRequest, user types.User) {
-	if req.Logins != nil {
-		user.SetLogins(*req.Logins)
+	if req.Traits.Logins != nil {
+		user.SetLogins(*req.Traits.Logins)
 	}
-	if req.DBUsers != nil {
-		user.SetDBUsers(*req.DBUsers)
+	if req.Traits.DatabaseUsers != nil {
+		user.SetDatabaseUsers(*req.Traits.DatabaseUsers)
 	}
-	if req.DBNames != nil {
-		user.SetDBNames(*req.DBNames)
+	if req.Traits.DatabaseNames != nil {
+		user.SetDatabaseNames(*req.Traits.DatabaseNames)
 	}
-	if req.KubeUsers != nil {
-		user.SetKubeUsers(*req.KubeUsers)
+	if req.Traits.KubeUsers != nil {
+		user.SetKubeUsers(*req.Traits.KubeUsers)
 	}
-	if req.KubeGroups != nil {
-		user.SetKubeGroups(*req.KubeGroups)
+	if req.Traits.KubeGroups != nil {
+		user.SetKubeGroups(*req.Traits.KubeGroups)
 	}
-	if req.WindowsLogins != nil {
-		user.SetWindowsLogins(*req.WindowsLogins)
+	if req.Traits.WindowsLogins != nil {
+		user.SetWindowsLogins(*req.Traits.WindowsLogins)
 	}
-	if req.AWSRolesARN != nil {
-		user.SetAWSRoleARNs(*req.AWSRolesARN)
+	if req.Traits.AWSRoleARNs != nil {
+		user.SetAWSRoleARNs(*req.Traits.AWSRoleARNs)
 	}
 }
 
@@ -156,15 +169,15 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(user)
 }
 
-func getUsers(m userAPIGetter) ([]ui.User, error) {
+func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
 	users, err := m.GetUsers(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var uiUsers []ui.User
+	var uiUsers []ui.UserListEntry
 	for _, u := range users {
-		uiuser, err := ui.NewUser(u)
+		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -172,6 +185,20 @@ func getUsers(m userAPIGetter) ([]ui.User, error) {
 	}
 
 	return uiUsers, nil
+}
+
+func getUser(username string, m userAPIGetter) (*ui.User, error) {
+	user, err := m.GetUser(username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiUser, err := ui.NewUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiUser, nil
 }
 
 func deleteUser(r *http.Request, params httprouter.Params, m userAPIGetter, user string) error {
@@ -246,6 +273,16 @@ type userAPIGetter interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
+type userTraits struct {
+	Logins        *[]string `json:"logins,omitempty"`
+	DatabaseUsers *[]string `json:"databaseUsers,omitempty"`
+	DatabaseNames *[]string `json:"databaseNames,omitempty"`
+	KubeUsers     *[]string `json:"kubeUsers,omitempty"`
+	KubeGroups    *[]string `json:"kubeGroups,omitempty"`
+	WindowsLogins *[]string `json:"windowsLogins,omitempty"`
+	AWSRoleARNs   *[]string `json:"awsRoleArns,omitempty"`
+}
+
 // saveUserRequest represents a create/update request for a user
 // Name and Roles are always required
 // The remaining fields are part of the Trait map
@@ -254,15 +291,9 @@ type userAPIGetter interface {
 // - if the value is an empty array we remove every element from the trait
 // - otherwise, we replace the list for that trait
 type saveUserRequest struct {
-	Name          string    `json:"name"`
-	Roles         []string  `json:"roles"`
-	Logins        *[]string `json:"logins,omitempty"`
-	DBUsers       *[]string `json:"db_users,omitempty"`
-	DBNames       *[]string `json:"db_names,omitempty"`
-	KubeUsers     *[]string `json:"kube_users,omitempty"`
-	KubeGroups    *[]string `json:"kube_groups,omitempty"`
-	WindowsLogins *[]string `json:"windows_logins,omitempty"`
-	AWSRolesARN   *[]string `json:"aws_roles_arn,omitempty"`
+	Name   string     `json:"name"`
+	Roles  []string   `json:"roles"`
+	Traits userTraits `json:"traits"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {

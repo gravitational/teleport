@@ -145,7 +145,7 @@ func TestRootUsernameLimit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// upack holds all ssh signing artefacts needed for signing and checking user keys
+// upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
