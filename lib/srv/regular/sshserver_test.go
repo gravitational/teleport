@@ -461,8 +461,8 @@ func TestDirectTCPIP(t *testing.T) {
 	// s.clt.Dial (which performs the "direct-tcpip" request).
 	httpClient := http.Client{
 		Transport: &http.Transport{
-			Dial: func(network string, addr string) (net.Conn, error) {
-				return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
+			DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				return f.ssh.clt.DialContext(ctx, "tcp", u.Host)
 			},
 		},
 	}
@@ -531,10 +531,10 @@ func TestAgentForwardPermission(t *testing.T) {
 
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
-	require.NoError(t, agent.RequestAgentForwarding(se))
+	require.NoError(t, agent.RequestAgentForwarding(se.Session))
 
 	// the output of env, we should not see SSH_AUTH_SOCK in the output
-	output, err := se.Output("env")
+	output, err := se.Output(ctx, "env")
 	require.NoError(t, err)
 	require.NotContains(t, string(output), "SSH_AUTH_SOCK")
 }
@@ -582,17 +582,18 @@ func TestMaxSessions(t *testing.T) {
 func TestExecLongCommand(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
+	ctx := context.Background()
 
 	// Get the path to where the "echo" command is on disk.
 	echoPath, err := exec.LookPath("echo")
 	require.NoError(t, err)
 
-	se, err := f.ssh.clt.NewSession(context.Background())
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
 	// Write a message that larger than the maximum pipe size.
-	_, err = se.Output(fmt.Sprintf("%v %v", echoPath, strings.Repeat("a", maxPipeSize)))
+	_, err = se.Output(ctx, fmt.Sprintf("%v %v", echoPath, strings.Repeat("a", maxPipeSize)))
 	require.NoError(t, err)
 }
 
@@ -601,14 +602,15 @@ func TestExecLongCommand(t *testing.T) {
 func TestOpenExecSessionSetsSession(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := context.Background()
 
-	se, err := f.ssh.clt.NewSession(context.Background())
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
 	// This will trigger an exec request, which will start a non-interactive session,
 	// which then triggers setting env for SSH_SESSION_ID.
-	output, err := se.Output("env")
+	output, err := se.Output(ctx, "env")
 	require.NoError(t, err)
 	require.Contains(t, string(output), teleport.SSHSessionID)
 }
@@ -632,7 +634,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
-	err = agent.RequestAgentForwarding(se)
+	err = agent.RequestAgentForwarding(se.Session)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -641,7 +643,7 @@ func TestAgentForward(t *testing.T) {
 	t.Cleanup(func() { keyboard.Close() })
 
 	// start interactive SSH session (new shell):
-	err = se.Shell()
+	err = se.Shell(ctx)
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
@@ -821,7 +823,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// Client requests x11 forwarding for the server session.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se, clientXAuthEntry)
+	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -829,7 +831,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.NoError(t, err)
 
 	// start interactive SSH session with x11 forwarding enabled (new shell):
-	err = se.Shell()
+	err = se.Shell(ctx)
 	require.NoError(t, err)
 
 	// create a temp file to collect the shell output into:
@@ -989,19 +991,21 @@ func TestKeyAlgorithms(t *testing.T) {
 func TestInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
+	ctx := context.Background()
 
-	session, err := f.ssh.clt.NewSession(context.Background())
+	session, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 
-	err = session.Setenv(sshutils.SessionEnvVar, "foo")
+	err = session.Setenv(ctx, sshutils.SessionEnvVar, "foo")
 	require.NoError(t, err)
 
-	err = session.Shell()
+	err = session.Shell(ctx)
 	require.Error(t, err)
 }
 
 func TestSessionHijack(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	_, err := user.Lookup(teleportTestUser)
 	if err != nil {
 		t.Skipf("user %v is not found, skipping test", teleportTestUser)
@@ -1020,22 +1024,22 @@ func TestSessionHijack(t *testing.T) {
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
 	}
 
-	client, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), sshConfig)
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srv.Addr(), sshConfig)
 	require.NoError(t, err)
 	defer func() {
 		err := client.Close()
 		require.NoError(t, err)
 	}()
 
-	se, err := client.NewSession(context.Background())
+	se, err := client.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
 	firstSessionID := string(sess.NewID())
-	err = se.Setenv(sshutils.SessionEnvVar, firstSessionID)
+	err = se.Setenv(ctx, sshutils.SessionEnvVar, firstSessionID)
 	require.NoError(t, err)
 
-	err = se.Shell()
+	err = se.Shell(ctx)
 	require.NoError(t, err)
 
 	// user 2 does not have s.user as a listed principal
@@ -1048,33 +1052,34 @@ func TestSessionHijack(t *testing.T) {
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
 	}
 
-	client2, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), sshConfig2)
+	client2, err := tracessh.Dial(ctx, "tcp", f.ssh.srv.Addr(), sshConfig2)
 	require.NoError(t, err)
 	defer func() {
 		err := client2.Close()
 		require.NoError(t, err)
 	}()
 
-	se2, err := client2.NewSession(context.Background())
+	se2, err := client2.NewSession(ctx)
 	require.NoError(t, err)
 	defer se2.Close()
 
-	err = se2.Setenv(sshutils.SessionEnvVar, firstSessionID)
+	err = se2.Setenv(ctx, sshutils.SessionEnvVar, firstSessionID)
 	require.NoError(t, err)
 
 	// attempt to hijack, should return error
-	err = se2.Shell()
+	err = se2.Shell(ctx)
 	require.Error(t, err)
 }
 
 // testClient dials targetAddr via proxyAddr and executes 2+3 command
 func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAddr string, sshConfig *ssh.ClientConfig) {
+	ctx := context.Background()
 	// Connect to node using registered address
-	client, err := tracessh.Dial(context.Background(), "tcp", proxyAddr, sshConfig)
+	client, err := tracessh.Dial(ctx, "tcp", proxyAddr, sshConfig)
 	require.NoError(t, err)
 	defer client.Close()
 
-	se, err := client.NewSession(context.Background())
+	se, err := client.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
@@ -1085,7 +1090,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	require.NoError(t, err)
 
 	// Request opening TCP connection to the remote host
-	require.NoError(t, se.RequestSubsystem(fmt.Sprintf("proxy:%v", targetAddr)))
+	require.NoError(t, se.RequestSubsystem(ctx, fmt.Sprintf("proxy:%v", targetAddr)))
 
 	local, err := utils.ParseAddr("tcp://" + proxyAddr)
 	require.NoError(t, err)
@@ -1104,7 +1109,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 
 	// Open SSH connection via TCP
 	conn, chans, reqs, err := tracessh.NewClientConn(
-		context.Background(),
+		ctx,
 		pipeNetConn,
 		f.ssh.srv.Addr(),
 		sshConfig,
@@ -1117,11 +1122,11 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	require.NoError(t, err)
 	defer client2.Close()
 
-	se2, err := client2.NewSession(context.Background())
+	se2, err := client2.NewSession(ctx)
 	require.NoError(t, err)
 	defer se2.Close()
 
-	out, err := se2.Output("echo hello")
+	out, err := se2.Output(ctx, "echo hello")
 	require.NoError(t, err)
 
 	require.Equal(t, "hello\n", string(out))
@@ -1343,30 +1348,32 @@ func TestProxyDirectAccess(t *testing.T) {
 func TestPTY(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	ctx := context.Background()
 
-	se, err := f.ssh.clt.NewSession(context.Background())
+	f := newFixture(t)
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
 	// request PTY with valid size
-	require.NoError(t, se.RequestPty("xterm", 30, 30, ssh.TerminalModes{}))
+	require.NoError(t, se.RequestPty(ctx, "xterm", 30, 30, ssh.TerminalModes{}))
 
 	// request PTY with invalid size, should still work (selects defaults)
-	require.NoError(t, se.RequestPty("xterm", 0, 0, ssh.TerminalModes{}))
+	require.NoError(t, se.RequestPty(ctx, "xterm", 0, 0, ssh.TerminalModes{}))
 }
 
 // TestEnv requests setting environment variables. (We are currently ignoring these requests)
 func TestEnv(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	f := newFixture(t)
 
-	se, err := f.ssh.clt.NewSession(context.Background())
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 	defer se.Close()
 
-	require.NoError(t, se.Setenv("HOME", "/"))
+	require.NoError(t, se.Setenv(ctx, "HOME", "/"))
 }
 
 // TestNoAuth tries to log in with no auth methods and should be rejected
@@ -1391,6 +1398,7 @@ func TestPasswordAuth(t *testing.T) {
 
 func TestClientDisconnect(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	f := newFixtureWithoutDiskBasedLogging(t)
 
 	config := &ssh.ClientConfig{
@@ -1398,13 +1406,13 @@ func TestClientDisconnect(t *testing.T) {
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(f.up.certSigner)},
 		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
 	}
-	clt, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), config)
+	clt, err := tracessh.Dial(ctx, "tcp", f.ssh.srv.Addr(), config)
 	require.NoError(t, err)
 	require.NotNil(t, clt)
 
-	se, err := f.ssh.clt.NewSession(context.Background())
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
-	require.NoError(t, se.Shell())
+	require.NoError(t, se.Shell(ctx))
 	require.NoError(t, clt.Close())
 }
 
@@ -1504,7 +1512,7 @@ func TestLimiter(t *testing.T) {
 
 	se0, err := clt0.NewSession(ctx)
 	require.NoError(t, err)
-	require.NoError(t, se0.Shell())
+	require.NoError(t, se0.Shell(ctx))
 
 	// current connections = 1
 	clt, err := tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1512,7 +1520,7 @@ func TestLimiter(t *testing.T) {
 	require.NotNil(t, clt)
 	se, err := clt.NewSession(ctx)
 	require.NoError(t, err)
-	require.NoError(t, se.Shell())
+	require.NoError(t, se.Shell(ctx))
 
 	// current connections = 2
 	_, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1531,7 +1539,7 @@ func TestLimiter(t *testing.T) {
 	require.NotNil(t, clt)
 	se, err = clt.NewSession(ctx)
 	require.NoError(t, err)
-	require.NoError(t, se.Shell())
+	require.NoError(t, se.Shell(ctx))
 
 	// current connections = 2
 	_, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1882,7 +1890,7 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
-	ok, err = sess.SendRequest(sshutils.X11ForwardRequest, true, nil)
+	ok, err = sess.SendRequest(ctx, sshutils.X11ForwardRequest, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -2010,11 +2018,11 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	// Request the PuTTY-specific "simple@putty.projects.tartarus.org" channel type
 	// This request should be ignored, and the connection should remain open.
-	_, err = se.SendRequest(sshutils.PuTTYSimpleRequest, false, []byte{})
+	_, err = se.SendRequest(ctx, sshutils.PuTTYSimpleRequest, false, []byte{})
 	require.NoError(t, err)
 
 	// Request proxy subsystem routing TCP connection to the remote host
-	require.NoError(t, se.RequestSubsystem(fmt.Sprintf("proxy:%v", f.ssh.srvAddress)))
+	require.NoError(t, se.RequestSubsystem(ctx, fmt.Sprintf("proxy:%v", f.ssh.srvAddress)))
 
 	local, err := utils.ParseAddr("tcp://" + proxy.Addr())
 	require.NoError(t, err)
@@ -2046,7 +2054,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.NoError(t, err)
 	defer se2.Close()
 
-	out, err := se2.Output("echo hello again")
+	out, err := se2.Output(ctx, "echo hello again")
 	require.NoError(t, err)
 
 	require.Equal(t, "hello again\n", string(out))
