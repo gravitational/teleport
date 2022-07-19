@@ -2206,17 +2206,21 @@ func TestSignMTLS(t *testing.T) {
 
 	// download mTLS files from /webapi/sites/:site/sign
 	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign")
-	endpointSignURL, err := url.Parse(endpointSign)
+
+	bs, err := json.Marshal(struct {
+		Hostname string `json:"hostname"`
+		TTL      string `json:"ttl"`
+		Format   string `json:"format"`
+	}{
+		Hostname: "mypg.example.com",
+		TTL:      "2h",
+		Format:   "db",
+	})
 	require.NoError(t, err)
 
-	queryParams := endpointSignURL.Query()
-	queryParams.Set("hostname", "mypg.example.com")
-	queryParams.Set("ttl", "2h")
-	queryParams.Set("format", "db")
-	endpointSignURL.RawQuery = queryParams.Encode()
-
-	req, err := http.NewRequest(http.MethodGet, endpointSignURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
 	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
 
 	anonHTTPClient := &http.Client{
@@ -2252,8 +2256,9 @@ func TestSignMTLS(t *testing.T) {
 	require.ElementsMatch(t, tarContentFileNames, expectedFileNames)
 
 	// the token is no longer valid, so trying again should return an error
-	req, err = http.NewRequest(http.MethodGet, endpointSignURL.String(), nil)
+	req, err = http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
 	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
 
 	respSecondCall, err := anonHTTPClient.Do(req)

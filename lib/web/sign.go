@@ -34,29 +34,30 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// signCertKeyPair returns the necessary files to set up mTLS for other services
-// URL template: GET /webapi/sites/:site/sign?hostname=<hostname>&ttl=<ttl>&format=<format>
-//
-// As an example, requesting:
-//    GET /webapi/sites/:site/sign?hostname=pg.example.com&ttl=2190h&format=db
-// should be equivalent to running:
-//    tctl auth sign --host=pg.example.com --ttl=2190h --format=db
-//
-// This endpoint returns a zip compressed archive containing the required files to setup mTLS for the service.
-// As an example, for db format it returns an archive with 3 files: server.cas, server.crt and server.key
+/* signCertKeyPair returns the necessary files to set up mTLS for other services
+This is the equivalent of running the tctl command
+As an example, requesting:
+POST /webapi/sites/mycluster/sign
+{
+	"hostname": "pg.example.com",
+	"ttl": "2190h",
+	"format": "db"
+}
+
+Should be equivalent to running:
+   tctl auth sign --host=pg.example.com --ttl=2190h --format=db
+
+This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the service.
+*/
 func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
-
-	req := signCertKeyPairReq{
-		Hostname:     r.URL.Query().Get("hostname"),
-		FormatString: r.URL.Query().Get("format"),
-		TTLString:    r.URL.Query().Get("ttl"),
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
+	req, err := parseSignCertKeyPair(r)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -154,12 +155,8 @@ func archiveFromFiles(files []string, virtualFS identityfile.InMemoryConfigWrite
 
 type signCertKeyPairReq struct {
 	Hostname string
-
-	FormatString string
-	Format       identityfile.Format
-
-	TTLString string
-	TTL       time.Duration
+	Format   identityfile.Format
+	TTL      time.Duration
 }
 
 // TODO(marco): only format db is supported
@@ -167,27 +164,36 @@ var supportedFormats = []identityfile.Format{
 	identityfile.FormatDatabase,
 }
 
-func (s *signCertKeyPairReq) CheckAndSetDefaults() error {
-	if s.Hostname == "" {
-		return trace.BadParameter("missing hostname")
+func parseSignCertKeyPair(r *http.Request) (*signCertKeyPairReq, error) {
+	reqRaw := struct {
+		Hostname string `json:"hostname,omitempty"`
+		Format   string `json:"format,omitempty"`
+		TTL      string `json:"ttl,omitempty"`
+	}{}
+	if err := httplib.ReadJSON(r, &reqRaw); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if s.FormatString == "" {
-		return trace.BadParameter("missing format")
+	ret := &signCertKeyPairReq{}
+
+	ret.Hostname = reqRaw.Hostname
+
+	if reqRaw.Format == "" {
+		return nil, trace.BadParameter("missing format")
 	}
-	s.Format = identityfile.Format(s.FormatString)
-	if !slices.Contains(supportedFormats, s.Format) {
-		return trace.BadParameter("invalid format")
+	ret.Format = identityfile.Format(reqRaw.Format)
+	if !slices.Contains(supportedFormats, ret.Format) {
+		return nil, trace.BadParameter("invalid format")
 	}
 
-	if s.TTLString == "" {
-		s.TTLString = apidefaults.CertDuration.String()
+	if reqRaw.TTL == "" {
+		reqRaw.TTL = apidefaults.CertDuration.String()
 	}
-	ttl, err := time.ParseDuration(s.TTLString)
+	ttl, err := time.ParseDuration(reqRaw.TTL)
 	if err != nil {
-		return trace.BadParameter("invalid ttl (please use https://pkg.go.dev/time#ParseDuration notation)")
+		return nil, trace.BadParameter("invalid ttl (please use https://pkg.go.dev/time#ParseDuration notation)")
 	}
-	s.TTL = ttl
+	ret.TTL = ttl
 
-	return nil
+	return ret, nil
 }

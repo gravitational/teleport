@@ -366,8 +366,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// Sign required files to setup mTLS in other services (eg DBs)
-	// GET /webapi/sites/:site/sign?hostname=<hostname>&ttl=<ttl>&format=<format>
-	h.GET("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair))
+	// POST /webapi/sites/:site/sign
+	h.POST("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair))
 
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))

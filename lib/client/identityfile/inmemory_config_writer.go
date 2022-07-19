@@ -37,7 +37,7 @@ func (fi InMemoryFileInfo) Name() string {
 	return fi.name
 }
 
-// Size returns the file size (calculated when writting the file)
+// Size returns the file size (calculated when writing the file)
 func (fi InMemoryFileInfo) Size() int64 {
 	return fi.size
 }
@@ -71,7 +71,7 @@ func NewInMemoryConfigWriter() InMemoryConfigWriter {
 }
 
 // InMemoryConfigWriter is a basic virtual file system abstraction that writes into memory
-//  instead of writting to a more presistent storage.
+//  instead of writing to a more persistent storage.
 type InMemoryConfigWriter struct {
 	mux   *sync.RWMutex
 	files map[string]InMemoryFileInfo
