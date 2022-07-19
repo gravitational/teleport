@@ -68,6 +68,7 @@ type TestCAConfig struct {
 // NewTestCAWithConfig generates a new certificate authority with the specified
 // configuration
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
