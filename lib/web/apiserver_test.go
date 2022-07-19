@@ -2090,7 +2090,7 @@ func TestTokenGeneration(t *testing.T) {
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindToken,
-					[]string{types.VerbList, types.VerbCreate, types.VerbRead}),
+					[]string{types.VerbCreate, types.VerbRead}),
 			},
 		},
 	})
