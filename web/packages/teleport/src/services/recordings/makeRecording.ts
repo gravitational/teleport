@@ -41,7 +41,7 @@ function makeDesktopRecording({
 }
 
 function makeSshOrKubeRecording({
-  participants = [],
+  participants,
   time,
   session_start,
   session_stop,
@@ -77,7 +77,7 @@ function makeSshOrKubeRecording({
     durationText,
     sid,
     createdDate: new Date(time),
-    users: participants.join(', '),
+    users: participants ? participants.join(', ') : [],
     hostname,
     description,
     recordingType: kubernetes_cluster ? 'k8s' : 'ssh',
