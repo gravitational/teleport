@@ -77,7 +77,7 @@ Any peripheral agent roles can be restarted/upgraded in place (this is often the
 * Backport the reconnection advisory mechanism for reverse tunnels: done.
 * Don't close the proxy peering listeners when shutting down rather than restarting.
 * Deprecate in-place restarts for Proxies in proxy peering mode.
-* Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted.
+* Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted. Bonus: HSM auth servers could be made to enter service immediately rather than wait for a CA rotation cycle, and it should be possible to allow for nodes to join the cluster halfway through a rotation.
 * Don't close and restart the reverse tunnel connection from leaf clusters after CA rotations.
 * Allow for multiple Auth replicas to be spun up at the same time, and have them all wait for some time instead of erroring out when failing to grab the migration lock.
 * Write user-facing docs regarding best practices around rollouts and upgrades with regards to downtime.
