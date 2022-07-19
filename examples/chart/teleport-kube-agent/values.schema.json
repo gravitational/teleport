@@ -46,6 +46,24 @@
             "type": "string",
             "default": "kube"
         },
+        "joinParams": {
+            "$id": "#/properties/joinParams",
+            "type": "object",
+            "default": {},
+            "properties": {
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
+                    "type": "string",
+                    "default": ""
+                },
+                "method": {
+                    "$id": "#/properties/joinParams/method",
+                    "type": "string",
+                    "default": ""
+                },
+                "additionalProperties": false
+            }
+        },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
             "type": "string",
