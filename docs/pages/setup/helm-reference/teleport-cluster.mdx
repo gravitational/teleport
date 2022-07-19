@@ -221,6 +221,108 @@ When `publicAddress` is not set, the address used is [`clusterName`](#clusterNam
   </TabItem>
 </Tabs>
 
+## `kubePublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.kube_public_addr` | ❌ |
+
+`kubePublicAddress` controls the advertised address for the Kubernetes proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `kubePublicAddress` is not set, the address is inferred from [`publicAddress`](#publicAddress) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3026.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  kubePublicAddress: loadbalancer.example.com:3026
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set kubePublicAddress=loadbalancer.example.com:3026
+  ```
+  </TabItem>
+</Tabs>
+
+## `mongoPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.mongo_public_addr` | ❌ |
+
+`mongoPublicAddress` controls the advertised address to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separateMongoListener`](#separatePostgresListener) enabled.
+
+When `mongoPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
+Default port is 27017.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mongoPublicAddress: 'loadbalancer.example.com:27017'
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mongoPublicAddress='loadbalancer.example.com:27017'
+  ```
+  </TabItem>
+</Tabs>
+
+## `mysqlPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.mysql_public_addr` | ❌ |
+
+`mysqlPublicAddress` controls the advertised address for the MySQL proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `mysqlPublicAddress` is not set, the address is inferred from [`publicAddress`](#publicAddress) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3026.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mysqlPublicAddress: loadbalancer.example.com:3026
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mysqlPublicAddress=loadbalancer.example.com:3026
+  ```
+  </TabItem>
+</Tabs>
+
+
+## `postgresPublicAddress`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `proxy_service.postgres_public_addr` | ❌ |
+
+`postgresPublicAddress` controls the advertised address to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separatePostgresListener`](#separatePostgresListener) enabled.
+
+When `postgresPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
+Default port is 5432.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  postgresPublicAddress: 'loadbalancer.example.com:5432'
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set postgresPublicAddress='loadbalancer.example.com:5432'
+  ```
+  </TabItem>
+</Tabs>
 
 ## `sshPublicAddress`
 
@@ -268,58 +370,6 @@ else [`clusterName`](#clusterName) is used. Default port is 3024.
   <TabItem label="--set">
   ```code
   $ --set tunnelPublicAddress='loadbalancer.example.com:3024'
-  ```
-  </TabItem>
-</Tabs>
-
-## `postgresPublicAddress`
-
-| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
-| - | - | - | - | - |
-| `string` | `""` | no | `proxy_service.postgres_public_addr` | ❌ |
-
-`postgresPublicAddress` controls the advertised address to postgres clients.
-This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
-requires [`separatePostgresListener`](#separatePostgresListener) enabled.
-
-When `postgresPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
-Default port is 5432.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  postgresPublicAddress: 'loadbalancer.example.com:5432'
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set postgresPublicAddress='loadbalancer.example.com:5432'
-  ```
-  </TabItem>
-</Tabs>
-
-## `mongoPublicAddress`
-
-| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
-| - | - | - | - | - |
-| `string` | `""` | no | `proxy_service.mongo_public_addr` | ❌ |
-
-`mongoPublicAddress` controls the advertised address to postgres clients.
-This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
-requires [`separateMongoListener`](#separatePostgresListener) enabled.
-
-When `mongoPublicAddress` is not set, the address is inferred from [`clusterName`](#clusterName) is used.
-Default port is 27017.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  mongoPublicAddress: 'loadbalancer.example.com:27017'
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mongoPublicAddress='loadbalancer.example.com:27017'
   ```
   </TabItem>
 </Tabs>

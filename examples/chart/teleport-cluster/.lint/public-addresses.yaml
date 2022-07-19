@@ -4,6 +4,8 @@ sshPublicAddress: "loadbalancer.example.com:3023"
 tunnelPublicAddress: "loadbalancer.example.com:3024"
 postgresPublicAddress: "loadbalancer.example.com:5432"
 mongoPublicAddress: "loadbalancer.example.com:27017"
+mysqlPublicAddress: "loadbalancer.example.com:3026"
+kubePublicAddress: "loadbalancer.example.com:3026"
 
 separatePostgresListener: true
 separateMongoListener: true
