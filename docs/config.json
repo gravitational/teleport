@@ -82,7 +82,7 @@
             },
             {
               "title": "Upgrading the Teleport Binary",
-              "slug": "/setup/admin/graceful-restarts/"
+              "slug": "/setup/admin/upgrading-the-teleport-binary/"
             },
             {
               "title": "Run Teleport as a Daemon",
@@ -948,6 +948,7 @@
       "min_version": "3.6"
     },
     "teleport": {
+      "major_version": "10",
       "version": "10.0.2",
       "golang": "1.18",
       "plugin": {
@@ -1267,6 +1268,16 @@
     {
       "source": "/kubernetes-access/helm/guides/migration/",
       "destination": "/setup/helm-deployments/migration/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/graceful-restarts/",
+      "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
     }
   ]

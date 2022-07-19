@@ -21,8 +21,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// User contains data needed by the web UI to display locally saved users.
-type User struct {
+type UserListEntry struct {
 	// Name is the user name.
 	Name string `json:"name"`
 	// Roles is the list of roles user belongs to.
@@ -32,8 +31,26 @@ type User struct {
 	AuthType string `json:"authType"`
 }
 
-// NewUser creates UI user object
-func NewUser(teleUser types.User) (*User, error) {
+// User contains data needed by the web UI to display locally saved users.
+type User struct {
+	UserListEntry
+	// Logins is the list of Logins Trait for the user
+	Logins []string `json:"logins,omitempty"`
+	// DatabaseUsers is the list of DatabaseUsers Trait for the user
+	DatabaseUsers []string `json:"database_users,omitempty"`
+	// DatabaseNames is the list of DatabaseNames Trait for the user
+	DatabaseNames []string `json:"database_names,omitempty"`
+	// KubeUsers is the list of KubeUsers Trait for the user
+	KubeUsers []string `json:"kube_users,omitempty"`
+	// KubeGroups is the list of KubeGroups Trait for the user
+	KubeGroups []string `json:"kube_groups,omitempty"`
+	// WindowsLogins is the list of WindowsLogins Trait for the user
+	WindowsLogins []string `json:"windows_logins,omitempty"`
+	// AWSRoleARNs is the list of AWSRoleARNs Trait for the user
+	AWSRoleARNs []string `json:"aws_role_ar_ns,omitempty"`
+}
+
+func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 	if teleUser == nil {
 		return nil, trace.BadParameter("missing teleUser")
 	}
@@ -43,9 +60,30 @@ func NewUser(teleUser types.User) (*User, error) {
 		authType = teleUser.GetCreatedBy().Connector.Type
 	}
 
-	return &User{
+	return &UserListEntry{
 		Name:     teleUser.GetName(),
 		Roles:    teleUser.GetRoles(),
 		AuthType: authType,
+	}, nil
+}
+
+// NewUser creates UI user object
+func NewUser(teleUser types.User) (*User, error) {
+	// NewUserListEntry checks for a nil teleUser, no need to check for it here
+
+	userListEntry, err := NewUserListEntry(teleUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &User{
+		UserListEntry: *userListEntry,
+		Logins:        teleUser.GetLogins(),
+		DatabaseUsers: teleUser.GetDatabaseUsers(),
+		DatabaseNames: teleUser.GetDatabaseNames(),
+		KubeUsers:     teleUser.GetKubeUsers(),
+		KubeGroups:    teleUser.GetKubeGroups(),
+		WindowsLogins: teleUser.GetWindowsLogins(),
+		AWSRoleARNs:   teleUser.GetAWSRoleARNs(),
 	}, nil
 }
