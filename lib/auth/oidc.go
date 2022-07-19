@@ -43,6 +43,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ErrOIDCNoRoles results from not mapping any roles from OIDC claims.
+var ErrOIDCNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
 func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
@@ -175,7 +178,7 @@ func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
 }
 
 // startSync starts a goroutine to sync the client with its provider
-// config until the given ctx is closed or the sync is cancelled.
+// config until the given ctx is closed or the sync is canceled.
 func (c *oidcClient) startSync(ctx context.Context) {
 	// SyncProviderConfig doesn't take a context for cancellation, instead it
 	// returns a channel that has to be closed to stop the sync. To ensure that the
@@ -612,7 +615,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+		return nil, trace.Wrap(ErrOIDCNoRoles)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

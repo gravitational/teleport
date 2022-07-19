@@ -28,8 +28,6 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
 ## Step 1/6. Install Teleport
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
@@ -93,7 +91,7 @@ $ teleport start --config=/etc/teleport.yaml
 ```
 
 The Database Service will discover all Redshift databases according to the configuration
-and register them in the cluster. The agent will also attempt to configure IAM
+and register them in the cluster. The Database Service will also attempt to configure IAM
 access policies for the discovered databases. Keep in mind that AWS IAM changes
 may not propagate immediately and can take a few minutes to come into effect.
 
