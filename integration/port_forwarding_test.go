@@ -158,7 +158,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				}
 				return trackers[0].GetState() == types.SessionState_SessionStateRunning
 			}
-			require.Eventually(t, sessionEstablished, time.Second*5, time.Millisecond*100)
+			require.Eventually(t, sessionEstablished, time.Second*10, time.Second)
 
 			// When everything is *finally* set up, and I attempt to use the
 			// forwarded connection
