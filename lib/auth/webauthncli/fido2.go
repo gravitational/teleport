@@ -540,7 +540,9 @@ func runOnFIDO2Devices(
 	if err != nil {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
-		prompt.PromptTouch()
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 		prompted = true
 
 		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)

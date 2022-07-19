@@ -16,6 +16,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
@@ -52,6 +53,35 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 
 }
 
+// LoginPasswordless logs in a user to a cluster passwordlessly.
+func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordlessServer) error {
+	// Init request with cluster uri and an optional username (if user provided it).
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterURI := req.GetClusterUri()
+	if clusterURI == "" {
+		return trace.BadParameter("cluster URI is required")
+	}
+
+	cluster, err := s.DaemonService.ResolveCluster(clusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start the prompt flow.
+	if err := cluster.PwdlessLogin(stream.Context(), stream); err != nil {
+		fmt.Println("-------------------------   <> pwdless login error: ", err)
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("-------------------------   <> pwdless login ending ")
+
+	return nil
+}
+
 // Logout logs a user out from a cluster
 func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.EmptyResponse, error) {
 	if err := s.DaemonService.ClusterLogout(ctx, req.ClusterUri); err != nil {
@@ -74,10 +104,13 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:     string(preferences.PreferredLocalMFA),
-		SecondFactor:     string(preferences.SecondFactor),
-		LocalAuthEnabled: preferences.LocalAuthEnabled,
-		AuthProviders:    []*api.AuthProvider{},
+		PreferredMfa:       string(preferences.PreferredLocalMFA),
+		SecondFactor:       string(preferences.SecondFactor),
+		LocalAuthEnabled:   preferences.LocalAuthEnabled,
+		AuthProviders:      []*api.AuthProvider{},
+		AuthType:           preferences.AuthType,
+		AllowPasswordless:  preferences.AllowPasswordless,
+		LocalConnectorName: preferences.LocalConnectorName,
 	}
 
 	for _, provider := range preferences.Providers {

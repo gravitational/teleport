@@ -70,6 +70,30 @@ service TerminalService {
     rpc GetCluster(GetClusterRequest) returns (Cluster);
     // Login logs in a user to a cluster
     rpc Login(LoginRequest) returns (EmptyResponse);
+    // LoginPasswordless logs in a user to a cluster passwordlessly.
+    //
+    // The RPC is streaming both ways and the message sequence example for hardware keys are:
+    // (-> means client-to-server, <- means server-to-client)
+    //
+    // 1) When multiple devices are detected:
+    // -> Init
+    // <- Send PasswordlessPrompt enum TAP to choose a device
+    // -> Receive TAP device response
+    // <- Send PasswordlessPrompt enum PIN
+    // -> Receive PIN response
+    // <- Send PasswordlessPrompt enum RETAP to confirm
+    // -> Receive RETAP device response
+    // <- End
+    //
+    // 2) When a single device is detected:
+    // -> Init
+    // <- Send PasswordlessPrompt enum PIN
+    // -> Receive PIN response
+    // <- Send PasswordlessPrompt enum TAP
+    // -> Receive TAP device response
+    // <- End
+    rpc LoginPasswordless(stream LoginPasswordlessRequest)
+        returns (stream LoginPasswordlessResponse);
     // ClusterLogin logs out a user from cluster
     rpc Logout(LogoutRequest) returns (EmptyResponse);
 }
@@ -82,6 +106,48 @@ message GetClusterRequest { string cluster_uri = 1; }
 
 // LogoutRequest describes LogoutRequest
 message LogoutRequest { string cluster_uri = 1; }
+
+// PasswordlessPrompt describes different prompts we need from users
+// during the passwordless login flow.
+enum PasswordlessPrompt {
+    PASSWORDLESS_PROMPT_UNSPECIFIED = 0;
+
+    // PASSWORDLESS_PROMPT_PIN is used when we need a user's pin.
+    PASSWORDLESS_PROMPT_PIN = 1;
+
+    // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
+    PASSWORDLESS_PROMPT_TAP = 2;
+
+    // PASSWORDLESS_PROMPT_RETAP is used when we require a user to re-tap their device.
+    PASSWORDLESS_PROMPT_RETAP = 3;
+
+    // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a usernamer
+    // associated with their account.
+    PASSWORDLESS_PROMPT_CREDENTIAL = 4;
+}
+
+// LoginPasswordlessResponse is a message sent by the server during the
+// passwordless login flow.
+message LoginPasswordlessResponse {
+    PasswordlessPrompt prompt = 1;
+    // usernames is a list of usernames associated with a passwordless device.
+    // Sent during the webauthncli.PromptCredential step.
+    repeated string usernames = 2;
+}
+
+// LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
+message LoginPasswordlessRequest {
+    oneof request {
+        // cluster_uri required for init request to resolve cluster by its uri.
+        string cluster_uri = 1;
+        // pin is the device's pin number provided by user sent during the webauthncli.PromptPIN
+        // step.
+        string pin = 2;
+        // usernameIndex is the index of the username the user selected from the list of usernames
+        // sent during the webauthncli.PromptCredential step.
+        int64 usernameIndex = 3;
+    }
+}
 
 // LoginRequest describes cluster login request
 message LoginRequest {

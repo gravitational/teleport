@@ -18,14 +18,18 @@ package clusters
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
 	"github.com/gravitational/trace"
 )
@@ -196,7 +200,7 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 		return trace.Wrap(err)
 	}
 
-	return err
+	return nil
 }
 
 func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken string) error {
@@ -276,4 +280,126 @@ func (c *Cluster) processAuthResponse(ctx context.Context, key *client.Key, resp
 	c.status = *status
 
 	return nil
+}
+
+// PwdlessLogin processes passwordless logins for this cluster
+func (c *Cluster) PwdlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+	pr, err := c.clusterClient.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
+	// existing profile for the first time (investigate why)
+	c.clusterClient.SiteName = ""
+
+	pwdlessEnabled := pr.Auth.Type == constants.Local && pr.Auth.Local != nil
+	if !pwdlessEnabled || !pr.Auth.AllowPasswordless {
+		return trace.BadParameter("passwordless disallowed by cluster settings")
+	}
+
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	response, err := client.SSHAgentPwdlessLogin(ctx, client.SSHLoginPasswordless{
+		SSHLogin: client.SSHLogin{
+			ProxyAddr:         c.clusterClient.WebProxyAddr,
+			PubKey:            key.Pub,
+			TTL:               c.clusterClient.KeyTTL,
+			Insecure:          c.clusterClient.InsecureSkipVerify,
+			Compatibility:     c.clusterClient.CertificateFormat,
+			RouteToCluster:    c.clusterClient.SiteName,
+			KubernetesCluster: c.clusterClient.KubernetesCluster,
+		},
+		AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
+		CustomPrompt:            newPwdlessLoginPrompt(ctx, stream),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.processAuthResponse(ctx, key, response); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// pwdlessLoginPrompt is a implementation for LoginPrompt for teleterm passwordless logins.
+type pwdlessLoginPrompt struct {
+	DefaultPrompt *wancli.DefaultPrompt
+	Stream        api.TerminalService_LoginPasswordlessServer
+}
+
+func newPwdlessLoginPrompt(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
+	df := wancli.NewDefaultPrompt(ctx, nil)
+	return &pwdlessLoginPrompt{
+		DefaultPrompt: df,
+		Stream:        stream,
+	}
+}
+
+// PromptPIN prompts the user for a PIN.
+func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN}); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	req, err := p.Stream.Recv()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	pin := req.GetPin()
+	if pin == "" {
+		return "", trace.BadParameter("pin is required")
+	}
+
+	return pin, nil
+}
+
+// PromptTouch prompts the user for a security key touch.
+func (p *pwdlessLoginPrompt) PromptTouch() error {
+	if p.DefaultPrompt.Count == 0 {
+		p.DefaultPrompt.Count++
+		return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
+	}
+	return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_RETAP}))
+}
+
+// PromptTouch prompts the user for a security key touch.
+func (p *pwdlessLoginPrompt) PromptCredential(creds []*wancli.Credential) (*wancli.Credential, error) {
+	// Shouldn't happen, but let's check just in case.
+	if len(creds) == 0 {
+		return nil, errors.New("attempted to prompt credential with empty credentials")
+	}
+
+	sort.Slice(creds, func(i, j int) bool {
+		c1 := creds[i]
+		c2 := creds[j]
+		return c1.User.Name < c2.User.Name
+	})
+
+	users := make([]string, len(creds))
+	for i, cred := range creds {
+		users[i] = cred.User.Name
+	}
+
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL, Usernames: users}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := p.Stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, ok := req.GetRequest().(*api.LoginPasswordlessRequest_UsernameIndex)
+	if !ok {
+		return nil, trace.BadParameter("username must be selected")
+	}
+
+	return creds[res.UsernameIndex], nil
 }
