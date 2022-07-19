@@ -594,7 +594,6 @@ test-sh:
 		exit 0; \
 	fi; \
 	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
-rdp
 
 .PHONY: run-etcd
 run-etcd:

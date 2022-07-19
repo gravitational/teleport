@@ -218,8 +218,6 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 	lf, err := l.(*net.TCPListener).File()
 	require.NoError(t, err)
 
-	t.Logf("Listener %s for %s", addr, ty)
-
 	// If the file descriptor slice ends up being passed to a TeleportProcess
 	// that successfully starts, listeners will either get "imported" and used
 	// or discarded and closed, this is just an extra safety measure that closes
