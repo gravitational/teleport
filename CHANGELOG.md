@@ -1,5 +1,16 @@
 # Changelog
 
+## 10.0.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh proxy ssh` command shelling out to `ssh` in non TLS routing mode. [#14522](https://github.com/gravitational/teleport/pull/14522)
+* Fixed issue with being able to create users with invalid roles via API. [#14459](https://github.com/gravitational/teleport/pull/14459)
+* Fixed issue with `tsh login` erroring out on non-existent PuTTY key file on Windows. [#14572](https://github.com/gravitational/teleport/pull/14572)
+* Fixed issue with application service not failing correctly with invalid configuration. [#14478](https://github.com/gravitational/teleport/pull/14478)
+* Improved error message when joining with invalid host ID using EC2 join method. [#14494](https://github.com/gravitational/teleport/pull/14494)
+* Include Machine ID's `tbot` binary in Docker images. [#14462](https://github.com/gravitational/teleport/pull/14462)
+
 ## 10.0.1
 
 This release of Teleport contains multiple improvements and bug fixes.
