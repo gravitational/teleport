@@ -26,6 +26,13 @@ available in Teleport Enterprise.
 
 (!docs/pages/includes/tctl.mdx!)
 
+<Admonition type="warning">
+All Teleport Nodes in the cluster must be running Teleport `v10.0.0` or greater
+in order for Resource Access Requests to be properly enforced.
+Nodes on older versions will only do RBAC checks based on roles and may not
+respect resource restrictions.
+</Admonition>
+
 ## Step 1/8. Create the requester role
 
 This role allows the requester to search for resources accessible by the
