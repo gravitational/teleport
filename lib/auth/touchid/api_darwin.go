@@ -334,10 +334,12 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 		}
 
 		infos = append(infos, CredentialInfo{
-			UserHandle:   userHandle,
 			CredentialID: credentialID,
 			RPID:         parsedLabel.rpID,
-			User:         parsedLabel.user,
+			User: UserInfo{
+				UserHandle: userHandle,
+				Name:       parsedLabel.user,
+			},
 			CreateTime:   createTime,
 			publicKeyRaw: pubKeyRaw,
 		})
