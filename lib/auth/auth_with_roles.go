@@ -1546,6 +1546,13 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	return a.authServer.UpsertToken(ctx, token)
 }
 
+func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.CreateToken(ctx, token)
+}
+
 func (a *ServerWithRoles) UpsertPassword(user string, password []byte) error {
 	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
