@@ -187,10 +187,10 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 // actionForKindSSHSession is a special checker that grants access to active SSH
 // sessions.  It can allow access to a specific session based on the `where`
 // section of the user's access rule for kind `ssh_session`.
-func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid session.ID) error {
-	extendContext := func(ctx *services.Context) error {
-		session, err := a.sessions.GetSession(namespace, sid)
-		ctx.SSHSession = session
+func (a *ServerWithRoles) actionForKindSSHSession(ctx context.Context, namespace, verb string, sid session.ID) error {
+	extendContext := func(serviceContext *services.Context) error {
+		session, err := a.sessions.GetSession(ctx, namespace, sid)
+		serviceContext.SSHSession = session
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
@@ -407,13 +407,13 @@ func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHL
 	return a.authServer.AuthenticateSSHUser(req)
 }
 
-func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, error) {
+func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
 	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := a.sessions.GetSessions(namespace)
+	sessions, err := a.sessions.GetSessions(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -434,33 +434,33 @@ func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, erro
 	return filteredSessions, nil
 }
 
-func (a *ServerWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if err := a.actionForKindSSHSession(namespace, types.VerbRead, id); err != nil {
+func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
+	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbRead, id); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.sessions.GetSession(namespace, id)
+	return a.sessions.GetSession(ctx, namespace, id)
 }
 
-func (a *ServerWithRoles) CreateSession(s session.Session) error {
+func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) error {
 	if err := a.action(s.Namespace, types.KindSSHSession, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.CreateSession(s)
+	return a.sessions.CreateSession(ctx, s)
 }
 
-func (a *ServerWithRoles) UpdateSession(req session.UpdateRequest) error {
-	if err := a.actionForKindSSHSession(req.Namespace, types.VerbUpdate, req.ID); err != nil {
+func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
+	if err := a.actionForKindSSHSession(ctx, req.Namespace, types.VerbUpdate, req.ID); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.UpdateSession(req)
+	return a.sessions.UpdateSession(ctx, req)
 }
 
 // DeleteSession removes an active session from the backend.
-func (a *ServerWithRoles) DeleteSession(namespace string, id session.ID) error {
-	if err := a.actionForKindSSHSession(namespace, types.VerbDelete, id); err != nil {
+func (a *ServerWithRoles) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
+	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbDelete, id); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.DeleteSession(namespace, id)
+	return a.sessions.DeleteSession(ctx, namespace, id)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
