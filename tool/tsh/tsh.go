@@ -1236,15 +1236,12 @@ func onLogin(cf *CLIConf) error {
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// if the proxy names match but nothing else is specified
-		//   OR
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		//   OR
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host) &&
-			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
@@ -1258,6 +1255,23 @@ func onLogin(cf *CLIConf) error {
 			printProfiles(cf.Debug, active, others, env, cf.Verbose)
 
 			return nil
+
+		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return trace.Wrap(onStatus(cf))
 
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
