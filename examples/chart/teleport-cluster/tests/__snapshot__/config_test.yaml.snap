@@ -907,7 +907,7 @@ matches snapshot for public-addresses.yaml:
           kube_listen_addr: 0.0.0.0:3026
           kube_public_addr: 'loadbalancer.example.com:3026'
           mysql_listen_addr: 0.0.0.0:3036
-          mysql_public_addr: 'loadbalancer.example.com:3026'
+          mysql_public_addr: 'loadbalancer.example.com:3036'
           postgres_listen_addr: 0.0.0.0:5432
           postgres_public_addr: 'loadbalancer.example.com:5432'
           mongo_listen_addr: 0.0.0.0:27017

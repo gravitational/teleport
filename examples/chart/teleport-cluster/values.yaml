@@ -45,7 +45,7 @@ kubePublicAddress: ""
 # Public cluster mongo listener address, including port. Defaults to `publicAddress` on 27017 port.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
 mongoPublicAddress: ""
-# Public cluster MySQL address, including port. Defaults to `publicAddress` on 3026 port.
+# Public cluster MySQL address, including port. Defaults to `publicAddress` on 3036 port.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 mysqlPublicAddress: ""
 # Public cluster postgres listener address, including port. Defaults to `publicAddress` on 5432 port.
