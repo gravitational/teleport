@@ -1734,8 +1734,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 
 	username := suite.Me.Username
 
-	fmt.Println("!!!! Creating SITE-A")
-
 	a := suite.newNamedTeleportInstance(t, "site-A")
 
 	// The Listener FDs injected into SiteA will be closed when SiteA restarts
@@ -1748,13 +1746,11 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// inject those duplicates prior to restarting the SiteA cluster.
 	aFdCache := helpers.DupFDs(t, a.Fds)
 
-	fmt.Println("!!!! Creating SITE-B")
 	b := suite.newNamedTeleportInstance(t, "site-B")
 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
-	fmt.Println("!!!! Generating instance configs")
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: proxyRecordMode,
 	})
@@ -1775,27 +1771,20 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	bcfg.Proxy.DisableWebInterface = true
 	bcfg.SSH.Enabled = false
 
-	fmt.Println("!!!! Creating SITE-A instance")
 	require.NoError(t, b.CreateEx(t, a.Secrets.AsSlice(), bcfg))
 	t.Cleanup(func() { require.NoError(t, b.StopAll()) })
 
-	fmt.Println("!!!! Creating SITE-B instance")
 	require.NoError(t, a.CreateEx(t, b.Secrets.AsSlice(), acfg))
 	t.Cleanup(func() { require.NoError(t, a.StopAll()) })
 
-	fmt.Println("!!!! Starting ")
 	require.NoError(t, b.Start())
 	require.NoError(t, a.Start())
-
-	fmt.Println("!!!! Clusters are running, waiting for tunnel...")
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, waitForClusters(a.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 	require.Eventually(t, waitForClusters(b.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-
-	fmt.Println("!!!! Tunnel is up")
 
 	var (
 		outputA bytes.Buffer
@@ -1866,8 +1855,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	err = tc.SSH(context.TODO(), cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
-
-	fmt.Println("!!!! RESTARTING SITE A")
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
@@ -5844,8 +5831,6 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 	if cfg.Listeners == nil {
 		cfg.Listeners = helpers.StandardListenerSetupOn(cfg.NodeName)(t, &cfg.Fds)
 	}
-
-	fmt.Println("!!!! ", "Nodename:", cfg.NodeName, "Listener:", cfg.Listeners.Web)
 
 	return helpers.NewInstance(t, cfg)
 }

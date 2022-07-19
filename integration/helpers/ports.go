@@ -43,14 +43,20 @@ func init() {
 	}
 }
 
+// NewPortValue is deprecated. Do not use in new code. Use NewListener() and
+// friends instead.
 func NewPortValue() int {
 	return ports.PopInt()
 }
 
+// NewPortStr is deprecated. Do not use in new code. Use NewListener() and
+// friends instead.
 func NewPortStr() string {
 	return ports.Pop()
 }
 
+// NewPortSlice is deprecated. Do not use in new code. Use NewListener() and
+// friends instead.
 func NewPortSlice(n int) []int {
 	return ports.PopIntSlice(n)
 }
