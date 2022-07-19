@@ -553,8 +553,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 
 		runDone := make(chan error)
 		go func() {
-			err = s.Run(strings.Join(cmd, " "))
-			runDone <- err
+			runDone <- s.Run(strings.Join(cmd, " "))
 		}()
 
 		select {
