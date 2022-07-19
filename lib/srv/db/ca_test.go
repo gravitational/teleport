@@ -166,7 +166,9 @@ func TestInitCACert(t *testing.T) {
 // TestInitCACertCaching verifies root certificate is not re-downloaded if
 // it was already downloaded before.
 func TestInitCACertCaching(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t)
 
 	rds, err := types.NewDatabaseV3(types.Metadata{
@@ -428,7 +430,9 @@ func TestTLSConfiguration(t *testing.T) {
 			} {
 				dbType := dbType
 				t.Run(dbType, func(t *testing.T) {
-					ctx := context.Background()
+					ctx, cancel := context.WithCancel(context.Background())
+					t.Cleanup(func() { cancel() })
+
 					cfg := &setupTLSTestCfg{
 						commonName: tt.commonName,
 						serverName: tt.serverName,

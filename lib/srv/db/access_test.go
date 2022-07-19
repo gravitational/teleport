@@ -79,7 +79,9 @@ func TestMain(m *testing.M) {
 // TestAccessPostgres verifies access scenarios to a Postgres database based
 // on the configured RBAC rules.
 func TestAccessPostgres(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -183,7 +185,9 @@ func TestAccessPostgres(t *testing.T) {
 // TestAccessMySQL verifies access scenarios to a MySQL database based
 // on the configured RBAC rules.
 func TestAccessMySQL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -263,7 +267,9 @@ func TestAccessMySQL(t *testing.T) {
 // TestAccessRedis verifies access scenarios to a Redis database based
 // on the configured RBAC rules.
 func TestAccessRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -318,7 +324,8 @@ func TestAccessRedis(t *testing.T) {
 			// Create user/role with the requested permissions.
 			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, []string{types.Wildcard})
 
-			ctx := context.Background()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 			// Try to connect to the database as this user.
 			redisClient, err := testCtx.redisClient(ctx, test.user, "redis", test.dbUser)
 			if test.err != "" {
@@ -344,7 +351,9 @@ func TestAccessRedis(t *testing.T) {
 // TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
 // client handshake messages.
 func TestMySQLBadHandshake(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -397,7 +406,9 @@ func TestMySQLBadHandshake(t *testing.T) {
 
 // TestAccessMySQLChangeUser verifies that COM_CHANGE_USER command is rejected.
 func TestAccessMySQLChangeUser(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -433,7 +444,9 @@ func TestAccessMySQLChangeUser(t *testing.T) {
 }
 
 func TestMySQLCloseConnection(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -459,7 +472,9 @@ func TestMySQLCloseConnection(t *testing.T) {
 
 // TestAccessRedisAUTHDefaultCmd checks if empty user can log in to Redis as default.
 func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis", redis.TestServerPassword("123")))
 	go testCtx.startHandlingConnections()
 
@@ -484,7 +499,9 @@ func TestAccessRedisAUTHDefaultCmd(t *testing.T) {
 
 // TestAccessRedisAUTHCmd checks if AUTH command is verified against Teleport RBAC before is sent to Redis.
 func TestAccessRedisAUTHCmd(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -506,7 +523,8 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 // TestAccessMySQLServerPacket verifies some edge-cases related to reading
 // wire packets sent by the MySQL server.
 func TestAccessMySQLServerPacket(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -529,7 +547,8 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -605,7 +624,9 @@ func newTestSQLServerEngine(ec common.EngineConfig) common.Engine {
 
 // TestAccessSQLServer verifies access scenarios to a SQL Server database.
 func TestAccessSQLServer(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
 	go testCtx.startHandlingConnections()
 
@@ -675,8 +696,6 @@ func TestAccessSQLServer(t *testing.T) {
 // TestAccessMongoDB verifies access scenarios to a MongoDB database based
 // on the configured RBAC rules.
 func TestAccessMongoDB(t *testing.T) {
-	ctx := context.Background()
-
 	tests := []struct {
 		desc         string
 		user         string
@@ -794,6 +813,9 @@ func TestAccessMongoDB(t *testing.T) {
 		},
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
@@ -802,7 +824,10 @@ func TestAccessMongoDB(t *testing.T) {
 			t.Parallel()
 
 			for _, serverOpt := range serverOpts {
-				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
+				setupCtx, cancel := context.WithCancel(ctx)
+				t.Cleanup(func() { cancel() })
+
+				testCtx := setupTestContext(setupCtx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 				go testCtx.startHandlingConnections()
 
 				for _, clientOpt := range clientOpts {
@@ -810,6 +835,9 @@ func TestAccessMongoDB(t *testing.T) {
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
+
+						ctx, cancel := context.WithCancel(ctx)
+						t.Cleanup(func() { cancel() })
 
 						// Create user/role with the requested permissions.
 						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
@@ -852,7 +880,9 @@ func TestAccessDisabled(t *testing.T) {
 		},
 	})
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -873,7 +903,9 @@ func TestAccessDisabled(t *testing.T) {
 // TestPostgresInjectionDatabase makes sure Postgres connection is not
 // susceptible to malicious database name injections.
 func TestPostgresInjectionDatabase(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -900,7 +932,9 @@ func TestPostgresInjectionDatabase(t *testing.T) {
 // TestPostgresInjectionUser makes sure Postgres connection is not
 // susceptible to malicious user name injections.
 func TestPostgresInjectionUser(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -928,7 +962,9 @@ func TestPostgresInjectionUser(t *testing.T) {
 }
 
 func TestRedisGetSet(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -985,7 +1021,9 @@ func TestRedisPubSub(t *testing.T) {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
+
 			testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 			go testCtx.startHandlingConnections()
 
@@ -1043,7 +1081,9 @@ func TestRedisPubSub(t *testing.T) {
 }
 
 func TestRedisPipeline(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -1093,7 +1133,9 @@ func TestRedisPipeline(t *testing.T) {
 }
 
 func TestRedisTransaction(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -1183,7 +1225,9 @@ func TestRedisTransaction(t *testing.T) {
 }
 
 func TestRedisNil(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
