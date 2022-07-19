@@ -21,7 +21,13 @@ data:
   teleport.yaml: |
     version: v3
     teleport:
+  {{- if .Values.joinParams }}
+      join_params:
+        token_name: "{{ .Values.joinParams.tokenName }}"
+        method: "{{ .Values.joinParams.method }}"
+  {{- else }}
       auth_token: "/etc/teleport-secrets/auth-token"
+  {{- end }}
       proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
       {{- if .Values.caPin }}
       ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
