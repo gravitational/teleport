@@ -549,8 +549,6 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
 	return ns.regularSession(ctx, func(s *ssh.Session) error {
-		var err error
-
 		runDone := make(chan error)
 		go func() {
 			runDone <- s.Run(strings.Join(cmd, " "))
@@ -563,7 +561,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 		// The passed in context timed out. This is often due to the user hitting
 		// Ctrl-C.
 		case <-ctx.Done():
-			err = s.Close()
+			err := s.Close()
 			if err != nil {
 				log.Debugf("Unable to close SSH channel: %v", err)
 			}
