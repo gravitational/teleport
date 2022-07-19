@@ -121,7 +121,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	err = clt.UpsertToken(r.Context(), provisionToken)
+	err = clt.CreateToken(r.Context(), provisionToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
