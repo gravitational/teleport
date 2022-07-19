@@ -244,7 +244,11 @@ func onDatabaseLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	pc, err := tc.ConnectToProxy(cf.Context)
+	var pc *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		pc, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -300,7 +304,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, pc *client.ProxyClien
 	} else {
 		var key *client.Key
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			key, err = tc.IssueUserCertsWithMFA(cf.Context, pc, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
 					ServiceName: dbRoute.ServiceName,
@@ -675,7 +679,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	pc, err := tc.ConnectToProxy(cf.Context)
+	var pc *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		pc, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
