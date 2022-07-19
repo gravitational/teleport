@@ -16,7 +16,7 @@ steps:
     entrypoint: bash
     args:
       - -c
-      - go test -bench=. ./lib
+      - cat /proc/sys/kernel/random/entropy_avail; go test -bench=. ./lib
     timeout: 25m
 
   # Run the unit tests. Actual content of this job depends on the changes
