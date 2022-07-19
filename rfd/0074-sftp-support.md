@@ -18,7 +18,7 @@ not replace scp, both will be supported.
 ## Why
 
 [OpenSSH 9.0](https://www.openssh.com/txt/release-9.0) changed `scp` to
-use the [SFTP](atatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02)
+use the [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02)
 protocol by default instead of scp/rcp protocol. This is to
 combat many security issues present in the legacy scp/rcp protocol. Users
 running the latest OpenSSH version will currently find that `scp` and various
