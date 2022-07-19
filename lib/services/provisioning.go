@@ -31,6 +31,9 @@ type Provisioner interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken adds provisioning tokens for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// GetToken finds and returns token by id
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
