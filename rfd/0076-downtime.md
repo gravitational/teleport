@@ -89,3 +89,9 @@ Any peripheral agent roles can be restarted/upgraded in place (this is often the
   * Don't close and restart the reverse tunnel connection from leaf clusters after CA rotations.
 * Allow running different Auth builds from the same major version at the same time (potentially restricted to only two versions, upgrading from old to new, and requiring a shut down when downgrading): potentially good value, requires engineering care and prevents us from running migrations outside of major version upgrades.
 * Allow for multiple Auth replicas to be spun up at the same time, and have them all wait for some time instead of erroring out when failing to grab the migration lock.
+* Transparent client reconnections: the holy grail of downtime minimization - as long as the session on the far end still exists. Probably worth exploring in a whole new RFD, mentioning some initial questions here.
+  * Session joining is a good place to start but it would need some changes to support transparent resumption (like resuming the output at a specific offset or tagging every input with a nonce to discard duplicated inputs).
+  * Doing this over SSH would probably require more effort than just redefining our own GRPC-based remote shell protocol (which is already a long-term goal), so we should take care of allowing for transparent resumption when designing that protocol.
+  * `tsh proxy` would need to pretend to be a sshd to maintain compatibility with ssh-based clients.
+  * What to do about port forwarding channels?
+  * Is it possible to support transparent resumption in `kubectl exec` or should we require `tsh kube exec` for that?
