@@ -227,7 +227,7 @@ func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetr
 }
 
 // AcquireSemaphoreLock attempts to acquire and hold a semaphore lease.  If successfully acquired,
-// background keepalive processes are started and an associated lock handle is returned. Cancelling
+// background keepalive processes are started and an associated lock handle is returned. Canceling
 // the supplied context releases the semaphore.
 func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*SemaphoreLock, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {

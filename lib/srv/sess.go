@@ -981,38 +981,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
 	}()
 
-	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
-	// once it is received wait for the io.Copy above to finish, then broadcast
-	// the "exit-status" to the client.
-	go func() {
-		result, err := s.term.Wait()
-		if err != nil {
-			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
-		}
-
-		// wait for copying from the pty to be complete or a timeout before
-		// broadcasting the result (which will close the pty) if it has not been
-		// closed already.
-		select {
-		case <-time.After(defaults.WaitCopyTimeout):
-			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
-		case <-s.doneCh:
-		}
-
-		if ctx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
-		}
-
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
-		s.emitSessionEndEvent()
-		s.Close()
-	}()
-
 	return nil
 }
 
@@ -1092,6 +1060,39 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext, tempUser 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
 	go s.heartbeat(ctx)
+
+	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
+	// once it is received wait for the io.Copy above to finish, then broadcast
+	// the "exit-status" to the client.
+	go func() {
+		result, err := s.term.Wait()
+		if err != nil {
+			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+		}
+
+		// wait for copying from the pty to be complete or a timeout before
+		// broadcasting the result (which will close the pty) if it has not been
+		// closed already.
+		select {
+		case <-time.After(defaults.WaitCopyTimeout):
+			s.log.Errorf("Timed out waiting for PTY copy to finish, session data for %v may be missing.", s.id)
+		case <-s.doneCh:
+		}
+
+		if ctx.ExecRequest.GetCommand() != "" {
+			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
+		}
+
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
+		s.emitSessionEndEvent()
+		s.Close()
+	}()
+
 	return nil
 }
 
@@ -1589,12 +1590,13 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
-	s.term.AddParty(1)
 
 	s.BroadcastMessage("User %v joined the session.", p.user)
 	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
 
 	if mode == types.SessionPeerMode {
+		s.term.AddParty(1)
+
 		// This goroutine keeps pumping party's input into the session.
 		go func() {
 			defer s.term.AddParty(-1)
