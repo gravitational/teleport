@@ -289,11 +289,11 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 
 // GetSessions returns a list of active sessions in the cluster as reported by
 // the auth server.
-func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
+func (c *Client) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,7 +305,7 @@ func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
 }
 
 // GetSession returns a session by ID
-func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, error) {
+func (c *Client) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
@@ -313,7 +313,7 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
+	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -325,29 +325,29 @@ func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, 
 }
 
 // DeleteSession removes an active session from the backend.
-func (c *Client) DeleteSession(namespace string, id session.ID) error {
+func (c *Client) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
 	if namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)))
+	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)))
 	return trace.Wrap(err)
 }
 
 // CreateSession creates new session
-func (c *Client) CreateSession(sess session.Session) error {
+func (c *Client) CreateSession(ctx context.Context, sess session.Session) error {
 	if sess.Namespace == "" {
 		return trace.BadParameter(MissingNamespaceError)
 	}
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
+	_, err := c.PostJSON(ctx, c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
 	return trace.Wrap(err)
 }
 
 // UpdateSession updates existing session
-func (c *Client) UpdateSession(req session.UpdateRequest) error {
+func (c *Client) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.PutJSON(context.TODO(), c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
+	_, err := c.PutJSON(ctx, c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
 	return trace.Wrap(err)
 }
 
