@@ -25,11 +25,12 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -135,7 +136,6 @@ func (c *remoteConn) Close() error {
 	}
 
 	return nil
-
 }
 
 // OpenChannel will open a SSH channel to the remote side.
@@ -240,4 +240,8 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	}
 
 	return nil
+}
+
+func (c *remoteConn) adviseReconnect() {
+	c.sconn.SendRequest(reconnectRequest, true, nil)
 }
