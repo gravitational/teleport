@@ -130,7 +130,7 @@ type DestinationConfig struct {
 	KubernetesCluster *KubernetesCluster `yaml:"kubernetes_cluster,omitempty"`
 
 	// App is an app access request. Mutually exclusive with `database`,
-	//`kubernetes_cluster`, and other special cert requests.
+	// `kubernetes_cluster`, and other special cert requests.
 	App *AppConfig `yaml:"app,omitempty"`
 }
 
