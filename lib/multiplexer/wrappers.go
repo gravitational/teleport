@@ -136,6 +136,13 @@ func (l *Listener) Accept() (net.Conn, error) {
 // HandleConnection injects the connection into the Listener, blocking until the
 // context expires, the connection is accepted or the Listener is closed.
 func (l *Listener) HandleConnection(ctx context.Context, conn net.Conn) {
+	// REVIEW(gavin): It is very important that ctx.Done and l.context.Done cases do the same thing.
+	// If l.context was derived from ctx and ctx is cancelled, then both ctx and l.context will
+	// be cancelled. `select` will choose a ready branch at random - so to prevent subtle race
+	// conditions, keep these branches in sync.
+	// For example: l.context is derived from Mux.context, and this function is called
+	// by Mux.detectAndForward with m.context. In that case, if m.context is cancelled then the
+	// Listener context will also be cancelled.
 	select {
 	case <-ctx.Done():
 		conn.Close()

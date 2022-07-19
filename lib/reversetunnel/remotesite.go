@@ -576,6 +576,9 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 
 	s.Debugf("Watching for cert authority changes.")
 	for {
+		// REVIEW(gavin): potential race here. localWatch and remoteWatch derive from
+		// s.ctx. So if s.ctx is cancelled, any one of these branches can be selected
+		// at random.
 		select {
 		case <-s.ctx.Done():
 			s.WithError(s.ctx.Err()).Debug("Context is closing.")

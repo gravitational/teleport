@@ -1921,6 +1921,7 @@ func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.
 	// cancel == nil means that another request is in progress, so simply wait until
 	// it finishes or fails
 	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
+	// REVIEW(gavin) potential race here because ctx may be derived from f.ctx in `f.getOrCreateRequestContext`
 	select {
 	case <-ctx.Done():
 		c := f.getClientCreds(authContext)
