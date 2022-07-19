@@ -1655,6 +1655,9 @@ type ProvisioningService interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken creates a new provision token for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
