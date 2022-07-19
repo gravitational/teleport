@@ -227,5 +227,7 @@ func ParseDisplay(displayString string) (Display, error) {
 }
 
 func x11SockDir() string {
-	return filepath.Join(os.TempDir(), x11SocketDirName)
+	// We use "/tmp" instead of "os.TempDir" because X11
+	// is not OS aware and uses "/tmp" regardless of OS.
+	return filepath.Join("/tmp", x11SocketDirName)
 }

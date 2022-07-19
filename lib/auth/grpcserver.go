@@ -873,6 +873,10 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*empty.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := services.ValidateUserRoles(ctx, req, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -890,6 +894,10 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*empty.
 	}
 
 	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2995,7 +3003,7 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

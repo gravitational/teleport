@@ -19,25 +19,23 @@ package main
 import (
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
+// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
 const sshConfigTemplate = `
 # Common flags for all {{ .ClusterName }} hosts
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
     UserKnownHostsFile "{{ .KnownHostsPath }}"
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
@@ -52,15 +50,6 @@ type hostConfigParameters struct {
 	CertificateFilePath string
 	ProxyHost           string
 	TSHPath             string
-}
-
-// getSSHPath returns a sane `ssh` path for the current platform.
-func getSSHPath() (string, error) {
-	if runtime.GOOS == constants.WindowsOS {
-		return exec.LookPath("ssh.exe")
-	}
-
-	return exec.LookPath("ssh")
 }
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
@@ -152,44 +141,4 @@ func onConfig(cf *CLIConf) error {
 	stdout := cf.Stdout()
 	fmt.Fprint(stdout, sb.String())
 	return nil
-}
-
-func onConfigProxy(cf *CLIConf) error {
-	proxyHost, proxyPort, err := net.SplitHostPort(cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	targetHost, targetPort, err := net.SplitHostPort(cf.ConfigProxyTarget)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// If the node is suffixed by either the root or leaf cluster name, remove it.
-	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
-	targetHost = strings.TrimSuffix(targetHost, "."+cf.SiteName)
-
-	// NOTE: This should eventually make use of `tsh proxy ssh`.
-	sshPath, err := getSSHPath()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	args := []string{
-		"-p",
-		proxyPort,
-		proxyHost,
-		"-s",
-		fmt.Sprintf("proxy:%s:%s@%s", targetHost, targetPort, cf.SiteName),
-	}
-
-	if cf.NodeLogin != "" {
-		args = append([]string{"-l", cf.NodeLogin}, args...)
-	}
-
-	child := exec.Command(sshPath, args...)
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-	return child.Run()
 }
