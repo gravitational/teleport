@@ -35,6 +35,10 @@ export class Logger {
     this.log('info', ...args);
   }
 
+  debug(...args) {
+    this.log('debug', ...args);
+  }
+
   error(...args) {
     this.log('error', ...args);
   }

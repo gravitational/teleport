@@ -112,6 +112,9 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
           this.handleSharedDirectoryAcknowledge(buffer);
           break;
+        case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+          this.handleSharedDirectoryInfoRequest(buffer);
+          break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
@@ -202,6 +205,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
 
     this.logger.info('Started sharing directory: ' + this.sharedDirectory.name);
+  }
+
+  handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
+    // TODO(isaiah): remove debug once message is handled.
+    this.logger.debug(
+      'Received SharedDirectoryInfoRequest: ' + JSON.stringify(req)
+    );
+    // TODO(isaiah): here's where we'll respond with SharedDirectoryInfoResponse
   }
 
   protected send(
