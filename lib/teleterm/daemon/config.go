@@ -40,7 +40,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.GatewayCreator == nil {
-		return trace.BadParameter("missing GatewayCreator")
+		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
 	}
 
 	if c.Log == nil {
