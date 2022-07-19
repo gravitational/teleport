@@ -770,7 +770,7 @@ const (
 	TeleportConfigVersionV2 string = "v2"
 )
 
-// Default values for TSH and TCTL commands.
+// Default values for tsh and tctl commands.
 const (
 	TshTctlSessionListLimit = "50"
 )
