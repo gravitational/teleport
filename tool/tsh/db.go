@@ -247,19 +247,23 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = databaseLogin(cf, tc, tlsca.RouteToDatabase{
+	routeToDatabase := tlsca.RouteToDatabase{
 		ServiceName: cf.DatabaseService,
 		Protocol:    database.GetProtocol(),
 		Username:    cf.DatabaseUser,
 		Database:    cf.DatabaseName,
-	}, false)
-	if err != nil {
+	}
+
+	if err := databaseLogin(cf, tc, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Print after-connect message.
+	fmt.Println(formatDatabaseConnectMessage(cf.SiteName, routeToDatabase))
 	return nil
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase, quiet bool) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", db, tc.SiteName)
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
@@ -311,15 +315,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, db, *profile)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Print after-connect message.
-	if !quiet {
-		fmt.Println(formatDatabaseConnectMessage(cf.SiteName, db))
-		return nil
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // onDatabaseLogout implements "tsh db logout" command.
@@ -678,15 +674,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check is cert is still valid or DB connection requires MFA. If yes trigger db login logic.
-	relogin, err := needRelogin(cf, tc, routeToDatabase, profile)
-	if err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
-	}
-	if relogin {
-		if err := databaseLogin(cf, tc, *routeToDatabase, true); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	key, err := tc.LocalAgent().GetCoreKey()
@@ -774,7 +763,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -807,6 +796,20 @@ func needRelogin(cf *CLIConf, tc *client.TeleportClient, database *tlsca.RouteTo
 		return false, trace.Wrap(err)
 	}
 	return mfaRequired, nil
+}
+
+// maybeDatabaseLogin checks if cert is still valid or DB connection requires
+// MFA. If yes trigger db login logic.
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase) error {
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, db, profile)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if reloginNeeded {
+		return trace.Wrap(databaseLogin(cf, tc, *db))
+	}
+	return nil
 }
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
