@@ -208,8 +208,28 @@ func (h handler) channelHandler(ch ssh.NewChannel) {
 		}
 	case "session":
 		// TODO(tross): add tracing checks when session tracing lands
-		if subtle.ConstantTimeCompare(ch.ExtraData(), []byte(testPayload)) == 1 {
-			h.errChan <- errors.New("payload mismatch")
+		switch h.tracingSupported {
+		case tracingUnsupported:
+			if subtle.ConstantTimeCompare(ch.ExtraData(), []byte(testPayload)) == 1 {
+				h.errChan <- errors.New("payload mismatch")
+			}
+		case tracingSupported:
+			var envelope Envelope
+			if err := json.Unmarshal(ch.ExtraData(), &envelope); err != nil {
+				h.errChan <- trace.Wrap(err, "failed to unmarshal envelope")
+				ch.Accept()
+				return
+			}
+			if len(envelope.PropagationContext) <= 0 {
+				h.errChan <- errors.New("empty propagation context")
+				ch.Accept()
+				return
+			}
+			if len(envelope.Payload) > 0 {
+				h.errChan <- errors.New("payload mismatch")
+				ch.Accept()
+				return
+			}
 		}
 
 		_, chReqs, err := ch.Accept()
@@ -250,17 +270,41 @@ func (h handler) subsystemHandler(req *ssh.Request) {
 			}
 		}
 	}()
+	switch h.tracingSupported {
+	case tracingUnsupported:
+		var msg subsystemRequestMsg
+		if err := ssh.Unmarshal(req.Payload, &msg); err != nil {
+			h.errChan <- trace.Wrap(err, "failed to unmarshal payload")
+			return
+		}
 
-	// TODO(tross): add tracing checks when session tracing lands
+		if msg.Subsystem != "test" {
+			h.errChan <- errors.New("received wrong subsystem")
+		}
+	case tracingSupported:
+		var envelope Envelope
+		if err := json.Unmarshal(req.Payload, &envelope); err != nil {
+			h.errChan <- trace.Wrap(err, "failed to unmarshal envelope")
+			return
+		}
+		if len(envelope.PropagationContext) <= 0 {
+			h.errChan <- errors.New("empty propagation context")
+			return
+		}
 
-	var msg subsystemRequestMsg
-	if err := ssh.Unmarshal(req.Payload, &msg); err != nil {
-		h.errChan <- trace.Wrap(err, "failed to unmarshal payload")
-		return
-	}
-
-	if msg.Subsystem != "test" {
-		h.errChan <- errors.New("received wrong subsystem")
+		var msg subsystemRequestMsg
+		if err := ssh.Unmarshal(envelope.Payload, &msg); err != nil {
+			h.errChan <- trace.Wrap(err, "failed to unmarshal payload")
+			return
+		}
+		if msg.Subsystem != "test" {
+			h.errChan <- errors.New("received wrong subsystem")
+			return
+		}
+	default:
+		if err := req.Reply(false, nil); err != nil {
+			h.errChan <- err
+		}
 	}
 }
 
@@ -331,7 +375,7 @@ func TestClient(t *testing.T) {
 			default:
 			}
 
-			require.NoError(t, session.RequestSubsystem("test"))
+			require.NoError(t, session.RequestSubsystem(ctx, "test"))
 
 			select {
 			case err := <-errChan:
