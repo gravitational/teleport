@@ -326,6 +326,7 @@ func TestAccessRedis(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(func() { cancel() })
+
 			// Try to connect to the database as this user.
 			redisClient, err := testCtx.redisClient(ctx, test.user, "redis", test.dbUser)
 			if test.err != "" {
@@ -525,6 +526,7 @@ func TestAccessRedisAUTHCmd(t *testing.T) {
 func TestAccessMySQLServerPacket(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -549,6 +551,7 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 func TestGCPRequireSSL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
+
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})

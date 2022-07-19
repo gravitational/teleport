@@ -40,7 +40,9 @@ import (
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
 // to cloud databases such as RDS, Redshift, Cloud SQL.
 func TestAuthTokens(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t,
 		withRDSPostgres("postgres-rds-correct-token", rdsAuthToken),
 		withRDSPostgres("postgres-rds-incorrect-token", "qwe123"),
@@ -225,7 +227,8 @@ func TestDBCertSigning(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
 
 	privateKey, _, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)

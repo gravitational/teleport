@@ -73,7 +73,9 @@ func newTestSnowflakeEngine(ec common.EngineConfig) common.Engine {
 }
 
 func TestAccessSnowflake(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake"))
 	go testCtx.startHandlingConnections()
 
@@ -187,7 +189,9 @@ func TestAccessSnowflake(t *testing.T) {
 }
 
 func TestAuditSnowflake(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake"))
 	go testCtx.startHandlingConnections()
 
@@ -248,7 +252,9 @@ func TestAuditSnowflake(t *testing.T) {
 }
 
 func TestTokenRefresh(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake", snowflake.TestForceTokenRefresh()))
 	go testCtx.startHandlingConnections()
 
@@ -276,7 +282,9 @@ func TestTokenRefresh(t *testing.T) {
 }
 
 func TestTokenSession(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSnowflake("snowflake"))
 	go testCtx.startHandlingConnections()
 

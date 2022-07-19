@@ -33,7 +33,9 @@ import (
 
 // TestInitCACert verifies automatic download of root certs for cloud databases.
 func TestInitCACert(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t)
 
 	selfHosted, err := types.NewDatabaseV3(types.Metadata{

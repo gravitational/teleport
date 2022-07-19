@@ -119,7 +119,8 @@ func TestFetchMySQLVersion(t *testing.T) {
 			}()
 
 			srvAddr := fakeMySQL.Addr().String()
-			ctx := context.Background()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
 			version, err := FetchMySQLVersion(ctx, &types.DatabaseV3{
 				Spec: types.DatabaseSpecV3{

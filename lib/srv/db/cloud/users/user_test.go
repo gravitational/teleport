@@ -32,7 +32,9 @@ import (
 func TestBaseUser(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	clock := clockwork.NewFakeClock()
 	mockCloudResource := newMockCloudResource()
 

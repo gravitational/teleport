@@ -235,7 +235,9 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
@@ -292,7 +294,9 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{

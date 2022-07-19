@@ -36,7 +36,9 @@ import (
 // TestDatabaseServerStart validates that started database server updates its
 // dynamic labels and heartbeats its presence to the auth server.
 func TestDatabaseServerStart(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t,
 		withSelfHostedPostgres("postgres"),
 		withSelfHostedMySQL("mysql"),
@@ -77,7 +79,9 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		connLimit = int64(5) // Arbitrary number
 	)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	allowDbUsers := []string{types.Wildcard}
 	allowDbNames := []string{types.Wildcard}
 
@@ -182,7 +186,8 @@ func TestDatabaseServerLimiting(t *testing.T) {
 }
 
 func TestHeartbeatEvents(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
 
 	dbOne, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbOne",

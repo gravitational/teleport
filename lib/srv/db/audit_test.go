@@ -33,7 +33,9 @@ import (
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
 // connections.
 func TestAuditPostgres(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
 
@@ -79,7 +81,9 @@ func TestAuditPostgres(t *testing.T) {
 // TestAuditMySQL verifies proper audit events are emitted for MySQL
 // connections.
 func TestAuditMySQL(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMySQL("mysql"))
 	go testCtx.startHandlingConnections()
 
@@ -109,7 +113,9 @@ func TestAuditMySQL(t *testing.T) {
 // TestAuditMongo verifies proper audit events are emitted for MongoDB
 // connections.
 func TestAuditMongo(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo"))
 	go testCtx.startHandlingConnections()
 
@@ -142,7 +148,9 @@ func TestAuditMongo(t *testing.T) {
 }
 
 func TestAuditRedis(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
 	go testCtx.startHandlingConnections()
 
@@ -183,7 +191,9 @@ func TestAuditRedis(t *testing.T) {
 // TestAuditSQLServer verifies proper audit events are emitted for SQLServer
 // connections.
 func TestAuditSQLServer(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t, withSQLServer("sqlserver"))
 	go testCtx.startHandlingConnections()
 
@@ -204,7 +214,7 @@ func TestAuditSQLServer(t *testing.T) {
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
-		err = conn.Ping(context.Background())
+		err = conn.Ping(ctx)
 		require.NoError(t, err)
 		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
 

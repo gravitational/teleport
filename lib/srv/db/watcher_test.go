@@ -34,7 +34,9 @@ import (
 // TestWatcher verifies that database server properly detects and applies
 // changes to database resources.
 func TestWatcher(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t)
 
 	// Make a static configuration database.
@@ -125,8 +127,9 @@ func TestWatcher(t *testing.T) {
 // TestWatcherRDSDynamicResource RDS dynamic resource registration where the ResourceMatchers should be always
 // evaluated for the dynamic registered resources.
 func TestWatcherCloudDynamicResource(t *testing.T) {
-	var db1, db2, db3 *types.DatabaseV3
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
 	testCtx := setupTestContext(ctx, t)
 
 	db0, err := makeStaticDatabase("db0", nil)
@@ -152,7 +155,7 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 
 	t.Run("dynamic resource - no match", func(t *testing.T) {
 		// Created an RDS db dynamic resource that doesn't match any db service ResourceMatchers.
-		db1, err = makeDynamicDatabase("db1", map[string]string{"group": "z"}, withRDSURL)
+		db1, err := makeDynamicDatabase("db1", map[string]string{"group": "z"}, withRDSURL)
 		require.NoError(t, err)
 		require.True(t, db1.IsRDS())
 		err = testCtx.authServer.CreateDatabase(ctx, db1)
@@ -160,6 +163,8 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 		// The db1 should not be registered by the agent due to ResourceMatchers mismatch:
 		assertReconciledResource(t, reconcileCh, types.Databases{db0})
 	})
+
+	var db2 *types.DatabaseV3
 
 	t.Run("dynamic resource - match", func(t *testing.T) {
 		// Create an RDS dynamic resource with labels that matches ResourceMatchers.
@@ -175,7 +180,7 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 
 	t.Run("cloud resource - no match", func(t *testing.T) {
 		// Create an RDS Cloud resource with a label that doesn't match resource matcher.
-		db3, err = makeCloudDatabase("db3", map[string]string{"group": "z"})
+		db3, err := makeCloudDatabase("db3", map[string]string{"group": "z"})
 		require.NoError(t, err)
 		require.True(t, db3.IsRDS())
 
