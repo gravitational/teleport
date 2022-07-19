@@ -223,6 +223,20 @@
               "slug": "/setup/reference/signals/"
             }
           ]
+        },
+        {
+          "title": "Helm Chart Reference",
+          "slug": "/setup/helm-reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/setup/helm-reference/teleport-cluster/"
+            },
+            {
+              "title": "teleport-kube-agent",
+              "slug": "/setup/helm-reference/teleport-kube-agent/"
+            }
+          ]
         }
       ]
     },
@@ -403,20 +417,6 @@
             {
               "title": "Migrating From Older Charts",
               "slug": "/kubernetes-access/helm/guides/migration/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
             }
           ]
         },
@@ -931,6 +931,7 @@
       "min_version": "3.6"
     },
     "teleport": {
+      "major_version": "9",
       "version": "9.3.9",
       "golang": "1.17",
       "plugin": {
@@ -1190,6 +1191,21 @@
     {
       "source": "/application-access/guides/jwt/",
       "destination": "/application-access/jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/",
+      "destination": "/setup/helm-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-cluster/",
+      "destination": "/setup/helm-reference/teleport-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
+      "destination": "/setup/helm-reference/teleport-kube-agent/",
       "permanent": true
     }
   ]
