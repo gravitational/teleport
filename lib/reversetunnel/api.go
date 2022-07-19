@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -141,6 +142,7 @@ type Server interface {
 	Wait()
 	// GetProxyPeerClient returns the proxy peer client
 	GetProxyPeerClient() *proxy.Client
+	GetServer() *sshutils.Server
 }
 
 const (

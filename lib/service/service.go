@@ -3323,6 +3323,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		alpnRouter.Add(alpnproxy.HandlerDecs{
+			Handler: func(ctx context.Context, conn net.Conn) error {
+				// TODO:  Reverse tunnel handles new network connections async
+				// in order to avoid it call the HandleConnection  sync function.
+				// Wrap Close method ?
+				tsrv.GetServer().HandleConnection(conn)
+				return nil
+			},
+			MatchFunc: alpnproxy.MatchByProtocol("teleport-reversetunnel-http"),
+		})
+
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Reverse tunnel service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
@@ -3344,6 +3356,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 	}
+	alpnhandler := &alpnproxy.HandlerWrapper{}
 
 	// Register web proxy server
 	var webServer *http.Server
@@ -3382,6 +3395,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
 				ProxySettings:    proxySettings,
+				ALPNHandler:      alpnhandler,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3708,6 +3722,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(grpcServer.Serve(listeners.grpc))
 		})
 	}
+	alpnRouter.Add(alpnproxy.HandlerDecs{
+		Handler: func(ctx context.Context, conn net.Conn) error {
+			// TODO:  ssh teleport proxy server handles new network connections async
+			// in order to avoid it call the HandleConnection sync function.
+			// Wrap close method ?
+			sshProxy.HandleConnection(conn)
+			return nil
+		},
+		MatchFunc: alpnproxy.MatchByProtocol("teleport-proxy-ssh-http"),
+		TLSConfig: serverTLSConfig,
+	})
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
@@ -3732,6 +3757,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		alpnhandler.Handler = alpnServer
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {

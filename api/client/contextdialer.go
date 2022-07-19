@@ -17,19 +17,24 @@ limitations under the License.
 package client
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
+	"net/http"
+	"net/url"
+	"os"
 	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // ContextDialer represents network dialer interface that uses context
@@ -63,6 +68,16 @@ func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
+	})
+}
+
+func NewDialer2(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := Upgrade(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, err
 	})
 }
 
@@ -111,35 +126,93 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		dialer := &net.Dialer{
-			Timeout:   dialTimeout,
-			KeepAlive: keepAlivePeriod,
-		}
-		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
+
+		if env := os.Getenv("ALB_TEST"); env != "" {
+			conn, err = Upgrade(tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			host, _, err := webclient.ParseHostPort(tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tlsConn := tls.Client(conn, &tls.Config{
+				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+				InsecureSkipVerify: insecure,
+				ServerName:         host,
+			})
+			if err := tlsConn.Handshake(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return sconn, nil
+		} else {
+			dialer := &net.Dialer{
+				Timeout:   dialTimeout,
+				KeepAlive: keepAlivePeriod,
+			}
+			conn, err = dialer.DialContext(ctx, network, tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			host, _, err := webclient.ParseHostPort(tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tlsConn := tls.Client(conn, &tls.Config{
+				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+				InsecureSkipVerify: insecure,
+				ServerName:         host,
+			})
+			sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return sconn, nil
 
 		}
-
-		host, _, err := webclient.ParseHostPort(tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConn := tls.Client(conn, &tls.Config{
-			NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
-			InsecureSkipVerify: insecure,
-			ServerName:         host,
-		})
-		if err := tlsConn.Handshake(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sconn, nil
 	})
+}
+
+func Upgrade(proxyAddr string) (*tls.Conn, error) {
+	// TODO detect if proxy is behind ALB
+	// TODO handle insecure
+	conn, err := tls.Dial("tcp", proxyAddr, &tls.Config{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+
+	}
+	u := url.URL{
+		Host:   proxyAddr,
+		Scheme: "https",
+		Path:   fmt.Sprintf("/webapi/connectionupgrate"),
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Add("Upgrade", "custom")
+	req.Header.Add("Connection", "upgrade")
+
+	if err = req.Write(conn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
+	}
+
+	return conn, nil
 }
 
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.

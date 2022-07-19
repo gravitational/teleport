@@ -17,6 +17,8 @@ limitations under the License.
 package service
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -73,6 +75,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	pingResp, err := conn.Client.Ping(context.Background())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pingResp = pingResp
 
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {

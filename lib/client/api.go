@@ -3008,10 +3008,18 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+
+	if env := os.Getenv("ALB_TEST"); env != "" {
+		tlsConfig.NextProtos = []string{"teleport-proxy-ssh-http"}
+	}
+
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
+	e, err := dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 func (tc *TeleportClient) rootClusterName() (string, error) {

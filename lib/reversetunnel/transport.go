@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -99,9 +100,15 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		// address thus the ping call will always fail.
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-		}))
+		if v := os.Getenv("ALB_TEST_TUNNEL"); v != "" {
+			opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+				NextProtos: []string{string("teleport-reversetunnel-http")},
+			}))
+		} else {
+			opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+			}))
+		}
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)

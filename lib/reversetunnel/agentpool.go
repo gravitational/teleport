@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -472,6 +473,12 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	if p.runtimeConfig.useALPNRouting() {
 		tlsConfig := &tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}
+		if v := os.Getenv("ALB_TEST_TUNNEL"); v != "" {
+			tlsConfig = &tls.Config{
+				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel + "-http")},
+			}
+
 		}
 
 		if p.runtimeConfig.useReverseTunnelV2() {

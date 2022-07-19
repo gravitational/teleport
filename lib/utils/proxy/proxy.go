@@ -21,12 +21,14 @@ import (
 	"crypto/tls"
 	"net"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -56,6 +58,28 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 // dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
+func (d directDial) dialALPNWithDeadline2(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	httpConn, err := common.Upgrade(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf, err := d.getTLSConfig(address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConn := tls.Client(httpConn, conf)
+	if err := tlsConn.Handshake(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
+}
+
 func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
@@ -113,6 +137,15 @@ func (d directDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	if d.tlsRoutingEnabled {
+		env := os.Getenv("ALB_TEST")
+		env2 := os.Getenv("ALB_TEST_TUNNEL")
+		if env != "" || env2 != "" {
+			client, err := d.dialALPNWithDeadline2(ctx, network, addr, config)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return client, nil
+		}
 		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -128,6 +161,9 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
+	if env := os.Getenv("ALB_TEST_TUNNEL"); env != "" {
+		return d.DialTimeout2(ctx, network, address, timeout)
+	}
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}
@@ -149,6 +185,40 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 
 		tlsConn, err := tlsDialer.DialContext(ctx, "tcp", address)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsConn, nil
+	}
+	conn, err := dialer.DialContext(ctx, network, address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+// DialTimeout2 acts like Dial but takes a timeout.
+func (d directDial) DialTimeout2(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
+	dialer := &net.Dialer{
+		Timeout: timeout,
+	}
+
+	if d.tlsRoutingEnabled {
+		addr, err := utils.ParseAddr(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conf, err := d.getTLSConfig(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		httpConn, err := common.Upgrade(address)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tlsConn := tls.Client(httpConn, conf)
+		if err := tlsConn.Handshake(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return tlsConn, nil

@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -339,6 +340,10 @@ type ConnectionInfo struct {
 // terminating the TLS connection.
 type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
 
+func (p *Proxy) HandleConnection(ctx context.Context, conn net.Conn) error {
+	return trace.Wrap(p.handleConn(ctx, conn))
+}
+
 // handleConn routes incoming connection based on SNI TLS information to the proper Handler by following steps:
 // 1) Read TLS hello message without TLS termination and returns conn that will be used for further operations.
 // 2) Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
@@ -349,6 +354,11 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //    was set if yes forward to the generic TLS DB handler.
 // 6) Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
+	uuid := uuid.New().String()[0:5]
+
+	p.log.Infof("[%v] ALPN PROXY handle conn START", uuid)
+	defer func() { p.log.Infof("[%v] ALPN PROXY handle conn END", uuid) }()
+
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -358,6 +368,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	p.log.Infof("[%v] ALPN PROXY SNI: %v, ALPN: %v", uuid, hello.ServerName, hello.SupportedProtos)
 
 	connInfo := ConnectionInfo{
 		SNI:  hello.ServerName,

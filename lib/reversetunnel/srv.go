@@ -84,6 +84,7 @@ type server struct {
 
 	// srv is the "base class" i.e. the underlying SSH server
 	srv     *sshutils.Server
+	SRV     *sshutils.Server
 	limiter *limiter.Limiter
 
 	// remoteSites is the list of connected remote clusters
@@ -345,6 +346,7 @@ func NewServer(cfg Config) (Server, error) {
 		return nil, err
 	}
 	srv.srv = s
+	srv.SRV = s
 	go srv.periodicFunctions()
 	return srv, nil
 }
@@ -379,6 +381,10 @@ func (s *server) disconnectClusters() error {
 		}
 	}
 	return nil
+}
+
+func (s *server) GetServer() *sshutils.Server {
+	return s.SRV
 }
 
 func (s *server) periodicFunctions() {

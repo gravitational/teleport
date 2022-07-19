@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
@@ -129,6 +130,15 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
+			if env := os.Getenv("ALB_TEST"); env != "" {
+				if err := l.handleDownstreamConnection2(ctx, conn, l.cfg.SNI); err != nil {
+					if utils.IsOKNetworkError(err) {
+						return
+					}
+					log.WithError(err).Errorf("Failed to handle connection.")
+				}
+				return
+			}
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
 				if utils.IsOKNetworkError(err) {
 					return
@@ -159,6 +169,59 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 	defer upstreamConn.Close()
+
+	errC := make(chan error, 2)
+	go func() {
+		defer downstreamConn.Close()
+		defer upstreamConn.Close()
+		_, err := io.Copy(downstreamConn, upstreamConn)
+		errC <- err
+	}()
+	go func() {
+		defer downstreamConn.Close()
+		defer upstreamConn.Close()
+		_, err := io.Copy(upstreamConn, downstreamConn)
+		errC <- err
+	}()
+
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			return trace.NewAggregate(append(errs, ctx.Err())...)
+		case err := <-errC:
+			if err != nil && !utils.IsOKNetworkError(err) {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
+// traffic to the upstreamConn (TLS connection to remote host).
+func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstreamConn net.Conn, serverName string) error {
+	defer downstreamConn.Close()
+
+	httpConn, err := common.Upgrade(l.cfg.RemoteProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	upstreamConn := tls.Client(httpConn, &tls.Config{
+		NextProtos:         l.cfg.GetProtocols(),
+		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+		ServerName:         serverName,
+		Certificates:       l.cfg.Certs,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer upstreamConn.Close()
+
+	if err := upstreamConn.Handshake(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	errC := make(chan error, 2)
 	go func() {
@@ -234,4 +297,16 @@ func (l *LocalProxy) StartAWSAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type ConnectionHander interface {
+	HandleConnection(ctx context.Context, conn net.Conn) error
+}
+
+type HandlerWrapper struct {
+	Handler ConnectionHander
+}
+
+func (h *HandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
+	return h.Handler.HandleConnection(ctx, conn)
 }

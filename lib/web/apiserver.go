@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -189,6 +190,7 @@ type Config struct {
 
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
+	ALPNHandler   *alpnproxy.HandlerWrapper
 }
 
 type APIHandler struct {
@@ -441,6 +443,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
+
+	// TLS Routing HTTP Connection upgrade.
+	h.GET("/webapi/connectionupgrate", httplib.MakeHandler(h.connectionUpgrade))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -1251,6 +1256,33 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) connectionUpgrade(rw http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	hj, ok := rw.(http.Hijacker)
+	if !ok {
+		return nil, trace.BadParameter("failed to hj")
+	}
+
+	netConn, _, err := hj.Hijack()
+	if err != nil {
+		return nil, err
+	}
+	defer netConn.Close()
+
+	upgradeBytes := []byte("HTTP/1.1 101 Switching Protocols\r\nUpgrade: custom\r\nConnection: Upgrade\r\n" + "\r\n")
+	if _, err := netConn.Write(upgradeBytes); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	netConn.SetDeadline(time.Time{})
+
+	if err := h.cfg.ALPNHandler.HandleConnection(context.Background(), netConn); err != nil {
+		if !utils.IsOKNetworkError(err) {
+			h.log.Errorf("Failed to handle connection by ALPN listener: %v", err)
+		}
+		return nil, nil
+	}
+	return nil, nil
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

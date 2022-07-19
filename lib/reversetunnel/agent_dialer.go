@@ -49,7 +49,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	for _, authMethod := range d.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
-		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultDialTimeout*1000)
 		if err != nil {
 			d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
 			continue

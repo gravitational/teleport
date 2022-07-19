@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -134,6 +135,9 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 			return nil, trace.BadParameter("no addresses to dial")
 		}
 		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		if env := os.Getenv("ALB_TEST"); env != "" {
+			contextDialer = client.NewDialer2(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		}
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
