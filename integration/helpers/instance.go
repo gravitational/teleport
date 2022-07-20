@@ -346,7 +346,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Cert:       cert,
 		TLSCACert:  tlsCACert,
 		TLSCert:    tlsCert,
-		TunnelAddr: i.ReverseTunnel, // TODO(tcsc): net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		TunnelAddr: i.ReverseTunnel,
 		Users:      make(map[string]*User),
 	}
 

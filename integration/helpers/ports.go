@@ -41,26 +41,26 @@ func init() {
 	}
 }
 
-// NewPortValue is deprecated. Do not use in new code. Use NewListener() and
-// friends instead.
+// NewPortValue fetches a port from the pool.
+// Deprecated: Use NewListener() and friends instead.
 func NewPortValue() int {
 	return ports.PopInt()
 }
 
-// NewPortStr is deprecated. Do not use in new code. Use NewListener() and
-// friends instead.
+// NewPortStr fetches aport from the pool as a string.
+// Deprecated: Use NewListener() and friends instead.
 func NewPortStr() string {
 	return ports.Pop()
 }
 
-// NewPortSlice is deprecated. Do not use in new code. Use NewListener() and
-// friends instead.
+// NewPortSlice fetches several ports from the pool at once.
+// Deprecated: Use NewListener() and friends instead.
 func NewPortSlice(n int) []int {
 	return ports.PopIntSlice(n)
 }
 
 // InstanceListeners represents the listener configuration for a test cluster.
-// Each address field is expecetd to be hull host:port pair.
+// Each address field is expected to be hull host:port pair.
 type InstanceListeners struct {
 	Web               string
 	SSH               string
@@ -125,6 +125,8 @@ func SingleProxyPortSetup(t *testing.T, fds *[]service.FileDescriptor) *Instance
 	return SingleProxyPortSetupOn(Loopback)(t, fds)
 }
 
+// WebReverseTunnelMuxPortSetup generates a listener config using the same port for web and
+// tunnel, and independent ports for all other services.
 func WebReverseTunnelMuxPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
 	web := NewListener(t, service.ListenerProxyTunnelAndWeb, fds)
 	return &InstanceListeners{
@@ -137,6 +139,7 @@ func WebReverseTunnelMuxPortSetup(t *testing.T, fds *[]service.FileDescriptor) *
 	}
 }
 
+// WebReverseTunnelMuxPortSetup generates a listener config with a defined port for Postgres
 func SeparatePostgresPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
 	return &InstanceListeners{
 		Web:           NewListener(t, service.ListenerProxyWeb, fds),
@@ -149,6 +152,7 @@ func SeparatePostgresPortSetup(t *testing.T, fds *[]service.FileDescriptor) *Ins
 	}
 }
 
+// WebReverseTunnelMuxPortSetup generates a listener config with a defined port for MongoDB
 func SeparateMongoPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
 	return &InstanceListeners{
 		Web:           NewListener(t, service.ListenerProxyWeb, fds),
@@ -161,6 +165,7 @@ func SeparateMongoPortSetup(t *testing.T, fds *[]service.FileDescriptor) *Instan
 	}
 }
 
+// WebReverseTunnelMuxPortSetup generates a listener config with a defined port for Postgres and Mongo
 func SeparateMongoAndPostgresPortSetup(t *testing.T, fds *[]service.FileDescriptor) *InstanceListeners {
 	return &InstanceListeners{
 		Web:           NewListener(t, service.ListenerProxyWeb, fds),
@@ -174,6 +179,9 @@ func SeparateMongoAndPostgresPortSetup(t *testing.T, fds *[]service.FileDescript
 	}
 }
 
+// PortStr extracts the port number from the supplied string, which is assumed
+// to be a host:port pair. The port is returned as a string. Any errors result
+// in an immediately failed test.
 func PortStr(t *testing.T, addr string) string {
 	t.Helper()
 
@@ -183,6 +191,9 @@ func PortStr(t *testing.T, addr string) string {
 	return portStr
 }
 
+// PortStr extracts the port number from the supplied string, which is assumed
+// to be a host:port pair. The port value is returned as an integer. Any errors
+// result in an immediately failed test.
 func Port(t *testing.T, addr string) int {
 	t.Helper()
 
@@ -206,7 +217,7 @@ func Port(t *testing.T, addr string) int {
 func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *[]service.FileDescriptor) string {
 	t.Helper()
 
-	l, err := net.Listen("tcp", hostAddr+":0")
+	l, err := net.Listen("tcp", net.JoinHostPort(hostAddr, "0"))
 	require.NoError(t, err)
 	defer l.Close()
 	addr := net.JoinHostPort(hostAddr, PortStr(t, l.Addr().String()))
@@ -243,5 +254,5 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 // The resulting file descriptor is added to the `fds` slice, which can then be
 // given to a teleport instance on startup in order to suppl
 func NewListener(t *testing.T, ty service.ListenerType, fds *[]service.FileDescriptor) string {
-	return NewListenerOn(t, "127.0.0.1", ty, fds)
+	return NewListenerOn(t, Loopback, ty, fds)
 }

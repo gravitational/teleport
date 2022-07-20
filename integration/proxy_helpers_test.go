@@ -52,9 +52,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-// 	v1 "k8s.io/api/core/v1"
-//
-
 type ProxySuite struct {
 	root *helpers.TeleInstance
 	leaf *helpers.TeleInstance
