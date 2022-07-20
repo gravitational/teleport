@@ -1159,8 +1159,8 @@
       "permanent": true
     },
     {
-      "source": "/docs/setup/reference/license/",
-      "destination": "/docs/enterprise/license/",
+      "source": "/setup/reference/license/",
+      "destination": "/enterprise/license/",
       "permanent": true
     },
     {
