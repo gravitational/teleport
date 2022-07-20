@@ -1109,6 +1109,7 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 }
 
 func (s *AuthSuite) TestNewWebSession(c *C) {
+	ctx := context.Background()
 	c.Assert(s.a.UpsertCertAuthority(
 		suite.NewTestCA(types.UserCA, "me.localhost")), IsNil)
 
@@ -1119,7 +1120,7 @@ func (s *AuthSuite) TestNewWebSession(c *C) {
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	s.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	c.Assert(s.a.SetClusterNetworkingConfig(ctx, cfg), IsNil)
 
 	// Create a user.
 	user, _, err := CreateUserAndRole(s.a, "test-user", []string{"test-role"})
@@ -1135,7 +1136,7 @@ func (s *AuthSuite) TestNewWebSession(c *C) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := s.a.NewWebSession(req)
+	ws, err := s.a.NewWebSession(ctx, req)
 	c.Assert(err, IsNil)
 	c.Assert(user.GetName(), Equals, ws.GetUser())
 	c.Assert(duration, Equals, ws.GetIdleTimeout())
