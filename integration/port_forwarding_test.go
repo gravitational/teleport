@@ -48,6 +48,7 @@ func extractPort(svr *httptest.Server) (int, error) {
 }
 
 func waitForSessionToBeEstablished(ctx context.Context, t *testing.T, site auth.ClientI) (tracker types.SessionTracker) {
+	t.Helper()
 	sessionEstablished := func() bool {
 		trackers, err := site.GetActiveSessionTrackers(ctx)
 		if err != nil || len(trackers) == 0 {
@@ -56,7 +57,7 @@ func waitForSessionToBeEstablished(ctx context.Context, t *testing.T, site auth.
 		tracker = trackers[0]
 		return tracker.GetState() == types.SessionState_SessionStateRunning
 	}
-	require.Eventually(t, sessionEstablished, time.Second*10, time.Second)
+	require.Eventually(t, sessionEstablished, time.Second*10, time.Millisecond*250)
 	return
 }
 
