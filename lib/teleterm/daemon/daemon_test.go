@@ -65,20 +65,24 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 	return gateway, nil
 }
 
+type gatewayCRUDTestContext struct {
+	t                    *testing.T
+	nameToGateway        map[string]*gateway.Gateway
+	mockGatewayCreator   *mockGatewayCreator
+}
+
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name                 string
 		gatewayNamesToCreate []string
-		testFunc             func(*testing.T, map[string]*gateway.Gateway, *mockGatewayCreator, *Service)
+		testFunc         func(*gatewayCRUDTestContext, *Service)
 	}{
 		{
 			name:                 "create then find",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				createdGateway := nameToGateway["gateway"]
+			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
 				require.NoError(t, err)
 				require.Equal(t, createdGateway, foundGateway)
@@ -87,9 +91,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "ListGateways",
 			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
+			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
 
@@ -98,18 +100,16 @@ func TestGatewayCRUD(t *testing.T) {
 				}
 
 				require.Equal(t, 2, len(gateways))
-				require.Contains(t, gatewayURIs, nameToGateway["gateway1"].URI())
-				require.Contains(t, gatewayURIs, nameToGateway["gateway2"].URI())
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway1"].URI())
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway2"].URI())
 			},
 		},
 		{
 			name:                 "RemoveGateway",
 			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				gatewayToRemove := nameToGateway["gatewayToRemove"]
-				gatewayToKeep := nameToGateway["gatewayToKeep"]
+			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
+				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
 				err := daemon.RemoveGateway(gatewayToRemove.URI().String())
 				require.NoError(t, err)
 
@@ -123,20 +123,19 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "RestartGateway",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				gateway := nameToGateway["gateway"]
-				require.Equal(t, 1, mockGatewayCreator.callCount)
+			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+				gateway := c.nameToGateway["gateway"]
+				require.Equal(t, 1, c.mockGatewayCreator.callCount)
 
 				err := daemon.RestartGateway(context.Background(), gateway.URI().String())
 				require.NoError(t, err)
-				require.Equal(t, 2, mockGatewayCreator.callCount)
+				require.Equal(t, 2, c.mockGatewayCreator.callCount)
 				require.Equal(t, 1, len(daemon.gateways))
 
 				// Check if the restarted gateway is still available under the same URI.
-				_, err = daemon.findGateway(gateway.URI().String())
+				restartedGateway, err := daemon.findGateway(gateway.URI().String())
 				require.NoError(t, err)
+				require.Equal(t, gateway.URI(), restartedGateway.URI())
 			},
 		},
 	}
@@ -176,7 +175,11 @@ func TestGatewayCRUD(t *testing.T) {
 				nameToGateway[gatewayName] = gateway
 			}
 
-			tt.testFunc(t, nameToGateway, mockGatewayCreator, daemon)
+			tt.testFunc(&gatewayCRUDTestContext{
+				t:                    t,
+				nameToGateway:        nameToGateway,
+				mockGatewayCreator:   mockGatewayCreator,
+			}, daemon)
 		})
 	}
 }
