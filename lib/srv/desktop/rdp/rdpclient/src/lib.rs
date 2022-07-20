@@ -230,12 +230,9 @@ fn connect_rdp_inner(
     // Domain name "." means current domain.
     let domain = ".";
 
-    // Create a clone of the shared stream to store in the client.
-    let shared_tcp = SharedStream::new(tcp);
-    let shared_tcp2 = shared_tcp.clone();
-
     // From rdp-rs/src/core/client.rs
-    let tcp = Link::new(Stream::Raw(shared_tcp));
+    let shared_tcp = SharedStream::new(tcp);
+    let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
@@ -368,7 +365,7 @@ fn connect_rdp_inner(
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
         go_ref,
-        tcp: shared_tcp2,
+        tcp: shared_tcp,
     })
 }
 
