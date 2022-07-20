@@ -17,7 +17,6 @@ package helpers
 import (
 	"context"
 	"crypto/x509/pkix"
-	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,10 +40,10 @@ import (
 
 func EnableKubernetesService(t *testing.T, config *service.Config) {
 	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
-	require.NoError(t, EnableKube(config, "teleport-cluster"))
+	require.NoError(t, EnableKube(t, config, "teleport-cluster"))
 }
 
-func EnableKube(config *service.Config, clusterName string) error {
+func EnableKube(t *testing.T, config *service.Config, clusterName string) error {
 	kubeConfigPath := config.Kube.KubeconfigPath
 	if kubeConfigPath == "" {
 		return trace.BadParameter("missing kubeconfig path")
@@ -54,15 +53,18 @@ func EnableKube(config *service.Config, clusterName string) error {
 		return trace.Wrap(err)
 	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		// By default this needs to be an arbitrary address guaranteed not to
+		// be in use, so we're using port 0 for now.
+		ClusterAddr: "https://localhost:0",
+
 		TeleportClusterName: clusterName,
-		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	config.Kube.Enabled = true
-	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	config.Kube.ListenAddr = utils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
 	return nil
 }
 
