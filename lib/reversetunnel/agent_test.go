@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,7 +154,9 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
+
 	tracker.Start()
+	t.Cleanup(tracker.StopAll)
 
 	lease := <-tracker.Acquire()
 
@@ -235,7 +238,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent.tracker.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
-	err := agent.Start(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
 
@@ -254,8 +261,9 @@ func TestAgentStart(t *testing.T) {
 	callback := newCallback()
 	agent.stateCallback = callback.callback
 
-	openChannels := 0
-	sentPings := 0
+	openChannels := new(int32)
+	sentPings := new(int32)
+	versionReplies := new(int32)
 
 	waitForVersion := make(chan struct{})
 	go func() {
@@ -269,10 +277,10 @@ func TestAgentStart(t *testing.T) {
 		// global requests during startup.
 		<-waitForVersion
 
-		openChannels++
+		atomic.AddInt32(openChannels, 1)
 		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
 		return &mockSSHChannel{MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
-			sentPings++
+			atomic.AddInt32(sentPings, 1)
 
 			assert.Equal(t, name, "ping", "Unexpected request name.")
 			assert.False(t, wantReply, "Expected no reply wanted.")
@@ -280,23 +288,26 @@ func TestAgentStart(t *testing.T) {
 		}}, make(<-chan *ssh.Request), nil
 	}
 
-	versionReplies := 0
 	client.MockReply = func(r *ssh.Request, b1 bool, b2 []byte) error {
+		atomic.AddInt32(versionReplies, 1)
+
 		// Unblock once we receive a version reply.
 		close(waitForVersion)
-		versionReplies++
 
 		assert.Equal(t, versionRequest, r.Type, "Unexpected request type.")
 		assert.Equal(t, teleport.Version, string(b2), "Unexpected version.")
 		return nil
 	}
 
-	err := agent.Start(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	err := agent.Start(ctx)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, openChannels, "Expected only heartbeat channel to be opened.")
-	require.GreaterOrEqual(t, 1, sentPings, "Expected at least 1 ping to be sent.")
-	require.Equal(t, 1, versionReplies, "Expected 1 version reply.")
+	require.Equal(t, 1, int(atomic.LoadInt32(openChannels)), "Expected only heartbeat channel to be opened.")
+	require.GreaterOrEqual(t, 1, int(atomic.LoadInt32(sentPings)), "Expected at least 1 ping to be sent.")
+	require.Equal(t, 1, int(atomic.LoadInt32(versionReplies)), "Expected 1 version reply.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)

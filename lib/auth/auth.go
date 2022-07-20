@@ -1343,12 +1343,12 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
 	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
@@ -1358,7 +1358,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -1922,7 +1922,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
 		Roles:                roles,
 		Traits:               traits,
@@ -1982,12 +1982,12 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
+func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	u, err := a.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -1996,7 +1996,7 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -2434,7 +2434,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 }
 
 // NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession, error) {
+func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2454,7 +2454,7 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 		AllowedResourceIDs: req.RequestedResourceIDs,
 	}, clusterName.GetClusterName())
 
-	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2852,26 +2852,31 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return a.GetCache().GetNodes(ctx, namespace)
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
 		resp, err := a.ListResources(ctx, req)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		stop, err := f(resp.Resources)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		for _, resource := range resp.Resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || resp.NextKey == "" {
-			return resp, nil
+		if resp.NextKey == "" {
+			return nil
 		}
 
 		req.StartKey = resp.NextKey
@@ -3624,6 +3629,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	}
 }
 
+// newKeySet generates a new sets of keys for a given CA type.
+// Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
