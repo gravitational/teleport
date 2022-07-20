@@ -354,15 +354,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
-	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
-		profile:          profile,
-		routeToDatabase:  routeToDatabase,
-		database:         db,
-		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
-	})
+	proxyOpts, err := prepareLocalProxyOptions(cf, client, profile, db, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
