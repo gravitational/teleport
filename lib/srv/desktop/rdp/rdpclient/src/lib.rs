@@ -42,12 +42,12 @@ use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
+use std::net;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
-use std::net;
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -56,12 +56,12 @@ pub extern "C" fn init() {
 
 #[derive(Clone)]
 struct SharedStream {
-    tcp: Arc<TcpStream>
+    tcp: Arc<TcpStream>,
 }
 
 impl SharedStream {
     fn new(tcp: TcpStream) -> Self {
-        Self { tcp:Arc::new(tcp) }
+        Self { tcp: Arc::new(tcp) }
     }
 }
 
@@ -229,7 +229,7 @@ fn connect_rdp_inner(
     let tcp_fd = tcp.as_raw_fd() as usize;
     // Domain name "." means current domain.
     let domain = ".";
-    
+
     // Create a clone of the shared stream to store in the client.
     let shared_tcp = SharedStream::new(tcp);
     let shared_tcp2 = shared_tcp.clone();
@@ -839,7 +839,7 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
         Err(_) => CGOErrCode::ErrCodeFailure,
         Ok(_) => CGOErrCode::ErrCodeSuccess,
     };
-    
+
     if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Read) {
         error!("failed shutting down TCP socket: {:?}", err);
         return CGOErrCode::ErrCodeFailure;
