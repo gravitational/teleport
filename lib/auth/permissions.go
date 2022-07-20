@@ -160,11 +160,12 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 
 	// set new roles on the context user and create a new access checker
 	c.User.SetRoles(newRoleNames)
-	accessInfo, err := services.AccessInfoFromUser(c.User, access)
+	accessInfo := services.AccessInfoFromUser(c.User)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	c.Checker = services.NewAccessChecker(accessInfo, clusterName)
+	c.Checker = checker
 	return nil
 }
 
@@ -221,11 +222,14 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, a.accessPoint, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, a.clusterName)
+	checker, err := services.NewAccessChecker(accessInfo, a.clusterName, a.accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
@@ -341,12 +345,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
-		RoleSet:            roleSet,
-	}, a.clusterName)
+	}, a.clusterName, roleSet)
 	return &Context{
 		User:             user,
 		Checker:          checker,
@@ -717,12 +720,11 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		roles = append(roles, string(r))
 	}
 	user.SetRoles(roles)
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
-		RoleSet:            roleSet,
-	}, r.ClusterName)
+	}, r.ClusterName, roleSet)
 	return &Context{
 		User:             user,
 		Checker:          checker,
@@ -741,7 +743,10 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessChecker := services.NewAccessChecker(accessInfo, clusterName)
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Override roles and traits from the local user based on the identity roles
 	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old
