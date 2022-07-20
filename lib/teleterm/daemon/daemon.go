@@ -147,6 +147,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
+		TCPPortAllocator:      s.cfg.TCPPortAllocator,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -156,7 +157,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WithError(err).Warn("Failed to open a connection.")
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -272,6 +273,48 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 	gateway.SetTargetSubresourceName(targetSubresourceName)
 
 	return gateway, nil
+}
+
+// SetGatewayLocalPort creates a new gateway with the given port, swaps it with the old gateway
+// under the same URI in s.gateways and then closes the old gateway. It doesn't fetch a fresh db
+// cert.
+//
+// If it gateway.NewWithLocalPort fails it's imperative that the current gateway is kept intact.
+// This way if the user attempts to change the port to one that cannot be obtained, they're able to
+// correct that mistake and choose a different port.
+//
+// SetGatewayLocalPort is a noop if port is equal to the existing port.
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if localPort == oldGateway.LocalPort() {
+		return oldGateway, nil
+	}
+
+	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.gateways[gatewayURI] = newGateway
+
+	go func() {
+		if err := newGateway.Serve(); err != nil {
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+		}
+	}()
+
+	return newGateway, nil
 }
 
 // ListServers returns cluster servers

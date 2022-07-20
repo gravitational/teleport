@@ -32,13 +32,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// New creates an instance of Gateway
+// New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
+// start the proxy – that's the job of Serve.
 func New(cfg Config) (*Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", cfg.LocalAddress, cfg.LocalPort))
+	listener, err := cfg.TCPPortAllocator.Listen(cfg.LocalAddress, cfg.LocalPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,6 +103,20 @@ func New(cfg Config) (*Gateway, error) {
 
 	ok = true
 	return gateway, nil
+}
+
+// NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
+// to the existing gateway with the exception of the local port.
+func NewWithLocalPort(gateway Gateway, port string) (*Gateway, error) {
+	if port == gateway.LocalPort() {
+		return nil, trace.BadParameter("port is already set to %s", port)
+	}
+
+	cfg := *gateway.cfg
+	cfg.LocalPort = port
+
+	newGateway, err := New(cfg)
+	return newGateway, trace.Wrap(err)
 }
 
 // Close terminates gateway connection
@@ -174,8 +189,8 @@ func (g *Gateway) LocalPort() string {
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
 func (g *Gateway) LocalPortInt() int {
-	// Ignoring the error here as Teleterm doesn't allow the user to pick the value for the port, so
-	// it'll always be a random integer value, not a service name that needs actual lookup.
+	// Ignoring the error here as Teleterm allows the user to pick only integer values for the port,
+	// so the string itself will never be a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
 	port, _ := strconv.Atoi(g.cfg.LocalPort)
 	return port
@@ -192,16 +207,36 @@ func (g *Gateway) CLICommand() (string, error) {
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
+//
+// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
+// daemon.Service which obtains a lock for any operation pertaining to gateways.
+//
+// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
 type Gateway struct {
 	cfg        *Config
 	localProxy *alpn.LocalProxy
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
-	closeContext       context.Context
-	closeCancel        context.CancelFunc
+	closeContext context.Context
+	closeCancel  context.CancelFunc
 }
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
 	GetCommand(gateway *Gateway) (string, error)
+}
+
+type TCPPortAllocator interface {
+	Listen(localAddress, port string) (net.Listener, error)
+}
+
+type NetTCPPortAllocator struct{}
+
+func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listener, nil
 }

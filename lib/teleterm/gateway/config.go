@@ -57,6 +57,9 @@ type Config struct {
 	Log *logrus.Entry
 	// CLICommandProvider returns a CLI command for the gateway
 	CLICommandProvider CLICommandProvider
+	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
+	// hardcoded ports in tests.
+	TCPPortAllocator TCPPortAllocator
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -87,6 +90,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.CLICommandProvider == nil {
 		return trace.BadParameter("missing CLICommandProvider")
+	}
+
+	if c.TCPPortAllocator == nil {
+		c.TCPPortAllocator = NetTCPPortAllocator{}
 	}
 
 	return nil

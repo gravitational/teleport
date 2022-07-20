@@ -25,15 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-type mockCLICommandProvider struct{}
-
-func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
-	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
-	return command, nil
-}
 
 func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 	gateway := Gateway{
@@ -42,6 +36,7 @@ func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 			TargetSubresourceName: "bar",
 			Protocol:              defaults.ProtocolPostgres,
 			CLICommandProvider:    mockCLICommandProvider{},
+			TCPPortAllocator:      &gatewaytest.MockTCPPortAllocator{},
 		},
 	}
 
@@ -68,6 +63,7 @@ func TestGatewayStart(t *testing.T) {
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},
+			TCPPortAllocator:   &gatewaytest.MockTCPPortAllocator{},
 		},
 	)
 	require.NoError(t, err)
@@ -89,4 +85,95 @@ func TestGatewayStart(t *testing.T) {
 	err = gateway.Close()
 	require.NoError(t, err)
 	require.NoError(t, <-serveErr)
+}
+
+func TestNewWithLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
+	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{}
+	oldGateway := createAndServeGateway(t, &tcpPortAllocator)
+
+	newGateway, err := NewWithLocalPort(*oldGateway, "12345")
+	require.NoError(t, err)
+	require.Equal(t, "12345", newGateway.LocalPort())
+	require.Equal(t, oldGateway.URI(), newGateway.URI())
+
+	// Verify that the gateway is accepting connections on the new listener.
+	//
+	// MockTCPPortAllocator.Listen returns a listener which occupies a random port but its Addr method
+	// reports the port that was passed to Listen. In order to actually dial the gateway we need to
+	// obtain the real address from the listener.
+	newGatewayAddress := tcpPortAllocator.RecentListener().RealAddr().String()
+	serveGatewayAndBlockUntilItAcceptsConnections(t, newGateway, newGatewayAddress)
+}
+
+func TestNewWithLocalPortReturnsErrorIfNewPortIsOccupied(t *testing.T) {
+	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}}
+	gateway := createAndServeGateway(t, &tcpPortAllocator)
+
+	_, err := NewWithLocalPort(*gateway, "12345")
+	require.ErrorContains(t, err, "address already in use")
+}
+
+func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
+	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{}
+	gateway := createAndServeGateway(t, &tcpPortAllocator)
+	port := gateway.LocalPort()
+	expectedErrMessage := fmt.Sprintf("port is already set to %s", port)
+
+	_, err := NewWithLocalPort(*gateway, port)
+	require.True(t, trace.IsBadParameter(err), "Expected err to be a BadParameter error")
+	require.ErrorContains(t, err, expectedErrMessage)
+}
+
+type mockCLICommandProvider struct{}
+
+func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
+	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
+	return command, nil
+}
+
+func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
+	gateway := createGateway(t, tcpPortAllocator)
+	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
+	serveGatewayAndBlockUntilItAcceptsConnections(t, gateway, gatewayAddress)
+	return gateway
+}
+
+func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	t.Cleanup(func() {
+		hs.Close()
+	})
+
+	gateway, err := New(
+		Config{
+			TargetName:         "foo",
+			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
+			TargetUser:         "alice",
+			Protocol:           defaults.ProtocolPostgres,
+			CertPath:           "../../../fixtures/certs/proxy1.pem",
+			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
+			Insecure:           true,
+			WebProxyAddr:       hs.Listener.Addr().String(),
+			CLICommandProvider: mockCLICommandProvider{},
+			TCPPortAllocator:   tcpPortAllocator,
+		},
+	)
+	require.NoError(t, err)
+
+	return gateway
+}
+
+// serveGateway starts a gateway and blocks until it accepts connections.
+func serveGatewayAndBlockUntilItAcceptsConnections(t *testing.T, gateway *Gateway, address string) {
+	serveErr := make(chan error)
+	go func() {
+		err := gateway.Serve()
+		serveErr <- err
+	}()
+	t.Cleanup(func() {
+		gateway.Close()
+		require.NoError(t, <-serveErr, "Gateway %s returned error from Serve()", gateway.URI())
+	})
+
+	gatewaytest.BlockUntilGatewayAcceptsConnections(t, address)
 }

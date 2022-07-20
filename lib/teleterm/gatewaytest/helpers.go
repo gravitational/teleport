@@ -15,9 +15,12 @@
 package gatewaytest
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -44,4 +47,81 @@ func BlockUntilGatewayAcceptsConnections(t *testing.T, address string) {
 
 	err = conn.Close()
 	require.NoError(t, err)
+}
+
+type MockTCPPortAllocator struct {
+	PortsInUse    []string
+	mockListeners []MockListener
+	CallCount     int
+}
+
+// Listen accepts localPort as an argument but creates a listener on a random port. This lets us
+// test code that attempt to set the port number to a specific value without risking that the actual
+// port on the device running the tests is occupied.
+//
+// Listen returns a mock listener which forwards all methods to the real listener on the random port
+// but its Addr function returns the port that was given as an argument to Listen.
+func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Listener, error) {
+	m.CallCount++
+
+	if apiutils.SliceContainsStr(m.PortsInUse, localPort) {
+		return nil, trace.BadParameter("address already in use")
+	}
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", "localhost", "0"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mockListener := MockListener{
+		realListener: listener,
+		fakePort:     localPort,
+	}
+
+	m.mockListeners = append(m.mockListeners, mockListener)
+
+	return mockListener, nil
+}
+
+func (m *MockTCPPortAllocator) RecentListener() *MockListener {
+	if len(m.mockListeners) == 0 {
+		return nil
+	}
+	return &m.mockListeners[len(m.mockListeners)-1]
+}
+
+// MockListener forwards almost all calls to the real listener. When asked about address, it will
+// return the one pointing at the fake port.
+//
+// This lets us make calls to set the gateway port to a specific port without actually occupying
+// those ports on the real system (which would lead to flaky tests otherwise).
+type MockListener struct {
+	realListener net.Listener
+	fakePort     string
+}
+
+func (m MockListener) Accept() (net.Conn, error) {
+	return m.realListener.Accept()
+}
+
+func (m MockListener) Close() error {
+	return m.realListener.Close()
+}
+
+func (m MockListener) Addr() net.Addr {
+	if m.fakePort == "0" {
+		return m.realListener.Addr()
+	}
+
+	addr, err := net.ResolveTCPAddr("", fmt.Sprintf("%s:%s", "localhost", m.fakePort))
+
+	if err != nil {
+		panic(err)
+	}
+
+	return addr
+}
+
+func (m MockListener) RealAddr() net.Addr {
+	return m.realListener.Addr()
 }
