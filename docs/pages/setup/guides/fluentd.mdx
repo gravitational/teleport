@@ -90,6 +90,14 @@ Run the `configure` command to generate a sample configuration. Replace `mytenan
 $ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . mytenant.teleport.sh
 ```
 
+To create a Kubernetes secret that can be used with the Helm Chart later, use the following command:
+
+```code
+$ kubectl create secret generic teleport-plugin-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+```
+
+This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the secret, so the Helm Chart can mount them to their appropriate path.
+
 </TabItem>
 </Tabs>
 
