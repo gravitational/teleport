@@ -16,25 +16,25 @@
 
 import React, { useState } from 'react';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import {
-  Text,
   Box,
-  ButtonSecondary,
-  Link,
   ButtonLink,
+  ButtonSecondary,
   Indicator,
+  Link,
+  Text,
 } from 'design';
 import Select, { Option } from 'shared/components/Select';
 import { AuthType } from 'teleport/services/user';
-import { DbType, DbProtocol } from 'teleport/services/databases';
+import { DbProtocol, DbType } from 'teleport/services/databases';
 import {
-  formatDatabaseInfo,
   DatabaseInfo,
+  formatDatabaseInfo,
 } from 'teleport/services/databases/makeDatabase';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
@@ -182,11 +182,11 @@ const StepsWithToken = ({
         />
       </Box>
     </Box>
-    <Box>
+    <Box mb={2}>
       <Text bold as="span">
         Step 3
       </Text>
-      {' - Start the Teleport agent with the following parameters'}
+      {' - Generate the Teleport config file'}
       <Text mt="1">
         The token will be valid for{' '}
         <Text bold as={'span'}>
@@ -194,11 +194,16 @@ const StepsWithToken = ({
         </Text>
       </Text>
       <TextSelectCopy mt="2" text={command} />
-    </Box>
-    <Box>
       <ButtonLink onClick={onRegenerateToken}>Regenerate Token</ButtonLink>
     </Box>
-    <Box mt={4}>
+    <Box mb={4}>
+      <Text bold as="span">
+        Step 4
+      </Text>
+      {' - Start the Teleport agent with the following parameters'}
+      <TextSelectCopy mt="2" text="teleport start" />
+    </Box>
+    <Box>
       {`Learn more about database access in our `}
       <Link
         href={'https://goteleport.com/docs/database-access/'}
@@ -267,14 +272,21 @@ const StepsWithoutToken = ({
         />
       </Box>
     </Box>
-    <Box>
+    <Box mb={4}>
       <Text bold as="span">
         Step 5
       </Text>
-      {' - Start the Teleport agent with the following parameters'}
+      {' - Generate the Teleport config file'}
       <TextSelectCopy mt="2" text={addCommand} />
     </Box>
-    <Box mt={4}>
+    <Box mb={4}>
+      <Text bold as="span">
+        Step 6
+      </Text>
+      {' - Start the Teleport agent with the following parameters'}
+      <TextSelectCopy mt="2" text="teleport start" />
+    </Box>
+    <Box>
       {`Learn more about database access in our `}
       <Link
         href={'https://goteleport.com/docs/database-access/'}
@@ -293,9 +305,9 @@ const generateDbStartCmd = (
   host: string,
   token: string
 ) => {
-  let baseCommand = `teleport db start --token=${
+  let baseCommand = `teleport db configure create --token=${
     token || '[generated-join-token]'
-  } --auth-server=${host} --name=[db-name] --protocol=${protocol} --uri=[uri]`;
+  } --proxy=${host} --name=[db-name] --protocol=${protocol} --uri=[uri] -o file`;
 
   if (protocol === 'sqlserver') {
     baseCommand =
@@ -312,7 +324,7 @@ const generateDbStartCmd = (
     case 'redshift':
       return `${baseCommand} --aws-region=[region] --aws-redshift-cluster-id=[cluster-id]`;
     case 'gcp':
-      return `${baseCommand} --ca-cert=[instance-ca-filepath] --gcp-project-id=[project-id] --gcp-instance-id=[instance-id]`;
+      return `${baseCommand} --ca-cert-file=[instance-ca-filepath] --gcp-project-id=[project-id] --gcp-instance-id=[instance-id]`;
     default:
       return 'unknown type and protocol';
   }

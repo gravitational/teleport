@@ -188,7 +188,7 @@ exports[`render with token 1`] = `
   margin: 0px;
 }
 
-.c14 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -209,17 +209,17 @@ exports[`render with token 1`] = `
   margin-top: 8px;
 }
 
-.c17 {
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.c18 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c20 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
-.c15 {
+.c16 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -230,7 +230,7 @@ exports[`render with token 1`] = `
   justify-content: space-between;
 }
 
-.c16 {
+.c17 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
@@ -244,7 +244,7 @@ exports[`render with token 1`] = `
   align-items: center;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -270,20 +270,20 @@ exports[`render with token 1`] = `
   padding: 0px 24px;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #651FFF;
 }
 
-.c18:active {
+.c19:active {
   background: #354AA4;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -328,7 +328,7 @@ exports[`render with token 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c20 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -337,8 +337,8 @@ exports[`render with token 1`] = `
   padding: 0 8px;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #222C59;
 }
 
@@ -593,16 +593,16 @@ exports[`render with token 1`] = `
           </div>
         </div>
         <div
-          class="c9"
+          class="c14"
         >
           <span
             class="c8"
           >
             Step 3
           </span>
-           - Start the Teleport agent with the following parameters
+           - Generate the Teleport config file
           <div
-            class="c14"
+            class="c15"
           >
             The token will be valid for
              
@@ -614,23 +614,63 @@ exports[`render with token 1`] = `
             </span>
           </div>
           <div
-            class="c15"
+            class="c16"
           >
             <div
-              class="c16"
+              class="c17"
               style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               <div
-                class="c17"
+                class="c18"
               >
                 $
               </div>
               <div>
-                teleport db start --token=some-join-token-hash --auth-server=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] --aws-region=[region]
+                teleport db configure create --token=some-join-token-hash --proxy=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] -o file --aws-region=[region]
               </div>
             </div>
             <button
-              class="c18"
+              class="c19"
+              kind="primary"
+              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+            >
+              Copy
+            </button>
+          </div>
+          <a
+            class="c20 c19"
+            kind="primary"
+          >
+            Regenerate Token
+          </a>
+        </div>
+        <div
+          class="c7"
+        >
+          <span
+            class="c8"
+          >
+            Step 4
+          </span>
+           - Start the Teleport agent with the following parameters
+          <div
+            class="c16"
+          >
+            <div
+              class="c17"
+              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+            >
+              <div
+                class="c18"
+              >
+                $
+              </div>
+              <div>
+                teleport start
+              </div>
+            </div>
+            <button
+              class="c19"
               kind="primary"
               style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -640,16 +680,6 @@ exports[`render with token 1`] = `
         </div>
         <div
           class="c9"
-        >
-          <a
-            class="c19 c18"
-            kind="primary"
-          >
-            Regenerate Token
-          </a>
-        </div>
-        <div
-          class="c20"
         >
           Learn more about database access in our 
           <a
@@ -765,11 +795,6 @@ exports[`render without token 1`] = `
   margin-top: 8px;
 }
 
-.c18 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
 .c12 {
   box-sizing: border-box;
   margin-top: 8px;
@@ -839,7 +864,7 @@ exports[`render without token 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c20 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -865,16 +890,16 @@ exports[`render without token 1`] = `
   padding: 0px 24px;
 }
 
-.c20:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c19:hover,
+.c19:focus {
   background: #2C3A73;
 }
 
-.c20:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -904,7 +929,7 @@ exports[`render without token 1`] = `
   flex-direction: column;
 }
 
-.c19 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -1198,12 +1223,46 @@ exports[`render without token 1`] = `
           </div>
         </div>
         <div
-          class="c9"
+          class="c7"
         >
           <span
             class="c8"
           >
             Step 5
+          </span>
+           - Generate the Teleport config file
+          <div
+            class="c12"
+          >
+            <div
+              class="c13"
+              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+            >
+              <div
+                class="c14"
+              >
+                $
+              </div>
+              <div>
+                teleport db configure create --token=[generated-join-token] --proxy=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] -o file --aws-region=[region]
+              </div>
+            </div>
+            <button
+              class="c15"
+              kind="primary"
+              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <span
+            class="c8"
+          >
+            Step 6
           </span>
            - Start the Teleport agent with the following parameters
           <div
@@ -1219,7 +1278,7 @@ exports[`render without token 1`] = `
                 $
               </div>
               <div>
-                teleport db start --token=[generated-join-token] --auth-server=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] --aws-region=[region]
+                teleport start
               </div>
             </div>
             <button
@@ -1232,7 +1291,7 @@ exports[`render without token 1`] = `
           </div>
         </div>
         <div
-          class="c18"
+          class="c9"
         >
           Learn more about database access in our 
           <a
@@ -1247,10 +1306,10 @@ exports[`render without token 1`] = `
         </div>
       </div>
       <div
-        class="c19"
+        class="c18"
       >
         <button
-          class="c20"
+          class="c19"
           kind="secondary"
         >
           Close
@@ -1348,11 +1407,6 @@ exports[`render without token with SSO auth 1`] = `
   margin-top: 8px;
 }
 
-.c18 {
-  box-sizing: border-box;
-  margin-top: 24px;
-}
-
 .c12 {
   box-sizing: border-box;
   margin-top: 8px;
@@ -1422,7 +1476,7 @@ exports[`render without token with SSO auth 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c20 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1448,16 +1502,16 @@ exports[`render without token with SSO auth 1`] = `
   padding: 0px 24px;
 }
 
-.c20:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c19:hover,
+.c19:focus {
   background: #2C3A73;
 }
 
-.c20:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -1487,7 +1541,7 @@ exports[`render without token with SSO auth 1`] = `
   flex-direction: column;
 }
 
-.c19 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -1781,12 +1835,46 @@ exports[`render without token with SSO auth 1`] = `
           </div>
         </div>
         <div
-          class="c9"
+          class="c7"
         >
           <span
             class="c8"
           >
             Step 5
+          </span>
+           - Generate the Teleport config file
+          <div
+            class="c12"
+          >
+            <div
+              class="c13"
+              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+            >
+              <div
+                class="c14"
+              >
+                $
+              </div>
+              <div>
+                teleport db configure create --token=[generated-join-token] --proxy=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] -o file --aws-region=[region]
+              </div>
+            </div>
+            <button
+              class="c15"
+              kind="primary"
+              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <span
+            class="c8"
+          >
+            Step 6
           </span>
            - Start the Teleport agent with the following parameters
           <div
@@ -1802,7 +1890,7 @@ exports[`render without token with SSO auth 1`] = `
                 $
               </div>
               <div>
-                teleport db start --token=[generated-join-token] --auth-server=localhost:443 --name=[db-name] --protocol=postgres --uri=[uri] --aws-region=[region]
+                teleport start
               </div>
             </div>
             <button
@@ -1815,7 +1903,7 @@ exports[`render without token with SSO auth 1`] = `
           </div>
         </div>
         <div
-          class="c18"
+          class="c9"
         >
           Learn more about database access in our 
           <a
@@ -1830,10 +1918,10 @@ exports[`render without token with SSO auth 1`] = `
         </div>
       </div>
       <div
-        class="c19"
+        class="c18"
       >
         <button
-          class="c20"
+          class="c19"
           kind="secondary"
         >
           Close
