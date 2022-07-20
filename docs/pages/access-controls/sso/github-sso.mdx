@@ -10,7 +10,9 @@ Teleport.
 
 ## Prerequisites
 
-- A GitHub organization with at least one team.
+- A GitHub organization with at least one team. <ScopedBlock scope="oss">This organization must not have external SSO setup, or Teleport
+will refuse to create the GitHub authentication connector. If you want to use a GitHub organization that uses external SSO, consider purchasing
+a Teleport Enterprise license.</ScopedBlock>
 - Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)

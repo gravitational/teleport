@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.0.0
+
+### Breaking changes
+
+Please familiarize yourself with the following potentially disruptive changes in
+Teleport 11 before upgrading.
+
+#### GitHub external SSO checking
+
+Teleport 11 agents will now refuse to use a GitHub authentication connector if
+one of the specified GitHub organizations uses external SSO and the Teleport 
+agent is not enterprise licensed. SSO is an enterprise feature that requires
+Teleport Enterprise to use.
+
 ## 10.0.0
 
 Teleport 10 is a major release that brings the following new features.
