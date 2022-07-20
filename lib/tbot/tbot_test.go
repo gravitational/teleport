@@ -55,10 +55,6 @@ func rotate(
 func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
-	// Patch until https://github.com/gravitational/teleport/issues/13443
-	// is resolved.
-	fc.Databases.EnabledFlag = "false"
-
 	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
@@ -82,8 +78,10 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 
 	var svc *service.TeleportProcess
 	select {
-	case <-time.After(10 * time.Second):
-		t.Fatal("teleport process did not instantiate in 10 seconds")
+	case <-time.After(30 * time.Second):
+		// this should really happen quite quickly, but under the load during
+		// parallel test run, it can take a while.
+		t.Fatal("teleport process did not instantiate in 30 seconds")
 	case svc = <-svcC:
 	}
 
@@ -169,24 +167,24 @@ func TestBot_Run_CARotation(t *testing.T) {
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseInit)
 	// TODO: These sleeps allow the client time to rotate. They could be
 	// replaced if tbot emitted a CA rotation/renewal event.
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 30)
 	_, err := b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 30)
 	// Ensure both sets of CA certificates are now available locally
 	require.Len(t, b.ident().TLSCACertsBytes, 3)
 	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 30)
 	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 30)
 	_, err = b.Client().Ping(ctx)
 	require.NoError(t, err)
 
