@@ -17,7 +17,7 @@ This reference details available values for the `teleport-plugin-event-handler` 
 | - | - | - |
 | `string` | `""` | Yes |
 
-This parameter contains the host/port combination of the teleport auth server.
+This parameter contains the host/port combination of the Teleport Auth Service.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -53,7 +53,7 @@ data:
   auth_id: ...
 ```
 
-Check out the [Event Handler Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/event-handler#prerequisites) for more information about how to acquire these credentials!
+Check out the [Event Handler Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/event-handler/#prerequisites) for more information about how to acquire these credentials.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -229,7 +229,7 @@ Name of the key which contains the client's certificate inside the secret.
 | - | - | - |
 | `string` | `stdout` | No |
 
-Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/fluentd.log"
+Logger output. Can be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/fluentd.log`.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -251,7 +251,7 @@ Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/telepor
 | - | - | - |
 | `string` | `stdout` | No |
 
-Logger severity. Possible values are "INFO", "ERROR", "DEBUG" or "WARN".
+Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
 <Tabs>
   <TabItem label="values.yaml">

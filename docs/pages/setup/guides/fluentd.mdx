@@ -55,13 +55,10 @@ from Teleport's events API, and forwards them to Fluentd.
   ```code
   $ helm repo add teleport https://charts.releases.teleport.dev/
   ```
-
-  See the Helm Chart example under [Step 6/6. Start the event handler plugin](#step-66-start-the-event-handler-plugin) to see how to create `teleport-plugin-event-handler-values.yaml`!
-
   </TabItem>
 </Tabs>
 
-## Step 2/6. Generate configuration
+## Step 2/6. Configure the plugin
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -82,6 +79,15 @@ Run the `configure` command to generate a sample configuration. Replace
 
 ```code
 $ ./teleport-event-handler configure . mytenant.teleport.sh
+```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
+
+Run the `configure` command to generate a sample configuration. Replace `mytenant.teleport.sh` with the DNS name of your Teleport server (Teleport Cloud or self-hosted):
+
+```code
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . mytenant.teleport.sh
 ```
 
 </TabItem>
@@ -234,7 +240,7 @@ and `auth.cas` (certificate, private key, and CA certs, respectively).
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
-The above sequence should result in one PEM-encoded file, `terraform-identity`.
+The above sequence should result in one PEM-encoded file, `identity`.
 
 </TabItem>
 <TabItem label="Helm Chart" scope={["cloud"]}>
@@ -330,6 +336,12 @@ addr = "example.teleport.com:443"
 identity = "identity"
 ```
 
+To start the event handler, run the following command:
+
+```code
+$ ./teleport-event-handler start --config teleport-event-handler.toml
+```
+
 </TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
@@ -350,6 +362,12 @@ addr = "example.teleport.com:443"
 client_key = "auth.key"
 client_crt = "auth.crt"
 root_cas = "auth.cas"
+```
+
+To start the event handler, run the following command:
+
+```code
+$ ./teleport-event-handler start --config teleport-event-handler.toml
 ```
 
 </TabItem>
@@ -381,7 +399,7 @@ persistentVolumeClaim:
   enabled: true
 ```
 
-To install the event handler to Kubernetes, run the following command:
+To start the event handler in Kubernetes, run the following command:
 
 ```code
 $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
@@ -389,12 +407,6 @@ $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-hand
 
 </TabItem>
 </Tabs>
-
-To start the event handler, run the following command:
-
-```code
-$ ./teleport-event-handler start --config teleport-event-handler.toml
-```
 
 <Admonition type="note">
 
