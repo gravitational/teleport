@@ -1,0 +1,31 @@
+---
+title: Hardened Container Images
+description: How to run Teleport in hardened container images
+---
+
+Customers running in heavily regulated or compliance environments may be
+interested in running Teleport within a minimal or hardened container image.
+This may be customers running in FedRAMP environments or customers that have a
+requirement to meet CIS Hardened Image guidelines.
+
+We have plans to publish such container images in Q3 2022.
+
+In the meantime, customers can construct a hardened image that meets those
+requirement by running Teleport within `distroless` container image using the
+example `Dockerfile` below.
+
+```code
+# Use multistage builds to extract libgcc_s.so and Teleport binaries.
+FROM quay.io/gravitational/teleport:(=teleport.version=) AS teleport-base
+FROM gcr.io/distroless/cc-debian11 AS cc
+
+# Run Teleport within a base-debian11 distroless container image.
+FROM gcr.io/distroless/base-debian11
+
+# Copy libgcc_s and Teleport binaries into base-debian11 distroless container.
+COPY --from=cc /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/x86_64-linux-gnu/libgcc_s.so.1
+COPY --from=teleport-base /usr/local/bin/teleport /usr/local/bin/teleport
+COPY --from=teleport-base /usr/local/bin/tctl /usr/local/bin/tctl
+COPY --from=teleport-base /usr/local/bin/tsh /usr/local/bin/tsh
+COPY --from=teleport-base /usr/local/bin/tbot /usr/local/bin/tbot
+```
