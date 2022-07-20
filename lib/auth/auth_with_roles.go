@@ -20,9 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
-
-	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -41,9 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	v11 "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -312,6 +313,50 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	}
 
 	return true
+}
+
+// Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
+// tsh, tctl, etc to be able to export traces without having to know how to connect to the upstream collector
+// for the cluster.
+func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracepb.ExportTraceServiceRequest) (*collectortracepb.ExportTraceServiceResponse, error) {
+	var sb strings.Builder
+
+	sb.WriteString(a.context.User.GetName())
+
+	// if forwarded on behalf of a Teleport service add its system roles
+	if role, ok := a.context.Identity.(BuiltinRole); ok {
+		sb.WriteRune(':')
+		sb.WriteString(role.Role.String())
+		if len(role.AdditionalSystemRoles) > 0 {
+			sb.WriteRune(',')
+			sb.WriteString(role.AdditionalSystemRoles.String())
+		}
+	}
+
+	forwardedFor := sb.String()
+
+	for _, resourceSpans := range req.ResourceSpans {
+		for _, scopeSpans := range resourceSpans.ScopeSpans {
+			for _, span := range scopeSpans.Spans {
+				span.Attributes = append(span.Attributes,
+					&v11.KeyValue{
+						Key: forwardedTag,
+						Value: &v11.AnyValue{
+							Value: &v11.AnyValue_StringValue{
+								StringValue: forwardedFor,
+							},
+						},
+					},
+				)
+			}
+		}
+	}
+
+	if err := a.authServer.traceClient.UploadTraces(ctx, req.ResourceSpans); err != nil {
+		return &collectortracepb.ExportTraceServiceResponse{}, trace.Wrap(err)
+	}
+
+	return &collectortracepb.ExportTraceServiceResponse{}, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

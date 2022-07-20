@@ -30,10 +30,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	v11 "go.opentelemetry.io/proto/otlp/common/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -42,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -2211,6 +2215,194 @@ func TestCustomRateLimiting(t *testing.T) {
 
 			err = test.fn(clt)
 			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+		})
+	}
+}
+
+type mockAuthorizer struct {
+	ctx *Context
+	err error
+}
+
+func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
+	return a.ctx, a.err
+}
+
+type mockTraceClient struct {
+	err   error
+	spans []*tracepb.ResourceSpans
+}
+
+func (m mockTraceClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m mockTraceClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) error {
+	m.spans = protoSpans
+
+	return m.err
+}
+
+func TestExport(t *testing.T) {
+	t.Parallel()
+	uploadErr := trace.AccessDenied("failed to upload")
+
+	const user = "user"
+
+	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			require.NotEmpty(t, i)
+			resourceSpans, ok := i.([]*tracepb.ResourceSpans)
+			require.True(t, ok)
+
+			for _, resourceSpan := range resourceSpans {
+				for _, scopeSpan := range resourceSpan.ScopeSpans {
+					var foundForwardedTag bool
+					for _, span := range scopeSpan.Spans {
+						for _, attribute := range span.Attributes {
+							if attribute.Key == forwardedTag {
+								foundForwardedTag = true
+								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
+								break
+							}
+						}
+						require.True(t, foundForwardedTag)
+					}
+				}
+			}
+		}
+	}
+
+	testSpans := []*tracepb.ResourceSpans{
+		{
+			ScopeSpans: []*tracepb.ScopeSpans{
+				{
+					Spans: []*tracepb.Span{
+						{
+							Name: "with-attributes",
+							Attributes: []*v11.KeyValue{
+								{
+									Key: "test",
+									Value: &v11.AnyValue{
+										Value: &v11.AnyValue_IntValue{
+											IntValue: 1,
+										},
+									},
+								},
+								{
+									Key: "key",
+									Value: &v11.AnyValue{
+										Value: &v11.AnyValue_DoubleValue{
+											DoubleValue: 5.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: "no-attributes",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name              string
+		identity          TestIdentity
+		errAssertion      require.ErrorAssertionFunc
+		uploadedAssertion require.ValueAssertionFunc
+		spans             []*tracepb.ResourceSpans
+		authorizer        Authorizer
+		mockTraceClient   mockTraceClient
+	}{
+		{
+			name:              "error when unauthorized",
+			identity:          TestNop(),
+			errAssertion:      require.Error,
+			uploadedAssertion: require.Empty,
+			spans:             make([]*tracepb.ResourceSpans, 1),
+			authorizer:        &mockAuthorizer{err: trace.AccessDenied("unauthorized")},
+		},
+		{
+			name:              "nop for empty spans",
+			identity:          TestBuiltin(types.RoleNode),
+			errAssertion:      require.NoError,
+			uploadedAssertion: require.Empty,
+		},
+		{
+			name:     "failure to forward spans",
+			identity: TestBuiltin(types.RoleNode),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
+			},
+			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				require.Len(t, i, 1)
+			},
+			spans:           make([]*tracepb.ResourceSpans, 1),
+			mockTraceClient: mockTraceClient{err: uploadErr},
+		},
+		{
+			name:              "forwarded spans get tagged for system roles",
+			identity:          TestBuiltin(types.RoleProxy),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(fmt.Sprintf("%s.localhost:%s", types.RoleProxy, types.RoleProxy)),
+		},
+		{
+			name:              "forwarded spans get tagged for users",
+			identity:          TestUser(user),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(user),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			as, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:         t.TempDir(),
+				Clock:       clockwork.NewFakeClock(),
+				TraceClient: &tt.mockTraceClient,
+			})
+			require.NoError(t, err)
+
+			srv, err := as.NewTestTLSServer()
+			require.NoError(t, err)
+
+			t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+			// Create a fake user.
+			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"})
+			require.NoError(t, err)
+
+			// Setup the server
+			if tt.authorizer != nil {
+				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+			}
+
+			// Get a client for the test identity
+			clt, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			// create a tracing client and forward some traces
+			traceClt := tracing.NewClient(clt.APIClient.GetConnection())
+			t.Cleanup(func() { require.NoError(t, traceClt.Close()) })
+			require.NoError(t, traceClt.Start(ctx))
+
+			tt.errAssertion(t, traceClt.UploadTraces(ctx, tt.spans))
+			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
 		})
 	}
 }
