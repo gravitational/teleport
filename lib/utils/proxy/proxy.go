@@ -28,7 +28,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -59,7 +58,7 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
 func (d directDial) dialALPNWithDeadline2(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	httpConn, err := common.Upgrade(addr)
+	httpConn, err := apiclient.Upgrade(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +211,7 @@ func (d directDial) DialTimeout2(ctx context.Context, network, address string, t
 			return nil, trace.Wrap(err)
 		}
 
-		httpConn, err := common.Upgrade(address)
+		httpConn, err := apiclient.Upgrade(address)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

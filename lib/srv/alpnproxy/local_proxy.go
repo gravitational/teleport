@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -203,7 +204,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 
-	httpConn, err := common.Upgrade(l.cfg.RemoteProxyAddr)
+	httpConn, err := apiclient.Upgrade(l.cfg.RemoteProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
