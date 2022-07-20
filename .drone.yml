@@ -1047,6 +1047,7 @@ steps:
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
       # wait for Docker to be ready
       - sleep 3
 
@@ -1069,7 +1070,7 @@ steps:
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
-      - export CURRENT_DATE=$(date '+%Y%m%d')
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
       # Staging image names
       - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
       - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
@@ -1124,7 +1125,7 @@ steps:
     commands:
       - apk add --no-cache aws-cli
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
-      - export CURRENT_DATE=$(date '+%Y%m%d')
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
       # Staging image names
       - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
       - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
@@ -1178,7 +1179,7 @@ steps:
         path: /var/run
     commands:
       - apk add --no-cache aws-cli
-      - export CURRENT_DATE=$(date '+%Y%m%d')
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       # Staging image names
       - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-$CURRENT_DATE"
@@ -1193,13 +1194,13 @@ steps:
       - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
       - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       # OSS
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $OSS_IMAGE_NAME_STAGE
       # Enterprise
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_IMAGE_NAME_STAGE
       # Enterprise FIPS
-      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_FIPS_IMAGE_NAME_STAGE
       # Authenticate to production registry
       - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -5966,6 +5967,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: bb679eaea3ac522b5b53657f339ec88586936fd1f550445e63f1b02c548207dc
+hmac: de3774c3f04f74fba369be19fa3f0fe917d15055d73febbb10b43e1dc9f455b8
 
 ...
