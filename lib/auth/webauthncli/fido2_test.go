@@ -944,6 +944,63 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 	}
 }
 
+func TestFIDO2Login_u2fDevice(t *testing.T) {
+	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	dev.u2fOnly = true
+
+	f2 := newFakeFIDO2(dev).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+
+	// Set a ctx timeout in case something goes wrong.
+	// Under normal circumstances the test gets nowhere near this timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: rpID,
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	ccr, err := wancli.FIDO2Register(ctx, origin, cc, dev /* prompt */)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID: rpID,
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: ccr.GetWebauthn().GetRawId(),
+				},
+			},
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	_, _, err = wancli.FIDO2Login(ctx, origin, assertion, dev /* prompt */, nil /* opts */)
+	assert.NoError(t, err, "FIDO2Login errored")
+}
+
 func TestFIDO2Login_errors(t *testing.T) {
 	resetFIDO2AfterTests(t)
 
@@ -1584,6 +1641,10 @@ type fakeFIDO2Device struct {
 	// conditions.
 	failUV bool
 
+	// Set to true to simulate an U2F-only device.
+	// Causes libfido2.ErrNotFIDO2 on Info.
+	u2fOnly bool
+
 	path        string
 	info        *libfido2.DeviceInfo
 	pin         string
@@ -1658,6 +1719,9 @@ func (f *fakeFIDO2Device) cert() []byte {
 }
 
 func (f *fakeFIDO2Device) Info() (*libfido2.DeviceInfo, error) {
+	if f.u2fOnly {
+		return nil, libfido2.ErrNotFIDO2
+	}
 	return f.info, nil
 }
 
@@ -1695,6 +1759,9 @@ func (f *fakeFIDO2Device) MakeCredential(
 		return nil, libfido2.ErrUnsupportedOption
 	case opts.UV == libfido2.True && !f.hasUV():
 		return nil, libfido2.ErrUnsupportedOption // PIN authenticators don't like UV
+	case opts.RK == libfido2.True && !f.hasRK():
+		// TODO(codingllama): Confirm scenario with a real authenticator.
+		return nil, libfido2.ErrUnsupportedOption
 	}
 
 	// Validate PIN regardless of opts.
@@ -1865,6 +1932,10 @@ func (f *fakeFIDO2Device) hasClientPin() bool {
 	return f.hasBoolOpt("clientPin")
 }
 
+func (f *fakeFIDO2Device) hasRK() bool {
+	return f.hasBoolOpt("rk")
+}
+
 func (f *fakeFIDO2Device) hasUV() bool {
 	return f.hasBoolOpt("uv")
 }
@@ -1874,6 +1945,10 @@ func (f *fakeFIDO2Device) isBio() bool {
 }
 
 func (f *fakeFIDO2Device) hasBoolOpt(name string) bool {
+	if f.info == nil {
+		return false
+	}
+
 	for _, opt := range f.info.Options {
 		if opt.Name == name {
 			return opt.Value == libfido2.True
