@@ -1484,6 +1484,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setIdentity(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.IdentityFileIn = path
+		return nil
+	}
+}
+
 func Test_getUsersForDb(t *testing.T) {
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
