@@ -438,6 +438,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
+		s.log.
+			WithError(err).
+			WithFields(logrus.Fields{
+				"remote_addr": conn.RemoteAddr(),
+			}).Debug("Failed to instantiate SSH server conn")
 		conn.SetDeadline(time.Time{})
 		return
 	}
