@@ -275,6 +275,16 @@
       ]
     },
     {
+      "icon": "connect",
+      "title": "Use Teleport",
+      "entries": [
+        {
+          "title": "Using tsh",
+          "slug": "/use-teleport/tsh/"
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -351,10 +361,6 @@
             {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Using TSH",
-              "slug": "/server-access/guides/tsh/"
             },
             {
               "title": "OpenSSH Guide",
@@ -821,16 +827,16 @@
         {
           "title": "Access Requests",
           "slug": "/enterprise/workflow/",
-		  "entries": [
-			{
-			  "title": "Resource Access Requests",
-			  "slug": "/enterprise/workflow/resource-requests/"
-			},
-			{
-			  "title": "Role Access Requests",
-			  "slug": "/enterprise/workflow/role-requests/"
-			}
-		  ]
+          "entries": [
+            {
+              "title": "Resource Access Requests",
+              "slug": "/enterprise/workflow/resource-requests/"
+            },
+            {
+              "title": "Role Access Requests",
+              "slug": "/enterprise/workflow/role-requests/"
+            }
+          ]
         },
         {
           "title": "FedRAMP",
@@ -1246,6 +1252,11 @@
       "permanent": true
     },
     {
+      "source": "/server-access/guides/tsh/",
+      "destination": "/use-teleport/tsh/",
+      "permanent": true
+    },
+    {
       "source": "/cluster/",
       "destination": "/kubernetes-access/guides/multiple-clusters/",
       "permanent": true
@@ -1326,9 +1337,9 @@
       "permanent": true
     },
     {
-    	"source": "/setup/admin/graceful-restarts/",
-        "destination": "/setup/admin/upgrading-the-teleport-binary/",
-    	"permanent": true
+      "source": "/setup/admin/graceful-restarts/",
+      "destination": "/setup/admin/upgrading-the-teleport-binary/",
+      "permanent": true
     }
   ]
 }

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"testing"
 	"time"
@@ -60,7 +59,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.Token = tokenName
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	config.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &config.FileDescriptors)
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
@@ -78,7 +77,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 
-	proxyAddr := net.JoinHostPort(Host, helpers.NewPortStr())
+	proxyAddr := helpers.NewListener(t, service.ListenerProxyWeb, &config.FileDescriptors)
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
@@ -103,7 +102,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
@@ -337,13 +336,16 @@ func TestEC2Labels(t *testing.T) {
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
+	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
+	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = helpers.NewListener(t, service.ListenerProxyTunnel, &tconf.FileDescriptors)
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 	appConf := service.App{
 		Name: "test-app",
@@ -441,12 +443,14 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
+	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
