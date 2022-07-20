@@ -315,14 +315,11 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	}
 	apps = types.DeduplicateApps(apps)
 
-	switch len(apps) {
-	case 1:
-		return apps[0], nil
-	case 0:
+	if len(apps) == 0 {
 		return nil, trace.BadParameter("app %q not found", appName)
-	default:
-		return nil, trace.BadParameter("unexpected number of matching apps found (%d)", len(apps))
 	}
+
+	return apps[0], nil
 }
 
 func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
