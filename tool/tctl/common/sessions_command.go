@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -73,7 +74,7 @@ func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 }
 
 func (c *SessionsCommand) ListSessions(tc auth.ClientI) error {
-	fromUTC, toUTC, err := defaults.DefaultSearchSessionRange(c.fromUTC, c.toUTC)
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC)
 	if err != nil {
 		return trace.Wrap(err)
 	}

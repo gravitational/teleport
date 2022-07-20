@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -783,9 +784,9 @@ func FormatFlagDescription(formats ...string) string {
 	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
 }
 
-func DefaultSearchSessionRange(fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
-	from = time.Now().Add(time.Hour * -24)
-	to = time.Now()
+func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
+	from = clock.Now().Add(time.Hour * -24)
+	to = clock.Now()
 	if fromUTC != "" {
 		from, err = time.Parse(time.RFC3339, fromUTC)
 		if err != nil {
