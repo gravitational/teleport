@@ -32,13 +32,14 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		Config: cfg,
+		cfg:      &cfg,
+		gateways: make(map[string]*gateway.Gateway),
 	}, nil
 }
 
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.Storage.ReadAll()
+	clusters, err := s.cfg.Storage.ReadAll()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +69,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 
 // AddCluster adds a cluster
 func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clusters.Cluster, error) {
-	cluster, err := s.Storage.Add(ctx, webProxyAddress)
+	cluster, err := s.cfg.Storage.Add(ctx, webProxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,7 +90,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 		}
 	}
 
-	if err := s.Storage.Remove(ctx, cluster.Name); err != nil {
+	if err := s.cfg.Storage.Remove(ctx, cluster.Name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -98,7 +99,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 
 // ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	cluster, err := s.Storage.GetByResourceURI(uri)
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,15 +134,13 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
+type GatewayCreator interface {
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
+}
+
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cluster, err := s.ResolveCluster(params.TargetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.Storage, dbcmd.SystemExecer{})
-
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
@@ -150,7 +149,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		CLICommandProvider:    cliCommandProvider,
 	}
 
-	gateway, err := cluster.CreateGateway(ctx, clusterCreateGatewayParams)
+	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,7 +160,116 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		}
 	}()
 
-	s.gateways = append(s.gateways, gateway)
+	s.gateways[gateway.URI.String()] = gateway
+
+	return gateway, nil
+}
+
+// RemoveGateway removes cluster gateway
+func (s *Service) RemoveGateway(gatewayURI string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// removeGateway assumes that mu is already held by a public method.
+func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+	// In case closing the gateway fails, we want to return early and leave the gateway in the map.
+	//
+	// This way the gateway will remain shown as available in the app. The user will see the error
+	// related to closing the gateway and will be able to attempt to close it again.
+	//
+	// This is preferable to removing the gateway from the hash map. Since Connect remembers the port
+	// used for a particular db server + username pair, the user would be able to reopen the same
+	// gateway on the occupied port only to see an error.
+	if err := gateway.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	delete(s.gateways, gateway.URI.String())
+
+	return nil
+}
+
+// RestartGateway stops a gateway and starts a new one with identical parameters.
+// It also keeps the original URI so that from the perspective of Connect it's still the same
+// gateway but with fresh certs.
+func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
+		TargetURI:             oldGateway.TargetURI,
+		TargetUser:            oldGateway.TargetUser,
+		TargetSubresourceName: oldGateway.TargetSubresourceName,
+		LocalPort:             oldGateway.LocalPort,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
+	// the URI of the old gateway.
+	delete(s.gateways, newGateway.URI.String())
+	newGateway.URI = oldGateway.URI
+	s.gateways[oldGateway.URI.String()] = newGateway
+
+	return nil
+}
+
+// findGateway assumes that mu is already held by a public method.
+func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
+	if gateway, ok := s.gateways[gatewayURI]; ok {
+		return gateway, nil
+	}
+
+	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
+}
+
+// ListGateways lists gateways
+func (s *Service) ListGateways() []gateway.Gateway {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	gws := make([]gateway.Gateway, 0, len(s.gateways))
+	for _, gateway := range s.gateways {
+		gws = append(gws, *gateway)
+	}
+
+	return gws
+}
+
+// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
+// s.gateways.
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gateway.TargetSubresourceName = targetSubresourceName
 
 	return gateway, nil
 }
@@ -196,87 +304,6 @@ func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.A
 	return apps, nil
 }
 
-// RemoveGateway removes cluster gateway
-func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
-	gateway, err := s.FindGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.removeGateway(gateway); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// removeGateway assumes that mu is already held by a public method.
-func (s *Service) removeGateway(gateway *gateway.Gateway) error {
-	if err := gateway.Close(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// remove closed gateway from list
-	for index := range s.gateways {
-		if s.gateways[index] == gateway {
-			s.gateways = append(s.gateways[:index], s.gateways[index+1:]...)
-			return nil
-		}
-	}
-
-	return trace.NotFound("gateway %v not found in gateway list", gateway.URI.String())
-}
-
-// RestartGateway stops a gateway and starts a new one with identical parameters.
-// It also keeps the original URI so that from the perspective of Connect it's still the same
-// gateway but with fresh certs.
-func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	gateway, err := s.FindGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.removeGateway(gateway); err != nil {
-		return trace.Wrap(err)
-	}
-
-	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             gateway.TargetURI,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		LocalPort:             gateway.LocalPort,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newGateway.URI = gateway.URI
-
-	return nil
-}
-
-// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
-// s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	gateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gateway.TargetSubresourceName = targetSubresourceName
-
-	return gateway, nil
-}
-
 // ListKubes lists kubernetes clusters
 func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)
@@ -292,41 +319,6 @@ func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, e
 	return kubes, nil
 }
 
-// FindGateway finds a gateway by URI
-func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	gateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return gateway, nil
-}
-
-// findGateway assumes that mu is already held by a public method.
-func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
-	for _, gateway := range s.gateways {
-		if gateway.URI.String() == gatewayURI {
-			return gateway, nil
-		}
-	}
-
-	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
-}
-
-// ListGateways lists gateways
-func (s *Service) ListGateways(ctx context.Context) ([]*gateway.Gateway, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// copy this slice to avoid race conditions when original slice gets modified
-	gateways := make([]*gateway.Gateway, len(s.gateways))
-	copy(gateways, s.gateways)
-	return gateways, nil
-}
-
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
 	s.mu.RLock()
@@ -339,13 +331,11 @@ func (s *Service) Stop() {
 
 // Service is the daemon service
 type Service struct {
-	Config
-
-	mu sync.RWMutex
+	cfg *Config
+	mu  sync.RWMutex
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	// TODO(ravicious): Refactor this to `map[string]*gateway.Gateway`.
-	gateways []*gateway.Gateway
+	gateways map[string]*gateway.Gateway
 }
 
 type CreateGatewayParams struct {
