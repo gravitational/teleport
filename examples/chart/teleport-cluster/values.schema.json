@@ -81,38 +81,59 @@
         },
         "publicAddr": {
             "$id": "#/properties/publicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "kubePublicAddr": {
             "$id": "#/properties/kubePublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "mongoPublicAddr": {
             "$id": "#/properties/mongoPublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "mysqlPublicAddr": {
             "$id": "#/properties/mysqlPublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "postgresPublicAddr": {
             "$id": "#/properties/postgresPublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "sshPublicAddr": {
             "$id": "#/properties/sshPublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "tunnelPublicAddr": {
             "$id": "#/properties/tunnelPublicAddr",
-            "type": "string",
-            "default": ""
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
