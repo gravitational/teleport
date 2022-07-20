@@ -359,6 +359,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		teleportClient:   client,
 		profile:          profile,
 		routeToDatabase:  routeToDatabase,
+		database:         db,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 	})
