@@ -37,7 +37,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,6 +45,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1489,6 +1490,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user2"
 	pass := []byte("abc123")
@@ -1519,7 +1521,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	// Create a approved access request.
@@ -1530,10 +1532,10 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	err = clt.CreateAccessRequest(ctx, accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1575,7 +1577,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,

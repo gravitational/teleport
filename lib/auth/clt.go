@@ -31,13 +31,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1030,9 +1031,9 @@ func (c *Client) GetMFAAuthenticateChallenge(user string, password []byte) (*MFA
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(req WebSessionReq) (types.WebSession, error) {
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1771,7 +1772,7 @@ type WebService interface {
 	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(req WebSessionReq) (types.WebSession, error)
+	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
