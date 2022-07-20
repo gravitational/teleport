@@ -249,7 +249,7 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-				err := runProxySSH(invalidLoginRequest, setHomePath(mustLogin(t, s)))
+				err := runProxySSH(invalidLoginRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
 				require.Error(t, err)
 				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
 			})
