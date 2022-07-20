@@ -141,6 +141,12 @@ func archiveFromFiles(files []string, virtualFS identityfile.InMemoryConfigWrite
 		if err := tarWriter.WriteHeader(&tar.Header{
 			Name: filename,
 			Size: int64(len(bs)),
+
+			// https://www.postgresql.org/docs/current/libpq-ssl.html
+			// On Unix systems, the permissions on the private key file must disallow any access to world or group;
+			//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
+			// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
+			Mode: 0600,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

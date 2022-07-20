@@ -2249,6 +2249,7 @@ func TestSignMTLS(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
+		require.Equal(t, int64(0600), header.Mode)
 		tarContentFileNames = append(tarContentFileNames, header.Name)
 	}
 
