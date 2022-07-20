@@ -1047,7 +1047,7 @@ steps:
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
-      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
+      - curl -Ls -o /go/build/Dockerfile-cron-v8 https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
       # wait for Docker to be ready
       - sleep 3
 
@@ -5967,6 +5967,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: de3774c3f04f74fba369be19fa3f0fe917d15055d73febbb10b43e1dc9f455b8
+hmac: 71142578b12f90c9da6387f518bd8898ed995147f8e31b7bf0aadf2babebfd66
 
 ...
