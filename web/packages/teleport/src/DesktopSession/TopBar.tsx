@@ -16,12 +16,19 @@ limitations under the License.
 import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
-import { Clipboard } from 'design/Icon';
+import { Clipboard, FolderShared } from 'design/Icon';
 import { colors } from 'teleport/Console/colors';
 import ActionMenu from './ActionMenu';
 
 export default function TopBar(props: Props) {
-  const { userHost, clipboard, recording, onDisconnect } = props;
+  const {
+    userHost,
+    clipboardSharingEnabled,
+    onDisconnect,
+    canShareDirectory,
+    isSharingDirectory,
+    onShareDirectory,
+  } = props;
   const theme = useTheme();
 
   const primaryOnTrue = (b: boolean): any => {
@@ -42,30 +49,32 @@ export default function TopBar(props: Props) {
         {userHost}
       </Text>
 
-      <Text
-        style={{
-          ...primaryOnTrue(clipboard),
-          verticalAlign: 'text-bottom',
-        }}
-      >
-        <StyledClipboard style={primaryOnTrue(clipboard)} pr={2} />
-        Clipboard Sharing {clipboard ? 'Enabled' : 'Disabled'}
-      </Text>
-
       <Flex px={3}>
         <Flex alignItems="center">
-          <StyledRecordingIndicator
-            style={{
-              backgroundColor: recording
-                ? theme.colors.error.light
-                : theme.colors.text.secondary,
-            }}
+          <StyledFolderShared
+            style={primaryOnTrue(isSharingDirectory)}
+            pr={3}
+            title={
+              isSharingDirectory
+                ? 'Directory Sharing Enabled'
+                : 'Directory Sharing Disabled'
+            }
           />
-          <Text style={primaryOnTrue(recording)}>
-            {recording ? '' : 'Not '}Recording
-          </Text>
+          <StyledClipboard
+            style={primaryOnTrue(clipboardSharingEnabled)}
+            pr={3}
+            title={
+              clipboardSharingEnabled
+                ? 'Clipboard Sharing Enabled'
+                : 'Clipboard Sharing Disabled'
+            }
+          />
         </Flex>
-        <ActionMenu onDisconnect={onDisconnect} />
+        <ActionMenu
+          onDisconnect={onDisconnect}
+          showShareDirectory={canShareDirectory && !isSharingDirectory}
+          onShareDirectory={onShareDirectory}
+        />
       </Flex>
     </TopNav>
   );
@@ -79,17 +88,17 @@ const StyledClipboard = styled(Clipboard)`
   align-self: 'center';
 `;
 
-const StyledRecordingIndicator = styled.div`
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  margin-right: 6px;
-  vertical-align: text-bottom;
+const StyledFolderShared = styled(FolderShared)`
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes[6] + 'px'};
+  align-self: 'center';
 `;
 
 type Props = {
   userHost: string;
-  clipboard: boolean;
-  recording: boolean;
+  clipboardSharingEnabled: boolean;
+  canShareDirectory: boolean;
+  isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
+  onShareDirectory: VoidFunction;
 };

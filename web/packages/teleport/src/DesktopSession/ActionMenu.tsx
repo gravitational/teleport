@@ -20,6 +20,8 @@ import * as Icons from 'design/Icon';
 import { Flex } from 'design';
 
 export default function ActionMenu(props: Props) {
+  const { showShareDirectory, onShareDirectory, onDisconnect } = props;
+
   return (
     <Flex alignItems="center">
       <MenuIcon
@@ -31,7 +33,13 @@ export default function ActionMenu(props: Props) {
         }}
         menuProps={menuProps}
       >
-        <MenuItem onClick={props.onDisconnect}>
+        {showShareDirectory && (
+          <MenuItem onClick={onShareDirectory}>
+            <MenuItemIcon as={Icons.FolderPlus} mr="2" />
+            Share Directory
+          </MenuItem>
+        )}
+        <MenuItem onClick={onDisconnect}>
           <MenuItemIcon as={Icons.PowerSwitch} mr="2" />
           Disconnect
         </MenuItem>
@@ -41,6 +49,8 @@ export default function ActionMenu(props: Props) {
 }
 
 type Props = {
+  showShareDirectory: boolean;
+  onShareDirectory: VoidFunction;
   onDisconnect: VoidFunction;
 };
 

@@ -151,6 +151,8 @@ export const Expand = makeFontIcon('Expand', 'icon-frame-expand');
 export const Facebook = makeFontIcon('Facebook', 'icon-facebook');
 export const FacebookSquare = makeFontIcon('FacebookSquare', 'icon-facebook2');
 export const FileCode = makeFontIcon('Youtube', 'icon-file-code');
+export const FolderPlus = makeFontIcon('FolderPlus', 'icon-folder-plus');
+export const FolderShared = makeFontIcon('FolderShared', 'icon-folder-shared');
 export const ForwarderAdded = makeFontIcon(
   'ForwarderAdded',
   'icon-add-fowarder'

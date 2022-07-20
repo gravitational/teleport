@@ -36,7 +36,7 @@ export class PlayerClient extends Client {
 
   // togglePlayPause toggles the playback system between "playing" and "paused" states.
   togglePlayPause() {
-    this.socket?.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
+    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
     this.emit(PlayerClientEvent.TOGGLE_PLAY_PAUSE);
   }
 

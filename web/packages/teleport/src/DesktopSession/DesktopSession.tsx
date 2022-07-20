@@ -107,7 +107,10 @@ function Session(props: PropsWithChildren<State>) {
     username,
     hostname,
     clipboardState,
-    isRecording,
+    setClipboardState,
+    canShareDirectory,
+    isSharingDirectory,
+    setIsSharingDirectory,
     onPngFrame,
     onClipboardData,
     onTdpError,
@@ -139,16 +142,36 @@ function Session(props: PropsWithChildren<State>) {
     !disconnected &&
     clipboardSuccess;
 
+  const onShareDirectory = () => {
+    window
+      .showDirectoryPicker()
+      .then(sharedDirHandle => {
+        setIsSharingDirectory(true);
+        tdpClient.sharedDirectory = sharedDirHandle;
+        tdpClient.sendSharedDirectoryAnnounce();
+      })
+      .catch(() => {
+        setIsSharingDirectory(false);
+      });
+  };
+
   return (
     <Flex flexDirection="column">
       <TopBar
         onDisconnect={() => {
           setDisconnected(true);
+          setClipboardState(prevState => ({
+            ...prevState,
+            enabled: false,
+          }));
+          setIsSharingDirectory(false);
           tdpClient.nuke();
         }}
         userHost={`${username}@${hostname}`}
-        clipboard={clipboardSharingActive}
-        recording={isRecording}
+        clipboardSharingEnabled={clipboardSharingActive}
+        canShareDirectory={canShareDirectory}
+        isSharingDirectory={isSharingDirectory}
+        onShareDirectory={onShareDirectory}
       />
 
       {props.children}

@@ -46,14 +46,17 @@ const props: State = {
     permission: { state: '' },
     errorText: '',
   },
-  isRecording: false,
   tdpClient: fakeClient(),
   username: 'user',
   onWsOpen: () => {},
   onWsClose: () => {},
   wsConnection: 'closed',
   disconnected: false,
-  setDisconnected: () => null,
+  setDisconnected: () => {},
+  setClipboardState: () => {},
+  canShareDirectory: true,
+  isSharingDirectory: false,
+  setIsSharingDirectory: () => {},
   onPngFrame: () => {},
   onTdpError: () => {},
   onKeyDown: () => {},
@@ -108,7 +111,6 @@ export const ConnectedSettingsFalse = () => {
         permission: { state: '' },
         errorText: '',
       }}
-      isRecording={false}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
@@ -135,7 +137,7 @@ export const ConnectedSettingsTrue = () => {
         permission: { state: 'granted' },
         errorText: '',
       }}
-      isRecording={true}
+      isSharingDirectory={true}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}

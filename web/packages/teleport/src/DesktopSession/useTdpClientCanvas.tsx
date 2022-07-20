@@ -15,12 +15,13 @@ limitations under the License.
 */
 
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
-import { TopBarHeight } from './TopBar';
-import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import cfg from 'teleport/config';
+import { TopBarHeight } from './TopBar';
+import { ClipboardPermissionStatus } from './useClipboard';
 
 export default function useTdpClientCanvas(props: Props) {
   const {
@@ -29,6 +30,8 @@ export default function useTdpClientCanvas(props: Props) {
     clusterId,
     setTdpConnection,
     setWsConnection,
+    setClipboardState,
+    setIsSharingDirectory,
     enableClipboardSharing,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
@@ -76,6 +79,11 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_ERROR handler
   const onTdpError = (err: Error) => {
+    setIsSharingDirectory(false);
+    setClipboardState(prevState => ({
+      ...prevState,
+      enabled: false,
+    }));
     setTdpConnection({ status: 'failed', statusText: err.message });
   };
 
@@ -200,5 +208,13 @@ type Props = {
   clusterId: string;
   setTdpConnection: Dispatch<SetStateAction<Attempt>>;
   setWsConnection: Dispatch<SetStateAction<'open' | 'closed'>>;
+  setClipboardState: Dispatch<
+    SetStateAction<{
+      enabled: boolean;
+      permission: ClipboardPermissionStatus;
+      errorText: string;
+    }>
+  >;
+  setIsSharingDirectory: Dispatch<SetStateAction<boolean>>;
   enableClipboardSharing: boolean;
 };

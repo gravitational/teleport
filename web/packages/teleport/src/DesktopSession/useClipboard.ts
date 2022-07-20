@@ -113,7 +113,7 @@ enum ClipboardPermissionType {
   Write = 'clipboard-write',
 }
 
-type ClipboardPermissionStatus = {
+export type ClipboardPermissionStatus = {
   state: PermissionState | 'error' | '';
   errorText?: string;
 };

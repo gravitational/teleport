@@ -23,6 +23,7 @@ import Codec, {
   ClientScreenSpec,
   PngFrame,
   ClipboardData,
+  SharedDirectoryErrCode,
 } from './codec';
 
 export enum TdpClientEvent {
@@ -39,11 +40,12 @@ export enum TdpClientEvent {
 // calling Client.nuke() (typically after Client emits a TdpClientEvent.DISCONNECT or TdpClientEvent.ERROR event) in order to clean
 // up its websocket listeners.
 export default class Client extends EventEmitterWebAuthnSender {
-  codec: Codec;
-  socket: WebSocket;
-  socketAddr: string;
-  username: string;
-  logger = Logger.create('TDPClient');
+  protected codec: Codec;
+  protected socket: WebSocket | undefined;
+  private socketAddr: string;
+  sharedDirectory: FileSystemDirectoryHandle | undefined;
+
+  private logger = Logger.create('TDPClient');
 
   constructor(socketAddr: string) {
     super();
@@ -107,6 +109,12 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
           break;
+        case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
+          this.handleSharedDirectoryAcknowledge(buffer);
+          break;
+        case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+          this.handleSharedDirectoryInfoRequest(buffer);
+          break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
@@ -164,8 +172,7 @@ export default class Client extends EventEmitterWebAuthnSender {
         this.emit(TermEventEnum.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
-        this.emit(
-          TdpClientEvent.TDP_ERROR,
+        this.handleError(
           new Error(
             'Multifactor authentication is required for accessing this desktop, \
       however the U2F API for hardware keys is not supported for desktop sessions. \
@@ -175,34 +182,75 @@ export default class Client extends EventEmitterWebAuthnSender {
         );
       }
     } catch (err) {
-      this.emit(TdpClientEvent.TDP_ERROR, err);
+      this.handleError(err);
     }
   }
 
+  private wasSuccessful(errCode: SharedDirectoryErrCode) {
+    if (errCode === SharedDirectoryErrCode.Nil) {
+      return true;
+    }
+
+    this.handleError(
+      new Error(`Encountered shared directory error: ${errCode}`)
+    );
+    return false;
+  }
+
+  handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
+    const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
+
+    if (!this.wasSuccessful(ack.errCode)) {
+      return;
+    }
+
+    this.logger.info('Started sharing directory: ' + this.sharedDirectory.name);
+  }
+
+  handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
+    // TODO(isaiah): remove debug once message is handled.
+    this.logger.debug(
+      'Received SharedDirectoryInfoRequest: ' + JSON.stringify(req)
+    );
+    // TODO(isaiah): here's where we'll respond with SharedDirectoryInfoResponse
+  }
+
+  protected send(
+    data: string | ArrayBufferLike | Blob | ArrayBufferView
+  ): void {
+    if (this.socket && this.socket.readyState === 1) {
+      this.socket.send(data);
+      return;
+    }
+
+    this.handleError(new Error('websocket unavailable'));
+  }
+
   sendUsername(username: string) {
-    this.socket?.send(this.codec.encodeUsername(username));
+    this.send(this.codec.encodeUsername(username));
   }
 
   sendMouseMove(x: number, y: number) {
-    this.socket.send(this.codec.encodeMouseMove(x, y));
+    this.send(this.codec.encodeMouseMove(x, y));
   }
 
   sendMouseButton(button: MouseButton, state: ButtonState) {
-    this.socket.send(this.codec.encodeMouseButton(button, state));
+    this.send(this.codec.encodeMouseButton(button, state));
   }
 
   sendMouseWheelScroll(axis: ScrollAxis, delta: number) {
-    this.socket.send(this.codec.encodeMouseWheelScroll(axis, delta));
+    this.send(this.codec.encodeMouseWheelScroll(axis, delta));
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
-    if (msg) this.socket.send(msg);
+    if (msg) this.send(msg);
   }
 
   sendClipboardData(clipboardData: ClipboardData) {
-    this.socket.send(this.codec.encodeClipboardData(clipboardData));
+    this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
@@ -210,16 +258,42 @@ export default class Client extends EventEmitterWebAuthnSender {
       mfaType: 'n',
       jsonString: JSON.stringify(data),
     });
-    this.socket.send(msg);
+    this.send(msg);
+  }
+
+  private sharedDirectoryReady() {
+    if (!this.sharedDirectory) {
+      this.handleError(
+        new Error(
+          'attempted to use a shared directory before one was initialized'
+        )
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  sendSharedDirectoryAnnounce() {
+    if (!this.sharedDirectoryReady()) return;
+    this.socket.send(
+      this.codec.encodeSharedDirectoryAnnounce({
+        completionId: 0, // This is always the first request.
+        // Hardcode directoryId for now since we only support sharing 1 directory.
+        // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
+        directoryId: 2,
+        name: this.sharedDirectory.name,
+      })
+    );
   }
 
   resize(spec: ClientScreenSpec) {
-    this.socket?.send(this.codec.encodeClientScreenSpec(spec));
+    this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
   // Emits an TdpClientEvent.ERROR event. Sets this.errored to true to alert the socket.onclose handler that
   // it needn't emit a generic unknown error event.
-  handleError(err: Error) {
+  private handleError(err: Error) {
     this.logger.error(err);
     this.emit(TdpClientEvent.TDP_ERROR, err);
     this.socket?.close();
