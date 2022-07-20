@@ -68,6 +68,108 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.Nil(t, p.mockEmitter.LastEvent())
 }
 
+func TestUpsertDeleteRoleConstraints(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	testRoles := []struct {
+		Name  string
+		Rules []types.Rule
+	}{
+		{
+			Name: "test-role-1",
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindRole},
+					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+				},
+			},
+		},
+		{
+			Name: "test-role-2",
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindRole},
+					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+				},
+			},
+		},
+		{
+			Name: "test-role-3",
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+				},
+			},
+		},
+	}
+
+	// create and insert roles
+	for _, r := range testRoles {
+		role, err := types.NewRoleV3(r.Name, types.RoleSpecV5{
+			Options: types.RoleOptions{},
+			Allow: types.RoleConditions{
+				Rules: r.Rules,
+			},
+		})
+		require.NoError(t, err)
+
+		err = p.a.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	// remove create/update rules from test-role-2.
+	// the operation will succeed because test-role-1 still has rules
+	// to create/update roles.
+	role, err := types.NewRoleV3(testRoles[1].Name, types.RoleSpecV5{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// remove create/update rules from test-role-1.
+	// the operation will fail because test-role-1 is the only role left that has
+	// rules to create/update roles.
+	role, err = types.NewRoleV3(testRoles[0].Name, types.RoleSpecV5{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	err = p.a.UpsertRole(ctx, role)
+	require.Error(t, err)
+
+	// remove create/update rules from test-role-3.
+	// this is a control operation that shows that other resource types
+	// are not affected by the "role resource constraints".
+	role, err = types.NewRoleV3(testRoles[2].Name, types.RoleSpecV5{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// delete test-role-1.
+	// the operation will fail because test-role-1 is the only role left that has
+	// rules to create/update roles.
+	err = p.a.DeleteRole(ctx, testRoles[0].Name)
+	require.Error(t, err)
+
+	// delete test-role-3.
+	// this is a control operation that shows that other resource types
+	// are not affected by the "role resource constraints".
+	err = p.a.DeleteRole(ctx, testRoles[2].Name)
+	require.NoError(t, err)
+}
+
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

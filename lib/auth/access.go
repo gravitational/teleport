@@ -28,7 +28,21 @@ import (
 
 // UpsertRole creates or updates a role and emits a related audit event.
 func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
-	if err := a.Services.UpsertRole(ctx, role); err != nil {
+	// check if the update will result in having no roles
+	// with access to create or edit roles
+	rolesWithPermission, err := a.getRolesWithCreateOrUpdateRolesRule(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, ok := rolesWithPermission[role.GetName()]; ok &&
+		len(rolesWithPermission) == 1 &&
+		!roleHasCreateAndUpdateRolesRule(role) {
+		log.Warnf("Failed to update role: role %q is the last role with permissions to create/update roles", role.GetName())
+		return trace.BadParameter("failed to update last role with permissions to create/update roles")
+	}
+
+	if err := a.Access.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -59,7 +73,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			if r == name {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
+				log.Warnf("Failed to delete role: role %q is used by user %q.", name, u.GetName())
 				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
 			}
 		}
@@ -75,13 +89,24 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			if r == name {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
-				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
+				log.Warnf("Failed to delete role: role %q is used by user cert authority %q", name, a.GetClusterName())
 				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
 			}
 		}
 	}
 
-	if err := a.Services.DeleteRole(ctx, name); err != nil {
+	// check if it's the last role with access to create or edit roles
+	rolesWithPermission, err := a.getRolesWithCreateOrUpdateRolesRule(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, ok := rolesWithPermission[name]; ok && len(rolesWithPermission) == 1 {
+		log.Warnf("Failed to delete role: role %q is the last role with permissions to create/update roles", name)
+		return trace.BadParameter("failed to delete last role with permissions to create/update roles")
+	}
+
+	if err := a.Access.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -143,4 +168,36 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 		log.WithError(err).Warning("Failed to emit lock delete event.")
 	}
 	return nil
+}
+
+func (a *Server) getRolesWithCreateOrUpdateRolesRule(ctx context.Context) (map[string]struct{}, error) {
+	allRoles, err := a.Access.GetRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles := make(map[string]struct{})
+	for _, role := range allRoles {
+		if roleHasCreateAndUpdateRolesRule(role) {
+			roles[role.GetName()] = struct{}{}
+		}
+	}
+
+	return roles, nil
+}
+
+func roleHasCreateAndUpdateRolesRule(role types.Role) bool {
+	rules := role.GetRules(types.Allow)
+	for _, rule := range rules {
+		if !rule.HasResource(types.KindRole) {
+			continue
+		}
+
+		if !rule.HasVerb(types.VerbCreate) || !rule.HasVerb(types.VerbUpdate) {
+			continue
+		}
+		return true
+
+	}
+	return false
 }
