@@ -107,8 +107,8 @@ func (m InMemoryConfigWriter) Remove(name string) error {
 // Stat returns the FileInfo of the given file.
 // Returns fs.ErrNotExists if the file is not present
 func (m InMemoryConfigWriter) Stat(name string) (fs.FileInfo, error) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
+	m.mux.RLock()
+	defer m.mux.RUnlock()
 
 	f, found := m.files[name]
 	if !found {
