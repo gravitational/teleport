@@ -285,7 +285,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.GetClusterName()
+		cn, err := asrv.Services.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -326,7 +326,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// generate certificate authorities if they don't exist
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-		ca, err := asrv.GetCertAuthority(ctx, caID, true)
+		ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -355,7 +355,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
-					if ca, err = asrv.GetCertAuthority(ctx, caID, true); err != nil {
+					if ca, err = asrv.Services.GetCertAuthority(ctx, caID, true); err != nil {
 						return nil, trace.Wrap(err)
 					}
 				}
@@ -427,7 +427,7 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 }
 
 func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
-	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
+	storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -445,7 +445,7 @@ func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetCon
 }
 
 func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
+	storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -525,7 +525,7 @@ func createPresets(asrv *Server) error {
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
-	_, err := authServer.GetCertAuthority(
+	_, err := authServer.Services.GetCertAuthority(
 		ctx,
 		types.CertAuthID{
 			DomainName: cfg.ClusterName.GetClusterName(),
@@ -956,11 +956,11 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
-	clusterName, err := asrv.GetClusterName()
+	clusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := asrv.GetCertAuthorities(ctx, types.HostCA, false)
+	certAuthorities, err := asrv.Services.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -972,7 +972,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		// remote cluster already exists
-		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
+		_, err = asrv.Services.GetRemoteCluster(certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -981,7 +981,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
+		_, err = asrv.Services.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -1011,7 +1011,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	var errors []error
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.GetCertAuthorities(ctx, caType, true)
+		cas, err := asrv.Services.GetCertAuthorities(ctx, caType, true)
 		if err != nil {
 			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
 			continue
@@ -1042,12 +1042,12 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 //
 // DELETE IN 11.0
 func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	localClusterName, err := asrv.GetClusterName()
+	localClusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	trustedClusters, err := asrv.GetTrustedClusters(ctx)
+	trustedClusters, err := asrv.Services.GetTrustedClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1062,7 +1062,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 
 	for _, clusterName := range allClusters {
 		dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName}
-		_, err = asrv.GetCertAuthority(ctx, dbCaID, false)
+		_, err = asrv.Services.GetCertAuthority(ctx, dbCaID, false)
 		if err == nil {
 			continue // no migration needed. DB cert already exists.
 		}
@@ -1071,7 +1071,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 		}
 		// Database CA doesn't exist, check for Host.
 		hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName}
-		hostCA, err := asrv.GetCertAuthority(ctx, hostCaID, true)
+		hostCA, err := asrv.Services.GetCertAuthority(ctx, hostCaID, true)
 		if trace.IsNotFound(err) {
 			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
 			continue

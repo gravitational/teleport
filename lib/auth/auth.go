@@ -3497,7 +3497,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 // deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
 func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
