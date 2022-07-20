@@ -120,6 +120,9 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `gcs_event_storage_uploads` | counter | GCP GCS | Number of uploads to the GCS backend. |
 | `heartbeat_connections_missed_total` | counter | Teleport Auth | Number of times the Auth Service did not receive a heartbeat from a Node. |
 | `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times the Auth Service received a heartbeat connection. |
+| `s3_requests_total` | counter | Amazon S3 | Total number of requests to the S3 API. |
+| `s3_requests` | counter | Amazon S3 |  Number of requests to the S3 API by result. |
+| `s3_requests_seconds` | histogram | Amazon S3 | Request latency for the S3 API. |
 | `teleport_audit_emit_events` | counter | Teleport Audit Log | Number of audit events emitted. |
 | `teleport_connected_resources` | gauge | Teleport Auth Service | Tracks the number and type of resources connected via keepalives. |
 | `teleport_registered_servers` | gauge | Teleport Auth Service | The number of Teleport servers (a server consists of one or more Teleport services) that have connected to the Teleport cluster, including the Teleport version. After disconnecting, a Teleport server has a TTL of 10 minutes, so this value will include servers that have recently disconnected but have not reached their TTL. |
