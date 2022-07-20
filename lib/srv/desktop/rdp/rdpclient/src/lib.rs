@@ -47,10 +47,38 @@ use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
+use std::net;
 
 #[no_mangle]
 pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+}
+
+#[derive(Clone)]
+struct SharedStream {
+    tcp: Arc<TcpStream>
+}
+
+impl SharedStream {
+    fn new(tcp: TcpStream) -> Self {
+        Self { tcp:Arc::new(tcp) }
+    }
+}
+
+impl Read for SharedStream {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+        self.tcp.as_ref().read(buf)
+    }
+}
+
+impl Write for SharedStream {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
+        self.tcp.as_ref().write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), IoError> {
+        self.tcp.as_ref().flush()
+    }
 }
 
 /// Client has an unusual lifecycle:
@@ -63,9 +91,10 @@ pub extern "C" fn init() {
 /// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
 /// synchronization.
 pub struct Client {
-    rdp_client: Arc<Mutex<RdpClient<TcpStream>>>,
+    rdp_client: Arc<Mutex<RdpClient<SharedStream>>>,
     tcp_fd: usize,
     go_ref: usize,
+    tcp: SharedStream,
 }
 
 impl Client {
@@ -200,9 +229,13 @@ fn connect_rdp_inner(
     let tcp_fd = tcp.as_raw_fd() as usize;
     // Domain name "." means current domain.
     let domain = ".";
+    
+    // Create a clone of the shared stream to store in the client.
+    let shared_tcp = SharedStream::new(tcp);
+    let shared_tcp2 = shared_tcp.clone();
 
     // From rdp-rs/src/core/client.rs
-    let tcp = Link::new(Stream::Raw(tcp));
+    let tcp = Link::new(Stream::Raw(shared_tcp));
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
@@ -335,6 +368,7 @@ fn connect_rdp_inner(
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
         go_ref,
+        tcp: shared_tcp2,
     })
 }
 
@@ -800,10 +834,18 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
             return cgo_error;
         }
     };
-    match client.rdp_client.lock().unwrap().shutdown() {
+
+    let res = match client.rdp_client.lock().unwrap().shutdown() {
         Err(_) => CGOErrCode::ErrCodeFailure,
         Ok(_) => CGOErrCode::ErrCodeSuccess,
+    };
+    
+    if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Read) {
+        error!("failed shutting down TCP socket: {:?}", err);
+        return CGOErrCode::ErrCodeFailure;
     }
+
+    res
 }
 
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
