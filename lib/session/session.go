@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package session is used for bookeeping of SSH interactive sessions
+// Package session is used for bookkeeping of SSH interactive sessions
 // that happen in realtime across the teleport cluster
 package session
 
@@ -383,7 +383,7 @@ const (
 	sessionUpdateRetryPeriod = 20 * time.Millisecond
 )
 
-// UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
+// UpdateSession updates session parameters - can mark it as inactive and update its terminal parameters
 func (s *server) UpdateSession(ctx context.Context, req UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
