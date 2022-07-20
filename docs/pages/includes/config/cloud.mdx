@@ -1,0 +1,100 @@
+## Configuration resource
+
+Teleport Cloud uses resources for configuration. Full resource configuration
+references are shown below that show all available options for Teleport Cloud. 
+
+## Authentication Preference
+
+The `cluster_auth_preference` resource can be used to change the preferred
+authentication method for clients. 
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+version: v2
+spec:
+  # type is the default form of authentication for users. Possible values are
+  # "local", "saml", "oidc", and "github".
+  type: local
+
+  # second_factor can be "otp" or "webauthn".
+  second_factor: "otp"
+
+  # webauthn is device specific configuration for webauthn.
+  webauthn:
+    # public domain of the Teleport proxy, *excluding* protocol
+    # (`https://`) and port number.
+    #
+    # IMPORTANT: rp_id must never change in the lifetime of the cluster,
+    # because it's recorded in the registration data on the second factor
+    # authenticator. If the rp_id changes, all existing authenticator
+    # registrations will become invalid and all users who use WebAuthn as
+    # the second factor will need to re-register.
+    rp_id: "localhost"
+
+    # attestation_allowed_cas is an optional allow list of certificate
+    # authorities (as local file paths or in-line PEM certificate string) for
+    # device verification.
+    #
+    # This field allows you to restrict which device models and vendors you
+    # trust.  Devices outside of the list will be rejected during registration.
+    # By default all devices are allowed.  If you must use attestation,
+    # consider using `attestation_denied_cas` to forbid troublesome devices
+    # instead.
+    #
+    # See the following link for more details:
+    #
+    #    https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html
+    attestation_allowed_cas:
+    - /path/to/allowed_ca.pem
+    - |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+
+    # attestation_allowed_cas is an optional deny list of certificate
+    # authorities (as local file paths or in-line PEM certificate string) for
+    # device version.
+    #
+    # This field allows you to forbid specific device models and vendors, while
+    # allowing all others (provided they clear `attestation_allowed_cas` as
+    # well). Devices within this list will be rejected during registration. By
+    # default no devices are forbidden.
+    #
+    # See the following link for more details:
+    #
+    #   https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html
+    attestation_denied_cas:
+    - /path/to/denied_ca.pem
+    - |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+```
+
+## Session Recording Configuration
+
+The `session_recording_config` resource can be used to control how session are
+recorded. By default asynchronous session recording is used where session are
+buffered on disk and streamed to Teleport Cloud at the end of a session.
+
+Customers operating with strict compliance should use synchronous session
+recording where sessions are always directly streamed to Teleport Cloud to
+prevent the loss of any session data.
+
+```
+kind: session_recording_config
+version: v2
+metadata:
+  name: session-recording-config
+spec:
+  # mode controls how sessions are recorded. Possible values are:
+  #    "node"     : sessions will be buffered to disk and at the completion of
+  #                 a session, streamed to Teleport Cloud.
+  #
+  #    "node-sync": sessions will be streamed directly from the node to
+  #                 Teleport Cloud without any buffering on disk. 
+  mode: "node"
+```
+
