@@ -279,7 +279,7 @@
       "title": "Use Teleport",
       "entries": [
         {
-          "title": "Using TSH",
+          "title": "Using tsh",
           "slug": "/use-teleport/tsh/"
         }
       ]
@@ -1337,9 +1337,9 @@
       "permanent": true
     },
     {
-    	"source": "/setup/admin/graceful-restarts/",
-        "destination": "/setup/admin/upgrading-the-teleport-binary/",
-    	"permanent": true
+      "source": "/setup/admin/graceful-restarts/",
+      "destination": "/setup/admin/upgrading-the-teleport-binary/",
+      "permanent": true
     }
   ]
 }
