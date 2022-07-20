@@ -283,8 +283,6 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
-	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -319,13 +317,17 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(ER_BPF_BUILDDIR)
-	rm -rf $(RS_BPF_BUILDDIR)
+# Check if the variable is set to prevent calling remove on the root directory.
+ifneq ($(ER_BPF_BUILDDIR),)
+	rm -f $(ER_BPF_BUILDDIR)/*.o
+endif
+ifneq ($(RS_BPF_BUILDDIR),)
+	rm -f $(RS_BPF_BUILDDIR)/*.o
+endif
 	-cargo clean
 	-go clean -cache
-	rm -rf teleport
-	rm -rf *.gz
-	rm -rf *.zip
+	rm -f *.gz
+	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 

@@ -31,23 +31,31 @@ type UserListEntry struct {
 	AuthType string `json:"authType"`
 }
 
+type userTraits struct {
+	// Logins is the list of logins that a user is
+	// allowed to start SSH sessions with.
+	Logins []string `json:"logins,omitempty"`
+	// DatabaseUsers is the list of db usernames that a
+	// user is allowed to open db connections as.
+	DatabaseUsers []string `json:"databaseUsers,omitempty"`
+	// DatabaseNames is the list of db names that a user can connect to.
+	DatabaseNames []string `json:"databaseNames,omitempty"`
+	// KubeUsers is the list of allowed kube logins.
+	KubeUsers []string `json:"kubeUsers,omitempty"`
+	// KubeGroups is the list of KubeGroups Trait for the user.
+	KubeGroups []string `json:"kubeGroups,omitempty"`
+	// WindowsLogins is the list of logins that this user
+	// is allowed to start desktop sessions.
+	WindowsLogins []string `json:"windowsLogins,omitempty"`
+	// AWSRoleARNs is a list of aws roles this user is allowed to assume.
+	AWSRoleARNs []string `json:"awsRoleArns,omitempty"`
+}
+
 // User contains data needed by the web UI to display locally saved users.
 type User struct {
 	UserListEntry
-	// Logins is the list of Logins Trait for the user
-	Logins []string `json:"logins,omitempty"`
-	// DatabaseUsers is the list of DatabaseUsers Trait for the user
-	DatabaseUsers []string `json:"database_users,omitempty"`
-	// DatabaseNames is the list of DatabaseNames Trait for the user
-	DatabaseNames []string `json:"database_names,omitempty"`
-	// KubeUsers is the list of KubeUsers Trait for the user
-	KubeUsers []string `json:"kube_users,omitempty"`
-	// KubeGroups is the list of KubeGroups Trait for the user
-	KubeGroups []string `json:"kube_groups,omitempty"`
-	// WindowsLogins is the list of WindowsLogins Trait for the user
-	WindowsLogins []string `json:"windows_logins,omitempty"`
-	// AWSRoleARNs is the list of AWSRoleARNs Trait for the user
-	AWSRoleARNs []string `json:"aws_role_ar_ns,omitempty"`
+	// Traits contain fields that define traits for local accounts.
+	Traits userTraits `json:"traits"`
 }
 
 func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
@@ -78,12 +86,14 @@ func NewUser(teleUser types.User) (*User, error) {
 
 	return &User{
 		UserListEntry: *userListEntry,
-		Logins:        teleUser.GetLogins(),
-		DatabaseUsers: teleUser.GetDatabaseUsers(),
-		DatabaseNames: teleUser.GetDatabaseNames(),
-		KubeUsers:     teleUser.GetKubeUsers(),
-		KubeGroups:    teleUser.GetKubeGroups(),
-		WindowsLogins: teleUser.GetWindowsLogins(),
-		AWSRoleARNs:   teleUser.GetAWSRoleARNs(),
+		Traits: userTraits{
+			Logins:        teleUser.GetLogins(),
+			DatabaseUsers: teleUser.GetDatabaseUsers(),
+			DatabaseNames: teleUser.GetDatabaseNames(),
+			KubeUsers:     teleUser.GetKubeUsers(),
+			KubeGroups:    teleUser.GetKubeGroups(),
+			WindowsLogins: teleUser.GetWindowsLogins(),
+			AWSRoleARNs:   teleUser.GetAWSRoleARNs(),
+		},
 	}, nil
 }

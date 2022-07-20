@@ -1074,8 +1074,8 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
 		if trace.IsConnectionProblem(directErr) && strings.Contains(directErr.Error(), "x509: certificate is valid for") {
-			directErr = trace.Wrap(directErr, "TLS certificate error. Certificate is invalid or not trusted. "+
-				"Fix the certificate to correct this error: https://goteleport.com/docs/architecture/authentication/")
+			directErr = trace.Wrap(directErr, "Your proxy certificate is not trusted or expired."+
+				" Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs")
 		}
 		process.log.Errorf("- connecting to auth server directly: %v", directErr)
 		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
