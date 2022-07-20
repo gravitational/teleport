@@ -195,144 +195,174 @@ func TestUserInfoBadStatus(t *testing.T) {
 
 func TestSSODiagnostic(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	s := setUpSuite(t)
-	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false /* tls */)
-
-	// create role referenced in request.
-	role, err := types.NewRole("access", types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Logins: []string{"dummy"},
-		},
-	})
-	require.NoError(t, err)
-	err = s.a.CreateRole(role)
-	require.NoError(t, err)
-
-	// connector spec
-	spec := types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
-		ClientID:     "00000000000000000000000000000000",
-		ClientSecret: "0000000000000000000000000000000000000000000000000000000000000000",
-		Display:      "Test",
-		Scope:        []string{"groups"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
+	tests := []struct {
+		name            string
+		claimsToRoles   []types.ClaimMapping
+		wantValidateErr error
+	}{
+		{
+			name: "success",
+			claimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "idp-admin",
+					Roles: []string{"access"},
+				},
 			},
 		},
-		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	}
-
-	oidcRequest := types.OIDCAuthRequest{
-		ConnectorID:   "-sso-test-okta",
-		Type:          constants.OIDC,
-		CertTTL:       defaults.OIDCAuthRequestTTL,
-		SSOTestFlow:   true,
-		ConnectorSpec: &spec,
-	}
-
-	request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
-	require.NoError(t, err)
-	require.NotNil(t, request)
-
-	values := url.Values{
-		"code":  []string{"XXX-code"},
-		"state": []string{request.StateToken},
-	}
-
-	// override getClaimsFun.
-	s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-		cc := map[string]interface{}{
-			"email_verified": true,
-			"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-			"email":          "superuser@example.com",
-			"sub":            "00001234abcd",
-			"exp":            1652091713.0,
-		}
-		return cc, nil
-	}
-
-	resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Equal(t, &OIDCAuthResponse{
-		Username: "superuser@example.com",
-		Identity: types.ExternalIdentity{
-			ConnectorID: "-sso-test-okta",
-			Username:    "superuser@example.com",
-		},
-		Req: *request,
-	}, resp)
-
-	diagCtx := ssoDiagContext{}
-
-	resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Equal(t, &OIDCAuthResponse{
-		Username: "superuser@example.com",
-		Identity: types.ExternalIdentity{
-			ConnectorID: "-sso-test-okta",
-			Username:    "superuser@example.com",
-		},
-		Req: *request,
-	}, resp)
-	require.Equal(t, types.SSODiagnosticInfo{
-		TestFlow: true,
-		Success:  true,
-		CreateUserParams: &types.CreateUserParams{
-			ConnectorName: "-sso-test-okta",
-			Username:      "superuser@example.com",
-			Logins:        nil,
-			KubeGroups:    nil,
-			KubeUsers:     nil,
-			Roles:         []string{"access"},
-			Traits: map[string][]string{
-				"email":  {"superuser@example.com"},
-				"groups": {"everyone", "idp-admin", "idp-dev"},
-				"sub":    {"00001234abcd"},
+		{
+			name: "fail to map claims to roles",
+			claimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "nonexistant",
+					Roles: []string{"access"},
+				},
 			},
-			SessionTTL: 600000000000,
+			wantValidateErr: ErrOIDCNoRoles,
 		},
-		OIDCClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
-			},
-		},
-		OIDCClaimsToRolesWarnings: nil,
-		OIDCClaims: map[string]interface{}{
-			"email_verified": true,
-			"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-			"email":          "superuser@example.com",
-			"sub":            "00001234abcd",
-			"exp":            1652091713.0,
-		},
-		OIDCIdentity: &types.OIDCIdentity{
-			ID:        "00001234abcd",
-			Name:      "",
-			Email:     "superuser@example.com",
-			ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
-		},
-		OIDCTraitsFromClaims: map[string][]string{
-			"email":  {"superuser@example.com"},
-			"groups": {"everyone", "idp-admin", "idp-dev"},
-			"sub":    {"00001234abcd"},
-		},
-		OIDCConnectorTraitMapping: []types.TraitMapping{
-			{
-				Trait: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
-			},
-		},
-	}, diagCtx.info)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := setUpSuite(t)
+			// Create configurable IdP to use in tests.
+			idp := newFakeIDP(t, false /* tls */)
+
+			// create role referenced in request.
+			role, err := types.NewRole("access", types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Logins: []string{"dummy"},
+				},
+			})
+			require.NoError(t, err)
+			err = s.a.CreateRole(role)
+			require.NoError(t, err)
+
+			// connector spec
+			spec := types.OIDCConnectorSpecV3{
+				IssuerURL:     idp.s.URL,
+				ClientID:      "00000000000000000000000000000000",
+				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
+				Display:       "Test",
+				Scope:         []string{"groups"},
+				ClaimsToRoles: tc.claimsToRoles,
+				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			}
+
+			oidcRequest := types.OIDCAuthRequest{
+				ConnectorID:   "-sso-test-okta",
+				Type:          constants.OIDC,
+				CertTTL:       defaults.OIDCAuthRequestTTL,
+				SSOTestFlow:   true,
+				ConnectorSpec: &spec,
+			}
+
+			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
+			require.NoError(t, err)
+			require.NotNil(t, request)
+
+			values := url.Values{
+				"code":  []string{"XXX-code"},
+				"state": []string{request.StateToken},
+			}
+
+			// override getClaimsFun.
+			s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+				cc := map[string]interface{}{
+					"email_verified": true,
+					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
+					"email":          "superuser@example.com",
+					"sub":            "00001234abcd",
+					"exp":            1652091713.0,
+				}
+				return cc, nil
+			}
+
+			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
+			if tc.wantValidateErr != nil {
+				require.ErrorIs(t, err, tc.wantValidateErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, &OIDCAuthResponse{
+				Username: "superuser@example.com",
+				Identity: types.ExternalIdentity{
+					ConnectorID: "-sso-test-okta",
+					Username:    "superuser@example.com",
+				},
+				Req: *request,
+			}, resp)
+
+			diagCtx := ssoDiagContext{}
+
+			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, &OIDCAuthResponse{
+				Username: "superuser@example.com",
+				Identity: types.ExternalIdentity{
+					ConnectorID: "-sso-test-okta",
+					Username:    "superuser@example.com",
+				},
+				Req: *request,
+			}, resp)
+			require.Equal(t, types.SSODiagnosticInfo{
+				TestFlow: true,
+				Success:  true,
+				CreateUserParams: &types.CreateUserParams{
+					ConnectorName: "-sso-test-okta",
+					Username:      "superuser@example.com",
+					Logins:        nil,
+					KubeGroups:    nil,
+					KubeUsers:     nil,
+					Roles:         []string{"access"},
+					Traits: map[string][]string{
+						"email":  {"superuser@example.com"},
+						"groups": {"everyone", "idp-admin", "idp-dev"},
+						"sub":    {"00001234abcd"},
+					},
+					SessionTTL: 600000000000,
+				},
+				OIDCClaimsToRoles: []types.ClaimMapping{
+					{
+						Claim: "groups",
+						Value: "idp-admin",
+						Roles: []string{"access"},
+					},
+				},
+				OIDCClaimsToRolesWarnings: nil,
+				OIDCClaims: map[string]interface{}{
+					"email_verified": true,
+					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
+					"email":          "superuser@example.com",
+					"sub":            "00001234abcd",
+					"exp":            1652091713.0,
+				},
+				OIDCIdentity: &types.OIDCIdentity{
+					ID:        "00001234abcd",
+					Name:      "",
+					Email:     "superuser@example.com",
+					ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
+				},
+				OIDCTraitsFromClaims: map[string][]string{
+					"email":  {"superuser@example.com"},
+					"groups": {"everyone", "idp-admin", "idp-dev"},
+					"sub":    {"00001234abcd"},
+				},
+				OIDCConnectorTraitMapping: []types.TraitMapping{
+					{
+						Trait: "groups",
+						Value: "idp-admin",
+						Roles: []string{"access"},
+					},
+				},
+			}, diagCtx.info)
+		})
+	}
 }
 
 // TestPingProvider confirms that the client_secret_post auth

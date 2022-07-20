@@ -561,7 +561,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(req.User)
+	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -28,17 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/trace"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -48,10 +43,13 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type ProxySuite struct {
@@ -69,8 +67,8 @@ type proxySuiteOptions struct {
 	rootClusterNodeName string
 	leafClusterNodeName string
 
-	rootClusterPorts *helpers.InstancePorts
-	leafClusterPorts *helpers.InstancePorts
+	rootClusterListeners helpers.InstanceListenerSetupFunc
+	leafClusterListeners helpers.InstanceListenerSetupFunc
 
 	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
 	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
@@ -84,33 +82,35 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterNodeName: Host,
-		leafClusterNodeName: Host,
-		rootClusterPorts:    helpers.SingleProxyPortSetup(),
-		leafClusterPorts:    helpers.SingleProxyPortSetup(),
+		rootClusterNodeName:  Host,
+		leafClusterNodeName:  Host,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
 	}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       options.rootClusterPorts,
-	})
+	}
+	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
+	rc := helpers.NewInstance(t, rCfg)
 
 	// Create leaf cluster.
-	lc := helpers.NewInstance(helpers.InstanceConfig{
+	lCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       options.leafClusterPorts,
-	})
+	}
+	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
+	lc := helpers.NewInstance(t, lCfg)
 	suite := &ProxySuite{
 		root: rc,
 		leaf: lc,
@@ -179,7 +179,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.leaf.GetPortWeb()),
+				Addr:        p.leaf.Web,
 			},
 		}
 		tconf.Auth.Enabled = false
@@ -284,15 +284,15 @@ func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
 	}
 }
 
-func withRootClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
+func withRootClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.rootClusterPorts = ports
+		options.rootClusterListeners = fn
 	}
 }
 
-func withLeafClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
+func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.leafClusterPorts = ports
+		options.leafClusterListeners = fn
 	}
 }
 
@@ -315,11 +315,11 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = rc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+		config.SSH.Addr.Addr = rc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
@@ -335,11 +335,11 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = lc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+		config.SSH.Addr.Addr = lc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
