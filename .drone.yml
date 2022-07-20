@@ -4986,14 +4986,14 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_BUILD_USER_KEY
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_BUILD_USER_SECRET
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make aws-cli
       - chown -R $UID:$GID /go
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
@@ -6010,6 +6010,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 71142578b12f90c9da6387f518bd8898ed995147f8e31b7bf0aadf2babebfd66
+hmac: 4f64d204b34ab877c7439caff7c37a76b795efb5e3ccfe29b4fbedbb6f614b7d
 
 ...
