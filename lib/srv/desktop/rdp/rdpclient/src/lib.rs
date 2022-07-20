@@ -840,7 +840,7 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
         Ok(_) => CGOErrCode::ErrCodeSuccess,
     };
 
-    if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Read) {
+    if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
         error!("failed shutting down TCP socket: {:?}", err);
         return CGOErrCode::ErrCodeFailure;
     }
