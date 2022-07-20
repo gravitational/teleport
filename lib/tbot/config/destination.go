@@ -17,7 +17,7 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
 )
 
@@ -83,7 +83,7 @@ func (dm *DestinationMixin) CheckAndSetDefaults(applyDefaults DestinationDefault
 // GetDestination returns the first non-nil Destination set. Note that
 // CheckAndSetDefaults() does attempt to ensure that only a single
 // destination is set, though this may change at runtime.
-func (dm *DestinationMixin) GetDestination() (destination.Destination, error) {
+func (dm *DestinationMixin) GetDestination() (bot.Destination, error) {
 	if dm.Directory != nil {
 		return dm.Directory, nil
 	}

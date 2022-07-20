@@ -4118,9 +4118,16 @@ func (process *TeleportProcess) initApps() {
 		if tunnelAddrResolver == nil {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
+			// run the resolver. this will check configuration for errors.
+			_, err := tunnelAddrResolver(process.ExitContext())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Block and wait for all dependencies to start before starting.
 			log.Debugf("Waiting for application service dependencies to start.")
 			process.waitForAppDepend()
+			log.Debugf("Application service dependencies have started, continuing.")
 		}
 
 		// Start uploader that will scan a path on disk and upload completed
