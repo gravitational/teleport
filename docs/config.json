@@ -82,7 +82,7 @@
             },
             {
               "title": "Upgrading the Teleport Binary",
-              "slug": "/setup/admin/graceful-restarts/"
+              "slug": "/setup/admin/upgrading-the-teleport-binary/"
             },
             {
               "title": "Run Teleport as a Daemon",
@@ -919,7 +919,7 @@
       "last_report": "April 12th, 2021"
     },
     "cloud": {
-      "version": "9.3.8",
+      "version": "9.3.10",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -948,14 +948,15 @@
       "min_version": "3.6"
     },
     "teleport": {
-      "version": "10.0.0",
+      "major_version": "10",
+      "version": "10.0.2",
       "golang": "1.18",
       "plugin": {
-        "version": "10.0.0"
+        "version": "10.0.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.0.0",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.0.0"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.0.2",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.0.2"
     }
   },
   "redirects": [
@@ -1267,6 +1268,16 @@
     {
       "source": "/kubernetes-access/helm/guides/migration/",
       "destination": "/setup/helm-deployments/migration/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/u2f/",
+      "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/graceful-restarts/",
+      "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
     }
   ]
