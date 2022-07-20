@@ -298,7 +298,7 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindAppServer,
 		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
-		Limit:               int32(defaults.DefaultChunkSize),
+		Limit:               1,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -315,15 +315,14 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	}
 	apps = types.DeduplicateApps(apps)
 
-	// Check app name in the (unlikely) event the server does not process
-	// filters.
-	for _, app := range apps {
-		if app.GetName() == appName {
-			return app, nil
-		}
+	switch len(apps) {
+	case 1:
+		return apps[0], nil
+	case 0:
+		return nil, trace.BadParameter("app %q not found", appName)
+	default:
+		return nil, trace.BadParameter("unexpected number of matching apps found (%d)", len(apps))
 	}
-
-	return nil, trace.BadParameter("app %q not found", appName)
 }
 
 func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
