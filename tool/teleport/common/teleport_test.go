@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -171,6 +172,39 @@ func TestConfigure(t *testing.T) {
 		err := flags.CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
+}
+
+func TestDumpConfigFile(t *testing.T) {
+	tt := []struct {
+		name      string
+		outputURI string
+		contents  string
+		comment   string
+		shouldErr bool
+	}{
+		{
+			name:      "errors on relative path",
+			shouldErr: true,
+			outputURI: "../",
+		},
+		{
+			name:      "doesn't error on unexisting config path",
+			shouldErr: false,
+			outputURI: fmt.Sprintf("%s/unexisting/dir/%s", t.TempDir(), "config.yaml"),
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := dumpConfigFile(tc.outputURI, tc.contents, tc.comment)
+			if tc.shouldErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.outputURI, r)
+			}
+		})
+	}
 }
 
 const configData = `
