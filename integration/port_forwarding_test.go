@@ -30,10 +30,9 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 func extractPort(svr *httptest.Server) (int, error) {
@@ -48,26 +47,17 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-
-		case <-ticker.C:
-			ss, err := site.GetSessions(namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(ss) > 0 {
-				return ss, nil
-			}
+func waitForSessionToBeEstablished(ctx context.Context, t *testing.T, site auth.ClientI) (tracker types.SessionTracker) {
+	sessionEstablished := func() bool {
+		trackers, err := site.GetActiveSessionTrackers(ctx)
+		if err != nil || len(trackers) == 0 {
+			return false
 		}
+		tracker = trackers[0]
+		return tracker.GetState() == types.SessionState_SessionStateRunning
 	}
+	require.Eventually(t, sessionEstablished, time.Second*10, time.Second)
+	return
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
@@ -151,14 +141,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			go cl.SSH(sshSessionCtx, []string{}, false)
 			defer sshSessionCancel()
 
-			sessionEstablished := func() bool {
-				trackers, err := site.GetActiveSessionTrackers(ctx)
-				if err != nil || len(trackers) == 0 {
-					return false
-				}
-				return trackers[0].GetState() == types.SessionState_SessionStateRunning
-			}
-			require.Eventually(t, sessionEstablished, time.Second*10, time.Second)
+			waitForSessionToBeEstablished(ctx, t, site)
 
 			// When everything is *finally* set up, and I attempt to use the
 			// forwarded connection

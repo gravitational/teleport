@@ -336,31 +336,16 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				endC <- err
 			}()
 
-			// wait until we've found the session in the audit log
-			getSession := func(site auth.ClientI) (*session.Session, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				sessions, err := waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				return &sessions[0], nil
-			}
-			session, err := getSession(site)
-			require.NoError(t, err)
-			sessionID := session.ID
+			// wait until the sess is running
+			sess := waitForSessionToBeEstablished(ctx, t, site)
+			sid := sess.GetSessionID()
 
-			// wait for the user to join this session:
-			for len(session.Parties) == 0 {
-				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessionID)
-				require.NoError(t, err)
-			}
-			// make sure it's us who joined! :)
-			require.Equal(t, suite.Me.Username, session.Parties[0].User)
+			// the session should have one party
+			parties := sess.GetParticipants()
+			require.Len(t, parties, 1)
+			require.Equal(t, suite.Me.Username, parties[0])
 
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
-
 			myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
 
 			// wait for session to end:
@@ -376,15 +361,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case event := <-teleport.UploadEventsC:
-					if event.SessionID != string(session.ID) {
-						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, session.ID)
+					if event.SessionID != sid {
+						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, sid)
 						continue
 					}
 					break loop
 				case <-timeoutC:
 					dumpGoroutineProfile()
 					t.Fatalf("%s: Timeout waiting for upload of session %v to complete to %v",
-						tt.comment, session.ID, tt.auditSessionsURI)
+						tt.comment, sid, tt.auditSessionsURI)
 				}
 			}
 
@@ -392,7 +377,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// everything because the session is closing)
 			var sessionStream []byte
 			for i := 0; i < 6; i++ {
-				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(sid), 0, events.MaxChunkBytes)
 				require.NoError(t, err)
 				if strings.Contains(string(sessionStream), "exit") {
 					break
@@ -424,7 +409,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID, 0, false)
+						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(sid), 0, false)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -483,7 +468,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			start := findByType(events.SessionStartEvent)
 			require.Equal(t, first, start)
 			require.Equal(t, 0, start.GetInt("bytes"))
-			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
+			require.Equal(t, sid, start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
 			// If session are being recorded at nodes, the SessionServerID should contain
@@ -508,13 +493,13 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
+			require.Equal(t, sid, end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
+			require.Equal(t, sid, leave.GetString(events.SessionEventID))
 
 			// all of them should have a proper time
 			for _, e := range history {
@@ -1163,89 +1148,71 @@ func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan e
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
 func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInstance) {
+	ctx := context.Background()
 	// get a reference to site obj:
 	site := teleport.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
+	// PersonA: SSH into the server, opening a new session
+	clientA, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
 	personA := NewTerminal(250)
-	personB := NewTerminal(250)
+	clientA.Stdout = personA
+	clientA.Stdin = personA
 
-	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionA := make(chan error)
-	openSession := func() {
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   username,
-			Cluster: helpers.Site,
-			Host:    Host,
-		})
-		if err != nil {
-			sessionA <- trace.Wrap(err)
-			return
-		}
-		cl.Stdout = personA
-		cl.Stdin = personA
-		// Person A types something into the terminal (including "exit")
-		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		sessionA <- cl.SSH(context.TODO(), []string{}, false)
-	}
+	go func() {
+		sessionA <- clientA.SSH(ctx, []string{}, false)
+	}()
 
-	// PersonB: wait for a session to become available, then join:
+	// wait for the session to become available
+	sess := waitForSessionToBeEstablished(ctx, t, site)
+	sid := sess.GetSessionID()
+
+	// PersonB: join the session
+	clientB, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	personB := NewTerminal(250)
+	clientB.Stdout = personB
+	clientB.Stdin = personB
+
 	sessionB := make(chan error)
-	joinSession := func() {
-		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer sessionTimeoutCancel()
-		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, apidefaults.Namespace, site)
-		if err != nil {
-			sessionB <- trace.Wrap(err)
-			return
-		}
+	go func() {
+		sessionB <- clientB.Join(ctx, types.SessionPeerMode, apidefaults.Namespace, session.ID(sid), personB)
+	}()
 
-		sessionID := string(sessions[0].ID)
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   username,
-			Cluster: helpers.Site,
-			Host:    Host,
-		})
-		if err != nil {
-			sessionB <- trace.Wrap(err)
-			return
-		}
-
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-timeoutCtx.Done():
-				sessionB <- timeoutCtx.Err()
-				return
-
-			case <-ticker.C:
-				err := cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
-				if err == nil {
-					sessionB <- nil
-					return
-				}
-			}
-		}
-	}
-
-	go openSession()
-	go joinSession()
-
-	// wait for the sessions to end
-	err := waitForError(sessionA, time.Second*10)
-	require.NoError(t, err)
-
-	err = waitForError(sessionB, time.Second*10)
-	require.NoError(t, err)
+	// Person A types something into the terminal (including "exit")
+	personA.Type("\aecho hi\n\r\aexit\n\r\a")
 
 	// make sure the output of B is mirrored in A
 	outputOfA := personA.Output(100)
 	outputOfB := personB.Output(100)
-	require.Contains(t, outputOfA, outputOfB)
+	require.Equal(t, outputOfA, outputOfB)
+
+	// wait for the sessions to end without error
+	sessionEndedWithoutError := func(t *testing.T, errC chan error) func() bool {
+		return func() bool {
+			select {
+			case err := <-errC:
+				require.NoError(t, err)
+				return true
+			default:
+				return false
+			}
+		}
+	}
+	require.Eventually(t, sessionEndedWithoutError(t, sessionA), time.Second*10, time.Second)
+	require.Eventually(t, sessionEndedWithoutError(t, sessionB), time.Second*10, time.Second)
 }
 
 // TestShutdown tests scenario with a graceful shutdown,
@@ -1453,12 +1420,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err)
 				require.Len(t, sems, 1)
 
-				timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
-				defer cancel()
-
-				ss, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
-				require.NoError(t, err)
-				require.Len(t, ss, 1)
+				waitForSessionToBeEstablished(ctx, t, site)
 				require.Nil(t, teleport.StopAuth(false))
 			},
 		},
@@ -3728,6 +3690,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 // testAuditOff checks that when session recording has been turned off,
 // sessions are not recorded.
 func testAuditOff(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3781,21 +3744,14 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		endCh <- err
 	}()
 
-	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
-	require.NoError(t, err)
-	session := &sessions[0]
+	// wait until the session is ready
+	sess := waitForSessionToBeEstablished(ctx, t, site)
+	sid := sess.GetSessionID()
 
-	// wait for the user to join this session
-	for len(session.Parties) == 0 {
-		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
-		require.NoError(t, err)
-	}
-	// make sure it's us who joined! :)
-	require.Equal(t, suite.Me.Username, session.Parties[0].User)
+	// the session should have one party
+	parties := sess.GetParticipants()
+	require.Len(t, parties, 1)
+	require.Equal(t, suite.Me.Username, parties[0])
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
@@ -3812,7 +3768,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(sid), 0, events.MaxChunkBytes)
 	require.Error(t, err)
 }
 
@@ -4616,6 +4572,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 // TestWindowChange checks if custom Teleport window change requests are sent
 // when the server side PTY changes its size.
 func testWindowChange(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -4649,12 +4606,9 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 
 	// joinSession will join the existing session on a server.
 	joinSession := func() {
-		// Find the existing session in the backend.
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		sessions, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
-		require.NoError(t, err)
-		sessionID := string(sessions[0].ID)
+		// wait until the session is ready
+		sess := waitForSessionToBeEstablished(ctx, t, site)
+		sid := sess.GetSessionID()
 
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   suite.Me.Username,
@@ -4677,7 +4631,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sid), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
 				break
