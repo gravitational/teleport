@@ -18,6 +18,7 @@ package daemon
 
 import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
 	"github.com/gravitational/trace"
 
@@ -29,8 +30,9 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log            *logrus.Entry
-	GatewayCreator GatewayCreator
+	Log              *logrus.Entry
+	GatewayCreator   GatewayCreator
+	TCPPortAllocator gateway.TCPPortAllocator
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
@@ -41,6 +43,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.GatewayCreator == nil {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
+	}
+
+	if c.TCPPortAllocator == nil {
+		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
 	}
 
 	if c.Log == nil {
