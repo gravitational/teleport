@@ -359,14 +359,17 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   [ -f "$file.sha256" ] || continue
 
   name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-  if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-    products="teleport teleport-ent";
-  else
-    products="$name"
+  description="%[1]s"
+  products="$name"
+  if [ "$name" = "tsh" ]; then
+    products="teleport teleport-ent"
+  elif [ "$name" = "Teleport Connect" ]; then
+    description="Teleport Connect"
+    products="teleport teleport-ent"
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-  curl $CREDENTIALS --fail -o /dev/null -F description="%[1]s" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
   for product in $products; do
     status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")

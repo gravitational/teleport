@@ -1207,14 +1207,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1363,14 +1366,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1517,14 +1523,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1671,14 +1680,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit (FedRAMP/FIPS)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1711,7 +1723,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -1847,14 +1859,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1892,7 +1907,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2025,14 +2040,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2070,7 +2088,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2197,14 +2215,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit DEB"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2237,7 +2258,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2361,14 +2382,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 64-bit DEB (FedRAMP/FIPS)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2515,14 +2539,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 32-bit"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2555,7 +2582,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2691,14 +2718,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 32-bit RPM"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit RPM" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2736,7 +2766,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2863,14 +2893,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux 32-bit DEB"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit DEB" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3090,14 +3123,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="MacOS Intel"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3295,14 +3331,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="MacOS Intel .pkg installer"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3481,14 +3520,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="MacOS Intel .pkg installer (tsh client only)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer (tsh client only)" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3633,14 +3675,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARMv7 (32-bit)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit)" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3787,14 +3832,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARM64/ARMv8 (64-bit)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit)" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3827,7 +3875,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -3954,14 +4002,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARM64/ARMv8 (64-bit) DEB"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) DEB" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3994,7 +4045,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4121,14 +4172,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARMv7 (32-bit) DEB"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) DEB" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4161,7 +4215,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4297,14 +4351,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARM64/ARMv8 (64-bit) RPM"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) RPM" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4342,7 +4399,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4478,14 +4535,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Linux ARMv7 (32-bit) RPM"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) RPM" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4640,14 +4700,17 @@ steps:
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      if [ "$name" = "tsh" -o "$name" = "Teleport Connect" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+      description="Windows 64-bit (tsh client only)"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Windows 64-bit (tsh client only)" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -5614,6 +5677,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 183b3d79c86950bf1193a160199c12c3ccb70de2d30458765dccf8fb8ffaa3c3
+hmac: 22fb7f627977da052a34ae892399838fd8e1b197e9ccd99c0920a62c3bb2031c
 
 ...
