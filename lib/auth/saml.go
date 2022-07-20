@@ -45,7 +45,7 @@ var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappin
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
+	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
@@ -66,7 +66,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteSAMLConnector(ctx, connectorName); err != nil {
+	if err := a.Services.DeleteSAMLConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
@@ -118,7 +118,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.Identity.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
+	err = a.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,7 +157,7 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetSAMLConnector(ctx, req.ConnectorID, true)
+	connector, err := a.GetSAMLConnector(ctx, req.ConnectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -219,7 +219,7 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,7 +270,7 @@ func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Identity.GetUser(p.username, false)
+	existingUser, err := a.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -424,7 +424,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 	diagCtx.requestID = requestID
 
-	request, err := a.Identity.GetSAMLAuthRequest(ctx, requestID)
+	request, err := a.GetSAMLAuthRequest(ctx, requestID)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
 	}
@@ -522,7 +522,6 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 			SessionTTL: params.sessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
 		})
-
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
 		}

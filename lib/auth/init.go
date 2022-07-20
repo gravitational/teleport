@@ -239,7 +239,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.Trust.CreateCertAuthority(ca); err != nil {
+		if err := asrv.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -285,7 +285,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.ClusterConfiguration.GetClusterName()
+		cn, err := asrv.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1101,7 +1101,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 
-		err = asrv.Trust.CreateCertAuthority(dbCA)
+		err = asrv.CreateCertAuthority(dbCA)
 		switch {
 		case trace.IsAlreadyExists(err):
 			// Probably another auth server have created the DB CA since we last check.

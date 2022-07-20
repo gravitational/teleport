@@ -28,7 +28,7 @@ import (
 
 // UpsertRole creates or updates a role and emits a related audit event.
 func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
-	if err := a.Access.UpsertRole(ctx, role); err != nil {
+	if err := a.Services.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -50,7 +50,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.Identity.GetUsers(false)
+	users, err := a.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,7 +66,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	}
 	// check if it's used by some external cert authorities, e.g.
 	// cert authorities related to external cluster
-	cas, err := a.Trust.GetCertAuthorities(ctx, types.UserCA, false)
+	cas, err := a.GetCertAuthorities(ctx, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -81,7 +81,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Access.DeleteRole(ctx, name); err != nil {
+	if err := a.Services.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -102,7 +102,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 
 // UpsertLock upserts a lock and emits a related audit event.
 func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
-	if err := a.Access.UpsertLock(ctx, lock); err != nil {
+	if err := a.Services.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -123,7 +123,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 
 // DeleteLock deletes a lock and emits a related audit event.
 func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
-	if err := a.Access.DeleteLock(ctx, lockName); err != nil {
+	if err := a.Services.DeleteLock(ctx, lockName); err != nil {
 		return trace.Wrap(err)
 	}
 

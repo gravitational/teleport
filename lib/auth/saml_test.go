@@ -366,14 +366,13 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, connector)
 	require.NotNil(t, provider)
-
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Date(2022, 04, 25, 9, 0, 0, 0, time.UTC))
+	clock := clockwork.NewFakeClockAt(time.Date(2022, 0o4, 25, 9, 0, 0, 0, time.UTC))
 
 	// Create a Server instance for testing.
 	b, err := memory.New(memory.Config{
@@ -487,7 +486,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	err = a.Identity.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+	err = a.Services.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 		ID:                "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
 		ConnectorID:       "saml-test-conn",
 		SSOTestFlow:       true,
@@ -542,7 +541,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.Equal(t, "_4f256462-6c2d-466d-afc0-6ee36602b6f2", auth.Req.ID)
 	require.Equal(t, 0, len(auth.HostSigners))
 
-	authnInstant := time.Date(2022, 04, 25, 8, 3, 11, 779000000, time.UTC)
+	authnInstant := time.Date(2022, 0o4, 25, 8, 3, 11, 779000000, time.UTC)
 
 	// ignore, this is boring and very complex.
 	require.NotNil(t, diagCtx.info.SAMLAssertionInfo.Assertions)

@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -46,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -159,6 +160,14 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 		a.TLS.Shutdown(ctx),
 		a.AuthServer.Close(),
 	)
+}
+
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
 }
 
 // TestAuthServer is auth server using local filesystem backend

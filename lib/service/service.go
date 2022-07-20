@@ -1508,6 +1508,23 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+	}, func(as *auth.Server) error {
+		if !process.Config.CachePolicy.Enabled {
+			return nil
+		}
+
+		cache, err := process.newAccessCache(accessCacheConfig{
+			services:  as.Services,
+			setup:     cache.ForAuth,
+			cacheName: []string{teleport.ComponentAuth},
+			events:    true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		as.Cache = cache
+
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1575,23 +1592,6 @@ func (process *TeleportProcess) initAuthService() error {
 		MetadataGetter: uploadHandler,
 	}
 
-	var authCache auth.Cache
-	if process.Config.CachePolicy.Enabled {
-		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.Services,
-			setup:     cache.ForAuth,
-			cacheName: []string{teleport.ComponentAuth},
-			events:    true,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		authCache = cache
-	} else {
-		authCache = authServer.Services
-	}
-	authServer.SetCache(authCache)
-
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
@@ -1646,7 +1646,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
-		AccessPoint:   authCache,
+		AccessPoint:   authServer,
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 		ID:            process.id,
 		Listener:      mux.TLS(),

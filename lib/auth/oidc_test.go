@@ -385,7 +385,7 @@ func TestPingProvider(t *testing.T) {
 		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.Identity.UpsertOIDCConnector(ctx, connector)
+	err = s.a.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
 	for _, req := range []types.OIDCAuthRequest{
@@ -701,17 +701,20 @@ func TestOIDCGoogle(t *testing.T) {
 		email, domain                string
 		transitive, direct, filtered []string
 	}{
-		{"alice@foo.example", "foo.example",
+		{
+			"alice@foo.example", "foo.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group1@foo.example"},
 		},
-		{"bob@foo.example", "foo.example",
+		{
+			"bob@foo.example", "foo.example",
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 		},
-		{"carlos@bar.example", "bar.example",
+		{
+			"carlos@bar.example", "bar.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group3@bar.example"},

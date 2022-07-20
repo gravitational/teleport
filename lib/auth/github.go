@@ -56,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Identity.CreateGithubAuthRequest(ctx, req)
+	err = a.Services.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
+	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
@@ -86,7 +86,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(ctx, connectorName); err != nil {
+	if err := a.DeleteGithubConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -132,7 +132,6 @@ type githubManager interface {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-
 	return validateGithubAuthCallbackHelper(ctx, a, q, a.emitter)
 }
 
@@ -217,7 +216,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetGithubConnector(ctx, request.ConnectorID, true)
+	connector, err := a.GetGithubConnector(ctx, request.ConnectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -275,7 +274,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.Identity.GetGithubAuthRequest(ctx, state)
+			req, err := a.GetGithubAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -299,7 +298,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.Identity.GetGithubAuthRequest(ctx, stateToken)
+	req, err := a.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -466,7 +465,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -740,10 +739,8 @@ const (
 	MaxPages = 99
 )
 
-var (
-	// GithubScopes is a list of scopes requested during OAuth2 flow
-	GithubScopes = []string{
-		// read:org grants read-only access to user's team memberships
-		"read:org",
-	}
-)
+// GithubScopes is a list of scopes requested during OAuth2 flow
+var GithubScopes = []string{
+	// read:org grants read-only access to user's team memberships
+	"read:org",
+}

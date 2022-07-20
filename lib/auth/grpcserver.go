@@ -2102,7 +2102,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.Identity.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
+	devs, err := gctx.authServer.Services.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2155,7 +2155,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Keep Webauthn session data in memory, we can afford that for the streaming
 	// RPCs.
-	webIdentity := wanlib.WithInMemorySessionData(auth.Identity)
+	webIdentity := wanlib.WithInMemorySessionData(auth.Services)
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
@@ -4202,7 +4202,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 }
 
 func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
-	clusterName, err := cfg.AuthServer.Services.GetClusterName()
+	clusterName, err := cfg.AuthServer.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4211,7 +4211,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 		Username:    string(types.RoleNop),
 		ClusterName: clusterName.GetClusterName(),
 	}
-	recConfig, err := cfg.AuthServer.Services.GetSessionRecordingConfig(context.Background())
+	recConfig, err := cfg.AuthServer.GetSessionRecordingConfig(context.Background())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4223,7 +4223,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 		authServer: cfg.AuthServer,
 		context:    *nopCtx,
 		sessions:   cfg.SessionService,
-		alog:       cfg.AuthServer.IAuditLog,
+		alog:       cfg.AuthServer.Services,
 	}, nil
 }
 
@@ -4258,7 +4258,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			sessions:   g.SessionService,
-			alog:       g.AuthServer.IAuditLog,
+			alog:       g.AuthServer.Services,
 		},
 	}, nil
 }

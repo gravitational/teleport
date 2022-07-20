@@ -181,7 +181,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		// use the UpsertTrustedCluster in Presence as we just want the resource in
 		// the backend, we don't want to actually connect
-		_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
 
 		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
@@ -192,7 +192,6 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "same name as trusted cluster")
-
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
@@ -313,7 +312,7 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	require.NoError(t, err)
 	// use the UpsertTrustedCluster in Presence as we just want the resource in
 	// the backend, we don't want to actually connect
-	_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+	_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	// Generate remote HostCA and remove private key as remote CA should have only public cert.

@@ -317,7 +317,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Identity.GetUser(user.GetName(), false)
+	user, err := s.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,7 +367,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// There's a tiny chance the underlying user is mutated between calls
 		// to GetUser() but we're comparing with an older value so it'll fail
 		// safely.
-		newUser, err := s.Identity.GetUser(user.GetName(), false)
+		newUser, err := s.GetUser(user.GetName(), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -428,7 +428,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := s.Identity.GetUser(user.GetName(), false)
+	newUser, err := s.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -539,7 +539,7 @@ func TestUserLock(t *testing.T) {
 		require.Error(t, err)
 	}
 
-	user, err := s.a.Identity.GetUser(username, false)
+	user, err := s.a.GetUser(username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
@@ -938,7 +938,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 		ReverseTunnelAddress: "b",
 	})
 	require.NoError(t, err)
-	_, err = s.a.Presence.UpsertTrustedCluster(ctx, tc)
+	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
 	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
@@ -1368,7 +1368,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			token, err := srv.Auth().newUserToken(tc.tokenReq)
 			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+			_, err = srv.Auth().CreateUserToken(ctx, token)
 			require.NoError(t, err)
 
 			// Delete the TOTP device.
@@ -1381,7 +1381,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	}
 
 	// Check it's been deleted.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	compareDevices(t, false /* ignoreUpdateAndCounter */, devs, webDev2.MFA, totpDev2.MFA)
 
@@ -1460,7 +1460,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			if tc.tokenRequest != nil {
 				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
 				tokenID = token.GetName()
@@ -1585,7 +1585,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 				Type: UserTokenTypeRecoveryApproved,
 			})
 			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			_, err = srv.Auth().CreateUserToken(context.Background(), token)
 			require.NoError(t, err)
 
 			// Delete the device.
@@ -1651,7 +1651,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 					Type: UserTokenTypeResetPassword,
 				})
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+				_, err = srv.Auth().CreateUserToken(ctx, token)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
@@ -1800,7 +1800,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			if tc.tokenRequest != nil {
 				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
 				tokenID = token.GetName()
@@ -1991,7 +1991,7 @@ func TestFilterResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := &Server{cache: tt.cache}
+			srv := &Server{Cache: tt.cache}
 
 			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
 				ResourceType: types.KindNode,
