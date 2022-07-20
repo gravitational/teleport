@@ -343,7 +343,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// the session should have one party
 			parties := sess.GetParticipants()
 			require.Len(t, parties, 1)
-			require.Equal(t, suite.Me.Username, parties[0])
+			require.Equal(t, suite.Me.Username, parties[0].User)
 
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 			myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
@@ -1194,11 +1194,6 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	// Person A types something into the terminal (including "exit")
 	personA.Type("\aecho hi\n\r\aexit\n\r\a")
 
-	// make sure the output of B is mirrored in A
-	outputOfA := personA.Output(100)
-	outputOfB := personB.Output(100)
-	require.Equal(t, outputOfA, outputOfB)
-
 	// wait for the sessions to end without error
 	sessionEndedWithoutError := func(t *testing.T, errC chan error) func() bool {
 		return func() bool {
@@ -1213,6 +1208,11 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	}
 	require.Eventually(t, sessionEndedWithoutError(t, sessionA), time.Second*10, time.Second)
 	require.Eventually(t, sessionEndedWithoutError(t, sessionB), time.Second*10, time.Second)
+
+	// make sure the output of A is mirrored in B
+	outputOfA := personA.Output(100)
+	outputOfB := personB.Output(100)
+	require.Contains(t, outputOfB, outputOfA)
 }
 
 // TestShutdown tests scenario with a graceful shutdown,
@@ -3751,7 +3751,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// the session should have one party
 	parties := sess.GetParticipants()
 	require.Len(t, parties, 1)
-	require.Equal(t, suite.Me.Username, parties[0])
+	require.Equal(t, suite.Me.Username, parties[0].User)
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
