@@ -805,7 +805,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(req)
+		sess, err := auth.ExtendWebSession(r.Context(), req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -1904,8 +1904,8 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 //
 // If there is a switchback request, the roles will switchback to user's default roles and
 // the expiration time is derived from users recently logged in time.
-func (a *Server) ExtendWebSession(req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identity tlsca.Identity) (types.WebSession, error) {
+	prevSession, err := a.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: req.PrevSessionID,
 	})
