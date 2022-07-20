@@ -587,7 +587,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 				return "", trace.Wrap(err, "permission denied creating directory %s", configDir)
 			}
 
-			return "", trace.Wrap(err, "error creating config file directory")
+			return "", trace.Wrap(err, "error creating config file directory %s", configDir)
 		}
 
 		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
