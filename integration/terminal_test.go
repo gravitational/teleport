@@ -56,6 +56,13 @@ func (t *Terminal) Output(limit int) string {
 	return strings.TrimSpace(string(buff))
 }
 
+// AllOutput returns the entire recorded output from the fake terminal
+func (t *Terminal) AllOutput() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return strings.TrimSpace(t.written.String())
+}
+
 func (t *Terminal) Write(data []byte) (n int, err error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
