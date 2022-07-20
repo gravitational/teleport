@@ -241,7 +241,7 @@ func proxyIDFromPrincipals(principals []string) (string, bool) {
 func (a *agent) updateState(state AgentState) (AgentState, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	errMsg := "invalid state transitation: %s -> %s"
+	errMsg := "invalid state transition: %s -> %s"
 
 	// Once closed no state transitions are allowed.
 	if a.state == AgentClosed {
