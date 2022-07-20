@@ -5832,17 +5832,6 @@ func waitFor(c chan interface{}, timeout time.Duration) error {
 	}
 }
 
-// waitForError helper waits on an error channel for up to the given timeout
-func waitForError(c chan error, timeout time.Duration) error {
-	tick := time.Tick(timeout)
-	select {
-	case err := <-c:
-		return err
-	case <-tick:
-		return trace.LimitExceeded("timeout waiting for event")
-	}
-}
-
 // hasPAMPolicy checks if the three policy files needed for tests exists. If
 // they do it returns true, otherwise returns false.
 func hasPAMPolicy() bool {
