@@ -180,29 +180,24 @@ func TestDumpConfigFile(t *testing.T) {
 		outputURI string
 		contents  string
 		comment   string
-		shouldErr bool
+		assert    require.ErrorAssertionFunc
 	}{
 		{
 			name:      "errors on relative path",
-			shouldErr: true,
+			assert:    require.Error,
 			outputURI: "../",
 		},
 		{
 			name:      "doesn't error on unexisting config path",
-			shouldErr: false,
+			assert:    require.NoError,
 			outputURI: fmt.Sprintf("%s/unexisting/dir/%s", t.TempDir(), "config.yaml"),
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := dumpConfigFile(tc.outputURI, tc.contents, tc.comment)
-			if tc.shouldErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.outputURI, r)
-			}
+			_, err := dumpConfigFile(tc.outputURI, tc.contents, tc.comment)
+			tc.assert(t, err)
 		})
 	}
 }
