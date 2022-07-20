@@ -645,6 +645,14 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
 	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
+		if arg.database == nil {
+			var err error
+			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
+			if err != nil {
+				return localProxyOpts{}, trace.Wrap(err)
+			}
+		}
+
 		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
 		if mysqlServerVersionProto != "" {
 			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
