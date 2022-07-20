@@ -20,12 +20,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,30 +84,9 @@ func TestGatewayStart(t *testing.T) {
 		serveErr <- err
 	}()
 
-	blockUntilGatewayAcceptsConnections(t, gatewayAddress)
+	gatewaytest.BlockUntilGatewayAcceptsConnections(t, gatewayAddress)
 
 	err = gateway.Close()
 	require.NoError(t, err)
 	require.NoError(t, <-serveErr)
-}
-
-func blockUntilGatewayAcceptsConnections(t *testing.T, address string) {
-	conn, err := net.DialTimeout("tcp", address, time.Second*1)
-	require.NoError(t, err)
-	t.Cleanup(func() { conn.Close() })
-
-	err = conn.SetReadDeadline(time.Now().Add(time.Second))
-	require.NoError(t, err)
-
-	out := make([]byte, 1024)
-	_, err = conn.Read(out)
-	// Our "client" here is going to fail the handshake because it requests an application protocol
-	// (typically teleport-<some db protocol>) that the target server (typically
-	// httptest.NewTLSServer) doesn't support.
-	//
-	// So we just expect EOF here. In case of a timeout, this check will fail.
-	require.True(t, trace.IsEOF(err), "expected EOF, got %v", err)
-
-	err = conn.Close()
-	require.NoError(t, err)
 }
