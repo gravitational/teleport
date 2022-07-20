@@ -1286,10 +1286,10 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	web, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	ns, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	ns, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1297,16 +1297,16 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.NotNil(t, ns)
 
 	// Requesting forbidden action for user fails
-	err = web.DeleteUser(context.TODO(), user)
+	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 
-	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
+	_, err = web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -2224,13 +2224,13 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	userClient, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 }
 
