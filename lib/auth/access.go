@@ -28,18 +28,8 @@ import (
 
 // UpsertRole creates or updates a role and emits a related audit event.
 func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
-	// check if the update will result in having no roles
-	// with access to create or edit roles
-	rolesWithPermission, err := a.getRolesWithCreateOrUpdateRolesRule(ctx)
-	if err != nil {
+	if err := a.checkRoleRulesConstraint(ctx, role, "update"); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if _, ok := rolesWithPermission[role.GetName()]; ok &&
-		len(rolesWithPermission) == 1 &&
-		!roleHasCreateAndUpdateRolesRule(role) {
-		log.Warnf("Failed to update role: role %q is the last role with permissions to create/update roles", role.GetName())
-		return trace.BadParameter("failed to update last role with permissions to create/update roles")
 	}
 
 	if err := a.Access.UpsertRole(ctx, role); err != nil {
@@ -63,6 +53,15 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
+	role, err := types.NewRole(name, types.RoleSpecV5{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkRoleRulesConstraint(ctx, role, "delete"); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// check if this role is used by CA or Users
 	users, err := a.Services.GetUsers(false)
 	if err != nil {
@@ -93,17 +92,6 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
 			}
 		}
-	}
-
-	// check if it's the last role with access to create or edit roles
-	rolesWithPermission, err := a.getRolesWithCreateOrUpdateRolesRule(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, ok := rolesWithPermission[name]; ok && len(rolesWithPermission) == 1 {
-		log.Warnf("Failed to delete role: role %q is the last role with permissions to create/update roles", name)
-		return trace.BadParameter("failed to delete last role with permissions to create/update roles")
 	}
 
 	if err := a.Access.DeleteRole(ctx, name); err != nil {
@@ -170,7 +158,28 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 	return nil
 }
 
-func (a *Server) getRolesWithCreateOrUpdateRolesRule(ctx context.Context) (map[string]struct{}, error) {
+// checkRoleRulesConstraint checks if the request will result in having
+// no roles with rules to upsert roles.
+func (a *Server) checkRoleRulesConstraint(ctx context.Context, role types.Role, request string) error {
+	// check if it's the last role with access to create or edit roles
+	rolesWithPermission, err := a.getRolesWithUpsertRolesRule(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, ok := rolesWithPermission[role.GetName()]; ok && len(rolesWithPermission) == 1 {
+		if roleHasUpsertRolesRule(role) {
+			return nil
+		}
+		log.Warnf("Failed to %s last role with permissions to upsert roles", request)
+		return trace.BadParameter("failed to %s last role with permissions to upsert roles", request)
+	}
+	return nil
+}
+
+// getRolesWithUpsertRolesRule returns a list of roles that
+// have a create and update rule associated to the role resource.
+func (a *Server) getRolesWithUpsertRolesRule(ctx context.Context) (map[string]struct{}, error) {
 	allRoles, err := a.Access.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -178,7 +187,7 @@ func (a *Server) getRolesWithCreateOrUpdateRolesRule(ctx context.Context) (map[s
 
 	roles := make(map[string]struct{})
 	for _, role := range allRoles {
-		if roleHasCreateAndUpdateRolesRule(role) {
+		if roleHasUpsertRolesRule(role) {
 			roles[role.GetName()] = struct{}{}
 		}
 	}
@@ -186,7 +195,9 @@ func (a *Server) getRolesWithCreateOrUpdateRolesRule(ctx context.Context) (map[s
 	return roles, nil
 }
 
-func roleHasCreateAndUpdateRolesRule(role types.Role) bool {
+// roleHasUpsertRolesRule returns true if the role parameter
+// has a create and update rule associated to the role resource.
+func roleHasUpsertRolesRule(role types.Role) bool {
 	rules := role.GetRules(types.Allow)
 	for _, rule := range rules {
 		if !rule.HasResource(types.KindRole) {
