@@ -5675,9 +5675,9 @@ steps:
     image: docker:git
     environment:
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_KEY
+        from_secret: PRODUCTION_TELEPORT_DRONE_ECR_READ_ONLY_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_SECRET
+        from_secret: PRODUCTION_TELEPORT_DRONE_ECR_READ_ONLY_SECRET
       AWS_DEFAULT_REGION: us-west-2
     volumes:
       - name: dockersock
@@ -5722,6 +5722,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: d9867dd5fb17cd0cea8cc8b5605fa4135a6a73c6d7b663546f1c5dd7aef58803
+hmac: 8790e32313b8c0a73998a32d57ec0dd7919397552e677b8b5fcad6ac05fbedb4
 
 ...
