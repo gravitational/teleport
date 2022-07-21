@@ -17,15 +17,17 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"time"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -290,7 +292,7 @@ func (a *accessChecker) GetSearchAsRoles() []string {
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
 // given ssh certificate. Should only be used for cluster local users as roles
 // will not be mapped.
-func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalCertificate(ctx context.Context, cert *ssh.Certificate, access RoleGetter) (*AccessInfo, error) {
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -300,7 +302,7 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(ctx, roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,7 +323,7 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*
 // AccessInfoFromRemoteCertificate returns a new AccessInfo populated from the
 // given remote cluster user's ssh certificate. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteCertificate(ctx context.Context, cert *ssh.Certificate, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Old-style SSH certificates don't have traits in metadata.
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil && !trace.IsNotFound(err) {
@@ -352,7 +354,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	log.Debugf("Mapped remote roles %v to local roles %v and traits %v.",
 		unmappedRoles, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(ctx, roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -401,7 +403,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGett
 		traits = u.GetTraits()
 	}
 
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(context.TODO(), roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -454,7 +456,7 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		unmappedRoles, identity.Username, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(context.TODO(), roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -476,7 +478,7 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 func AccessInfoFromUser(user types.User, access RoleGetter) (*AccessInfo, error) {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
-	roleSet, err := FetchRoles(roles, access, traits)
+	roleSet, err := FetchRoles(context.TODO(), roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1351,7 +1351,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.user.GetTraits())
+	allRoles, err := FetchRoles(ctx, roles, m.getter, m.user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -233,7 +233,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 				// export certificates in the old 1.0 format where host and user
 				// certificate authorities were exported in the known_hosts format.
 				if a.compatVersion == "1.0" {
-					castr, err := hostCAFormat(ca, key.PublicKey, client)
+					castr, err := hostCAFormat(ctx, ca, key.PublicKey, client)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -248,7 +248,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 				case types.UserCA:
 					castr, err = userCAFormat(ca, key.PublicKey)
 				case types.HostCA:
-					castr, err = hostCAFormat(ca, key.PublicKey, client)
+					castr, err = hostCAFormat(ctx, ca, key.PublicKey, client)
 				default:
 					return trace.BadParameter("unknown user type: %q", ca.GetType())
 				}
@@ -889,8 +889,8 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 //    @cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
-	roles, err := services.FetchRoles(ca.GetRoles(), client, nil)
+func hostCAFormat(ctx context.Context, ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
+	roles, err := services.FetchRoles(ctx, ca.GetRoles(), client, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

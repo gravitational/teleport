@@ -1908,7 +1908,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		allowedResourceIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+		roleSet, err := services.FetchRoles(ctx, user.GetRoles(), a.Access, user.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2439,7 +2439,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
+	roleSet, err := services.FetchRoles(ctx, req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

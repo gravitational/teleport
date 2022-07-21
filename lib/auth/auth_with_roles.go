@@ -326,7 +326,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 	}
 
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRoles(ctx, user.GetRoles(), a.authServer, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,7 +352,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 
 	var filteredSessions []types.SessionTracker
 	user := a.context.User
-	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	joinerRoles, err := services.FetchRoles(ctx, user.GetRoles(), a.authServer, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2264,7 +2264,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		roles = apiutils.Deduplicate(roles)
 	}
 
-	parsedRoles, err := services.FetchRoleList(roles, a.authServer, traits)
+	parsedRoles, err := services.FetchRoleList(ctx, roles, a.authServer, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

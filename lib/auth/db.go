@@ -168,7 +168,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract user roles from the identity.
-	roles, err := services.FetchRoles(id.Groups, s, id.Traits)
+	roles, err := services.FetchRoles(ctx, id.Groups, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

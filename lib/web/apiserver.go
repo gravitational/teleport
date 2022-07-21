@@ -502,7 +502,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
-				resp, err := newSessionResponse(ctx)
+				resp, err := newSessionResponse(r.Context(), ctx)
 				if err == nil {
 					out, err := json.Marshal(resp)
 					if err == nil {
@@ -623,7 +623,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if cn.GetClusterName() != site.GetName() {
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
-	accessChecker, err := c.GetUserAccessChecker()
+	accessChecker, err := c.GetUserAccessChecker(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1508,8 +1508,8 @@ type CreateSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
-	accessChecker, err := ctx.GetUserAccessChecker()
+func newSessionResponse(ctx context.Context, scx *SessionContext) (*CreateSessionResponse, error) {
+	accessChecker, err := scx.GetUserAccessChecker(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1518,7 +1518,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := ctx.getToken()
+	token, err := scx.getToken()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1526,8 +1526,8 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		TokenType:                roundtrip.AuthBearer,
 		Token:                    token.GetName(),
-		TokenExpiresIn:           int(token.Expiry().Sub(ctx.parent.clock.Now()) / time.Second),
-		SessionInactiveTimeoutMS: int(ctx.session.GetIdleTimeout().Milliseconds()),
+		TokenExpiresIn:           int(token.Expiry().Sub(scx.parent.clock.Now()) / time.Second),
+		SessionInactiveTimeoutMS: int(scx.session.GetIdleTimeout().Milliseconds()),
 	}, nil
 }
 
@@ -1605,7 +1605,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	return newSessionResponse(r.Context(), ctx)
 }
 
 func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
@@ -1678,7 +1678,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := newSessionResponse(newContext)
+	res, err := newSessionResponse(r.Context(), newContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1740,7 +1740,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Checks for at least one valid login.
-	if _, err := newSessionResponse(ctx); err != nil {
+	if _, err := newSessionResponse(r.Context(), ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1917,7 +1917,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
-	return newSessionResponse(ctx)
+	return newSessionResponse(r.Context(), ctx)
 }
 
 // getClusters returns a list of cluster and its data.
@@ -2004,7 +2004,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := ctx.GetUserAccessChecker()
+	accessChecker, err := ctx.GetUserAccessChecker(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2423,7 +2423,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 		}
 		siteName = res.GetClusterName()
 	}
-	proxy, err := h.ProxyWithRoles(ctx)
+	proxy, err := h.ProxyWithRoles(r.Context(), ctx)
 	if err != nil {
 		onError(trace.Wrap(err))
 		return
@@ -2672,7 +2672,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			clusterName = res.GetClusterName()
 		}
 
-		proxy, err := h.ProxyWithRoles(ctx)
+		proxy, err := h.ProxyWithRoles(r.Context(), ctx)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to get proxy with roles.")
 			return nil, trace.Wrap(err)
@@ -2793,8 +2793,8 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
 // of the given user.
-func (h *Handler) ProxyWithRoles(ctx *SessionContext) (reversetunnel.Tunnel, error) {
-	accessChecker, err := ctx.GetUserAccessChecker()
+func (h *Handler) ProxyWithRoles(ctx context.Context, scx *SessionContext) (reversetunnel.Tunnel, error) {
+	accessChecker, err := scx.GetUserAccessChecker(ctx)
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to get client roles.")
 		return nil, trace.Wrap(err)

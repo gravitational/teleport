@@ -26,9 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/breaker"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -340,12 +341,12 @@ func (c *SessionContext) GetX509Certificate() (*x509.Certificate, error) {
 
 // GetUserAccessChecker returns AccessChecker derived from the SSH certificate
 // associated with this session.
-func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) {
+func (c *SessionContext) GetUserAccessChecker(ctx context.Context) (services.AccessChecker, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.unsafeCachedAuthClient)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(ctx, cert, c.unsafeCachedAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
