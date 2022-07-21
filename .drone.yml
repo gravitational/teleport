@@ -5667,6 +5667,9 @@ steps:
         from_secret: RELEASES_KEY_STAGING
       RELCLI_CERT: /tmp/creds/releases.crt
       RELCLI_KEY: /tmp/creds/releases.key
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
     - mkdir -p /tmp/creds
     - echo "$RELEASES_CERT" | base64 -d > "/tmp/creds/releases.crt"
@@ -5695,6 +5698,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: af3495a6500e83e016c395a4b88dfd347574b26dab85d16f22daa0ca3cba8c7b
+hmac: 84ebb21559a20139a48739765f0a529beea329fb8664d6c67b3941d50dc0a878
 
 ...
