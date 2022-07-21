@@ -108,7 +108,7 @@ var (
 // simplePicker is a credential picker that always picks the first credential.
 type simplePicker struct{}
 
-func (p simplePicker) PromptCredential(creds []*wancli.Credential) (*wancli.Credential, error) {
+func (p simplePicker) PromptCredential(creds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
 	return creds[0], nil
 }
 

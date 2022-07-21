@@ -86,6 +86,12 @@ func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
 	return cluster, nil
 }
 
+// ResolveCluster is an alias for GetByResourceURI.
+func (s *Storage) ResolveCluster(resourceURI string) (*Cluster, error) {
+	cluster, err := s.GetByResourceURI(resourceURI)
+	return cluster, trace.Wrap(err)
+}
+
 // Remove removes a cluster
 func (s *Storage) Remove(ctx context.Context, clusterName string) error {
 	if err := profile.RemoveProfile(s.Dir, clusterName); err != nil {
