@@ -119,8 +119,8 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 }
 
 // newDatabase is a wrapper around types.NewDatabaseV3 that additionally applies tag-based name override.
-// For database types we don't want to override the entire name; if this is desired, caller will pass
-// suffixes to append to the database name.
+// For some database types we don't want to override the entire name; if this is desired, caller will pass
+// suffix to be appended to the database name.
 func newDatabase(suffix string, meta types.Metadata, spec types.DatabaseSpecV3) (types.Database, error) {
 	if override, found := meta.Labels[labelTeleportDBName]; found && override != "" {
 		meta.Name = override + suffix
