@@ -282,6 +282,16 @@
       ]
     },
     {
+      "icon": "connect",
+      "title": "Use Teleport",
+      "entries": [
+        {
+          "title": "Using tsh",
+          "slug": "/use-teleport/tsh/"
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -358,10 +368,6 @@
             {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Using TSH",
-              "slug": "/server-access/guides/tsh/"
             },
             {
               "title": "OpenSSH Guide",
@@ -1250,6 +1256,11 @@
     {
       "source": "/server-access/guides/ansible/",
       "destination": "/machine-id/guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/tsh/",
+      "destination": "/use-teleport/tsh/",
       "permanent": true
     },
     {
