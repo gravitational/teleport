@@ -4992,7 +4992,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make aws-cli
       - chown -R $UID:$GID /go
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
