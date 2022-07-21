@@ -51,7 +51,7 @@ export default function EventList(props: Props) {
           },
           {
             key: 'time',
-            headerText: 'Created',
+            headerText: 'Created (UTC)',
             isSortable: true,
             render: renderTimeCell,
           },
@@ -97,7 +97,7 @@ export const renderActionCell = (
 );
 
 export const renderTimeCell = ({ time }: Event) => (
-  <Cell style={{ minWidth: '120px' }}>{displayDateTime(time)}</Cell>
+  <Cell style={{ minWidth: '120px' }}>{time}</Cell>
 );
 
 export function renderDescCell({ message }: Event) {

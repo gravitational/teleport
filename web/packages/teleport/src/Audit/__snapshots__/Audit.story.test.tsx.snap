@@ -421,7 +421,7 @@ exports[`list of all events 1`] = `
         </th>
         <th>
           <a>
-            Created
+            Created (UTC)
             <span
               class="c10 c13 icon icon-chevron-down "
               color="light"
@@ -457,7 +457,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-06-08 15:10:35
+          2022-06-08T15:10:35.368Z
         </td>
         <td
           align="right"
@@ -494,7 +494,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-06-02 08:46:33
+          2022-06-02T08:46:33.825Z
         </td>
         <td
           align="right"
@@ -531,7 +531,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-06-02 08:29:17
+          2022-06-02T08:29:17.693Z
         </td>
         <td
           align="right"
@@ -568,7 +568,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-05-23 08:29:14
+          2022-05-23T08:29:14.126Z
         </td>
         <td
           align="right"
@@ -605,7 +605,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-05-23 08:28:37
+          2022-05-23T08:28:37.067Z
         </td>
         <td
           align="right"
@@ -642,7 +642,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:10
+          2022-04-13T20:00:10.000Z
         </td>
         <td
           align="right"
@@ -679,7 +679,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:09
+          2022-04-13T20:00:09.000Z
         </td>
         <td
           align="right"
@@ -716,7 +716,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:08
+          2022-04-13T20:00:08.000Z
         </td>
         <td
           align="right"
@@ -753,7 +753,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:07
+          2022-04-13T20:00:07.000Z
         </td>
         <td
           align="right"
@@ -790,7 +790,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:06
+          2022-04-13T20:00:06.000Z
         </td>
         <td
           align="right"
@@ -827,7 +827,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:05
+          2022-04-13T20:00:05.000Z
         </td>
         <td
           align="right"
@@ -864,7 +864,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-04-13 20:00:04
+          2022-04-13T20:00:04.000Z
         </td>
         <td
           align="right"
@@ -901,7 +901,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:56
+          2022-02-10T20:57:56.000Z
         </td>
         <td
           align="right"
@@ -938,7 +938,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:55
+          2022-02-10T20:57:55.000Z
         </td>
         <td
           align="right"
@@ -975,7 +975,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:54
+          2022-02-10T20:57:54.000Z
         </td>
         <td
           align="right"
@@ -1012,7 +1012,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:53
+          2022-02-10T20:57:53.000Z
         </td>
         <td
           align="right"
@@ -1049,7 +1049,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:52
+          2022-02-10T20:57:52.000Z
         </td>
         <td
           align="right"
@@ -1086,7 +1086,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:51
+          2022-02-10T20:57:51.000Z
         </td>
         <td
           align="right"
@@ -1123,7 +1123,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-10 20:57:50
+          2022-02-10T20:57:50.000Z
         </td>
         <td
           align="right"
@@ -1160,7 +1160,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-04 19:43:23
+          2022-02-04T19:43:23.529Z
         </td>
         <td
           align="right"
@@ -1197,7 +1197,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-02-04 18:15:28
+          2022-02-04T18:15:28.572Z
         </td>
         <td
           align="right"
@@ -1234,7 +1234,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-01-20 19:49:02
+          2022-01-20T19:49:02.307Z
         </td>
         <td
           align="right"
@@ -1271,7 +1271,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2022-01-20 18:31:45
+          2022-01-20T18:31:45.012Z
         </td>
         <td
           align="right"
@@ -1308,7 +1308,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-12-16 00:40:37
+          2021-12-16T00:40:37.073Z
         </td>
         <td
           align="right"
@@ -1345,7 +1345,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-12-16 00:40:37
+          2021-12-16T00:40:37.073Z
         </td>
         <td
           align="right"
@@ -1382,7 +1382,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-12-16 00:40:37
+          2021-12-16T00:40:37.071Z
         </td>
         <td
           align="right"
@@ -1419,7 +1419,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-12-16 00:40:37
+          2021-12-16T00:40:37.071Z
         </td>
         <td
           align="right"
@@ -1456,7 +1456,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-12-16 00:40:37
+          2021-12-16T00:40:37.069Z
         </td>
         <td
           align="right"
@@ -1493,7 +1493,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-11-01 22:24:47
+          2021-11-01T22:24:47.99Z
         </td>
         <td
           align="right"
@@ -1530,7 +1530,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-18 23:39:13
+          2021-10-18T23:39:13.105Z
         </td>
         <td
           align="right"
@@ -1567,7 +1567,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-18 23:39:13
+          2021-10-18T23:39:13.105Z
         </td>
         <td
           align="right"
@@ -1604,7 +1604,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-18 23:39:13
+          2021-10-18T23:39:13.105Z
         </td>
         <td
           align="right"
@@ -1641,7 +1641,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-18 23:19:13
+          2021-10-18T23:19:13.105Z
         </td>
         <td
           align="right"
@@ -1678,7 +1678,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-18 23:18:29
+          2021-10-18T23:18:29.144Z
         </td>
         <td
           align="right"
@@ -1715,7 +1715,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-08 15:42:36
+          2021-10-08T15:42:36.005Z
         </td>
         <td
           align="right"
@@ -1752,7 +1752,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-08 15:42:24
+          2021-10-08T15:42:24.581Z
         </td>
         <td
           align="right"
@@ -1789,7 +1789,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-10-08 15:42:15
+          2021-10-08T15:42:15.39Z
         </td>
         <td
           align="right"
@@ -1826,7 +1826,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-06 18:49:51
+          2021-08-06T18:49:51.626Z
         </td>
         <td
           align="right"
@@ -1863,7 +1863,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-06 18:47:19
+          2021-08-06T18:47:19.75Z
         </td>
         <td
           align="right"
@@ -1900,7 +1900,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-05 23:32:41
+          2021-08-05T23:32:41.273Z
         </td>
         <td
           align="right"
@@ -1937,7 +1937,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-05 21:41:14
+          2021-08-05T21:41:14.935Z
         </td>
         <td
           align="right"
@@ -1974,7 +1974,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-05 21:22:46
+          2021-08-05T21:22:46.042Z
         </td>
         <td
           align="right"
@@ -2011,7 +2011,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-08-05 21:16:17
+          2021-08-05T21:16:17.13Z
         </td>
         <td
           align="right"
@@ -2048,7 +2048,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-07-14 07:06:25
+          2021-07-14T07:06:25.608Z
         </td>
         <td
           align="right"
@@ -2085,7 +2085,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-07-14 07:05:22
+          2021-07-14T07:05:22.32Z
         </td>
         <td
           align="right"
@@ -2122,7 +2122,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-07-14 07:03:49
+          2021-07-14T07:03:49.783Z
         </td>
         <td
           align="right"
@@ -2159,7 +2159,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-07-14 07:01:31
+          2021-07-14T07:01:31.958Z
         </td>
         <td
           align="right"
@@ -2196,7 +2196,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-05-21 22:54:27
+          2021-05-21T22:54:27.123Z
         </td>
         <td
           align="right"
@@ -2233,7 +2233,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-05-12 01:26:22
+          2021-05-12T01:26:22.613Z
         </td>
         <td
           align="right"
@@ -2277,7 +2277,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-05-12 01:26:22
+          2021-05-12T01:26:22.613Z
         </td>
         <td
           align="right"
@@ -2314,7 +2314,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-18 16:29:15
+          2021-03-18T16:29:15.719Z
         </td>
         <td
           align="right"
@@ -2351,7 +2351,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-18 16:29:05
+          2021-03-18T16:29:05.044Z
         </td>
         <td
           align="right"
@@ -2388,7 +2388,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-18 16:28:51
+          2021-03-18T16:28:51.219Z
         </td>
         <td
           align="right"
@@ -2425,7 +2425,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-18 16:28:49
+          2021-03-18T16:28:49.067Z
         </td>
         <td
           align="right"
@@ -2462,7 +2462,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-03 22:58:44
+          2021-03-03T22:58:44.737Z
         </td>
         <td
           align="right"
@@ -2499,7 +2499,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2021-03-03 22:58:34
+          2021-03-03T22:58:34.737Z
         </td>
         <td
           align="right"
@@ -2536,7 +2536,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-11-12 20:35:44
+          2020-11-12T20:35:44.978Z
         </td>
         <td
           align="right"
@@ -2573,7 +2573,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-10-30 17:28:14
+          2020-10-30T17:28:14.705Z
         </td>
         <td
           align="right"
@@ -2610,7 +2610,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-10-30 17:28:14
+          2020-10-30T17:28:14.705Z
         </td>
         <td
           align="right"
@@ -2647,7 +2647,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-10-30 17:28:14
+          2020-10-30T17:28:14.381Z
         </td>
         <td
           align="right"
@@ -2684,7 +2684,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:29:14
+          2020-06-05T19:29:14Z
         </td>
         <td
           align="right"
@@ -2721,7 +2721,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:28:28
+          2020-06-05T19:28:28Z
         </td>
         <td
           align="right"
@@ -2758,7 +2758,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:28:00
+          2020-06-05T19:28:00Z
         </td>
         <td
           align="right"
@@ -2795,7 +2795,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:26:53
+          2020-06-05T19:26:53Z
         </td>
         <td
           align="right"
@@ -2832,7 +2832,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:26:53
+          2020-06-05T19:26:53Z
         </td>
         <td
           align="right"
@@ -2869,7 +2869,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:26:53
+          2020-06-05T19:26:53Z
         </td>
         <td
           align="right"
@@ -2906,7 +2906,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 19:26:53
+          2020-06-05T19:26:53Z
         </td>
         <td
           align="right"
@@ -2943,7 +2943,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:22
+          2020-06-05T16:24:22Z
         </td>
         <td
           align="right"
@@ -2980,7 +2980,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:05
+          2020-06-05T16:24:05Z
         </td>
         <td
           align="right"
@@ -3017,7 +3017,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:05
+          2020-06-05T16:24:05Z
         </td>
         <td
           align="right"
@@ -3054,7 +3054,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:05
+          2020-06-05T16:24:05Z
         </td>
         <td
           align="right"
@@ -3091,7 +3091,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 15:14:51
+          2020-06-05T15:14:51Z
         </td>
         <td
           align="right"
@@ -3128,7 +3128,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 15:14:51
+          2020-06-05T15:14:51Z
         </td>
         <td
           align="right"
@@ -3165,7 +3165,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-01-13 18:05:53
+          2020-01-13T18:05:53.919Z
         </td>
         <td
           align="right"
@@ -3202,7 +3202,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:41:23
+          2019-04-22T19:41:23Z
         </td>
         <td
           align="right"
@@ -3239,7 +3239,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:41:23
+          2019-04-22T19:41:23Z
         </td>
         <td
           align="right"
@@ -3276,7 +3276,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:41:23
+          2019-04-22T19:41:23Z
         </td>
         <td
           align="right"
@@ -3313,7 +3313,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:52
+          2019-04-22T19:39:52.434Z
         </td>
         <td
           align="right"
@@ -3350,7 +3350,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:52
+          2019-04-22T19:39:52.432Z
         </td>
         <td
           align="right"
@@ -3387,7 +3387,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
@@ -3424,7 +3424,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
@@ -3461,7 +3461,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
@@ -3498,7 +3498,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 18:06:32
+          2019-04-22T18:06:32Z
         </td>
         <td
           align="right"
@@ -3535,7 +3535,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 02:09:06
+          2019-04-22T02:09:06Z
         </td>
         <td
           align="right"
@@ -3572,7 +3572,7 @@ exports[`list of all events 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 00:49:03
+          2019-04-22T00:49:03Z
         </td>
         <td
           align="right"
@@ -4316,7 +4316,7 @@ exports[`loaded audit log screen 1`] = `
         </th>
         <th>
           <a>
-            Created
+            Created (UTC)
             <span
               class="c14 c17 icon icon-chevron-down "
               color="light"
@@ -4352,7 +4352,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:05
+          2020-06-05T16:24:05Z
         </td>
         <td
           align="right"
@@ -4389,7 +4389,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2020-06-05 16:24:05
+          2020-06-05T16:24:05Z
         </td>
         <td
           align="right"
@@ -4426,7 +4426,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
@@ -4463,7 +4463,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
@@ -4500,7 +4500,7 @@ exports[`loaded audit log screen 1`] = `
         <td
           style="min-width: 120px;"
         >
-          2019-04-22 19:39:26
+          2019-04-22T19:39:26.676Z
         </td>
         <td
           align="right"
