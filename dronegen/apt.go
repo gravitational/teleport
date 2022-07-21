@@ -28,7 +28,7 @@ func migrateAptPipeline(triggerBranch string, migrationVersions []string) pipeli
 func getAptPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb := NewOsPackageToolPipelineBuilder(
 		"drone-s3-aptrepo-pvc",
-		"golang:1.18.1-bullseye",
+		"golang:1.18.4-bullseye",
 		"apt",
 		NewRepoBucketSecretNames(
 			"APT_REPO_NEW_AWS_S3_BUCKET",
@@ -39,6 +39,9 @@ func getAptPipelineBuilder() *OsPackageToolPipelineBuilder {
 
 	optpb.environmentVars["APTLY_ROOT_DIR"] = value{
 		raw: path.Join(optpb.pvcMountPoint, "aptly"),
+	}
+	optpb.environmentVars["DEBIAN_FRONTEND"] = value{
+		raw: "noninteractive",
 	}
 
 	optpb.setupCommands = []string{

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 
@@ -37,7 +38,8 @@ func BuildAndRunCommand(command string, args ...string) (string, error) {
 	}
 
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
 			exitCode := exitError.ExitCode()
 			logrus.Debugf("Command exited with exit code %d", exitCode)
 		} else {

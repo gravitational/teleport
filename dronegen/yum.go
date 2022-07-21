@@ -31,7 +31,7 @@ func migrateYumPipeline(triggerBranch string, migrationVersions []string) pipeli
 func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb := NewOsPackageToolPipelineBuilder(
 		"drone-s3-yumrepo-pvc",
-		"centos:7", // This can probably be bumped but newer versions don't appear to have createrepo for some reason
+		"ubuntu:22.04",
 		"yum",
 		NewRepoBucketSecretNames(
 			"YUM_REPO_NEW_AWS_S3_BUCKET",
@@ -46,10 +46,14 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb.environmentVars["BUCKET_CACHE_PATH"] = value{
 		raw: path.Join(optpb.pvcMountPoint, "bucket"),
 	}
+	optpb.environmentVars["DEBIAN_FRONTEND"] = value{
+		raw: "noninteractive",
+	}
 
 	optpb.setupCommands = append(
 		[]string{
-			"yum install -y createrepo_c",
+			"apt update",
+			"apt install -y createrepo-c",
 			"mkdir -pv \"$CACHE_DIR\"",
 		},
 		getInstallGoSteps()...,
@@ -63,7 +67,7 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 }
 
 func getInstallGoSteps() []string {
-	goArchiveName := "go1.18.3.linux-amd64.tar.gz"
+	goArchiveName := "go1.18.4.linux-amd64.tar.gz"
 	downloadURL := fmt.Sprintf("https://go.dev/dl/%s", goArchiveName)
 	downloadPath := path.Join("/", "tmp", goArchiveName)
 	installPath := path.Join("/", "usr", "local")

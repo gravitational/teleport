@@ -60,7 +60,7 @@ func NewAptRunner() (*AptRunner, error) {
 				"focal",    // 20.04 LTS
 				"groovy",   // 20.10 (EOL)
 				"hirsuite", // 21.04 (EOL)
-				"impish",   // 21.10 (EOL on 7/14/22)
+				"impish",   // 21.10 (EOL)
 				"jammy",    // 22.04 LTS
 			},
 		},
