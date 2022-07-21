@@ -58,7 +58,7 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
 func (d directDial) dialALPNWithDeadline2(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	httpConn, err := apiclient.Upgrade(addr)
+	httpConn, err := apiclient.Upgrade(ctx, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func (d directDial) DialTimeout2(ctx context.Context, network, address string, t
 			return nil, trace.Wrap(err)
 		}
 
-		httpConn, err := apiclient.Upgrade(address)
+		httpConn, err := apiclient.Upgrade(ctx, address)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

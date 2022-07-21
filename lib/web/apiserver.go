@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -69,6 +70,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	mplex "github.com/libp2p/go-mplex"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -1276,7 +1278,46 @@ func (h *Handler) connectionUpgrade(rw http.ResponseWriter, r *http.Request, p h
 	}
 	netConn.SetDeadline(time.Time{})
 
-	if err := h.cfg.ALPNHandler.HandleConnection(context.Background(), netConn); err != nil {
+	// ---- de-multiplex TODO move logic to a function
+	m, err := mplex.NewMultiplex(netConn, true, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer m.Close()
+
+	// First stream is going to handle ping.
+	pingStream, err := m.Accept()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer pingStream.Close()
+
+	// Second stream is the real stream.
+	dataStream, err := m.Accept()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer dataStream.Close()
+
+	go func() {
+		for {
+			buf := make([]byte, 256)
+			n, err := pingStream.Read(buf)
+			if err != nil {
+				log.Infof("-->> %v error reading ping %v", time.Now(), err)
+				return
+			}
+			log.Infof("-->> %v received ping %v", time.Now(), string(buf[:n]))
+
+			_, err = pingStream.Write([]byte("pong"))
+			if err != nil {
+				log.Infof("-->> %v error sending pong %v", time.Now(), err)
+				return
+			}
+		}
+	}()
+
+	if err := h.cfg.ALPNHandler.HandleConnection(context.Background(), apiclient.NewMultiplexConn(netConn, dataStream)); err != nil {
 		if !utils.IsOKNetworkError(err) {
 			h.log.Errorf("Failed to handle connection by ALPN listener: %v", err)
 		}

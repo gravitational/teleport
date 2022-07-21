@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -30,10 +29,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	mplex "github.com/libp2p/go-mplex"
 
 	"github.com/gravitational/teleport/api/constants"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -398,20 +395,10 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 
-	// ----- multiplex
-	var handlerConn net.Conn = tlsConn
-	if apiutils.SliceContainsStr(hello.SupportedProtos, string(common.ProtocolMultiplex)) {
-		// Handle connection multiplexing.
-		handlerConn, err = p.handleConnectionMultiplexing(ctx, tlsConn)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if isDatabaseConnection {
-		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
+		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
-	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
+	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
 
 // getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler
@@ -554,44 +541,4 @@ func (p *Proxy) Close() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// handleConnectionMultiplexing
-func (p *Proxy) handleConnectionMultiplexing(ctx context.Context, conn net.Conn) (net.Conn, error) {
-	fmt.Println("-->> Starting multiplex connection")
-	m, err := mplex.NewMultiplex(conn, true, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	stream, err := m.Accept()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Next stream is going to handle ping.
-	go func() {
-		stream, err := m.Accept()
-		if err != nil {
-			return
-		}
-
-		ticker := time.NewTicker(time.Second * 10)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				fmt.Println("-->> ping done")
-				return
-			case <-ticker.C:
-				_, err := stream.Write([]byte("ping"))
-				if err != nil {
-					fmt.Println("-->> error writing ping", err)
-					return
-				}
-			}
-		}
-	}()
-
-	return newMultiplexConn(conn, stream), nil
 }

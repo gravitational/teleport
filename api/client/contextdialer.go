@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	mplex "github.com/libp2p/go-mplex"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proxy"
@@ -73,7 +75,7 @@ func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 
 func NewDialer2(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := Upgrade(addr)
+		conn, err := Upgrade(ctx, addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -128,7 +130,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		}
 
 		if env := os.Getenv("ALB_TEST"); env != "" {
-			conn, err = Upgrade(tunnelAddr)
+			conn, err = Upgrade(ctx, tunnelAddr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -178,7 +180,9 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 	})
 }
 
-func Upgrade(proxyAddr string) (*tls.Conn, error) {
+func Upgrade(ctx context.Context, proxyAddr string) (net.Conn, error) {
+	// TODO figure out proper ctx
+	ctx = context.Background()
 	// TODO detect if proxy is behind ALB
 	// TODO handle insecure
 	conn, err := tls.Dial("tcp", proxyAddr, &tls.Config{})
@@ -212,7 +216,55 @@ func Upgrade(proxyAddr string) (*tls.Conn, error) {
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
 
-	return conn, nil
+	// --- Multiplex TODO move logic to a function
+	// TODO use named stream
+	multiplexConn, err := mplex.NewMultiplex(conn, true, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingStream, err := multiplexConn.NewStream(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dataStream, err := multiplexConn.NewStream(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ----- Handle ping
+	go func() {
+		defer multiplexConn.Close()
+		defer pingStream.Close()
+		for {
+			select {
+			case <-time.After(time.Second * 10):
+				_, err := pingStream.Write([]byte("ping"))
+				if err != nil {
+					logrus.Infof("-->> %v error sending ping %v", time.Now(), err)
+					return
+				}
+
+			case <-ctx.Done():
+				logrus.Infof("-->> %v ping stream closed", time.Now())
+				return
+			}
+		}
+	}()
+	go func() {
+		defer multiplexConn.Close()
+		defer pingStream.Close()
+		for {
+			buf := make([]byte, 256)
+			n, err := pingStream.Read(buf)
+			if err != nil {
+				logrus.Infof("-->> %v error reading pong %v", time.Now(), err)
+				return
+			}
+			logrus.Infof("-->> %v received pong %v", time.Now(), string(buf[:n]))
+		}
+	}()
+	return NewMultiplexConn(conn, dataStream), nil
 }
 
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.
@@ -232,4 +284,27 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 		return nil, trace.NewAggregate(err, sconn.Close())
 	}
 	return conn, nil
+}
+
+func NewMultiplexConn(baseConn net.Conn, stream *mplex.Stream) net.Conn {
+	return &multiplexConn{stream, baseConn}
+}
+
+type multiplexConn struct {
+	stream   *mplex.Stream
+	baseConn net.Conn
+}
+
+func (c *multiplexConn) Read(p []byte) (int, error)         { return c.stream.Read(p) }
+func (c *multiplexConn) Write(p []byte) (int, error)        { return c.stream.Write(p) }
+func (c *multiplexConn) LocalAddr() net.Addr                { return c.baseConn.LocalAddr() }
+func (c *multiplexConn) RemoteAddr() net.Addr               { return c.baseConn.RemoteAddr() }
+func (c *multiplexConn) SetDeadline(t time.Time) error      { return c.stream.SetDeadline(t) }
+func (c *multiplexConn) SetReadDeadline(t time.Time) error  { return c.stream.SetReadDeadline(t) }
+func (c *multiplexConn) SetWriteDeadline(t time.Time) error { return c.stream.SetWriteDeadline(t) }
+func (c *multiplexConn) Close() error {
+	return trace.NewAggregate(
+		c.stream.Close(),
+		c.baseConn.Close(),
+	)
 }
