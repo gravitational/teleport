@@ -5670,13 +5670,15 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
-    - mkdir -p /tmp/creds
+    - mkdir -p /tmpfs/creds
     - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
     - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
     - trap "rm -rf /tmp/creds" EXIT
     - |
-      docker run -i -v /tmp/creds:/tmp/creds \
+      docker run -i -v /tmpfs/creds:/tmp/creds \
         -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
         $RELCLI_IMAGE relcli auto_publish -f -v 6
     failure: ignore
@@ -5699,6 +5701,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: ee1f6618bf30e56269f3f4fa6de97c5aa0aaa435b04d199694b10fef6e41f304
+hmac: bdb2fe428c2f0ced736054e35e1db7bac8b807a44821d2131917f5f6cb63ac79
 
 ...
