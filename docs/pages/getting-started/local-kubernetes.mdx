@@ -21,13 +21,13 @@ Teleport.
 We will deploy the following Teleport components:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
-issues certificates and conducts authentication challenges. 
+issues certificates and conducts authentication challenges.
 - **Teleport Proxy Service:** The cluster frontend, which handles user requests,
   forwards user credentials to the Auth Service, and communicates with Teleport
   instances that enable access to specific resources in your infrastructure.
 - **Teleport Application Service:** Enables access to Kubernetes Dashboard for
-  authorized end-users. 
-  
+  authorized end-users.
+
 One pod will run the Auth Service and Proxy Service, and a second pod will run
 the Application Service.
 
@@ -81,7 +81,7 @@ $ helm install teleport-cluster teleport/teleport-cluster \
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
-Any `kubectl` commands you run will now use the `teleport-cluster` namespace. 
+Any `kubectl` commands you run will now use the `teleport-cluster` namespace.
 
 Verify that Teleport is running.
 
@@ -130,7 +130,7 @@ HTTP API is working:
 ```code
 $ EXTERNAL_IP=$(kubectl get service teleport-cluster -o jsonpath='{ .status.loadBalancer.ingress[0].ip }')
 $ curl --insecure https://${EXTERNAL_IP?}:443/webapi/ping
-{"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%                           
+{"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","public_addr":"teleport-cluster:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"8.2.0","min_client_version":"7.0.0"}%
 ```
 
 <Details opened={false} title='Getting a "Connection refused" error?'>
@@ -167,7 +167,7 @@ If you are getting a "Connection refused" error, that probably means that the `s
 
 </Details>
 
-<Admonition type="warning" title="Certificate warning"> 
+<Admonition type="warning" title="Certificate warning">
 The Teleport Proxy Service requires a TLS certificate and private key. In this
 guide, Teleport runs with a self-signed certificate. For convenience, we
 configure HTTP clients not to verify the certificate.
@@ -225,7 +225,7 @@ The `kubernetes-dashboard` service has an open HTTPS port but is not accessible
 outside the cluster (i.e., it has no external IP). By enabling Teleport
 Application Access, we will alow users to securely access the dashboard.
 
-<Notice type="tip"> 
+<Notice type="tip">
 
 If installing the dashboard leads to an unexpected result,
 check the following documentation for updated installation steps:
@@ -274,9 +274,9 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: 'off'
+  second_factor: "off"
 EOF
-tctl create --force --confirm /home/cp.yaml" 
+tctl create --force --confirm /home/cp.yaml"
 ```
 </Details>
 
@@ -327,7 +327,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 <Details title="Why do we skip certificate verification here?">
 In this `helm install` command, we use the `insecureSkipProxyTLSVerify=true`
 option to prevent the Application Service from verifying the TLS certificate of
-the Proxy Service. 
+the Proxy Service.
 
 This is because, in our environment, the TLS certificate is
 valid for `127.0.0.1`, the external IP of the Proxy Service, while the
@@ -353,7 +353,7 @@ of readers who have launched a local Application Service. */}
 
 [Applications](https://teleport-cluster.teleport-cluster.svc.cluster.local/web/cluster/teleport-cluster.teleport-cluster.svc.cluster.local/apps)
 
-You will now see Kubernetes Dashboard as connected to your cluster. 
+You will now see Kubernetes Dashboard as connected to your cluster.
 
 ![An application connected to your Teleport cluster](../../img/connected-app.png)
 

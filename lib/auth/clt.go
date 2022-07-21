@@ -873,9 +873,9 @@ func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types
 }
 
 // CreateWebSession creates a new web session for a user
-func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
+func (c *Client) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", user, "web", "sessions"),
 		WebSessionReq{User: user},
 	)
@@ -930,8 +930,8 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 // DeleteWebSession deletes the web session specified with sid for the given user
-func (c *Client) DeleteWebSession(user string, sid string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
+func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) error {
+	_, err := c.Delete(ctx, c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
 }
 
@@ -1448,7 +1448,7 @@ type WebService interface {
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (types.WebSession, error)
+	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
