@@ -26,6 +26,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -251,7 +255,7 @@ func TestInteractiveSession(t *testing.T) {
 
 	t.Run("Stop", func(t *testing.T) {
 		t.Parallel()
-		sess := testOpenSession(t, reg)
+		sess, _ := testOpenSession(t, reg, nil)
 
 		// Stopping the session should trigger the session
 		// to end and cleanup in the background
@@ -266,7 +270,7 @@ func TestInteractiveSession(t *testing.T) {
 
 	t.Run("BrokenRecorder", func(t *testing.T) {
 		t.Parallel()
-		sess := testOpenSession(t, reg)
+		sess, _ := testOpenSession(t, reg, nil)
 
 		// The recorder might be closed in the case of an error downstream.
 		// Closing the session recorder should result in the session ending.
@@ -274,6 +278,46 @@ func TestInteractiveSession(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 	})
+}
+
+// TestStopUnstarted tests that a session may be stopped before it launches.
+func TestStopUnstarted(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{ModeratedSessions: true}})
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, 'auditor')",
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionPeerMode)},
+				Count:  999,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	roles := services.NewRoleSet(role)
+	sess, _ := testOpenSession(t, reg, roles)
+
+	// Stopping the session should trigger the session
+	// to end and cleanup in the background
+	sess.Stop()
+
+	sessionClosed := func() bool {
+		_, found := reg.findSession(sess.id)
+		return !found
+	}
+	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 }
 
 // TestParties tests the party mechanisms within an interactive session,
@@ -293,7 +337,7 @@ func TestParties(t *testing.T) {
 	t.Cleanup(func() { reg.Close() })
 
 	// Create a session with 3 parties
-	sess := testOpenSession(t, reg)
+	sess, _ := testOpenSession(t, reg, nil)
 	require.Equal(t, 1, len(sess.getParties()))
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 2, len(sess.getParties()))
@@ -351,7 +395,7 @@ func TestParties(t *testing.T) {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.Srv)
+	scx := newTestServerContext(t, reg.Srv, nil)
 	scx.setSession(sess)
 
 	// Open a new session
@@ -365,8 +409,8 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	require.NoError(t, err)
 }
 
-func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
-	scx := newTestServerContext(t, reg.Srv)
+func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
+	scx := newTestServerContext(t, reg.Srv, roleSet)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -379,5 +423,5 @@ func testOpenSession(t *testing.T, reg *SessionRegistry) *session {
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
-	return scx.session
+	return scx.session, sshChanOpen
 }

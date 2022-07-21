@@ -1462,6 +1462,7 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -1493,10 +1494,10 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	web, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(WebSessionReq{
+	new, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1504,16 +1505,16 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	c.Assert(new, check.NotNil)
 
 	// Requesting forbidden action for user fails
-	err = web.DeleteUser(context.TODO(), user)
+	err = web.DeleteUser(ctx, user)
 	fixtures.ExpectAccessDenied(c, err)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(WebSessionReq{
+	_, err = web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1523,6 +1524,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user2"
 	pass := []byte("abc123")
@@ -1553,7 +1555,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(err, check.IsNil)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	// Create a approved access request.
@@ -1567,7 +1569,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.CreateAccessRequest(context.Background(), accessReq)
 	c.Assert(err, check.IsNil)
 
-	sess1, err := web.ExtendWebSession(WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1609,7 +1611,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	c.Assert(certRequests(sess1.GetTLSCert()), check.DeepEquals, []string{accessReq.GetName()})
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -2590,13 +2592,13 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	userClient, err := s.server.NewClientFromWebSession(ws)
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	c.Assert(err, check.NotNil)
 }
 
