@@ -211,7 +211,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 	}
 
 	caTypes := req.Types()
-	allCerts, err := a.getAllCertificates(ctx, clusterName.GetClusterName())
+	allCerts, err := a.getAllCertificatesForRotation(ctx, clusterName.GetClusterName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -404,12 +404,13 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 
 type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
 
-// getAllCertificates returns all certificates authorities including private keys.
-func (a *Server) getAllCertificates(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
+// getAllCertificatesForRotation returns all certificates authorities including
+// private keys from the backend, bypassing the cache.
+func (a *Server) getAllCertificatesForRotation(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
 	certs := make(CertAuthorityMap)
 
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName,
 		}, true)
