@@ -184,13 +184,28 @@ tracing:
   # the url of the exporter to send spans to - can be http/https/grpc
   exporter_url: "http://localhost:14268/api/traces"
   # the number of spans to sample per million
-  sampling_rate_per_million: 10
+  sampling_rate_per_million: 1000000
 ```
 
 Teleport would consume the above configuration to create a [`TracerProvider`](https://pkg.go.dev/go.opentelemetry.io/otel/trace#TracerProvider)
 and [`SpanExporter`](https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace#SpanExporter) which would only record 10% of
 all spans and export them to the specified url.
 
+Support will be added for exporting spans via `gRPC`, `http`, `https` and to the filesystem. Example configurations:
+
+```yaml
+  # export via gRPC
+  exporter_url: "grpc://localhost:14268"
+  
+  # export via http
+  exporter_url: "http://localhost:14268/api/traces"
+  
+  # export via https
+  exporter_url: "https://localhost:14268/api/traces"
+  
+  # export to /var/lib/teleport/traces
+  exporter_url: "file:///var/lib/teleport/traces"
+```
 
 #### Exporting Spans from tsh/tctl/tbot
 
@@ -226,17 +241,30 @@ message ExportSpanRequest {
 message ExportSpanResponse {}
 ```
 
-We could limit the number of spans that are sent to the Auth server by adding a `--trace` flag to all the commands which
-defaulted to false. If and only if the `--trace` flag is set to true, the spans would be sent to the Auth server. We
-could further limit the number of spans that got exported from the Auth server by requiring the user to have a certain
+By default, no spans will be captured and exported from the various tools mentioned above. In order to initiate collecting spans the
+`--trace` flag must be explicitly provided. For example `tsh --trace ssh root@ubuntu` will capture and forward all spans
+to the auth server for further propagation on to the telemetry backend. When the `--trace` flag is provided the sampling
+rate will be set to `1`, meaning record all spans. Teleport will respect the sampling rate of remote spans, meaning that
+even if the configured sampling rate of Teleport is `0`, when it receives a request which has a remote span already set
+to be sampled, then all spans in response to said request will also be sampled and exported. This allows the full trace
+to be captured in response to `--trace` even if Teleport wouldn't have otherwise sampled the spans.
+
+We could further limit the number of spans that got exported from the Auth server by requiring the user to have a certain
 role. Without having the role, the Auth server would log a warning and return instead of forwarding the spans on to the
 telemetry backend.
+
+An optional `--trace-exporter` flag could also be provided to allow users to direct their traces to a particular exporter.
+If not provided, and `--trace` was set then traces would be forwarded to the Auth server. Allowing users to supply their
+own exporter could be helpful for debugging purposes when users want to use a file exporter.
 
 ### Security
 
 Turning Teleport into a span forwarder could be misused by malicious users to potentially inject fake spans, or try and
 overwhelm the telemetry backend. Limiting who has the ability to exports spans to a particular role would reduce the
 attack surface.
+
+All forwarded spans will have the identity that exported that spans added as the attribute `teleport.forwarded.for`. This 
+will allow an upstream collectors to potentially filter out spans.
 
 As with logging, there is a potential to leak sensitive information in the span attributes and events.
 
