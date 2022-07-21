@@ -2016,8 +2016,8 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
+			var err error
+			if err = proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
 				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
@@ -2061,11 +2061,10 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
+			var err error
+			if err = proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
 				log.WithError(err).Warnf("Failed to proxy connection.")
-				err = conn.Close()
-				if err != nil {
+				if err = conn.Close(); err != nil {
 					log.WithError(err).Errorf("Error closing failed proxy connection.")
 				}
 			}
