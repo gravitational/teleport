@@ -26,7 +26,7 @@ pkgs.mkShell {
     tdr
     zip
 
-    go_1_17
+    go_1_18
     rustc
     rust-cbindgen
     cargo
