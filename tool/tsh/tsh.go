@@ -3322,6 +3322,9 @@ func onStatus(cf *CLIConf) error {
 	// Return error if not logged in, no active profile, or expired.
 	profile, profiles, err := client.Status(cf.HomePath, cf.Proxy)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("Not logged in.")
+		}
 		return trace.Wrap(err)
 	}
 
