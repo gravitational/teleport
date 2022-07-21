@@ -106,7 +106,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		log.Info("Using local listener and registering directly with auth server")
-		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
+		listener, err = process.importOrCreateListener(ListenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}

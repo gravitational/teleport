@@ -599,7 +599,7 @@ func TestExecLongCommand(t *testing.T) {
 // sets ServerContext session.
 func TestOpenExecSessionSetsSession(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -1339,6 +1339,7 @@ func TestPTY(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
+
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
 	defer se.Close()
@@ -2040,7 +2041,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	require.Equal(t, "hello again\n", string(out))
 }
 
-// upack holds all ssh signing artefacts needed for signing and checking user keys
+// upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte

@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -40,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1260,14 +1263,15 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	p, err := newTestPack(context.Background(), t.TempDir())
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -1284,7 +1288,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(req)
+	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
@@ -1898,5 +1902,136 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
+	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.ResourceWithLabels
+	resourcesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.resourcesError != nil {
+		return nil, m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, nil
+	}
+
+	return &types.ListResourcesResponse{Resources: m.resources}, nil
+}
+
+func TestFilterResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.ResourceWithLabels) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestCAGeneration(t *testing.T) {
+	const (
+		clusterName = "cluster1"
+		HostUUID    = "0000-000-000-0000"
+	)
+	native.PrecomputeKeys()
+	// Cache key for better performance as we don't care about the value being unique.
+	privKey, pubKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	ksConfig := keystore.Config{
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+			return privKey, pubKey, nil
+		},
+		HostUUID: HostUUID,
+	}
+	keyStore, err := keystore.NewKeyStore(ksConfig)
+	require.NoError(t, err)
+
+	for _, caType := range types.CertAuthTypes {
+		t.Run(string(caType), func(t *testing.T) {
+			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			keySet, err := newKeySet(keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+			require.NoError(t, err)
+
+			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
+			require.Equal(t, len(testKeySet.SSH) > 0, len(keySet.SSH) > 0,
+				"test CA and production CA have different SSH keys for type %v", caType)
+			require.Equal(t, len(testKeySet.TLS) > 0, len(keySet.TLS) > 0,
+				"test CA and production CA have different TLS keys for type %v", caType)
+			require.Equal(t, len(testKeySet.JWT) > 0, len(keySet.JWT) > 0,
+				"test CA and production CA have different JWT keys for type %v", caType)
+		})
 	}
 }
