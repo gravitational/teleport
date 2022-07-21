@@ -552,7 +552,7 @@ Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amaz
 If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
 FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
 
-Config option priority is applied in the order `QueryParameter > --fips > AWS_USE_FIPS_ENDPOINT`, or:
+Config option priority is applied in the following order:
 
 - Setting query parameter in the config as shown above
 - Using the `--fips` flag when running Teleport
