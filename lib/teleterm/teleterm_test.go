@@ -31,8 +31,7 @@ func TestStart(t *testing.T) {
 	homeDir := t.TempDir()
 	certsDir := t.TempDir()
 
-	require.NoError(t, os.WriteFile(filepath.Join(certsDir, "cert.crt"), []byte(fixtures.TLSCACertPEM), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(certsDir, "cert.key"), []byte(fixtures.TLSCAKeyPEM), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(certsDir, "client.crt"), []byte(fixtures.TLSCACertPEM), 0600))
 
 	cfg := teleterm.Config{
 		Addr:     fmt.Sprintf("unix://%v/teleterm.sock", homeDir),

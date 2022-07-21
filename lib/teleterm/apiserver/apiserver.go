@@ -54,12 +54,12 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	keyPair, err := LoadKeyPair(cfg.CertsDir)
+	grpcCredentials, err := getGrpcCredentials(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(keyPair), grpc.ChainUnaryInterceptor(
+	grpcServer := grpc.NewServer(grpcCredentials, grpc.ChainUnaryInterceptor(
 		withErrorHandling(cfg.Log),
 	))
 
@@ -99,7 +99,7 @@ func newListener(hostAddr string) (net.Listener, error) {
 }
 
 func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
-	fmt.Printf("{CONNECT_GRPC_PORT: %v}", addr.Port(1))
+	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }
 
 // Server is a combination of the underlying grpc.Server and its RuntimeOpts.
@@ -111,28 +111,57 @@ type APIServer struct {
 	grpcServer *grpc.Server
 }
 
-func LoadKeyPair(certsDir string) (credentials.TransportCredentials, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		filepath.Join(certsDir, "cert.crt"), filepath.Join(certsDir, "cert.key"))
+func getGrpcCredentials(cfg Config) (grpc.ServerOption, error) {
+	uri, err := utils.ParseAddr(cfg.HostAddr)
+
+	if err != nil {
+		return nil, trace.BadParameter("invalid host address: %s", cfg.HostAddr)
+	}
+
+	if uri.Network() != "unix" {
+		keyPair, err := generateKeyPair(cfg.CertsDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return grpc.Creds(keyPair), nil
+	}
+
+	return grpc.Creds(nil), nil
+}
+
+func generateKeyPair(certsDir string) (credentials.TransportCredentials, error) {
+	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate a certificate")
+	}
+
+	err = os.WriteFile(filepath.Join(certsDir, "tsh_server.crt"), cert.Cert, 0600)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to save server certificate")
+	}
+
+	certificate, err := tls.X509KeyPair(cert.Cert, cert.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load server certificates")
 	}
 
-	caCert, err := os.ReadFile(filepath.Join(certsDir, "cert.crt"))
-
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to read CA file")
-	}
-
-	caPool := x509.NewCertPool()
-	if !caPool.AppendCertsFromPEM(caCert) {
-		return nil, trace.Wrap(err, "failed to add CA file")
-	}
-
 	tlsConfig := &tls.Config{
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    caPool,
+		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+			caCert, err := os.ReadFile(filepath.Join(certsDir, "client.crt"))
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to read client certificate file")
+			}
+			caPool := x509.NewCertPool()
+			if !caPool.AppendCertsFromPEM(caCert) {
+				return nil, trace.Wrap(err, "failed to add client CA file")
+			}
+			return &tls.Config{
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				Certificates: []tls.Certificate{certificate},
+				ClientCAs:    caPool,
+			}, nil
+		},
 	}
 	return credentials.NewTLS(tlsConfig), nil
 }
