@@ -5672,11 +5672,12 @@ steps:
         path: /var/run
     commands:
     - mkdir -p /tmp/creds
-    - echo "$RELEASES_CERT" | base64 -d > "/tmp/creds/releases.crt"
-    - echo "$RELEASES_KEY" | base64 -d > "/tmp/creds/releases.key"
+    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
     - trap "rm -rf /tmp/creds" EXIT
     - |
-      docker run -v /tmp/creds:/tmp/creds -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+      docker run -i -v /tmp/creds:/tmp/creds \
+        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
         $RELCLI_IMAGE relcli auto_publish -f -v 6
     failure: ignore
 
@@ -5698,6 +5699,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 84ebb21559a20139a48739765f0a529beea329fb8664d6c67b3941d50dc0a878
+hmac: ee1f6618bf30e56269f3f4fa6de97c5aa0aaa435b04d199694b10fef6e41f304
 
 ...
