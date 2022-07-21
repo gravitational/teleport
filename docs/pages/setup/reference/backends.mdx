@@ -673,7 +673,7 @@ teleport:
     sync: "OFF"
 ```
 
-When running on a filesystem that supports file locks (i.e. a local filesystem,
+Starting from version 8.3.7, when running on a filesystem that supports file locks (i.e. a local filesystem,
 not a networked one) it's possible to also configure the SQLite database to use
 Write-Ahead Logging (see [the official docs on WAL
 mode](https://www.sqlite.org/wal.html)) for significantly improved performance
