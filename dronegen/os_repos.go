@@ -39,7 +39,7 @@ func promoteBuildPipeline() []pipeline {
 func artifactMigrationPipeline() []pipeline {
 	migrationVersions := []string{
 		// These versions were migrated as a part of the new `promoteAptPipeline`
-		// "v6.2.31",
+		"v6.2.31",
 		// "v7.3.17",
 		// "v7.3.18",
 		// "v7.3.19",
@@ -71,15 +71,25 @@ func artifactMigrationPipeline() []pipeline {
 		// "v9.2.4",
 		// "v9.3.0",
 		// "v9.3.2",
+		// "v9.3.4",
+		// "v9.3.5",
+		// "v9.3.6",
+		// "v9.3.7",
+		// "v9.3.9",
+		// "v9.3.10",
+		// "v9.3.12",
+		// "v10.0.0",
+		// "v10.0.1",
+		// "v10.0.2",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
-	migrationBranch := "" // "rfd/0058-package-distribution"
+	migrationBranch := "fred/rfd-0058-YUM-implementation" // "rfd/0058-package-distribution"
 
-	aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
+	// aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
 	yumPipeline := migrateYumPipeline(migrationBranch, migrationVersions)
 	return []pipeline{
-		aptPipeline,
+		// aptPipeline,
 		yumPipeline,
 	}
 }
@@ -102,6 +112,7 @@ type OsPackageToolPipelineBuilder struct {
 	clameName          string
 	image              string
 	packageType        string
+	packageManagerName string
 	volumeName         string
 	pipelineNameSuffix string
 	artifactPath       string
@@ -115,16 +126,17 @@ type OsPackageToolPipelineBuilder struct {
 // This function configures the build tool with it's requirements and sensible defaults.
 // If additional configuration required then the returned struct should be modified prior
 // to calling "build" functions on it.
-func NewOsPackageToolPipelineBuilder(claimName, image, packageType string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
+func NewOsPackageToolPipelineBuilder(claimName, image, packageType, packageManagerName string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
 	optpb := &OsPackageToolPipelineBuilder{
 		clameName:          claimName,
 		image:              image,
 		packageType:        packageType,
+		packageManagerName: packageManagerName,
 		bucketSecrets:      bucketSecrets,
 		extraArgs:          []string{},
 		setupCommands:      []string{},
-		volumeName:         fmt.Sprintf("%s-persistence", packageType),
-		pipelineNameSuffix: fmt.Sprintf("%s-new-repos", packageType),
+		volumeName:         fmt.Sprintf("%s-persistence", packageManagerName),
+		pipelineNameSuffix: fmt.Sprintf("%s-new-repos", packageManagerName),
 		artifactPath:       "/go/artifacts",
 		pvcMountPoint:      "/mnt",
 	}
@@ -331,7 +343,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 						"--no-progress",
 						"--delete",
 						"--exclude \"*\"",
-						"--include \"*.deb*\"",
+						fmt.Sprintf("--include \"*.%s*\"", optpb.packageType),
 						fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", bucketFolder),
 						"\"$ARTIFACT_PATH\"",
 					},
@@ -340,7 +352,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			},
 		},
 		{
-			Name: fmt.Sprintf("Publish debs to %s repos for %q", strings.ToUpper(optpb.packageType), version),
+			Name: fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
 			// TODO set this if drongen `step` supports https://docs.drone.io/pipeline/ssh/syntax/parallelism/ in the future
 			// DependsOn: []string {
 			// 	"Check out code",
@@ -362,7 +374,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 							[]string{
 								// This just makes the (long) command a little more readable
 								"go run ./cmd/build-os-package-repos",
-								optpb.packageType,
+								optpb.packageManagerName,
 								"-bucket \"$REPO_S3_BUCKET\"",
 								"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
 								"-artifact-version \"$VERSION\"",

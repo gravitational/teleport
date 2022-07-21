@@ -240,7 +240,7 @@ func (ac *AptConfig) Check() error {
 	}
 
 	if err := ac.validateAptlyPath(); err != nil {
-		return trace.Wrap(err, "failed to validate the cache-dir path flag")
+		return trace.Wrap(err, "failed to validate the aptly-root-dir path flag")
 	}
 
 	return nil

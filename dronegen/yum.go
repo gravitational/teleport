@@ -32,6 +32,7 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb := NewOsPackageToolPipelineBuilder(
 		"drone-s3-yumrepo-pvc",
 		"ubuntu:22.04",
+		"rpm",
 		"yum",
 		NewRepoBucketSecretNames(
 			"YUM_REPO_NEW_AWS_S3_BUCKET",

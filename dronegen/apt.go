@@ -29,6 +29,7 @@ func getAptPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb := NewOsPackageToolPipelineBuilder(
 		"drone-s3-aptrepo-pvc",
 		"golang:1.18.4-bullseye",
+		"deb",
 		"apt",
 		NewRepoBucketSecretNames(
 			"APT_REPO_NEW_AWS_S3_BUCKET",
