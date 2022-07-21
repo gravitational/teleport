@@ -702,7 +702,7 @@ export default function makeEvent(json: any): Event {
     id: getId(json),
     code: json.code,
     user: json.user,
-    time: new Date(json.time),
+    time: json.time,
     raw: json,
   };
 
