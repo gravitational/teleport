@@ -5646,7 +5646,82 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check if commit is tagged
+    image: alpine
+    commands:
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+
+  - name: Pull relcli
+    image: docker:git
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_SECRET
+      AWS_DEFAULT_REGION: us-west-2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+
+  - name: Publish in Release API
+    image: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+    environment:
+      RELEASES_CERT:
+        from_secret: RELEASES_CERT_STAGING
+      RELEASES_KEY:
+        from_secret: RELEASES_KEY_STAGING
+      RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+      RELCLI_CERT: /tmp/releases.crt
+      RELCLI_KEY: /tmp/releases.key
+    commands:
+    - echo "$RELEASES_CERT" | base64 -d > "/tmp/releases.crt"
+    - echo "$RELEASES_KEY" | base64 -d > "/tmp/releases.key"
+    - trap "rm -f /tmp/releases.crt /tmp/releases.key" EXIT
+    - relcli auto_publish -f -v 6
+    failure: ignore
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
+---
 kind: signature
-hmac: 643d4af0089508e1c375a73d1a6a92c5f47f05f287bd169e12de466c5a705c4b
+hmac: d9867dd5fb17cd0cea8cc8b5605fa4135a6a73c6d7b663546f1c5dd7aef58803
 
 ...
