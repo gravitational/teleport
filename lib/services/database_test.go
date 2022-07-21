@@ -339,7 +339,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	})
 }
 
-// TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overriden name.
+// TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	cluster := &rds.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:1234567890:cluster:cluster-1"),
