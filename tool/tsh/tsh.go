@@ -1453,7 +1453,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if err := displayLicenseWarnings(cf.Context, tc); err != nil {
-		log.WithError(err).Debug("failed to display license warnings")
+		log.WithError(err).Debug("Failed to display license warnings.")
 	}
 
 	return nil
