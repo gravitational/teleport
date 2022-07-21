@@ -84,16 +84,17 @@ $ ./teleport-event-handler configure . mytenant.teleport.sh
 </TabItem>
 <TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
 
-Run the `configure` command to generate a sample configuration. Replace `mytenant.teleport.sh` with the DNS name of your Teleport server (Teleport Cloud or self-hosted):
+Run the `configure` command to generate a sample configuration. Assign `TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth Service or Proxy Service:
 
 ```code
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . mytenant.teleport.sh
+$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 To create a Kubernetes secret that can be used with the Helm Chart later, use the following command:
 
 ```code
-$ kubectl create secret generic teleport-plugin-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
 ```
 
 This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the secret, so the Helm Chart can mount them to their appropriate path.
@@ -239,7 +240,7 @@ command.
 $ tctl auth sign --format=tls --user=teleport-event-handler --out=auth
 ```
 
-This command should result in three PEM-encoded files, `auth.crt`, `auth.key`,
+This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
 and `auth.cas` (certificate, private key, and CA certs, respectively).
 
 </TabItem>
@@ -398,7 +399,7 @@ fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
   sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
   certificate:
-    secretName: "teleport-plugin-event-handler-client-tls"
+    secretName: "teleport-event-handler-client-tls"
     caPath: "ca.crt"
     certPath: "client.crt"
     keyPath: "client.key"
