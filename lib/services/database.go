@@ -118,6 +118,16 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
 }
 
+// newDatabase is a wrapper around types.NewDatabaseV3 that additionally applies tag-based name override.
+// For database types we don't want to override the entire name; if this is desired, caller will pass
+// suffixes to append to the database name.
+func newDatabase(suffix string, meta types.Metadata, spec types.DatabaseSpecV3) (types.Database, error) {
+	if override, found := meta.Labels[labelTeleportDBName]; found && override != "" {
+		meta.Name = override + suffix
+	}
+	return types.NewDatabaseV3(meta, spec)
+}
+
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
 func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
@@ -128,7 +138,8 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
+
+	return newDatabase("", types.Metadata{
 		Name:        aws.StringValue(instance.DBInstanceIdentifier),
 		Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
 		Labels:      labelsFromRDSInstance(instance, metadata),
@@ -145,7 +156,7 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
+	return newDatabase("", types.Metadata{
 		Name:        aws.StringValue(cluster.DBClusterIdentifier),
 		Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
 		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
@@ -162,7 +173,7 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
+	return newDatabase(fmt.Sprintf("-%v", string(RDSEndpointTypeReader)), types.Metadata{
 		Name:        fmt.Sprintf("%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
 		Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
 		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
@@ -191,7 +202,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			continue
 		}
 
-		database, err := types.NewDatabaseV3(types.Metadata{
+		database, err := newDatabase(fmt.Sprintf("-%v-%v", string(RDSEndpointTypeCustom), endpointName), types.Metadata{
 			Name:        fmt.Sprintf("%v-%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
 			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
 			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
@@ -230,7 +241,7 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 		return nil, trace.Wrap(err)
 	}
 
-	return types.NewDatabaseV3(types.Metadata{
+	return newDatabase("", types.Metadata{
 		Name:        aws.StringValue(cluster.ClusterIdentifier),
 		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
 		Labels:      labelsFromRedshiftCluster(cluster, metadata),
@@ -283,11 +294,13 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	}
 
 	name := aws.StringValue(cluster.ReplicationGroupId)
+	suffix := ""
 	if endpointType == awsutils.ElastiCacheReaderEndpoint {
 		name = fmt.Sprintf("%s-%s", name, endpointType)
+		suffix = fmt.Sprintf("-%s", endpointType)
 	}
 
-	return types.NewDatabaseV3(types.Metadata{
+	return newDatabase(suffix, types.Metadata{
 		Name:        name,
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
 		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
@@ -308,7 +321,7 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		return nil, trace.Wrap(err)
 	}
 
-	return types.NewDatabaseV3(types.Metadata{
+	return newDatabase("", types.Metadata{
 		Name:        aws.StringValue(cluster.Name),
 		Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
 		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
@@ -809,6 +822,8 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelVPCID is the label key containing the VPC ID.
 	labelVPCID = "vpc-id"
+	// labelTeleportDBName is the label key containing the database name override.
+	labelTeleportDBName = "teleport-db-name"
 )
 
 const (
