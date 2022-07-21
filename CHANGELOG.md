@@ -1,12 +1,13 @@
 # Changelog
 
-## 9.3.11
+## 9.3.12
 
 This release of Teleport contains multiple improvements and bug fixes.
 
 * Added ability to set session recording configuration from a resource. [#14612](https://github.com/gravitational/teleport/pull/14612)
 * Fixed an issue where `tsh` would shell out to `ssh`. [#14222](https://github.com/gravitational/teleport/pull/14222)
 * Improved error messages for Database Access. [#13902](https://github.com/gravitational/teleport/pull/13902) [#14476](https://github.com/gravitational/teleport/pull/14476)
+* Fixed issue with Ctrl-C hanging when the session is paused. [#14512](https://github.com/gravitational/teleport/pull/14512)
 
 ## 9.3.10
 
