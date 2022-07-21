@@ -144,6 +144,11 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Local
   ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
 </Figure>
 
+<Admonition type="tip" title="Disabling Password Authentication">
+  For added security, consider disabling username/password authentication completely via the GPO,
+  requiring access via Teleport's virtual smart card.
+</Admonition>
+
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
 Next, we need to configure a GPO to allow Teleport desktop sessions. This

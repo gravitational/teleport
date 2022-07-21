@@ -32,10 +32,10 @@ command, where `mytenant` is the name of your Teleport Cloud tenant:
 $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
 ```
 
-Read the following rules to ensure that your Teleport Nodes are compatible with
-the Teleport Auth and Proxy Services. You should check the version of the Auth
-and Proxy Services regularly to make sure that your Teleport Nodes are
-compatible.
+Read the following rules to ensure that your Teleport resource services (e.g.,
+the SSH Service and Database Service) are compatible with the Teleport Auth and
+Proxy Services. You should check the version of the Auth and Proxy Services
+regularly to make sure that your Teleport resource services are compatible.
 
 </Details>
 
@@ -46,14 +46,14 @@ When running multiple binaries of Teleport within a cluster, the following rules
   with any 8.3.0 component.
 - Servers support clients that are 1 major version behind, but do not support
   clients that are on a newer major version. For example, an 8.x.x Proxy Service
-  is compatible with 7.x.x Nodes and 7.x.x `tsh`, but we don't guarantee that a
-  9.x.x Node will work with an 8.x.x Proxy Service. This also means you must not
-  attempt to upgrade from 6.x.x straight to 8.x.x. You must upgrade to 7.x.x
-  first.
-- Proxy Services and Nodes do not support Auth Services that are on an older major
-  version, and will fail to connect to older Auth Services by default. This behavior
-  can be overridden by passing `--skip-version-check` when starting Proxy Services and
-  Nodes.
+  is compatible with 7.x.x resource services and 7.x.x `tsh`, but we don't
+  guarantee that a 9.x.x resource service will work with an 8.x.x Proxy Service.
+  This also means you must not attempt to upgrade from 6.x.x straight to 8.x.x.
+  You must upgrade to 7.x.x first.
+- Proxy Services and resource services do not support Auth Services that are on
+  an older major version, and will fail to connect to older Auth Services by
+  default. This behavior can be overridden by passing `--skip-version-check`
+  when starting Proxy Services and resource services.
 
 ## Backup
 
@@ -70,7 +70,8 @@ When upgrading a single Teleport cluster:
    perform necessary migrations.
 2. Upgrade Proxy Service instances. These are stateless and can be upgraded in
    any sequence or at the same time.
-3. Finally, upgrade your Teleport Nodes in any sequence or at the same time.
+3. Finally, upgrade your Teleport resource services in any sequence or at the
+   same time.
 
 <Admonition
   type="warning"
@@ -94,7 +95,8 @@ When upgrading multiple clusters:
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 The Teleport Auth Service and Proxy Service are upgraded automatically. When
-upgrading Nodes, you may upgrade in any sequence or at the same time.
+upgrading resource services, you may upgrade in any sequence or at the same
+time.
 
 When upgrading multiple clusters:
 
@@ -107,4 +109,4 @@ When upgrading multiple clusters:
 ## Further reading
 
 If you would like to learn how to upgrade a single `teleport` binary, read
-[Upgrade the Teleport Binary](../admin/graceful-restarts.mdx).
+[Upgrade the Teleport Binary](../admin/upgrading-the-teleport-binary.mdx).

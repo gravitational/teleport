@@ -54,37 +54,37 @@ import (
 func TestALPNSNIProxyMultiCluster(t *testing.T) {
 	testCase := []struct {
 		name                      string
-		mainClusterPortSetup      *helpers.InstancePorts
-		secondClusterPortSetup    *helpers.InstancePorts
+		mainClusterPortSetup      helpers.InstanceListenerSetupFunc
+		secondClusterPortSetup    helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:      helpers.StandardPortSetup(),
-			secondClusterPortSetup:    helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:      helpers.StandardListenerSetup,
+			secondClusterPortSetup:    helpers.SingleProxyPortSetup,
 			disableALPNListenerOnRoot: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
-			mainClusterPortSetup:   helpers.StandardPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:   helpers.StandardListenerSetup,
+			secondClusterPortSetup: helpers.SingleProxyPortSetup,
 		},
 		{
 			name:                   "TwoClusterOnePortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
+			secondClusterPortSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                      "OnePortAndStandardPortSetupLeafALPNDisabled",
-			mainClusterPortSetup:      helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup:    helpers.StandardPortSetup(),
+			name:                      "OnePortAndStandardListenerSetupLeafALPNDisabled",
+			mainClusterPortSetup:      helpers.SingleProxyPortSetup,
+			secondClusterPortSetup:    helpers.StandardListenerSetup,
 			disableALPNListenerOnLeaf: true,
 		},
 		{
-			name:                   "OnePortAndStandardPortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.StandardPortSetup(),
+			name:                   "OnePortAndStandardListenerSetup",
+			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
+			secondClusterPortSetup: helpers.StandardListenerSetup,
 		},
 	}
 
@@ -102,8 +102,8 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnLeaf
 				}),
-				withRootClusterPorts(tc.mainClusterPortSetup),
-				withLeafClusterPorts(tc.secondClusterPortSetup),
+				withRootClusterListeners(tc.mainClusterPortSetup),
+				withLeafClusterListeners(tc.secondClusterPortSetup),
 				withRootAndLeafClusterRoles(createTestRole(username)),
 				withStandardRoleMapping(),
 			)
@@ -112,14 +112,14 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				Login:   username,
 				Cluster: suite.root.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.root.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.root.SSH),
 			})
 			// Run command in leaf.
 			suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
 				Login:   username,
 				Cluster: suite.leaf.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.leaf.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 		})
 	}
@@ -128,38 +128,38 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 // TestALPNSNIProxyTrustedClusterNode tests ssh connection to a trusted cluster node.
 func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 	testCase := []struct {
-		name                      string
-		mainClusterPortSetup      *helpers.InstancePorts
-		secondClusterPortSetup    *helpers.InstancePorts
-		disableALPNListenerOnRoot bool
-		disableALPNListenerOnLeaf bool
+		name                       string
+		mainClusterListenerSetup   helpers.InstanceListenerSetupFunc
+		secondClusterListenerSetup helpers.InstanceListenerSetupFunc
+		disableALPNListenerOnRoot  bool
+		disableALPNListenerOnLeaf  bool
 	}{
 		{
-			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:      helpers.StandardPortSetup(),
-			secondClusterPortSetup:    helpers.SingleProxyPortSetup(),
-			disableALPNListenerOnRoot: true,
+			name:                       "StandardAndOnePortSetupMasterALPNDisabled",
+			mainClusterListenerSetup:   helpers.StandardListenerSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
+			disableALPNListenerOnRoot:  true,
 		},
 		{
-			name:                   "StandardAndOnePortSetup",
-			mainClusterPortSetup:   helpers.StandardPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			name:                       "StandardAndOnePortSetup",
+			mainClusterListenerSetup:   helpers.StandardListenerSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                   "TwoClusterOnePortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			name:                       "TwoClusterOnePortSetup",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                      "OnePortAndStandardPortSetupLeafALPNDisabled",
-			mainClusterPortSetup:      helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup:    helpers.StandardPortSetup(),
-			disableALPNListenerOnLeaf: true,
+			name:                       "OnePortAndStandardListenerSetupLeafALPNDisabled",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.StandardListenerSetup,
+			disableALPNListenerOnLeaf:  true,
 		},
 		{
-			name:                   "OnePortAndStandardPortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.StandardPortSetup(),
+			name:                       "OnePortAndStandardListenerSetup",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.StandardListenerSetup,
 		},
 	}
 	for _, tc := range testCase {
@@ -172,8 +172,8 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 			suite := newProxySuite(t,
 				withRootClusterConfig(rootClusterStandardConfig(t)),
 				withLeafClusterConfig(leafClusterStandardConfig(t)),
-				withRootClusterPorts(tc.mainClusterPortSetup),
-				withLeafClusterPorts(tc.secondClusterPortSetup),
+				withRootClusterListeners(tc.mainClusterListenerSetup),
+				withLeafClusterListeners(tc.secondClusterListenerSetup),
 				withRootClusterRoles(newRole(t, "maindevs", username)),
 				withLeafClusterRoles(newRole(t, "auxdevs", username)),
 				withRootAndLeafTrustedClusterReset(),
@@ -189,7 +189,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 				Login:   username,
 				Cluster: suite.leaf.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.leaf.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 
 			// Try and connect to a node in the Aux cluster from the Root cluster using
@@ -217,7 +217,10 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -226,8 +229,8 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterPorts(helpers.SingleProxyPortSetup()),
-		withLeafClusterPorts(helpers.SingleProxyPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
@@ -255,7 +258,10 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
@@ -264,8 +270,8 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterPorts(helpers.StandardPortSetup()),
-		withLeafClusterPorts(helpers.StandardPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
@@ -393,7 +399,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 // DB protocol is wrapped into TLS and forwarded to proxy ALPN SNI service and routed to appropriate db service.
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SingleProxyPortSetup),
+		withListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		withLeafConfig(func(config *service.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
@@ -404,7 +410,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack.waitForLeaf(t)
 
 	t.Run("mysql", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMySQL)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolMySQL)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -457,7 +463,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("postgres", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolPostgres)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolPostgres)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -497,7 +503,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("mongo", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMongoDB)
+		lp := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolMongoDB)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -550,8 +556,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
-		rootClusterPorts: helpers.SingleProxyPortSetup(),
-		leafClusterPorts: helpers.SingleProxyPortSetup(),
+		rootClusterListeners: helpers.SingleProxyPortSetup,
+		leafClusterListeners: helpers.SingleProxyPortSetup,
 		rootConfig: func(config *service.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		},
@@ -582,8 +588,8 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	suite := newProxySuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
-		withRootClusterPorts(helpers.SingleProxyPortSetup()),
-		withLeafClusterPorts(helpers.SingleProxyPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetup),
+		withLeafClusterListeners(helpers.SingleProxyPortSetup),
 		withRootClusterRoles(newRole(t, "rootdevs", username)),
 		withLeafClusterRoles(newRole(t, "leafdevs", username)),
 		withRootAndLeafTrustedClusterReset(),
@@ -625,13 +631,14 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
@@ -659,7 +666,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	tc, err := client.New(context.Background(), client.Config{
-		Addrs:                    []string{rc.GetWebAddr()},
+		Addrs:                    []string{rc.Web},
 		Credentials:              []client.Credentials{identity},
 		InsecureAddressDiscovery: true,
 	})
@@ -679,15 +686,16 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rootCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.StandardPortSetup(),
-	})
+	}
+	rootCfg.Listeners = helpers.StandardListenerSetup(t, &rootCfg.Fds)
+	rc := helpers.NewInstance(t, rootCfg)
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -744,16 +752,20 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	addr, err := getLocalIP()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	instanceCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+	}
+	instanceCfg.Listeners = helpers.SingleProxyPortSetupOn(addr)(t, &instanceCfg.Fds)
+	rc := helpers.NewInstance(t, instanceCfg)
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -785,7 +797,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 	t.Setenv("no_proxy", addr)
 
-	rcProxyAddr := net.JoinHostPort(addr, rc.GetPortWeb())
+	rcProxyAddr := rc.Web
 
 	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
 	// to the proxy should not go through the http_proxy server.
@@ -817,16 +829,25 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	log := utils.NewLoggerForTests()
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
 	rcAddr, err := getLocalIP()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	log.Info("Creating Teleport instance...")
+	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+		Log:         log,
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
+	log.Info("Teleport root cluster instance created")
+
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -840,9 +861,13 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
+	log.Infof("Root cluster config: %#v", rcConf)
+
+	log.Info("Creating Root cluster...")
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
+	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
 	defer rc.StopAll()
@@ -854,6 +879,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	validPass := "open sesame"
 
 	// Create and start http_proxy server.
+	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
 	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
 	ts := httptest.NewServer(authorizer)
@@ -861,8 +887,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	proxyURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
+	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
-	rcProxyAddr := net.JoinHostPort(rcAddr, rc.GetPortWeb())
+	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 
 	// proxy url is just the host with no auth credentials
 	t.Setenv("http_proxy", proxyURL.Host)
