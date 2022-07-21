@@ -212,10 +212,6 @@ You can specify multiple selectors by including additional list elements.
       "env": "test"
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -231,7 +227,7 @@ You can specify multiple selectors by including additional list elements.
 </Tabs>
 
 <Admonition type="tip" title="Example">
-  You can see [a dynamic application registration example here](../../application-access/guides/dynamic-registration.mdx).
+  Once `appResources` is set, you can dynamically register application with `tsh` by following [this guide](../../application-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `awsDatabases`
@@ -390,10 +386,6 @@ You can specify multiple selectors by adding elements to the list.
       "engine": "mysql"
   ```
 
-  <Admonition type="note" title="YAML formatting">
-    YAML is very sensitive to correct spacing. When specifying lists in a `values.yaml` file, you might like
-    to [use a linter](https://codebeautify.org/yaml-validator) to validate your YAML list and ensure that it is correctly formatted.
-  </Admonition>
   </TabItem>
   <TabItem label="--set">
   ```code
@@ -412,7 +404,7 @@ You can specify multiple selectors by adding elements to the list.
 </Tabs>
 
 <Admonition type="tip" title="Example">
-  You can see [a dynamic database registration example here](../../database-access/guides/dynamic-registration.mdx).
+  Once `dbResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `teleportVersionOverride`
