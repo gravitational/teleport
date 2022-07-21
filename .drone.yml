@@ -5646,6 +5646,7 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
       AWS_DEFAULT_REGION: us-west-2
+    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -5671,24 +5672,8 @@ steps:
     - relcli auto_publish -f -v 6
     failure: ignore
 
-services:
-  - name: Start Docker
-    image: docker:dind
-    privileged: true
-    volumes:
-      - name: dockersock
-        path: /var/run
-      - name: tmpfs
-        path: /tmpfs
-
-volumes:
-  - name: dockersock
-    temp: {}
-  - name: tmpfs
-    temp:
-      medium: memory
 ---
 kind: signature
-hmac: 724621a055c734743eb174bce3917b1a5e0349f0ae1c5bd617641b638a39f65e
+hmac: bc9067310cb81c07e40017bca791e073cf9669db32ececf79a73087b7635d68f
 
 ...
