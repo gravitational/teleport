@@ -810,21 +810,12 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	// log out and back in with no access request
+	// drop the access request
 	err = Run(ctx, []string{
-		"logout",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
-	err = Run(ctx, []string{
-		"login",
 		"--insecure",
-		"--auth", connector.GetName(),
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
+		"request",
+		"drop",
+	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// ssh with request, by host ID
