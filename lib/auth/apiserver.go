@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -814,13 +815,13 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	}
 
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(req)
+		sess, err := auth.ExtendWebSession(r.Context(), req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(req.User)
+	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
