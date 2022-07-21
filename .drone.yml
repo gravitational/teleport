@@ -5402,39 +5402,6 @@ steps:
       target: /
       strip_prefix: /go/chart
 
-  - name: Pull relcli
-    image: docker:git
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_KEY
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_DRONE_ECR_READ_ONLY_SECRET
-      AWS_DEFAULT_REGION: us-west-2
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache aws-cli
-      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
-
-  - name: Publish in Release API
-    image: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
-    environment:
-      RELEASES_CERT:
-        from_secret: RELEASES_CERT_STAGING
-      RELEASES_KEY:
-        from_secret: RELEASES_KEY_STAGING
-      RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
-      RELCLI_CERT: /tmp/releases.crt
-      RELCLI_KEY: /tmp/releases.key
-    commands:
-    - echo "$RELEASES_CERT" | base64 -d > "/tmp/releases.crt"
-    - echo "$RELEASES_KEY" | base64 -d > "/tmp/releases.key"
-    - trap "rm -f /tmp/releases.crt /tmp/releases.key" EXIT
-    - relcli auto_publish -f -v 6
-    failure: ignore
-
   # NOTE: all mandatory steps for a release promotion need to go BEFORE this
   # step, as there is a chance that everything afterwards will be skipped.
   #
@@ -5722,6 +5689,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5fbd8133265e2ed1b388ce85d6f301447c51bd9e128fb184270f96c078cae833
+hmac: 724621a055c734743eb174bce3917b1a5e0349f0ae1c5bd617641b638a39f65e
 
 ...
