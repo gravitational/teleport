@@ -30,12 +30,6 @@ func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error)
 		return nil, trace.Wrap(err)
 	}
 
-	exporter, err := NewOTLPExporter(ctx, cfg)
-	return exporter, trace.Wrap(err)
-}
-
-// NewOTLPExporter returns a new exporter that exports spans via an otlptrace.Client.
-func NewOTLPExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
 	traceClient, err := NewClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
