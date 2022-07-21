@@ -689,12 +689,13 @@ postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
 
 The Auth Service uses the SQLite backend when no `type` is specified in the
 storage section in the Teleport configuration file, or when `type` is set to
-`sqlite` or `dir`. The SQLite backend is not designed for high throughput and it's not capable of
-serving the needs of Teleport's High Availability configurations; as such, it's
-only recommended for deployments of moderate size.
+`sqlite` or `dir`. The SQLite backend is not designed for high throughput and
+it's not capable of serving the needs of Teleport's High Availability configurations.
 
-A sign that the cluster has outgrown the capabilities of the SQLite backend is the presence of warning messages in the Auth Service's logs
-that say `SLOW TRANSACTION`.
+If you are planning to use SQLite as your backend, scale your cluster slowly and
+monitor the number of warning messages in the Auth Service's logs that say
+`SLOW TRANSACTION`, as that's a sign that the cluster has outgrown the capabilities
+of the SQLite backend.
 
 As a stopgap measure until it's possible to migrate the cluster to use a
 HA-capable backend, you can configure the SQLite backend to reduce the amount of
