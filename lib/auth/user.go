@@ -79,6 +79,10 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
+	if err := s.checkUserRoleConstraint(ctx, user, "update"); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,8 +115,11 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 
 // UpsertUser updates a user.
 func (s *Server) UpsertUser(user types.User) error {
-	err := s.Identity.UpsertUser(user)
-	if err != nil {
+	if err := s.checkUserRoleConstraint(s.CloseContext(), user, "upsert"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.Identity.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -182,8 +189,17 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existng user in a backend by username.
-func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.Access.GetRole(ctx, services.RoleNameForUser(user))
+func (s *Server) DeleteUser(ctx context.Context, username string) error {
+	user, err := types.NewUser(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.checkUserRoleConstraint(ctx, user, "delete"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	role, err := s.Access.GetRole(ctx, services.RoleNameForUser(username))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -196,8 +212,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		}
 	}
 
-	err = s.Identity.DeleteUser(ctx, user)
-	if err != nil {
+	if err = s.Identity.DeleteUser(ctx, username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -209,10 +224,46 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		},
 		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: user,
+			Name: username,
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user delete event.")
+	}
+
+	return nil
+}
+
+// checkUserRoleConstraint checks if the request will result in having
+// no users with access to upsert roles.
+func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, request string) error {
+	rolesWithUpsertRolesRule, err := s.getRolesWithUpsertRolesRule(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	allUsers, err := s.Identity.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	matchedUsers := make(map[string]struct{})
+	for _, u := range allUsers {
+		for _, r := range u.GetRoles() {
+			if _, ok := rolesWithUpsertRolesRule[r]; ok {
+				matchedUsers[u.GetName()] = struct{}{}
+				break
+			}
+		}
+	}
+
+	if _, ok := matchedUsers[user.GetName()]; ok && len(matchedUsers) == 1 {
+		for _, r := range user.GetRoles() {
+			if _, ok := rolesWithUpsertRolesRule[r]; ok {
+				return nil
+			}
+		}
+		log.Warnf("Failed to %s last user with with permissions to upsert roles", request)
+		return trace.BadParameter("failed to %s last user with permissions to upsert roles", request)
 	}
 
 	return nil

@@ -68,7 +68,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.Nil(t, p.mockEmitter.LastEvent())
 }
 
-func TestUpsertDeleteRoleConstraints(t *testing.T) {
+func TestRoleConstraints(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
@@ -121,9 +121,9 @@ func TestUpsertDeleteRoleConstraints(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// remove create/update rules from test-role-2.
+	// remove upsert rules from test-role-2.
 	// the operation will succeed because test-role-1 still has rules
-	// to create/update roles.
+	// to upsert roles.
 	role, err := types.NewRoleV3(testRoles[1].Name, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
@@ -133,9 +133,9 @@ func TestUpsertDeleteRoleConstraints(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// remove create/update rules from test-role-1.
+	// remove upsert rules from test-role-1.
 	// the operation will fail because test-role-1 is the only role left that has
-	// rules to create/update roles.
+	// rules to upsert roles.
 	role, err = types.NewRoleV3(testRoles[0].Name, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
@@ -145,7 +145,7 @@ func TestUpsertDeleteRoleConstraints(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.Error(t, err)
 
-	// remove create/update rules from test-role-3.
+	// remove upsert rules from test-role-3.
 	// this is a control operation that shows that other resource types
 	// are not affected by the "role resource constraints".
 	role, err = types.NewRoleV3(testRoles[2].Name, types.RoleSpecV5{
@@ -159,7 +159,7 @@ func TestUpsertDeleteRoleConstraints(t *testing.T) {
 
 	// delete test-role-1.
 	// the operation will fail because test-role-1 is the only role left that has
-	// rules to create/update roles.
+	// rules to upsert roles.
 	err = p.a.DeleteRole(ctx, testRoles[0].Name)
 	require.Error(t, err)
 
