@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.1
+VERSION=10.0.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -159,12 +159,15 @@ LIBFIDO2_TEST_TAG := libfido2
 endif
 
 # Build tsh against libfido2?
-# Only build if FIDO2=yes, each platform we support must make this decision
-# explicitly.
+# FIDO2=yes and FIDO2=static enable static libfido2 builds.
+# FIDO2=dynamic enables dynamic libfido2 builds.
 LIBFIDO2_MESSAGE := without libfido2
-ifeq ("$(FIDO2)", "yes")
+ifneq (, $(filter $(FIDO2), yes static))
 LIBFIDO2_MESSAGE := with libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+else ifeq ("$(FIDO2)", "dynamic")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
