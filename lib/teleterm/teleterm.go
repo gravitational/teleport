@@ -42,9 +42,11 @@ func Start(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	gatewayCreator := clusters.NewGatewayCreator(storage)
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:            storage,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Storage:        storage,
+		GatewayCreator: gatewayCreator,
 	})
 	if err != nil {
 		return trace.Wrap(err)

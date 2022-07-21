@@ -63,7 +63,8 @@ more in the following guide:
   See [Installation](../../installation.mdx) for details.
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
-  installed.
+  installed. The Node should not have an existing data dir (`/var/lib/teleport` by default). 
+  Remove the data directory if this instance has previously joined a Teleport cluster.  
 
 </TabItem>
 <TabItem
@@ -82,7 +83,10 @@ more in the following guide:
   ```
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
-  installed.
+    installed. The Node should not have an existing data dir
+    (`/var/lib/teleport` by default). Remove the data directory if this
+    instance has previously joined a Teleport cluster.
+
 </TabItem>
 </Tabs>
 
@@ -206,6 +210,17 @@ proxy_service:
 ```
 
 ## Step 4/4. Launch your Teleport Node
+
+<Admonition
+  type="note"
+  title="IMPORTANT"
+>
+  The data directory (`/var/lib/teleport` by default) must be empty prior to
+  launching the Node. If this Node had previously joined by another method (e.g.
+  token or IAM) the host UUID will not match the expected name (`<AWS Account
+  number>-<instance id>`) and will not be allowed to join.
+</Admonition>
+
 
 Start Teleport on the Node and confirm that it is able to connect to and join
 your cluster. You're all set!
