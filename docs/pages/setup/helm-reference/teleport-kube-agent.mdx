@@ -510,8 +510,8 @@ This can be set to inject a root and/or intermediate CA so that Teleport can bui
 
 You should create the secret in the same namespace as Teleport using a command like this:
 
-```shell
-kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```code
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
 <Notice type="warning" title="Root CA filename">
