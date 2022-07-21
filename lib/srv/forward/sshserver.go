@@ -517,7 +517,7 @@ func (s *Server) Serve() {
 	ctx, s.connectionContext = sshutils.NewConnectionContext(ctx, s.serverConn, s.sconn)
 
 	// Take connection and extract identity information for the user from it.
-	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
+	s.identityContext, err = s.authHandlers.CreateIdentityContext(ctx, sconn)
 	if err != nil {
 		s.userAgent.Close()
 		s.targetConn.Close()

@@ -24,9 +24,11 @@ import (
 	"strconv"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -109,7 +111,14 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 // CreateIdentityContext returns an IdentityContext populated with information
 // about the logged in user on the connection.
-func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityContext, error) {
+func (h *AuthHandlers) CreateIdentityContext(ctx context.Context, sconn *ssh.ServerConn) (IdentityContext, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("authHandlers").Start(
+		oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(ctx)),
+		"authHandlers/CreateIdentityContext",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+	)
+	defer span.End()
+
 	identity := IdentityContext{
 		TeleportUser: sconn.Permissions.Extensions[utils.CertTeleportUser],
 		Login:        sconn.User(),
@@ -130,7 +139,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if certificate.ValidBefore != 0 {
 		identity.CertValidBefore = time.Unix(int64(certificate.ValidBefore), 0)
 	}
-	certAuthority, err := h.authorityForCert(types.UserCA, certificate.SignatureKey)
+	certAuthority, err := h.authorityForCert(ctx, types.UserCA, certificate.SignatureKey)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -141,7 +150,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	accessInfo, err := h.fetchAccessInfo(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
+	accessInfo, err := h.fetchAccessInfo(ctx, certificate, certAuthority, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -397,7 +406,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 // IsUserAuthority is called during checking the client key, to see if the
 // key used to sign the certificate was a Teleport CA.
 func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
-	if _, err := h.authorityForCert(types.UserCA, cert); err != nil {
+	if _, err := h.authorityForCert(context.TODO(), types.UserCA, cert); err != nil {
 		return false
 	}
 
@@ -408,7 +417,7 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 // presents. It make sure that the key used to sign the host certificate was a
 // Teleport CA.
 func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
-	if _, err := h.authorityForCert(types.HostCA, cert); err != nil {
+	if _, err := h.authorityForCert(context.TODO(), types.HostCA, cert); err != nil {
 		h.log.Debugf("Unable to find SSH host CA: %v.", err)
 		return false
 	}
@@ -422,7 +431,7 @@ func (h *AuthHandlers) canLoginWithoutRBAC(cert *ssh.Certificate, clusterName st
 	h.log.Debugf("Checking permissions for (%v,%v) to login to node without RBAC checks.", teleportUser, osUser)
 
 	// check if the ca that signed the certificate is known to the cluster
-	_, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+	_, err := h.authorityForCert(context.TODO(), types.UserCA, cert.SignatureKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -440,13 +449,13 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	h.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
 
 	// get the ca that signd the users certificate
-	ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+	ca, err := h.authorityForCert(context.TODO(), types.UserCA, cert.SignatureKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// get roles assigned to this user
-	accessInfo, err := h.fetchAccessInfo(cert, ca, teleportUser, clusterName)
+	accessInfo, err := h.fetchAccessInfo(context.TODO(), cert, ca, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -486,7 +495,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
 // together with the original roles (prior to role mapping) assigned to a
 // Teleport user.
-func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (*services.AccessInfo, error) {
+func (h *AuthHandlers) fetchAccessInfo(ctx context.Context, cert *ssh.Certificate, ca types.CertAuthority, clusterName string) (*services.AccessInfo, error) {
 	var accessInfo *services.AccessInfo
 	var err error
 	if clusterName == ca.GetClusterName() {
@@ -499,9 +508,9 @@ func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAutho
 
 // authorityForCert checks if the certificate was signed by a Teleport
 // Certificate Authority and returns it.
-func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
+func (h *AuthHandlers) authorityForCert(ctx context.Context, caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)

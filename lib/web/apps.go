@@ -118,7 +118,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 	}
 
 	// Get a reverse tunnel proxy aware of the user's permissions.
-	proxy, err := h.ProxyWithRoles(ctx)
+	proxy, err := h.ProxyWithRoles(r.Context(), ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,7 +151,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	// Get a reverse tunnel proxy aware of the user's permissions.
-	proxy, err := h.ProxyWithRoles(ctx)
+	proxy, err := h.ProxyWithRoles(r.Context(), ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,15 +17,17 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"time"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,

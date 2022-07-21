@@ -22,14 +22,17 @@ import (
 	"encoding/base64"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 )
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
 func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
 	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 

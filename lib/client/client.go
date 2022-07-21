@@ -25,10 +25,13 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http/httptrace"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -677,6 +680,13 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
 func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/isAuthBoring",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	site, err := proxy.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1227,7 +1237,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 
 	if proxy.teleportClient.SkipLocalAuth {
 		return auth.NewClient(client.Config{
-			Context: ctx,
+			Context: httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx)),
 			Dialer:  dialer,
 			Credentials: []client.Credentials{
 				client.LoadTLS(proxy.teleportClient.TLS),
@@ -1246,7 +1256,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	}
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
-		Context: ctx,
+		Context: httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx)),
 		Dialer:  dialer,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
@@ -2077,7 +2087,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
 func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string) (*term.Winsize, error) {
-	_, span := c.Tracer.Start(
+	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/GetRemoteTerminalSize",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -2108,6 +2118,13 @@ func (c *NodeClient) Close() error {
 
 // currentCluster returns the connection to the API of the current cluster
 func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/currentCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

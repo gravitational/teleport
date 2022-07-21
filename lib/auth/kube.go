@@ -125,7 +125,7 @@ func (s *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	}
 
 	// Extract user roles from the identity (from the CSR Subject).
-	roles, err := services.FetchRoles(roleNames, s, id.Traits)
+	roles, err := services.FetchRoles(ctx, roleNames, s, id.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

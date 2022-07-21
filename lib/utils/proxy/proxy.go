@@ -20,8 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/http/httptrace"
 	"net/url"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -112,6 +115,7 @@ func (d directDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
 	if d.tlsRoutingEnabled {
 		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
 		if err != nil {
@@ -128,6 +132,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}

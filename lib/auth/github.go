@@ -466,7 +466,7 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(context.TODO(), p.roles, a.Access, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

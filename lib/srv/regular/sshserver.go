@@ -1068,7 +1068,7 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 // prior to handling any channels or requests.  Currently this callback's only
 // function is to apply session control restrictions.
 func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
-	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
+	identityContext, err := s.authHandlers.CreateIdentityContext(ctx, ccx.ServerConn)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
@@ -1166,7 +1166,19 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 
 // HandleNewChan is called when new channel is opened
 func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
+	ctx, span := s.tracerProvider.Tracer("ssh").Start(
+		oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(ctx)),
+		fmt.Sprintf("ssh.Regular.HandleNewChan/%s", nch.ChannelType()),
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.RegularServer"),
+			semconv.RPCMethodKey.String("HandleNewChan"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	identityContext, err := s.authHandlers.CreateIdentityContext(ctx, ccx.ServerConn)
 	if err != nil {
 		rejectChannel(nch, ssh.Prohibited, fmt.Sprintf("Unable to create identity from connection: %v", err))
 		return
@@ -1469,6 +1481,13 @@ Loop:
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
 func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+	ctx, span := s.tracerProvider.Tracer("ssh").Start(
+		oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(ctx)),
+		"ssh.Regular.handleSessionRequests",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+	)
+	defer span.End()
+
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		log.Errorf("Unable to fetch cluster networking config: %v.", err)

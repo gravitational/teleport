@@ -1910,7 +1910,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		allowedResourceIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+		roleSet, err := services.FetchRoles(ctx, user.GetRoles(), a.Access, user.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

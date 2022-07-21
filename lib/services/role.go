@@ -724,11 +724,11 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 
 // FetchRoleList fetches roles by their names, applies the traits to role
 // variables, and returns the list
-func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
+func FetchRoleList(ctx context.Context, roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
 	var roles []types.Role
 
 	for _, roleName := range roleNames {
-		role, err := access.GetRole(context.TODO(), roleName)
+		role, err := access.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -741,8 +741,8 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 // FetchRoles fetches roles by their names, applies the traits to role
 // variables, and returns the RoleSet. Adds runtime roles like the default
 // implicit role to RoleSet.
-func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
-	roles, err := FetchRoleList(roleNames, access, traits)
+func FetchRoles(ctx context.Context, roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
+	roles, err := FetchRoleList(ctx, roleNames, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -771,7 +771,7 @@ func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, def
 			// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
 			// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
 			// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-			roleSet, err := FetchRoles(defaultRoleNames, access, defaultTraits)
+			roleSet, err := FetchRoles(ctx, defaultRoleNames, access, defaultTraits)
 			return roleSet, trace.Wrap(err)
 		}
 		return nil, trace.Wrap(err)
@@ -781,7 +781,7 @@ func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, def
 	if err != nil {
 		// DELETE IN 12.0.
 		if trace.IsNotImplemented(err) {
-			roleSet, err := FetchRoles(user.GetRoles(), access, user.GetTraits())
+			roleSet, err := FetchRoles(ctx, user.GetRoles(), access, user.GetTraits())
 			return roleSet, trace.Wrap(err)
 		}
 		return nil, trace.Wrap(err)
