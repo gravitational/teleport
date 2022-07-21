@@ -540,7 +540,9 @@ func runOnFIDO2Devices(
 	if err != nil {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
-		prompt.PromptTouch()
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 		prompted = true
 
 		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
@@ -550,7 +552,10 @@ func runOnFIDO2Devices(
 	}
 
 	if !prompted {
-		prompt.PromptTouch() // about to select
+		// about to select
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
 	switch {
@@ -571,7 +576,9 @@ func runOnFIDO2Devices(
 	}
 
 	// Prompt a second touch after reading the PIN.
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.
