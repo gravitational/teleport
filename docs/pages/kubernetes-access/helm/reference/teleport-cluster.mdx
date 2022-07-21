@@ -330,7 +330,7 @@ else [`clusterName`](#clusterName) is used. Default port is 5432.
 | - | - | - | - | - |
 | `list[string]` | `[]` | no | `proxy_service.ssh_public_addr` | ❌ |
 
-`sshPublicAddr` controls the advertised addresses for SSH clients.
+`sshPublicAddr` controls the advertised addresses for SSH clients. This is also used by the `tsh` client.
 This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
 
 hen `sshPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
