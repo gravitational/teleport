@@ -252,7 +252,7 @@ else [`clusterName`](#clusterName) is used. Default port is 3026.
 | - | - | - | - | - |
 | `list[string]` | `[]` | no | `proxy_service.mongo_public_addr` | ❌ |
 
-`mongoPublicAddr` controls the advertised addresses to postgres clients.
+`mongoPublicAddr` controls the advertised addresses to MongoDB clients.
 This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
 requires [`separateMongoListener`](#separatePostgresListener) enabled.
 
