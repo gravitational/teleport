@@ -5665,8 +5665,8 @@ steps:
         from_secret: RELEASES_CERT_STAGING
       RELEASES_KEY:
         from_secret: RELEASES_KEY_STAGING
-      RELCLI_CERT: /tmp/creds/releases.crt
-      RELCLI_KEY: /tmp/creds/releases.key
+      RELCLI_CERT: /tmpfs/creds/releases.crt
+      RELCLI_KEY: /tmpfs/creds/releases.key
     volumes:
       - name: dockersock
         path: /var/run
@@ -5676,9 +5676,9 @@ steps:
     - mkdir -p /tmpfs/creds
     - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
     - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
-    - trap "rm -rf /tmp/creds" EXIT
+    - trap "rm -rf /tmpfs/creds" EXIT
     - |
-      docker run -i -v /tmpfs/creds:/tmp/creds \
+      docker run -i -v /tmpfs/creds:/tmpfs/creds \
         -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
         $RELCLI_IMAGE relcli auto_publish -f -v 6
     failure: ignore
@@ -5701,6 +5701,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: bdb2fe428c2f0ced736054e35e1db7bac8b807a44821d2131917f5f6cb63ac79
+hmac: aa5572c969e6ea2445b21a57e6bed08afc38c3b32d0f7f811bb68a34cdeec404
 
 ...
