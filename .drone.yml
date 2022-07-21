@@ -4985,9 +4985,9 @@ steps:
       OS: linux
       ARCH: amd64
       AWS_ACCESS_KEY_ID:
-        from_secret: TELEPORT_BUILD_USER_KEY
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
-        from_secret: TELEPORT_BUILD_USER_SECRET
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
@@ -5967,6 +5967,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 418d55ef3b190e8e9c0fd126218c584bc21a522ff3be64ac5025882574536b3d
+hmac: 08ded45d6f240854fc73d2ad5529ede1decf99b88df28255e54c132789f1a720
 
 ...
