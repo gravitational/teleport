@@ -733,18 +733,18 @@ func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ss
 	go site.handleHeartbeat(remoteConn, ch, req)
 }
 
-func (s *server) findLocalCluster(sconn *ssh.ServerConn) (*localSite, error) {
+func (s *server) requireLocalAgentForConn(sconn *ssh.ServerConn, connType types.TunnelType) error {
 	// Cluster name was extracted from certificate and packed into extensions.
 	clusterName := sconn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(clusterName) == "" {
-		return nil, trace.BadParameter("empty cluster name")
+		return trace.BadParameter("empty cluster name")
 	}
 
 	if s.localSite.domainName == clusterName {
-		return s.localSite, nil
+		return nil
 	}
 
-	return nil, trace.BadParameter("local cluster %v not found", clusterName)
+	return trace.BadParameter("agent from cluster %s cannot register local service %s", clusterName, connType)
 }
 
 func (s *server) getTrustedCAKeysByID(id types.CertAuthID) ([]ssh.PublicKey, error) {
@@ -864,8 +864,7 @@ func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connTyp
 	s.Lock()
 	defer s.Unlock()
 
-	cluster, err := s.findLocalCluster(sconn)
-	if err != nil {
+	if err := s.requireLocalAgentForConn(sconn, connType); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -874,12 +873,12 @@ func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connTyp
 		return nil, nil, trace.BadParameter("host id not found")
 	}
 
-	rconn, err := cluster.addConn(nodeID, connType, conn, sconn)
+	rconn, err := s.localSite.addConn(nodeID, connType, conn, sconn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return cluster, rconn, nil
+	return s.localSite, rconn, nil
 }
 
 func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
