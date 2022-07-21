@@ -57,6 +57,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -93,6 +94,7 @@ func TestMonitorLockInForce(t *testing.T) {
 
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -166,6 +168,7 @@ func (t *mockActivityTracker) UpdateClientActivity() {}
 // is already before time.Now
 func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	t.Parallel()
+
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)

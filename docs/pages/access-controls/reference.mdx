@@ -110,7 +110,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `request_prompt` | Prompt for the access request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` | Configures session recording behavior | |
+| `record_session` |Defines the [Session recording mode](../setup/reference/audit.mdx#modes).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
@@ -283,7 +283,7 @@ allow:
 ## RBAC for sessions
 
 It is possible to further limit access to
-[shared sessions](../server-access/guides/tsh.mdx#sharing-sessions) and
+[shared sessions](../use-teleport/tsh.mdx#sharing-sessions) and
 [session recordings](../architecture/nodes.mdx#ssh-session-recording).
 The examples below illustrate how to restrict session access only for the user
 who created the session.
