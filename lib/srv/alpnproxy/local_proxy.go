@@ -19,11 +19,13 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/ping"
 )
 
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
@@ -159,7 +162,7 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
+	tlsConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
 		NextProtos:         l.cfg.GetProtocols(),
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
@@ -168,7 +171,17 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	upstreamConn := ping.NewConn(tlsConn)
 	defer upstreamConn.Close()
+	buff := make([]byte, 1024)
+	for {
+		n, err := upstreamConn.Read(buff)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(buff[:n]))
+	}
 
 	errC := make(chan error, 2)
 	go func() {
@@ -208,7 +221,7 @@ func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstream
 		return trace.Wrap(err)
 	}
 
-	upstreamConn := tls.Client(httpConn, &tls.Config{
+	tlsConn := tls.Client(httpConn, &tls.Config{
 		NextProtos:         l.cfg.GetProtocols(),
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
@@ -217,11 +230,23 @@ func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstream
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer upstreamConn.Close()
 
-	if err := upstreamConn.Handshake(); err != nil {
+	defer tlsConn.Close()
+
+	if err := tlsConn.Handshake(); err != nil {
 		return trace.Wrap(err)
 	}
+	upstreamConn := ping.NewConn(tlsConn)
+	defer upstreamConn.Close()
+	go func() {
+		for {
+			time.Sleep(time.Second * 15)
+			err := upstreamConn.Ping()
+			if err != nil {
+				panic(err)
+			}
+		}
+	}()
 
 	errC := make(chan error, 2)
 	go func() {

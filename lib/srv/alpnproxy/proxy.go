@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/ping"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -396,6 +398,21 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	}
 	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
+	}
+	if len(connInfo.ALPN) > 0 && connInfo.ALPN[0] == "teleport-mysql" {
+		cc := ping.NewConn(tlsConn)
+		go func() {
+			for {
+				err := cc.Ping()
+				if err != nil {
+					fmt.Println(err)
+				}
+				time.Sleep(time.Second * 10)
+			}
+		}()
+
+		return trace.Wrap(handlerDesc.handle(ctx, cc, connInfo))
+
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
