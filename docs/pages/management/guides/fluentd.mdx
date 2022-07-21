@@ -63,6 +63,16 @@ from Teleport's events API, and forwards them to Fluentd.
 ## Step 2/6. Configure the plugin
 
 <Tabs>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
+
+Run the `configure` command to generate a sample configuration. Replace
+`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
+
+```code
+$ ./teleport-event-handler configure . mytenant.teleport.sh
+```
+
+</TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Run the `configure` command to generate a sample configuration. Replace
@@ -71,16 +81,6 @@ Service:
 
 ```code
 $ ./teleport-event-handler configure . teleport.example.com:443
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-
-Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
-
-```code
-$ ./teleport-event-handler configure . mytenant.teleport.sh
 ```
 
 </TabItem>
