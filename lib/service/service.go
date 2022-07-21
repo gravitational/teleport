@@ -3654,18 +3654,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnection),
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),
+				MatchFunc: alpnproxy.MatchByProtocolWithPing(alpncommon.ProtocolMySQL),
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
+				MatchFunc: alpnproxy.MatchByProtocolWithPing(alpncommon.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				// For the following protocols ALPN Proxy will handle the
 				// connection internally (terminate wrapped TLS traffic) and
 				// route extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(
+				MatchFunc: alpnproxy.MatchByProtocolWithPing(
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,

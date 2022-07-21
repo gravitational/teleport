@@ -17,11 +17,15 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"encoding/binary"
 	"io"
+	"math"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // newBufferedConn creates new instance of bufferedConn.
@@ -87,3 +91,114 @@ func (conn readOnlyConn) RemoteAddr() net.Addr               { return &utils.Net
 func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
+
+// newPingConn returns a ping connection wrapping the provided net.Conn.
+func newPingConn(conn net.Conn) *pingConn {
+	return &pingConn{Conn: conn}
+}
+
+// pingConn wraps a net.Conn and add ping capabilities to it, including the
+// `WritePing` function and `Read` (which excludes ping packets).
+//
+// When using this connection, the packets written will contain an initial data:
+// the packet size. When reading, this information is taken into account, but it
+// is not returned to the caller.
+//
+// Ping messages have a packet size of zero and are produced only when
+// `WritePing` is called. On `Read`, any Ping packet is discarded.
+type pingConn struct {
+	net.Conn
+
+	muRead  sync.Mutex
+	muWrite sync.Mutex
+
+	// bytesRead number of bytes already read from the current packet.
+	bytesRead int
+	// currentSize size of bytes of the current packet.
+	currentSize uint32
+}
+
+func (c *pingConn) Read(p []byte) (int, error) {
+	c.muRead.Lock()
+	defer c.muRead.Unlock()
+
+	err := c.discardPingReads()
+	if err != nil {
+		return 0, err
+	}
+
+	// Check if the current size is larger than the provided buffer.
+	readSize := c.currentSize
+	if c.currentSize > uint32(len(p)) {
+		readSize = uint32(len(p))
+	}
+
+	n, err := c.Conn.Read(p[:readSize])
+	c.bytesRead += n
+
+	// Check if it has read everything.
+	if uint32(c.bytesRead) >= c.currentSize {
+		c.bytesRead = 0
+		c.currentSize = 0
+	}
+
+	return n, err
+}
+
+// WritePing writes the ping packet to the connection.
+func (c *pingConn) WritePing() error {
+	c.muWrite.Lock()
+	defer c.muWrite.Unlock()
+
+	return binary.Write(c.Conn, binary.BigEndian, uint32(0))
+}
+
+// discardPingReads reads from the wrapped net.Conn until it encounters a
+// non-ping packet.
+func (c *pingConn) discardPingReads() error {
+	if c.bytesRead > 0 {
+		return nil
+	}
+
+	for c.currentSize == 0 {
+		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *pingConn) Write(p []byte) (int, error) {
+	c.muWrite.Lock()
+	defer c.muWrite.Unlock()
+
+	// Avoid casting into somthing bigger than acceptable.
+	if len(p) > math.MaxUint32 {
+		return 0, trace.BadParameter("invalid content size, max size permitted is %d", math.MaxUint32)
+	}
+
+	size := uint32(len(p))
+	if size == 0 {
+		return 0, nil
+	}
+
+	// Write packet size.
+	if err := binary.Write(c.Conn, binary.BigEndian, size); err != nil {
+		return 0, err
+	}
+
+	// Iterate until everything is written.
+	var written int
+	for written < len(p) {
+		n, err := c.Conn.Write(p)
+		written += n
+
+		if err != nil {
+			return written, err
+		}
+	}
+
+	return written, nil
+}

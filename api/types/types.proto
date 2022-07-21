@@ -1017,6 +1017,12 @@ message ClusterNetworkingConfigSpecV2 {
 
     // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
     TunnelStrategyV1 TunnelStrategy = 9 [ (gogoproto.jsontag) = "tunnel_strategy,omitempty" ];
+
+    // ProxyPingInterval defines in which interval the TLS routing ping message
+    // should be sent. This is applicable only when using ping-wrapped
+    // connections, regular TLS routing connections are not affected.
+    int64 ProxyPingInterval = 10
+        [ (gogoproto.jsontag) = "proxy_ping_interval", (gogoproto.casttype) = "Duration" ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.

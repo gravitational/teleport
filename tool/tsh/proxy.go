@@ -450,10 +450,16 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
+	if alpncommon.HasPingSupport(alpnProtocol) {
+		protocols = append([]alpncommon.Protocol{alpncommon.ProtocolWithPing(alpnProtocol)}, protocols...)
+	}
+
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify: opts.insecure,
 		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
+		Protocols:          protocols,
 		Listener:           opts.listener,
 		ParentContext:      ctx,
 		SNI:                address.Host(),

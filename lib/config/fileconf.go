@@ -718,6 +718,11 @@ type Auth struct {
 
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
 	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
+
+	// ProxyPingInterval defines in which interval the TLS routing ping message
+	// should be sent. This is applicable only when using ping-wrapped
+	// connections, regular TLS routing connections are not affected.
+	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

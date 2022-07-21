@@ -17,6 +17,8 @@ limitations under the License.
 package common
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -79,23 +81,30 @@ const (
 
 	// ProtocolTCP is TLS ALPN protocol value used to indicate plain TCP connection.
 	ProtocolTCP Protocol = "teleport-tcp"
+
+	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
+	// Ping.
+	ProtocolPingSuffix Protocol = "-ping"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
-var SupportedProtocols = []Protocol{
-	ProtocolHTTP2,
-	ProtocolHTTP,
-	ProtocolPostgres,
-	ProtocolMySQL,
-	ProtocolMongoDB,
-	ProtocolRedisDB,
-	ProtocolSQLServer,
-	ProtocolSnowflake,
-	ProtocolProxySSH,
-	ProtocolReverseTunnel,
-	ProtocolAuth,
-	ProtocolTCP,
-}
+var SupportedProtocols = append(
+	ProtocolsWithPing(ProtocolsWithPingSupport...),
+	[]Protocol{
+		ProtocolHTTP2,
+		ProtocolHTTP,
+		ProtocolPostgres,
+		ProtocolMySQL,
+		ProtocolMongoDB,
+		ProtocolRedisDB,
+		ProtocolSQLServer,
+		ProtocolSnowflake,
+		ProtocolProxySSH,
+		ProtocolReverseTunnel,
+		ProtocolAuth,
+		ProtocolTCP,
+	}...,
+)
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
@@ -132,10 +141,64 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 // connection needs to be forwarded to proxy database service where custom TLS handler is invoked
 // to terminated DB connection.
 func IsDBTLSProtocol(protocol Protocol) bool {
-	switch protocol {
-	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer, ProtocolSnowflake:
-		return true
-	default:
-		return false
+	dbTLSProtocols := []Protocol{
+		ProtocolMongoDB,
+		ProtocolRedisDB,
+		ProtocolSQLServer,
+		ProtocolSnowflake,
 	}
+
+	return protocolListContains(
+		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
+		protocol,
+	)
+}
+
+// ProtocolsWithPingSupport is the list of protocols that Ping connection is
+// supported.
+var ProtocolsWithPingSupport = []Protocol{
+	ProtocolPostgres,
+	ProtocolMySQL,
+	ProtocolMongoDB,
+	ProtocolRedisDB,
+	ProtocolSQLServer,
+	ProtocolSnowflake,
+}
+
+// ProtocolsWithPing receives a list a protocols and returns a list of them with
+// the Ping protocol suffix.
+func ProtocolsWithPing(protocols ...Protocol) []Protocol {
+	res := make([]Protocol, len(protocols))
+	for i := range res {
+		res[i] = ProtocolWithPing(protocols[i])
+	}
+
+	return res
+}
+
+// ProtocolWithPing receives a protocol and returns it with the Ping protocol
+// suffix.
+func ProtocolWithPing(protocol Protocol) Protocol {
+	return Protocol(string(protocol) + string(ProtocolPingSuffix))
+}
+
+// IsPingProcotol checks if the provided protocol is suffixed with Ping.
+func IsPingProtocol(protocol Protocol) bool {
+	return strings.HasSuffix(string(protocol), string(ProtocolPingSuffix))
+}
+
+// HasPingSupport checks if the provided protocol supports Ping protocol.
+func HasPingSupport(protocol Protocol) bool {
+	return protocolListContains(ProtocolsWithPingSupport, protocol)
+}
+
+// protocolListContains checks if a protocol is present on the list.
+func protocolListContains(protocols []Protocol, protocol Protocol) bool {
+	for _, listProtocol := range protocols {
+		if protocol == listProtocol {
+			return true
+		}
+	}
+
+	return false
 }

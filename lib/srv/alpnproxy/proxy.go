@@ -63,6 +63,8 @@ type ProxyConfig struct {
 	AccessPoint auth.ReadProxyAccessPoint
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
+	// PingInterval defines the ping interval for ping-wrapped connections.
+	PingInterval time.Duration
 }
 
 // NewRouter creates a ALPN new router.
@@ -90,6 +92,21 @@ func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 		m[v] = struct{}{}
 	}
 	return func(sni, alpn string) bool {
+		_, ok := m[common.Protocol(alpn)]
+		return ok
+	}
+}
+
+// MatchByProtocolWithPing creates match function based on client TLS APLN
+// protocol matching also their ping protocol variations.
+func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
+	m := make(map[common.Protocol]struct{})
+	for _, v := range protocols {
+		m[common.ProtocolWithPing(v)] = struct{}{}
+		m[v] = struct{}{}
+	}
+
+	return func(_, alpn string) bool {
 		_, ok := m[common.Protocol(alpn)]
 		return ok
 	}
@@ -259,6 +276,9 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
+	if c.PingInterval == 0 {
+		c.PingInterval = defaults.ProxyPingInterval
+	}
 
 	if c.IdentityTLSConfig == nil {
 		return trace.BadParameter("missing identity tls config")
@@ -379,14 +399,49 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 		return trace.Wrap(err)
 	}
 
+	var handlerConn net.Conn = tlsConn
+	// Check if ping is supported/required by the client.
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		handlerConn = p.handlePingConnection(ctx, tlsConn)
+	}
+
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
-		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
+		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
-	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
+	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
+}
+
+// handlePingConnection starts the server ping routine and returns `pingConn`.
+func (p *Proxy) handlePingConnection(ctx context.Context, conn net.Conn) net.Conn {
+	pingConn := newPingConn(conn)
+
+	// Start ping routine. It will continuously send pings in a defined
+	// interval.
+	go func() {
+		ticker := time.NewTicker(p.cfg.PingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := pingConn.WritePing()
+				if err != nil {
+					if !utils.IsOKNetworkError(err) {
+						p.log.WithError(err).Warn("Failed to write ping message")
+					}
+
+					return
+				}
+			}
+		}
+	}()
+
+	return pingConn
 }
 
 // getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler

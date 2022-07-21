@@ -80,22 +80,24 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc                 string
-		mutate               func(cfgMap)
-		expectError          require.ErrorAssertionFunc
-		expectEnabled        require.BoolAssertionFunc
-		expectIdleMsg        require.ValueAssertionFunc
-		expectMotd           require.ValueAssertionFunc
-		expectWebIdleTimeout require.ValueAssertionFunc
+		desc                    string
+		mutate                  func(cfgMap)
+		expectError             require.ErrorAssertionFunc
+		expectEnabled           require.BoolAssertionFunc
+		expectIdleMsg           require.ValueAssertionFunc
+		expectMotd              require.ValueAssertionFunc
+		expectWebIdleTimeout    require.ValueAssertionFunc
+		expectProxyPingInterval require.ValueAssertionFunc
 	}{
 		{
-			desc:                 "Default",
-			mutate:               func(cfg cfgMap) {},
-			expectError:          require.NoError,
-			expectEnabled:        require.True,
-			expectIdleMsg:        require.Empty,
-			expectMotd:           require.Empty,
-			expectWebIdleTimeout: require.Empty,
+			desc:                    "Default",
+			mutate:                  func(cfg cfgMap) {},
+			expectError:             require.NoError,
+			expectEnabled:           require.True,
+			expectIdleMsg:           require.Empty,
+			expectMotd:              require.Empty,
+			expectWebIdleTimeout:    require.Empty,
+			expectProxyPingInterval: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -135,6 +137,19 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+			},
+			expectError: require.Error,
+		}, {
+			desc: "Proxy ping interval",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
+			},
+			expectError:             require.NoError,
+			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Minute)),
+		}, {
+			desc: "Proxy ping interval (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "potato"
 			},
 			expectError: require.Error,
 		},
