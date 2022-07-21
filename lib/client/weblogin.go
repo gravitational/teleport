@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -225,6 +226,26 @@ type SSHLoginMFA struct {
 	PreferOTP bool
 }
 
+// SSHLoginPasswordless contains SSH login parameters for passwordless login.
+type SSHLoginPasswordless struct {
+	SSHLogin
+	Stderr io.Writer
+
+	// User is the login username.
+	User string
+
+	// AuthenticatorAttachment is the authenticator attachment for passwordless prompts.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+
+	// ExplicitUsername is true if username was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitUsername bool
+
+	// CustomPrompt defines a custom webauthn login prompt.
+	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
+	CustomPrompt wancli.LoginPrompt
+}
+
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
@@ -362,6 +383,78 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	}
 
 	return out, nil
+}
+
+// SSHAgentPwdlessLogin requests a passwordless MFA challenge via the proxy.
+// If the credentials are valid, the proxy will return a challenge. We then
+// prompt the user to touch a device and if user wasn't explicitly defined,
+// also prompts the user to select a login name. If the authentication succeeds,
+// we will get a temporary certificate back.
+func SSHAgentPwdlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
+		&MFAChallengeRequest{
+			Passwordless: true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Sanity check WebAuthn challenge.
+	switch {
+	case challenge.WebauthnChallenge == nil:
+		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
+	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
+		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
+	}
+
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if login.ExplicitUsername {
+		user = login.User
+	}
+
+	prompt := login.CustomPrompt
+	if prompt == nil {
+		prompt = wancli.NewDefaultPrompt(ctx, login.Stderr)
+	}
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                    user,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginRespJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
+		&AuthenticateSSHUserRequest{
+			User:                      "", // User carried on WebAuthn assertion.
+			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+			PubKey:                    login.PubKey,
+			TTL:                       login.TTL,
+			Compatibility:             login.Compatibility,
+			RouteToCluster:            login.RouteToCluster,
+			KubernetesCluster:         login.KubernetesCluster,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginResp := &auth.SSHLoginResponse{}
+	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
 }
 
 // SSHAgentMFALogin requests a MFA challenge via the proxy.
