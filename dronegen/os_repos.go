@@ -110,7 +110,6 @@ func NewRepoBucketSecretNames(bucketName, accessKeyID, secretAccessKey string) *
 
 type OsPackageToolPipelineBuilder struct {
 	clameName          string
-	image              string
 	packageType        string
 	packageManagerName string
 	volumeName         string
@@ -119,6 +118,7 @@ type OsPackageToolPipelineBuilder struct {
 	pvcMountPoint      string
 	bucketSecrets      *RepoBucketSecretNames
 	extraArgs          []string
+	requiredPackages   []string
 	setupCommands      []string
 	environmentVars    map[string]value
 }
@@ -126,15 +126,15 @@ type OsPackageToolPipelineBuilder struct {
 // This function configures the build tool with it's requirements and sensible defaults.
 // If additional configuration required then the returned struct should be modified prior
 // to calling "build" functions on it.
-func NewOsPackageToolPipelineBuilder(claimName, image, packageType, packageManagerName string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
+func NewOsPackageToolPipelineBuilder(claimName, packageType, packageManagerName string, bucketSecrets *RepoBucketSecretNames) *OsPackageToolPipelineBuilder {
 	optpb := &OsPackageToolPipelineBuilder{
 		clameName:          claimName,
-		image:              image,
 		packageType:        packageType,
 		packageManagerName: packageManagerName,
 		bucketSecrets:      bucketSecrets,
 		extraArgs:          []string{},
 		setupCommands:      []string{},
+		requiredPackages:   []string{},
 		volumeName:         fmt.Sprintf("%s-persistence", packageManagerName),
 		pipelineNameSuffix: fmt.Sprintf("%s-new-repos", packageManagerName),
 		artifactPath:       "/go/artifacts",
@@ -168,6 +168,9 @@ func NewOsPackageToolPipelineBuilder(claimName, image, packageType, packageManag
 		},
 		"GPG_RPM_SIGNING_ARCHIVE": {
 			fromSecret: "GPG_RPM_SIGNING_ARCHIVE",
+		},
+		"DEBIAN_FRONTEND": {
+			raw: "noninteractive",
 		},
 	}
 
@@ -317,6 +320,15 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 		bucketFolder = version[1:]
 	}
 
+	toolSetupCommands := []string{}
+	if len(optpb.requiredPackages) > 0 {
+		toolSetupCommands = []string{
+			"apt update",
+			fmt.Sprintf("apt install -y %s", strings.Join(optpb.requiredPackages, " ")),
+		}
+	}
+	toolSetupCommands = append(toolSetupCommands, optpb.setupCommands...)
+
 	return []step{
 		{
 			Name:  fmt.Sprintf("Download artifacts for %q", version),
@@ -358,10 +370,10 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			// 	"Check out code",
 			// 	"Download artifacts",
 			// },
-			Image:       optpb.image,
+			Image:       "golang:1.18.4-bullseye",
 			Environment: optpb.environmentVars,
 			Commands: append(
-				optpb.setupCommands,
+				toolSetupCommands,
 				[]string{
 					"mkdir -pv -m0700 $GNUPGHOME",
 					"echo \"$GPG_RPM_SIGNING_ARCHIVE\" | base64 -d | tar -xzf - -C $GNUPGHOME",

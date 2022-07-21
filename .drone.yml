@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:265
+# Generated at dronegen/os_repos.go:268
 ################################################
 
 kind: pipeline
@@ -5230,7 +5230,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:265
+# Generated at dronegen/os_repos.go:268
 ################################################
 
 kind: pipeline
@@ -5273,15 +5273,11 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
 - name: Publish rpms to YUM repos for "v6.2.31"
-  image: ubuntu:22.04
+  image: golang:1.18.4-bullseye
   commands:
   - apt update
   - apt install -y createrepo-c
   - mkdir -pv "$CACHE_DIR"
-  - curl --silent --show-error --location --output "/tmp/go1.18.4.linux-amd64.tar.gz"
-    "https://go.dev/dl/go1.18.4.linux-amd64.tar.gz"
-  - tar -C "/usr/local" -xzf "/tmp/go1.18.4.linux-amd64.tar.gz"
-  - export PATH=$PATH:/usr/local/go/bin
   - mkdir -pv -m0700 $GNUPGHOME
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root $GNUPGHOME
@@ -5324,7 +5320,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:265
+# Generated at dronegen/os_repos.go:268
 ################################################
 
 kind: pipeline
@@ -5378,15 +5374,11 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
-  image: ubuntu:22.04
+  image: golang:1.18.4-bullseye
   commands:
   - apt update
   - apt install -y createrepo-c
   - mkdir -pv "$CACHE_DIR"
-  - curl --silent --show-error --location --output "/tmp/go1.18.4.linux-amd64.tar.gz"
-    "https://go.dev/dl/go1.18.4.linux-amd64.tar.gz"
-  - tar -C "/usr/local" -xzf "/tmp/go1.18.4.linux-amd64.tar.gz"
-  - export PATH=$PATH:/usr/local/go/bin
   - mkdir -pv -m0700 $GNUPGHOME
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root $GNUPGHOME
@@ -5813,6 +5805,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: f8597316399ef6dcca9993973b999e23d43902802cf51c174642062e092a41e2
+hmac: b0dbaf60be6003ede54f8a0a47da0afc517eac52c78f11119858644fe61d6eb3
 
 ...

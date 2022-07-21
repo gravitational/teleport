@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"path"
 )
 
@@ -31,7 +30,6 @@ func migrateYumPipeline(triggerBranch string, migrationVersions []string) pipeli
 func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb := NewOsPackageToolPipelineBuilder(
 		"drone-s3-yumrepo-pvc",
-		"ubuntu:22.04",
 		"rpm",
 		"yum",
 		NewRepoBucketSecretNames(
@@ -47,37 +45,18 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb.environmentVars["BUCKET_CACHE_PATH"] = value{
 		raw: path.Join(optpb.pvcMountPoint, "bucket"),
 	}
-	optpb.environmentVars["DEBIAN_FRONTEND"] = value{
-		raw: "noninteractive",
+
+	optpb.requiredPackages = []string{
+		"createrepo-c",
 	}
 
-	optpb.setupCommands = append(
-		[]string{
-			"apt update",
-			"apt install -y curl createrepo-c",
-			"mkdir -pv \"$CACHE_DIR\"",
-		},
-		getInstallGoSteps()...,
-	)
+	optpb.setupCommands = []string{
+		"mkdir -pv \"$CACHE_DIR\"",
+	}
 
 	optpb.extraArgs = []string{
 		"-cache-dir \"$CACHE_DIR\"",
 	}
 
 	return optpb
-}
-
-func getInstallGoSteps() []string {
-	goArchiveName := "go1.18.4.linux-amd64.tar.gz"
-	downloadURL := fmt.Sprintf("https://go.dev/dl/%s", goArchiveName)
-	downloadPath := path.Join("/", "tmp", goArchiveName)
-	installPath := path.Join("/", "usr", "local")
-	binPath := path.Join(installPath, "go", "bin")
-
-	// See https://go.dev/doc/install for details
-	return []string{
-		fmt.Sprintf("curl --silent --show-error --location --output %q %q", downloadPath, downloadURL),
-		fmt.Sprintf("tar -C %q -xzf %q", installPath, downloadPath),
-		fmt.Sprintf("export PATH=$PATH:%s", binPath),
-	}
 }
