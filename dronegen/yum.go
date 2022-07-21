@@ -54,7 +54,7 @@ func getYumPipelineBuilder() *OsPackageToolPipelineBuilder {
 	optpb.setupCommands = append(
 		[]string{
 			"apt update",
-			"apt install -y createrepo-c",
+			"apt install -y curl createrepo-c",
 			"mkdir -pv \"$CACHE_DIR\"",
 		},
 		getInstallGoSteps()...,
