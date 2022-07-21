@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+
+	mplex "github.com/libp2p/go-mplex"
 )
 
 // newBufferedConn creates new instance of bufferedConn.
@@ -87,3 +89,21 @@ func (conn readOnlyConn) RemoteAddr() net.Addr               { return &utils.Net
 func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
+
+func newMultiplexConn(baseConn net.Conn, stream *mplex.Stream) net.Conn {
+	return &multiplexConn{stream, baseConn}
+}
+
+type multiplexConn struct {
+	stream   *mplex.Stream
+	baseConn net.Conn
+}
+
+func (c *multiplexConn) Read(p []byte) (int, error)         { return c.stream.Read(p) }
+func (c *multiplexConn) Write(p []byte) (int, error)        { return c.stream.Write(p) }
+func (c *multiplexConn) Close() error                       { return c.stream.Close() }
+func (c *multiplexConn) LocalAddr() net.Addr                { return c.baseConn.LocalAddr() }
+func (c *multiplexConn) RemoteAddr() net.Addr               { return c.baseConn.RemoteAddr() }
+func (c *multiplexConn) SetDeadline(t time.Time) error      { return c.stream.SetDeadline(t) }
+func (c *multiplexConn) SetReadDeadline(t time.Time) error  { return c.stream.SetReadDeadline(t) }
+func (c *multiplexConn) SetWriteDeadline(t time.Time) error { return c.stream.SetWriteDeadline(t) }

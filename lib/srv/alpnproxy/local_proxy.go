@@ -27,6 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
+	mplex "github.com/libp2p/go-mplex"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -210,7 +211,7 @@ func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstream
 	}
 
 	upstreamConn := tls.Client(httpConn, &tls.Config{
-		NextProtos:         l.cfg.GetProtocols(),
+		NextProtos:         append(l.cfg.GetProtocols(), string(common.ProtocolMultiplex)),
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
 		Certificates:       l.cfg.Certs,
@@ -224,17 +225,48 @@ func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstream
 		return trace.Wrap(err)
 	}
 
+	multiplexConn, err := mplex.NewMultiplex(upstreamConn, true, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ----- Handle ping
+	pingStream, err := multiplexConn.NewStream(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer pingStream.Close()
+	go func() {
+		// TODO client should send ping and verify pong.
+		for {
+			buf := make([]byte, 32)
+			n, err := pingStream.Read(buf)
+			if err != nil {
+				log.Infof("-->> error reading ping", err)
+				return
+			}
+			log.Infof("-->> received ping", string(buf[:n]))
+		}
+	}()
+
+	// ----- Handle database
+	databaseStream, err := multiplexConn.NewStream(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	upstreamDatabaseConn := newMultiplexConn(upstreamConn, databaseStream)
 	errC := make(chan error, 2)
 	go func() {
 		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(downstreamConn, upstreamConn)
+		defer upstreamDatabaseConn.Close()
+		_, err := io.Copy(downstreamConn, upstreamDatabaseConn)
 		errC <- err
 	}()
 	go func() {
 		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(upstreamConn, downstreamConn)
+		defer upstreamDatabaseConn.Close()
+		_, err := io.Copy(upstreamDatabaseConn, downstreamConn)
 		errC <- err
 	}()
 
