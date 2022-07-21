@@ -17,7 +17,6 @@ limitations under the License.
 package protocol
 
 import (
-	"bytes"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
@@ -126,10 +125,7 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 	}
 	// wiremessage.ReadReplyDocuments has a bug that causes infinite loop if the first 4 bytes are zeros (payload size).
 	// When that happens ReadReplyDocuments keeps creating empty documents until it uses all system memory.
-	if bytes.HasPrefix(rem, []byte{0, 0, 0, 0}) {
-		return nil, trace.BadParameter("malformed OP_REPLY: invalid document size %v", payload)
-	}
-	documents, _, ok := wiremessage.ReadReplyDocuments(rem)
+	documents, _, ok := ReadReplyDocuments(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing documents %v", payload)
 	}
@@ -142,6 +138,21 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 		Documents:      documents,
 		bytes:          append(header.bytes[:], payload...),
 	}, nil
+}
+
+func ReadReplyDocuments(src []byte) (docs []bsoncore.Document, rem []byte, ok bool) {
+	rem = src
+	for {
+		var doc bsoncore.Document
+		doc, rem, ok = bsoncore.ReadDocument(rem)
+		if !ok || len(doc) == 0 {
+			break
+		}
+
+		docs = append(docs, doc)
+	}
+
+	return docs, rem, true
 }
 
 // ToWire converts this message to wire protocol message bytes.

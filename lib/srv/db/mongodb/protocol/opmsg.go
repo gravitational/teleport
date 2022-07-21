@@ -251,6 +251,16 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 		case wiremessage.DocumentSequence:
 			var id string
 			var docs []bsoncore.Document
+
+			src := rem
+			if len(src) < 4 {
+				return nil, trace.BadParameter("wrong len")
+			}
+			leng := int(int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24)
+			if leng <= 0 || 0 <= (leng+4+len(src)) {
+				return nil, trace.BadParameter("wrong size")
+			}
+
 			id, docs, rem, ok = wiremessage.ReadMsgSectionDocumentSequence(rem)
 			if !ok {
 				return nil, trace.BadParameter("malformed OP_MSG: missing document sequence section %v", payload)
