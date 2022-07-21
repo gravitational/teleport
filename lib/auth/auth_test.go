@@ -938,7 +938,9 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 		ReverseTunnelAddress: "b",
 	})
 	require.NoError(t, err)
-	_, err = s.a.UpsertTrustedCluster(ctx, tc)
+	// use the UpsertTrustedCluster in Services as we just want the resource in
+	// the backend, we don't want to actually connect
+	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
 	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
