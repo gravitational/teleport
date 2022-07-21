@@ -50,7 +50,7 @@ type accessRequestTestPack struct {
 	pubKey      []byte
 }
 
-func newAccessRequestTestPack(t *testing.T, ctx context.Context) *accessRequestTestPack {
+func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
@@ -181,7 +181,7 @@ func TestAccessRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	testPack := newAccessRequestTestPack(t, ctx)
+	testPack := newAccessRequestTestPack(ctx, t)
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 }
@@ -476,7 +476,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 	type newClientFunc func(*testing.T, *Client, *proto.Certs) (*Client, *proto.Certs)
 	applyAccessRequests := func(newRequests ...string) newClientFunc {
-		return func(t *testing.T, clt *Client, certs *proto.Certs) (*Client, *proto.Certs) {
+		return func(t *testing.T, clt *Client, _ *proto.Certs) (*Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
 				PublicKey:      testPack.pubKey,
 				Username:       username,
