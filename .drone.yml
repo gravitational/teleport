@@ -5617,6 +5617,10 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 
+environment:
+  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+
 trigger:
   event:
     - promote
@@ -5652,23 +5656,25 @@ steps:
     commands:
       - apk add --no-cache aws-cli
       - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-      - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+      - docker pull $RELCLI_IMAGE
 
-  - name: Publish in Release API
-    image: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+  - name: Pull relcli
+    image: docker:git
     environment:
       RELEASES_CERT:
         from_secret: RELEASES_CERT_STAGING
       RELEASES_KEY:
         from_secret: RELEASES_KEY_STAGING
-      RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
-      RELCLI_CERT: /tmp/releases.crt
-      RELCLI_KEY: /tmp/releases.key
+      RELCLI_CERT: /tmp/creds/releases.crt
+      RELCLI_KEY: /tmp/creds/releases.key
     commands:
-    - echo "$RELEASES_CERT" | base64 -d > "/tmp/releases.crt"
-    - echo "$RELEASES_KEY" | base64 -d > "/tmp/releases.key"
-    - trap "rm -f /tmp/releases.crt /tmp/releases.key" EXIT
-    - relcli auto_publish -f -v 6
+    - mkdir -p /tmp/creds
+    - echo "$RELEASES_CERT" | base64 -d > "/tmp/creds/releases.crt"
+    - echo "$RELEASES_KEY" | base64 -d > "/tmp/creds/releases.key"
+    - trap "rm -rf /tmp/creds" EXIT
+    - |
+      docker run -v /tmp/creds:/tmp/creds -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+        $RELCLI_IMAGE relcli auto_publish -f -v 6
     failure: ignore
 
 services:
@@ -5689,6 +5695,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 724621a055c734743eb174bce3917b1a5e0349f0ae1c5bd617641b638a39f65e
+hmac: 41103a2d76965165233c25245ec90703f145029a58f34c813f4215ca43856b4c
 
 ...
