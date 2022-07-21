@@ -507,15 +507,16 @@ This can be used for joining a Teleport instance to a Teleport cluster which doe
 
 `tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
 This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
+The injected CA will be used to validate TLS communicationsx, with the Proxy Service or with upstream applications.
 
-You should create the secret in the same namespace as Teleport using a command like this:
+You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
 
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
 <Notice type="warning" title="Root CA filename">
-  The filename used for the root CA in the secret must be `ca.pem`.
+  The key containing the root CA in the secret must be `ca.pem`.
 </Notice>
 
 <Tabs>
