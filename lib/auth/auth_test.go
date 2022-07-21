@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -637,6 +638,57 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestLocalControlStream verifies that local control stream behaves as expected.
+func TestLocalControlStream(t *testing.T) {
+	const serverID = "test-server"
+
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := newAuthSuite(t)
+
+	stream := s.a.MakeLocalInventoryControlStream()
+	defer stream.Close()
+
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+
+	// wait for control stream to get inserted into the controller (happens after
+	// hello exchange is finished).
+	require.Eventually(t, func() bool {
+		_, ok := s.a.inventory.GetControlStream(serverID)
+		return ok
+	}, time.Second*5, time.Millisecond*200)
+
+	// try performing a normal operation against the control stream to double-check that it is healthy
+	go s.a.PingInventory(ctx, proto.InventoryPingRequest{
+		ServerID: serverID,
+	})
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+}
+
 func TestGenerateTokenEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -1209,14 +1261,15 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	p, err := newTestPack(context.Background(), t.TempDir())
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -1233,7 +1286,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(req)
+	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
@@ -1847,5 +1900,100 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
+	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.ResourceWithLabels
+	resourcesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.resourcesError != nil {
+		return nil, m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, nil
+	}
+
+	return &types.ListResourcesResponse{Resources: m.resources}, nil
+}
+
+func TestFilterResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.ResourceWithLabels) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
 	}
 }

@@ -413,11 +413,13 @@ func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease,
 
 // waitForBackoff processes events while waiting for the backoff.
 func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
+	backoffC := p.backoff.After()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-p.backoff.After():
+		case <-backoffC:
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:

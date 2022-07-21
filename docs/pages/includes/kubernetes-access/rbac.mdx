@@ -1,0 +1,54 @@
+To use Teleport to interact with a Kubernetes cluster, your Teleport roles must
+allow access from your Kubernetes user and groups. Ensure that you have a
+Teleport role that grants access to the cluster you plan to interact with.
+
+Run the following command to get the Kubernetes user for your current context:
+
+```code
+$ kubectl config view \
+-o jsonpath="{.contexts[?(@.context.cluster==\"$(kubectl config current-context)\")].context.user}"
+```
+
+Create a file called `kube-user.yaml` with the following content, replacing
+`USER` with the output of the command above.
+
+```yaml
+kind: role
+metadata:
+  name: kube-user
+version: v5
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_groups:
+    - view
+    kubernetes_users:
+    - USER
+  deny: {}
+```
+
+Retrieve your user:
+
+```code
+$ TELEPORT_USER=myuser
+$ tctl get user/${TELEPORT_USER?} > user.yaml
+```
+
+Add `kube-user` to your Teleport user's list of roles:
+
+```diff
+   roles:
+   - access
+   - auditor
++  - kube-user
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f kube-user.yaml
+$ tctl create -f user.yaml
+```
+
+Log out of Teleport and log in again.

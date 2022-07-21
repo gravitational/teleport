@@ -564,7 +564,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 	traits := map[string][]string{
-		teleport.TraitLogins: []string{user.Username},
+		constants.TraitLogins: {user.Username},
 	}
 	alice.SetTraits(traits)
 
@@ -1803,6 +1803,13 @@ func setHomePath(path string) cliOption {
 	}
 }
 
+func setIdentity(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.IdentityFileIn = path
+		return nil
+	}
+}
+
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)
@@ -2184,7 +2191,8 @@ func TestSerializeProfiles(t *testing.T) {
 	}
 
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(activeProfile, []*client.ProfileStatus{otherProfile}, f)
+		activeInfo, othersInfo := makeAllProfileInfo(activeProfile, []*client.ProfileStatus{otherProfile}, nil)
+		return serializeProfiles(activeInfo, othersInfo, nil, f)
 	})
 }
 
@@ -2211,7 +2219,8 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 		ValidUntil: aTime,
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(profile, nil, f)
+		active, _ := makeAllProfileInfo(profile, nil, nil)
+		return serializeProfiles(active, nil, nil, f)
 	})
 }
 
@@ -2222,7 +2231,40 @@ func TestSerializeProfilesNoActive(t *testing.T) {
 	}
 	`
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeProfiles(nil, nil, f)
+		return serializeProfiles(nil, nil, nil, f)
+	})
+}
+
+func TestSerializeProfilesWithEnvVars(t *testing.T) {
+	cluster := "someCluster"
+	siteName := "someSiteName"
+	proxy := "example.com"
+	kubeCluster := "someKubeCluster"
+	kubeConfig := "someKubeConfigPath"
+	t.Setenv(proxyEnvVar, proxy)
+	t.Setenv(clusterEnvVar, cluster)
+	t.Setenv(siteEnvVar, siteName)
+	t.Setenv(kubeClusterEnvVar, kubeCluster)
+	t.Setenv(teleport.EnvKubeConfig, kubeConfig)
+	expected := fmt.Sprintf(`
+{
+  "profiles": [],
+  "environment": {
+    %q: %q,
+    %q: %q,
+    %q: %q,
+    %q: %q,
+    %q: %q
+  }
+}
+`, teleport.EnvKubeConfig, kubeConfig,
+		clusterEnvVar, cluster,
+		kubeClusterEnvVar, kubeCluster,
+		proxyEnvVar, proxy,
+		siteEnvVar, siteName)
+	testSerialization(t, expected, func(f string) (string, error) {
+		env := getTshEnv()
+		return serializeProfiles(nil, nil, env, f)
 	})
 }
 

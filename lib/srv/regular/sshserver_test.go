@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/mailgun/timetools"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -107,6 +108,23 @@ type sshTestFixture struct {
 
 func newFixture(t *testing.T) *sshTestFixture {
 	return newCustomFixture(t, func(*auth.TestServerConfig) {})
+}
+
+func newFixtureWithoutDiskBasedLogging(t *testing.T) *sshTestFixture {
+	t.Helper()
+
+	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err := f.testSrv.Auth().SetSessionRecordingConfig(context.Background(), recConfig)
+	require.NoError(t, err)
+
+	return f
 }
 
 func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
@@ -493,9 +511,7 @@ func TestAdvertiseAddr(t *testing.T) {
 func TestAgentForwardPermission(t *testing.T) {
 	t.Parallel()
 
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	// make sure the role does not allow agent forwarding
@@ -507,13 +523,6 @@ func TestAgentForwardPermission(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(false)
 	role.SetOptions(roleOptions)
 	require.NoError(t, f.testSrv.Auth().UpsertRole(ctx, role))
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -590,7 +599,7 @@ func TestExecLongCommand(t *testing.T) {
 // sets ServerContext session.
 func TestOpenExecSessionSetsSession(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
@@ -606,9 +615,7 @@ func TestOpenExecSessionSetsSession(t *testing.T) {
 // TestAgentForward tests agent forwarding via unix sockets
 func TestAgentForward(t *testing.T) {
 	t.Parallel()
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 
 	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
@@ -618,13 +625,6 @@ func TestAgentForward(t *testing.T) {
 	roleOptions.ForwardAgent = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	se, err := f.ssh.clt.NewSession()
@@ -716,9 +716,7 @@ func TestX11Forward(t *testing.T) {
 	}
 
 	t.Parallel()
-	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
-		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	f := newFixtureWithoutDiskBasedLogging(t)
 	f.ssh.srv.x11 = &x11.ServerConfig{
 		Enabled:       true,
 		DisplayOffset: x11.DefaultDisplayOffset,
@@ -733,13 +731,6 @@ func TestX11Forward(t *testing.T) {
 	roleOptions.PermitX11Forwarding = types.NewBool(true)
 	role.SetOptions(roleOptions)
 	err = f.testSrv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	// use a sync recording mode because the disk-based uploader
-	// that runs in the background introduces races with test cleanup
-	recConfig := types.DefaultSessionRecordingConfig()
-	recConfig.SetMode(types.RecordAtNodeSync)
-	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Open two x11 sessions, the server should handle multiple
@@ -1145,8 +1136,7 @@ func noCache(clt auth.ClientI, cacheName []string) (auth.RemoteProxyAccessPoint,
 func TestProxyRoundRobin(t *testing.T) {
 	t.Parallel()
 
-	log.Infof("[TEST START] TestProxyRoundRobin")
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	proxyClient, _ := newProxyClient(t, f.testSrv)
@@ -1395,7 +1385,8 @@ func TestPasswordAuth(t *testing.T) {
 
 func TestClientDisconnect(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
+
 	config := &ssh.ClientConfig{
 		User:            f.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(f.up.certSigner)},
@@ -1411,13 +1402,45 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
+func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+	return func() bool {
+		connNumber, err := limiter.GetNumConnection(token)
+		require.NoError(t, err)
+		return connNumber == num
+	}
+}
+
+// fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
+// We are wrapping this so we can use the same mocked clock across the server and rate limiter.
+type fakeClock struct {
+	clock clockwork.FakeClock
+}
+
+func (fc fakeClock) UtcNow() time.Time {
+	return fc.clock.Now().UTC()
+}
+
+func (fc fakeClock) Sleep(d time.Duration) {
+	fc.clock.Advance(d)
+}
+
+func (fc fakeClock) After(d time.Duration) <-chan time.Time {
+	return fc.clock.After(d)
+}
+
+var _ timetools.TimeProvider = (*fakeClock)(nil)
+
 func TestLimiter(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
 
+	fClock := &fakeClock{
+		clock: f.clock,
+	}
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
+			Clock:          fClock,
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
 				{
@@ -1463,8 +1486,6 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, auth.CreateUploaderDir(nodeStateDir))
 	defer srv.Close()
 
-	// maxConnection = 3
-	// current connections = 1 (one connection is opened from SetUpTest)
 	config := &ssh.ClientConfig{
 		User:            f.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(f.up.certSigner)},
@@ -1479,43 +1500,49 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, se0.Shell())
 
-	// current connections = 2
+	// current connections = 1
 	clt, err := ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	se, err := clt.NewSession()
 	require.NoError(t, err)
 	require.NoError(t, se.Shell())
 
-	// current connections = 3
+	// current connections = 2
 	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	require.Error(t, err)
 
 	require.NoError(t, se.Close())
+	se.Wait()
 	require.NoError(t, clt.Close())
-	time.Sleep(50 * time.Millisecond)
+	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	// current connections = 2
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+
+	// current connections = 1
 	clt, err = ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	se, err = clt.NewSession()
 	require.NoError(t, err)
 	require.NoError(t, se.Shell())
 
-	// current connections = 3
+	// current connections = 2
 	_, err = ssh.Dial("tcp", srv.Addr(), config)
 	require.Error(t, err)
 
 	require.NoError(t, se.Close())
+	se.Wait()
 	require.NoError(t, clt.Close())
-	time.Sleep(50 * time.Millisecond)
+	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	// current connections = 2
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+
+	// current connections = 1
 	// requests rate should exceed now
 	clt, err = ssh.Dial("tcp", srv.Addr(), config)
-	require.NotNil(t, clt)
 	require.NoError(t, err)
+	require.NotNil(t, clt)
 	_, err = clt.NewSession()
 	require.Error(t, err)
 
@@ -1882,7 +1909,7 @@ func TestX11ProxySupport(t *testing.T) {
 func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
+	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)

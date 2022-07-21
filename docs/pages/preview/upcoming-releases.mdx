@@ -4,80 +4,79 @@ description: A timeline of upcoming Teleport releases.
 h1: Upcoming Teleport Releases
 ---
 
-The teleport team delivers a new major release roughly every 3 months.
+The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 8.3
+### Teleport 10.1
 
-Teleport 8.3 will add support for IAM based joining on AWS and Session Moderation.
+Teleport 10.1 will bring Application Access, Kubernetes Access, and CA rotation
+support to Machine ID, a Kubernetes Operator, and TCP endpoint support to
+Application Access.
 
-https://github.com/gravitational/teleport/milestone/69
+| Version     | Date       | Description                |
+|-------------|------------|----------------------------|
+| Release     | July 2022  | Good to go for production. |
 
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Release     | February 14th, 2022 | Good to go for production.      |
+### Teleport 10.2
 
-You can find the full list of fixes and features in the [GitHub milestone](https://github.com/gravitational/teleport/milestone/69).
+Teleport 10.2 will bring file upload/download support to Desktop Access,
+host certificate support to Machine ID, Elasticsearch support to Database Access,
+and automatic configuration of AD to Desktop Access. Teleport 10.2 will remove the need for a PVC
+to securely deploy Teleport within a Kubernetes cluster, and will add automatic discovery
+of servers on AWS.
 
-### Teleport 9
+In addition, support for a notification-only automatic upgrade system will be
+added to Teleport.
 
-Teleport 9.0 will focus on bringing Desktop Access to GA with support for
-session recording, per-session MFA, and clipboard support. Database Access
-will add self-hosted Redis, auto-discovery for Redshift clusers, and
-auto-IAM configuration improvements.
+| Version     | Date         | Description                |
+|-------------|--------------|----------------------------|
+| Release     | August 2022  | Good to go for production. |
 
-In addition, Teleport 9 will include preview releases of Microsoft SQL
-Server with AD authentication for Database Access and Teleport Certificate Bot.
+### Teleport 10.3
 
-| Version     | Date               | Description                      |
-| ----------- | ------------------ | -------------------------------- |
-| Alpha       | Febuary 14th, 2022 | Good for some testing and demos. |
-| Beta        | Febuary 21st, 2022 | Deploy on staging.               |
-| Release     | March 11th, 2022   | Good to go for production.       |
+Teleport 10 will bring Cassandra support to Database Access.
 
-You can find the full list of fixes and features in the [GitHub milestone](https://github.com/gravitational/teleport/milestone/64).
+| Version     | Date              | Description                |
+|-------------|-------------------|----------------------------|
+| Release     | September 2022    | Good to go for production. |
 
 ## Teleport Cloud
 
-The key areas of focus for Teleport cloud in early 2022 are:
-- Ensuring the best routing and latency experience
-- Stronger outbound communications on cloud health and infrastructure changes
-- UX where the cloud offering differs from the on-prem offering
+The key deliverables for Teleport Cloud in the next quarter:
 
-### Release Schedule
-
-| Date | Description |
-| - | - |
-| March 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
-| April 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/) |
-| Q1 2022 | Roll out a technical communications framework, notifying technical contacts of planned maintenance, infrastructure changes and outages |
-| Q1 2022 | Provide a public listing of IP addresses used by Teleport infrastructure for firewall configuration |
-| Q2 2022 | Offer more data retention options |
-| Q3 2022 | Option to store data in alternate regions around the world |
-
+| Date    | Description |
+|---------|-------------|
+| Q2 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/)  |
+| Q2 2022 | Provide a public listing of IP addresses used by Teleport infrastructure for firewall configuration. |
+| Q2 2022 | Scheduled upgrades will limit downtime to non-peak hours.
+| Q3 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
 
 ## Semantic Versioning
 
-Teleport follows [semantic versioning](https://semver.org/) for pre-releases and releases.
+Teleport follows [semantic versioning](https://semver.org/) for pre-releases
+and releases.
 
-**Pre-releases**
+### Pre-releases
 
-Pre-releases have suffixes `-alpha`, `-beta` and `-rc`.
-They are not ready for production:
+Pre-releases have suffixes `-alpha`, `-beta` and `-rc`. They are not ready for
+production:
 
 - You can use alpha releases such as `5.0.1-alpha.1` for trying new features.
   Things can break and new changes may not be backwards-compatible.
-- Teleport `beta` releases, such as `5.0.1-beta.2` are suitable for staging environments.
-  We are unlikely to change the APIs while we are ironing out bugs and UX glitches.
+- Teleport `beta` releases, such as `5.0.1-beta.2` are suitable for staging
+  environments.  We are unlikely to change the APIs while we are ironing out
+  bugs and UX glitches.
 - We mark release candidates as `5.0.1-rc.1` coding and bug fixes are finished.
   The team is going through the manual test plan to find any regressions.
 
-**Releases**
+### Releases
 
 Releases are ready for production use.
 
-- Releases `5.0.0` and `6.0.0` are major releases. We publish 4 major releases each year.
-  Read more about upgrades and compatibility [here](../setup/operations/upgrading.mdx).
-- Releases `5.1.0` are minor releases. They contain minor backwards-compatible improvements and backports.
-- Versions like `5.0.1` are quick patches. They contain backwards-compatible fixes.
+- Releases `5.0.0` and `6.0.0` are major releases. We publish 4 major releases
+  each year. Read more about upgrades and compatibility in [Upgrading a Teleport Cluster](../setup/operations/upgrading.mdx).
+- Releases `5.1.0` are minor releases. They contain minor backwards-compatible
+  improvements and backports.
+- Versions like `5.0.1` are quick patches. They contain backwards-compatible
+  fixes.

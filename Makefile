@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.0-rc.1
+VERSION=10.0.2
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -159,12 +159,15 @@ LIBFIDO2_TEST_TAG := libfido2
 endif
 
 # Build tsh against libfido2?
-# Only build if FIDO2=yes, each platform we support must make this decision
-# explicitly.
+# FIDO2=yes and FIDO2=static enable static libfido2 builds.
+# FIDO2=dynamic enables dynamic libfido2 builds.
 LIBFIDO2_MESSAGE := without libfido2
-ifeq ("$(FIDO2)", "yes")
+ifneq (, $(filter $(FIDO2), yes static))
 LIBFIDO2_MESSAGE := with libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+else ifeq ("$(FIDO2)", "dynamic")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
@@ -747,7 +750,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**'
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'docs/pages/includes/**/*.go'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -1054,16 +1058,6 @@ deb:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
-
-# update Helm chart versions
-# this isn't a 'proper' semver regex but should cover most cases
-# the order of parameters in sed's extended regex mode matters; the
-# dash (-) must be the last character for this to work as expected
-.PHONY: update-helm-charts
-update-helm-charts:
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-auto-trustedcluster/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-daemonset/values.yaml
 
 .PHONY: ensure-webassets
 ensure-webassets:

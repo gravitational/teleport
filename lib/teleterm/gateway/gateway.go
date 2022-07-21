@@ -104,21 +104,27 @@ func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 }
 
 // Close terminates gateway connection
-func (g *Gateway) Close() {
+func (g *Gateway) Close() error {
 	g.closeCancel()
-	g.localProxy.Close()
+
+	if err := g.localProxy.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-// Open opens a gateway to Teleport proxy
-func (g *Gateway) Open() {
-	go func() {
-		g.Log.Info("Gateway is open.")
-		if err := g.localProxy.Start(g.closeContext); err != nil {
-			g.Log.WithError(err).Warn("Failed to open a connection.")
-		}
+// Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
+func (g *Gateway) Serve() error {
+	g.Log.Info("Gateway is open.")
 
-		g.Log.Info("Gateway has closed.")
-	}()
+	if err := g.localProxy.Start(g.closeContext); err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.Log.Info("Gateway has closed.")
+
+	return nil
 }
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.

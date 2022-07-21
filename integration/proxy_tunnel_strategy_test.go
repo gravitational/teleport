@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -78,48 +79,86 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 	return p
 }
 
-// TestProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
-func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
-	p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
-		&types.TunnelStrategyV1{
-			Strategy: &types.TunnelStrategyV1_AgentMesh{
-				AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
-			},
-		},
-	)
-
-	// bootstrap a load balancer for proxies.
-	p.makeLoadBalancer(t)
-
-	// bootstrap an auth instance.
-	p.makeAuth(t)
-
-	// bootstrap two proxy instances.
-	p.makeProxy(t)
-	p.makeProxy(t)
-	require.Len(t, p.proxies, 2)
-
-	// bootstrap a node instance.
-	p.makeNode(t)
-
-	// bootstrap a db instance.
-	p.makeDatabase(t)
-
-	// wait for the node and database to open reverse tunnels to both proxies.
-	waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
-	waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 2)
-
-	// make sure we can connect to the node going through any proxy.
-	p.waitForNodeToBeReachable(t)
-	p.dialNode(t)
-
-	// make sure we can connect to the database going through any proxy.
-	p.waitForDatabaseToBeReachable(t)
-	p.dialDatabase(t)
+func TestProxyTunnelStrategy(t *testing.T) {
+	t.Parallel()
+	t.Run("AgentMesh", testProxyTunnelStrategyAgentMesh)
+	t.Run("ProxyPeering", testProxyTunnelStrategyProxyPeering)
 }
 
-// TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
-func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
+// testProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
+func testProxyTunnelStrategyAgentMesh(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		testResource func(*testing.T, *proxyTunnelStrategy)
+	}{
+		{
+			name: "SSHAccess",
+			testResource: func(t *testing.T, p *proxyTunnelStrategy) {
+				// bootstrap a node instance.
+				p.makeNode(t)
+
+				// wait for the node to be connected to both proxies
+				waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
+				waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
+
+				// make sure we can connect to the node going through any proxy.
+				p.waitForNodeToBeReachable(t)
+				p.dialNode(t)
+			},
+		},
+		{
+			name: "DatabaseAccess",
+			testResource: func(t *testing.T, p *proxyTunnelStrategy) {
+				p.makeDatabase(t)
+
+				// wait for the node to be connected to both proxies
+				waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
+				waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
+
+				// make sure we can connect to the database going through any proxy.
+				p.waitForDatabaseToBeReachable(t)
+				p.dialDatabase(t)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
+				&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_AgentMesh{
+						AgentMesh: types.DefaultAgentMeshTunnelStrategy(),
+					},
+				},
+			)
+
+			// bootstrap a load balancer for proxies.
+			p.makeLoadBalancer(t)
+
+			// bootstrap an auth instance.
+			p.makeAuth(t)
+
+			// bootstrap two proxy instances.
+			p.makeProxy(t)
+			p.makeProxy(t)
+			require.Len(t, p.proxies, 2)
+
+			tc.testResource(t, p)
+		})
+	}
+}
+
+// testProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
+func testProxyTunnelStrategyProxyPeering(t *testing.T) {
+	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{DB: true},
+	})
+
 	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
 		&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_ProxyPeering{
@@ -230,7 +269,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	t.Cleanup(cancel)
 
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(ports.PopInt())))
-	lb, err := utils.NewRandomLoadBalancer(ctx, *lbAddr)
+	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
 	require.NoError(t, lb.Listen())

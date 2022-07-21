@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -213,6 +215,8 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1677,8 +1681,8 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
 	// start the http proxy, we need to make sure this was not used
-	ps := &proxyServer{}
-	ts := httptest.NewServer(ps)
+	ph := &helpers.ProxyHandler{}
+	ts := httptest.NewServer(ph)
 	defer ts.Close()
 
 	// clear out any proxy environment variables
@@ -1734,7 +1738,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	)
 
 	// make sure the direct dialer was used and not the proxy dialer
-	require.Zero(t, ps.Count())
+	require.Zero(t, ph.Count())
 
 	// if we got here, it means two sites are cross-connected. lets execute SSH commands
 	sshPort := a.GetPortSSHInt()
@@ -1845,7 +1849,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	// start the http proxy
-	ps := &proxyServer{}
+	ps := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ps)
 	defer ts.Close()
 
