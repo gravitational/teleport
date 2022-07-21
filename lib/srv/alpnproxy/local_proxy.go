@@ -247,6 +247,14 @@ func (l *LocalProxy) handleDownstreamConnection2(ctx context.Context, downstream
 			}
 		}
 	}()
+	go func() {
+		buff := make([]byte, 0)
+		for {
+			upstreamConn.Read(buff)
+		}
+
+	}()
+	select {}
 
 	errC := make(chan error, 2)
 	go func() {

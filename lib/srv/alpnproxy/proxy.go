@@ -410,6 +410,13 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 				time.Sleep(time.Second * 10)
 			}
 		}()
+		go func() {
+			buff := make([]byte, 0)
+			for {
+				cc.Read(buff)
+			}
+		}()
+		select {}
 
 		return trace.Wrap(handlerDesc.handle(ctx, cc, connInfo))
 
