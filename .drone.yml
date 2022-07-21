@@ -5672,8 +5672,12 @@ steps:
     - relcli auto_publish -f -v 6
     failure: ignore
 
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run
 ---
 kind: signature
-hmac: bc9067310cb81c07e40017bca791e073cf9669db32ececf79a73087b7635d68f
+hmac: 7535a9665c5b246d13747c7fda0b2a24ec4b47e3471339c59fc3c6713106ed1d
 
 ...
