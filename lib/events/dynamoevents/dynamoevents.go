@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/request"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -46,6 +49,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -193,7 +197,7 @@ type Log struct {
 	*log.Entry
 	// Config is a backend configuration
 	Config
-	svc *dynamodb.DynamoDB
+	svc dynamodbiface.DynamoDBAPI
 
 	// session holds the AWS client.
 	session *awssession.Session
@@ -291,7 +295,11 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
 
 	// create DynamoDB service:
-	b.svc = dynamodb.New(b.session)
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.svc = svc
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.Tablename)
@@ -548,11 +556,11 @@ type checkpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
+	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
 }
 
-func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
-	rawEvents, lastKey, err := l.searchEventsRaw(fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
+func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
+	rawEvents, lastKey, err := l.searchEventsRaw(ctx, fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -628,7 +636,7 @@ func reverseStrings(slice []string) []string {
 
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
-func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]event, string, error) {
+func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]event, string, error) {
 	checkpoint, err := getCheckpointFromStartKey(startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -701,12 +709,12 @@ func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, limit 
 
 	var values []event
 	if fromUTC.IsZero() && sessionID != "" {
-		values, err = ef.QueryBySessionIDIndex(sessionID, filterExpr)
+		values, err = ef.QueryBySessionIDIndex(ctx, sessionID, filterExpr)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	} else {
-		values, err = ef.QueryByDateIndex(filterExpr)
+		values, err = ef.QueryByDateIndex(ctx, filterExpr)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -774,7 +782,7 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 		filter.condExpr = expr
 		filter.condParams = params
 	}
-	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
+	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
 }
 
 type searchEventsFilter struct {
@@ -1091,7 +1099,7 @@ func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, sta
 }
 
 type query interface {
-	Query(input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error)
+	QueryWithContext(ctx context.Context, input *dynamodb.QueryInput, opts ...request.Option) (*dynamodb.QueryOutput, error)
 }
 
 type eventsFetcher struct {
@@ -1174,7 +1182,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 	return out, false, nil
 }
 
-func (l *eventsFetcher) QueryByDateIndex(filterExpr *string) (values []event, err error) {
+func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 	var attributeNames map[string]*string
 	if len(l.filter.condParams.attrNames) > 0 {
@@ -1213,7 +1221,7 @@ dateLoop:
 				ScanIndexForward:          aws.Bool(l.forward),
 			}
 			start := time.Now()
-			out, err := l.api.Query(&input)
+			out, err := l.api.QueryWithContext(ctx, &input)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1243,7 +1251,7 @@ dateLoop:
 	return values, nil
 }
 
-func (l *eventsFetcher) QueryBySessionIDIndex(sessionID string, filterExpr *string) (values []event, err error) {
+func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID string, filterExpr *string) (values []event, err error) {
 	query := "SessionID = :id"
 	var attributeNames map[string]*string
 	if len(l.filter.condParams.attrNames) > 0 {
@@ -1275,7 +1283,7 @@ func (l *eventsFetcher) QueryBySessionIDIndex(sessionID string, filterExpr *stri
 		ScanIndexForward:          aws.Bool(l.forward),
 	}
 	start := time.Now()
-	out, err := l.api.Query(&input)
+	out, err := l.api.QueryWithContext(ctx, &input)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
