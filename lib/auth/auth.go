@@ -2495,7 +2495,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if len(nodes) != 0 {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
-	return a.DeleteNamespace(namespace)
+	return a.Services.DeleteNamespace(namespace)
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
