@@ -475,19 +475,26 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	type newClientFunc func(*testing.T, *Client, *proto.Certs) (*Client, *proto.Certs)
-	applyAccessRequests := func(newRequests ...string) newClientFunc {
+	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
 		return func(t *testing.T, clt *Client, _ *proto.Certs) (*Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:      testPack.pubKey,
-				Username:       username,
-				Expires:        time.Now().Add(time.Hour).UTC(),
-				AccessRequests: newRequests,
+				PublicKey:          testPack.pubKey,
+				Username:           username,
+				Expires:            time.Now().Add(time.Hour).UTC(),
+				AccessRequests:     newRequests,
+				DropAccessRequests: dropRequests,
 			})
 			require.NoError(t, err)
 			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
 			require.NoError(t, err)
 			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
 		}
+	}
+	applyAccessRequests := func(newRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(newRequests, nil)
+	}
+	dropAccessRequests := func(dropRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(nil, dropRequests)
 	}
 	failToApplyAccessRequests := func(reqs ...string) newClientFunc {
 		return func(t *testing.T, clt *Client, certs *proto.Certs) (*Client, *proto.Certs) {
@@ -568,6 +575,50 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			expectLogins:         []string{"root"},
 			expectResources:      prodResourceIDs,
 			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop resource request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins", "superadmins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop role request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(superAdminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectResources:      prodResourceIDs,
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName()},
+		},
+		{
+			desc: "drop all",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests("*"),
+			},
+			expectRoles: []string{"requesters"},
+		},
+		{
+			desc: "switch resource requests",
+			steps: []newClientFunc{
+				applyAccessRequests(adminRequest.GetName()),
+				applyAccessRequests(prodResourceRequest.GetName()),
+				failToApplyAccessRequests(stagingResourceRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+				applyAccessRequests(stagingResourceRequest.GetName()),
+				failToApplyAccessRequests(prodResourceRequest.GetName()),
+				dropAccessRequests(stagingResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName()},
 		},
 	} {
 		tc := tc
