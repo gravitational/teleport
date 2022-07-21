@@ -23,43 +23,27 @@ import (
 	"net"
 	"os"
 	"strings"
+	"testing"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"gopkg.in/check.v1"
+
+	"github.com/google/go-cmp/cmp"
 )
 
-type ClientTestSuite struct {
-	client *TeleportClient
+func TestHelperFunctions(t *testing.T) {
+	require.Equal(t, nodeName("one"), "one")
+	require.Equal(t, nodeName("one:22"), "one")
 }
 
-var _ = check.Suite(&ClientTestSuite{})
-
-func (s *ClientTestSuite) TestHelperFunctions(c *check.C) {
-	c.Assert(nodeName("one"), check.Equals, "one")
-	c.Assert(nodeName("one:22"), check.Equals, "one")
-}
-
-func (s *ClientTestSuite) SetUpSuite(c *check.C) {
-	// create the client:
-	config := &Config{
-		KeysDir: c.MkDir(),
-		Tracer:  tracing.NoopProvider().Tracer("test"),
-	}
-	err := config.ParseProxyHost("localhost")
-	c.Assert(err, check.IsNil)
-	client, err := NewClient(config)
-	c.Assert(err, check.IsNil)
-	c.Assert(client, check.NotNil)
-	s.client = client
-}
-
-func (s *ClientTestSuite) TestNewSession(c *check.C) {
+func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
 		Namespace: "blue",
 		Tracer:    tracing.NoopProvider().Tracer("test"),
@@ -68,35 +52,35 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	ctx := context.Background()
 	// defaults:
 	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
-	c.Assert(err, check.IsNil)
-	c.Assert(ses, check.NotNil)
-	c.Assert(ses.NodeClient(), check.Equals, nc)
-	c.Assert(ses.namespace, check.Equals, nc.Namespace)
-	c.Assert(ses.env, check.NotNil)
-	c.Assert(ses.terminal.Stderr(), check.Equals, os.Stderr)
-	c.Assert(ses.terminal.Stdout(), check.Equals, os.Stdout)
-	c.Assert(ses.terminal.Stdin(), check.Equals, os.Stdin)
+	require.NoError(t, err)
+	require.NotNil(t, ses)
+	require.Equal(t, ses.NodeClient(), nc)
+	require.Equal(t, ses.namespace, nc.Namespace)
+	require.NotNil(t, ses.env)
+	require.Equal(t, ses.terminal.Stderr(), os.Stderr)
+	require.Equal(t, ses.terminal.Stdout(), os.Stdout)
+	require.Equal(t, ses.terminal.Stdin(), os.Stdin)
 
 	// pass environ map
 	env := map[string]string{
 		sshutils.SessionEnvVar: "session-id",
 	}
 	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
-	c.Assert(err, check.IsNil)
-	c.Assert(ses, check.NotNil)
-	c.Assert(ses.env, check.DeepEquals, env)
+	require.NoError(t, err)
+	require.NotNil(t, ses)
+	require.Empty(t, cmp.Diff(ses.env, env))
 	// the session ID must be taken from tne environ map, if passed:
-	c.Assert(string(ses.id), check.Equals, "session-id")
+	require.Equal(t, string(ses.id), "session-id")
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
 // propagates all the way to the opposite side.
-func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
+func TestProxyConnection(t *testing.T) {
 	// remoteSrv mocks a remote listener, accepting port-forwarded connections
 	// over SSH.
 	remoteConCh := make(chan net.Conn)
 	remoteErrCh := make(chan error, 3)
-	remoteSrv := newTestListener(c, func(con net.Conn) {
+	remoteSrv := newTestListener(t, func(con net.Conn) {
 		defer con.Close()
 
 		remoteConCh <- con
@@ -113,7 +97,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	// localSrv mocks a local tsh listener, accepting local connections for
 	// port-forwarding to remote SSH node.
 	proxyErrCh := make(chan error, 3)
-	localSrv := newTestListener(c, func(con net.Conn) {
+	localSrv := newTestListener(t, func(con net.Conn) {
 		defer con.Close()
 
 		proxyErrCh <- proxyConnection(context.Background(), con, remoteSrv.Addr().String(), new(net.Dialer))
@@ -123,7 +107,7 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	// Dial localSrv. This should trigger proxyConnection and a dial to
 	// remoteSrv.
 	localCon, err := net.Dial("tcp", localSrv.Addr().String())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	clientErrCh := make(chan error, 3)
 	go func(con net.Conn) {
 		_, err := io.Copy(io.Discard, con)
@@ -138,27 +122,27 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 
 	// Simulate a client-side disconnect. All other parties (tsh proxy and
 	// remove listener) should disconnect as well.
-	c.Log("simulate client-side disconnect")
+	t.Log("simulate client-side disconnect")
 	err = localCon.Close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case err := <-remoteErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case err := <-clientErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case <-time.After(5 * time.Second):
-			c.Fatal("proxyConnection, client and server didn't disconnect within 5s after client connection was closed")
+			t.Fatal("proxyConnection, client and server didn't disconnect within 5s after client connection was closed")
 		}
 	}
 
 	// Dial localSrv again. This should trigger proxyConnection and a dial to
 	// remoteSrv.
 	localCon, err = net.Dial("tcp", localSrv.Addr().String())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	go func(con net.Conn) {
 		_, err := io.Copy(io.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
@@ -169,26 +153,26 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 
 	// Simulate a server-side disconnect. All other parties (tsh proxy and
 	// local client) should disconnect as well.
-	c.Log("simulate server-side disconnect")
+	t.Log("simulate server-side disconnect")
 	remoteCon := <-remoteConCh
 	err = remoteCon.Close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case err := <-remoteErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case err := <-clientErrCh:
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		case <-time.After(5 * time.Second):
-			c.Fatal("proxyConnection, client and server didn't disconnect within 5s after remote connection was closed")
+			t.Fatal("proxyConnection, client and server didn't disconnect within 5s after remote connection was closed")
 		}
 	}
 }
 
-func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
+func TestListenAndForwardCancel(t *testing.T) {
 	client := &NodeClient{
 		Client: &tracessh.Client{
 			Client: &ssh.Client{
@@ -207,7 +191,7 @@ func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 	// Create a new cancelable listener.
 	ctx, cancel := context.WithCancel(context.Background())
 	ln, err := newWrappedListener(acceptCh)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Start listenAndForward and close the unblock channel once "Accept" has
 	// unblocked.
@@ -221,13 +205,13 @@ func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 	select {
 	case <-acceptCh:
 	case <-time.After(1 * time.Minute):
-		c.Fatal("Timed out waiting for Accept to be called.")
+		t.Fatal("Timed out waiting for Accept to be called.")
 	}
 
 	// At this point, "Accept" should still be blocking.
 	select {
 	case <-unblockCh:
-		c.Fatalf("Failed because Accept was unblocked.")
+		t.Fatalf("Failed because Accept was unblocked.")
 	default:
 	}
 
@@ -238,19 +222,19 @@ func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
 	select {
 	case <-unblockCh:
 	case <-time.After(1 * time.Minute):
-		c.Fatal("Timed out waiting for Accept to unblock.")
+		t.Fatal("Timed out waiting for Accept to unblock.")
 	}
 }
 
-func newTestListener(c *check.C, handle func(net.Conn)) net.Listener {
+func newTestListener(t *testing.T, handle func(net.Conn)) net.Listener {
 	l, err := net.Listen("tcp", "localhost:0")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	go func() {
 		for {
 			con, err := l.Accept()
 			if err != nil {
-				c.Logf("listener error: %v", err)
+				t.Logf("listener error: %v", err)
 				return
 			}
 			go handle(con)

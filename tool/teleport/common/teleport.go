@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -333,6 +334,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2")
+	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
@@ -576,6 +578,18 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 		if !filepath.IsAbs(uri.Path) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
+
+		configDir := path.Dir(outputURI)
+		err := os.MkdirAll(configDir, 0755)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return "", trace.Wrap(err, "permission denied creating directory %s", configDir)
+			}
+
+			return "", trace.Wrap(err, "error creating config file directory %s", configDir)
+		}
+
 		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
 		err = trace.ConvertSystemError(err)
 		if err != nil {

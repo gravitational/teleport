@@ -40,6 +40,8 @@ TARGET_HOSTNAME="{{.hostname}}"
 TARGET_PORT="{{.port}}"
 JOIN_TOKEN="{{.token}}"
 JOIN_METHOD="{{.joinMethod}}"
+JOIN_METHOD_FLAG=""
+[ ! -z "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
 # When all stanza generators have been updated to use the new 
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
 # with the script passing it in in `join_tokens.go`.
@@ -50,6 +52,8 @@ APP_INSTALL_MODE="{{.appInstallMode}}"
 APP_NAME="{{.appName}}"
 APP_URI="{{.appURI}}"
 NODE_LABELS="{{.nodeLabels}}"
+LABELS_FLAG=""
+[ ! -z "$NODE_LABELS" ] && LABELS_FLAG="--labels ${NODE_LABELS}"
 
 # usage message
 # shellcheck disable=SC2086
@@ -435,10 +439,10 @@ install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
     teleport node configure \
       --token ${JOIN_TOKEN} \
-      --join-method ${JOIN_METHOD} \
+      ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
-      --labels ${NODE_LABELS} \
+      ${LABELS_FLAG} \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS

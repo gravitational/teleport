@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/oxy/connlimit"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -104,4 +105,15 @@ func (l *ConnectionsLimiter) ReleaseConnection(token string) {
 			l.connections[token] = numberOfConnections - 1
 		}
 	}
+}
+
+// GetNumConnections returns the current number of connections for a token
+func (l *ConnectionsLimiter) GetNumConnection(token string) (int64, error) {
+	l.Lock()
+	defer l.Unlock()
+	numberOfConnections, exists := l.connections[token]
+	if !exists {
+		return -1, trace.Errorf("Trying to get connections of a nonexistent token: %s", token)
+	}
+	return numberOfConnections, nil
 }

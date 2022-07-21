@@ -1,16 +1,18 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package proxy
 
@@ -30,17 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
-	"k8s.io/client-go/transport"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -53,15 +44,19 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
+	"k8s.io/client-go/transport"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
-
-type ForwarderSuite struct{}
-
-var _ = check.Suite(ForwarderSuite{})
-
-func Test(t *testing.T) {
-	check.TestingT(t)
-}
 
 var (
 	identity = auth.WrapIdentity(tlsca.Identity{
@@ -82,9 +77,9 @@ var (
 	})
 )
 
-func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
+func TestRequestCertificate(t *testing.T) {
 	cl, err := newMockCSRClient()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:     testauthority.New(),
@@ -93,7 +88,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		log: logrus.New(),
 	}
 	user, err := types.NewUser("bob")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ctx := authContext{
 		teleportCluster: teleportClusterClient{
 			name: "site a",
@@ -106,22 +101,22 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	}
 
 	b, err := f.requestCertificate(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	// All fields except b.key are predictable.
-	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.lastCert.Raw)
+	require.Empty(t, cmp.Diff(b.Certificates[0].Certificate[0], cl.lastCert.Raw))
 
 	// Check the KubeCSR fields.
-	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
-	c.Assert(cl.gotCSR.ClusterName, check.DeepEquals, ctx.teleportCluster.name)
+	require.Empty(t, cmp.Diff(cl.gotCSR.Username, ctx.User.GetName()))
+	require.Empty(t, cmp.Diff(cl.gotCSR.ClusterName, ctx.teleportCluster.name))
 
 	// Parse x509 CSR and check the subject.
 	csrBlock, _ := pem.Decode(cl.gotCSR.CSR)
-	c.Assert(csrBlock, check.NotNil)
+	require.NotNil(t, csrBlock)
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
-	c.Assert(err, check.IsNil)
-	c.Assert(*idFromCSR, check.DeepEquals, ctx.UnmappedIdentity.GetIdentity())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(*idFromCSR, ctx.UnmappedIdentity.GetIdentity()))
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -534,7 +529,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
+func TestSetupImpersonationHeaders(t *testing.T) {
 	tests := []struct {
 		desc          string
 		kubeUsers     []string
@@ -542,7 +537,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 		remoteCluster bool
 		inHeaders     http.Header
 		wantHeaders   http.Header
-		wantErr       bool
+		errAssertion  require.ErrorAssertionFunc
 	}{
 		{
 			desc:       "no existing impersonation headers",
@@ -556,19 +551,20 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 				ImpersonateUserHeader:  []string{"kube-user-a"},
 				ImpersonateGroupHeader: []string{"kube-group-a", "kube-group-b"},
 			},
+			errAssertion: require.NoError,
 		},
 		{
-			desc:       "no existing impersonation headers, no default kube users",
-			kubeGroups: []string{"kube-group-a", "kube-group-b"},
-			inHeaders:  http.Header{},
-			wantErr:    true,
+			desc:         "no existing impersonation headers, no default kube users",
+			kubeGroups:   []string{"kube-group-a", "kube-group-b"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
 		},
 		{
-			desc:       "no existing impersonation headers, multiple default kube users",
-			kubeUsers:  []string{"kube-user-a", "kube-user-b"},
-			kubeGroups: []string{"kube-group-a", "kube-group-b"},
-			inHeaders:  http.Header{},
-			wantErr:    true,
+			desc:         "no existing impersonation headers, multiple default kube users",
+			kubeUsers:    []string{"kube-user-a", "kube-user-b"},
+			kubeGroups:   []string{"kube-group-a", "kube-group-b"},
+			inHeaders:    http.Header{},
+			errAssertion: require.Error,
 		},
 		{
 			desc:          "no existing impersonation headers, remote cluster",
@@ -577,6 +573,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			remoteCluster: true,
 			inHeaders:     http.Header{},
 			wantHeaders:   http.Header{},
+			errAssertion:  require.NoError,
 		},
 		{
 			desc:       "existing user and group headers",
@@ -590,6 +587,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 				ImpersonateUserHeader:  []string{"kube-user-a"},
 				ImpersonateGroupHeader: []string{"kube-group-b"},
 			},
+			errAssertion: require.NoError,
 		},
 		{
 			desc:       "existing user headers not allowed",
@@ -599,7 +597,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 				ImpersonateUserHeader:  []string{"kube-user-other"},
 				ImpersonateGroupHeader: []string{"kube-group-b"},
 			},
-			wantErr: true,
+			errAssertion: require.Error,
 		},
 		{
 			desc:       "existing group headers not allowed",
@@ -608,7 +606,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			inHeaders: http.Header{
 				ImpersonateGroupHeader: []string{"kube-group-other"},
 			},
-			wantErr: true,
+			errAssertion: require.Error,
 		},
 		{
 			desc:       "multiple existing user headers",
@@ -617,7 +615,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			inHeaders: http.Header{
 				ImpersonateUserHeader: []string{"kube-user-a", "kube-user-b"},
 			},
-			wantErr: true,
+			errAssertion: require.Error,
 		},
 		{
 			desc:       "unrecognized impersonation header",
@@ -626,11 +624,11 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			inHeaders: http.Header{
 				"Impersonate-ev": []string{"evil-ev"},
 			},
-			wantErr: true,
+			errAssertion: require.Error,
 		},
 	}
 	for _, tt := range tests {
-		c.Log(tt.desc)
+		t.Log(tt.desc)
 
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
@@ -641,14 +639,15 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			},
 			tt.inHeaders,
 		)
-		c.Log("got error:", err)
-		c.Assert(err != nil, check.Equals, tt.wantErr)
+		t.Log("got error:", err)
+		tt.errAssertion(t, err)
+
 		if err == nil {
 			// Sort header values to get predictable ordering.
 			for _, vals := range tt.inHeaders {
 				sort.Strings(vals)
 			}
-			c.Assert(tt.inHeaders, check.DeepEquals, tt.wantHeaders)
+			require.Empty(t, cmp.Diff(tt.inHeaders, tt.wantHeaders))
 		}
 	}
 }
@@ -697,14 +696,14 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = ""
 	_, err := f.newClusterSession(authCtx)
 	require.Error(t, err)
-	require.Equal(t, trace.IsNotFound(err), true)
+	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Fail when creds aren't available
 	authCtx.kubeCluster = "other"
 	_, err = f.newClusterSession(authCtx)
 	require.Error(t, err)
-	require.Equal(t, trace.IsNotFound(err), true)
+	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Succeed when creds are available

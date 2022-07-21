@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -52,10 +52,9 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 	tt.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
-	tt.b, err = lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            tt.c,
+	tt.b, err = memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   tt.c,
 	})
 	require.NoError(t, err)
 
@@ -257,4 +256,28 @@ func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, di
 	}
 
 	return nil, trace.NotImplemented("mockValidateGithubAuthCallback not implemented")
+}
+
+func TestCalculateGithubUserNoTeams(t *testing.T) {
+	a := &Server{}
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "org1",
+				Team:         "teamx",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = a.calculateGithubUser(connector, &types.GithubClaims{
+		Username: "octocat",
+		OrganizationToTeams: map[string][]string{
+			"org1": {"team1", "team2"},
+			"org2": {"team1"},
+		},
+		Teams: []string{"team1", "team2", "team1"},
+	}, &types.GithubAuthRequest{})
+	require.ErrorIs(t, err, ErrGithubNoTeams)
 }
