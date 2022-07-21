@@ -19,8 +19,6 @@ package plugin
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"google.golang.org/grpc"
 )
 
@@ -29,10 +27,10 @@ type Interceptor interface {
 	UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (response interface{}, err error)
 	StreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error
 
-	// RegisterUnaryInterceptor registers a UnaryServerInterceptor
-	RegisterUnaryInterceptor(unaryInterceptor grpc.UnaryServerInterceptor)
-	// RegisterStreamInterceptor registers a StreamServerInterceptor
-	RegisterStreamInterceptor(streamInterceptor grpc.StreamServerInterceptor)
+	// SetUnaryInterceptor sets a UnaryServerInterceptor
+	SetUnaryInterceptor(unaryInterceptor grpc.UnaryServerInterceptor)
+	// SetStreamInterceptor sets a StreamServerInterceptor
+	SetStreamInterceptor(streamInterceptor grpc.StreamServerInterceptor)
 }
 
 type interceptor struct {
@@ -63,20 +61,20 @@ func (r *interceptor) StreamInterceptor(srv interface{}, ss grpc.ServerStream, i
 	return handler(srv, ss)
 }
 
-// RegisterUnaryInterceptor registers a unary interceptor.
-func (r *interceptor) RegisterUnaryInterceptor(unaryInterceptor grpc.UnaryServerInterceptor) {
+// SetUnaryInterceptor sets a unary interceptor.
+func (r *interceptor) SetUnaryInterceptor(unaryInterceptor grpc.UnaryServerInterceptor) {
 	if r.unaryInterceptor == nil {
 		r.unaryInterceptor = unaryInterceptor
 		return
 	}
-	r.unaryInterceptor = utils.ChainUnaryServerInterceptors(r.unaryInterceptor, unaryInterceptor)
+	r.unaryInterceptor = unaryInterceptor
 }
 
-// RegisterStreamInterceptor registers a stream interceptor.
-func (r *interceptor) RegisterStreamInterceptor(streamInterceptor grpc.StreamServerInterceptor) {
+// SetStreamInterceptor sets a stream interceptor.
+func (r *interceptor) SetStreamInterceptor(streamInterceptor grpc.StreamServerInterceptor) {
 	if r.streamInterceptor == nil {
 		r.streamInterceptor = streamInterceptor
 		return
 	}
-	r.streamInterceptor = utils.ChainStreamServerInterceptors(r.streamInterceptor, streamInterceptor)
+	r.streamInterceptor = streamInterceptor
 }
