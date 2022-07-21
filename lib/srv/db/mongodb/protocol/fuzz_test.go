@@ -26,6 +26,7 @@ import (
 func FuzzMongoRead(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte("000\xa4000000000000"))
+	f.Add([]byte("0\x00\x00\x0000@00000\x01\x00\x00\x000000000000000000000\x01\x00\x00\x00\x0000000000"))
 
 	f.Fuzz(func(t *testing.T, msgBytes []byte) {
 		msg := bytes.NewReader(msgBytes)

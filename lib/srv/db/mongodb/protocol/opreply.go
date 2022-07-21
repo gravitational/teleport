@@ -17,6 +17,7 @@ limitations under the License.
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
@@ -49,7 +50,7 @@ func MakeOpReply(document bsoncore.Document) *MessageOpReply {
 	}
 }
 
-// MakeOpReply is a shorthand to create OP_REPLY message from a single document
+// MakeOpReplyWithFlags is a shorthand to create OP_REPLY message from a single document
 // with provided flags.
 func MakeOpReplyWithFlags(document bsoncore.Document, flags wiremessage.ReplyFlag) *MessageOpReply {
 	return &MessageOpReply{
@@ -122,6 +123,11 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 	numberReturned, rem, ok := wiremessage.ReadReplyNumberReturned(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing number returned %v", payload)
+	}
+	// wiremessage.ReadReplyDocuments has a bug that causes infinite loop if the first 4 bytes are zeros (payload size).
+	// When that happens ReadReplyDocuments keeps creating empty documents until it uses all system memory.
+	if bytes.HasPrefix(rem, []byte{0, 0, 0, 0}) {
+		return nil, trace.BadParameter("malformed OP_REPLY: invalid document size %v", payload)
 	}
 	documents, _, ok := wiremessage.ReadReplyDocuments(rem)
 	if !ok {
