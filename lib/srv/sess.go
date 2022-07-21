@@ -1059,7 +1059,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
-	go s.heartbeat(ctx)
+	go s.heartbeat(scx)
 
 	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
 	// once it is received wait for the io.Copy above to finish, then broadcast
@@ -1067,7 +1067,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	go func() {
 		result, err := s.term.Wait()
 		if err != nil {
-			ctx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
+			scx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1079,8 +1079,8 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		case <-s.doneCh:
 		}
 
-		if ctx.ExecRequest.GetCommand() != "" {
-			emitExecAuditEvent(ctx, ctx.ExecRequest.GetCommand(), err)
+		if scx.ExecRequest.GetCommand() != "" {
+			emitExecAuditEvent(scx, scx.ExecRequest.GetCommand(), err)
 		}
 
 		if result != nil {
