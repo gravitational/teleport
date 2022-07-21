@@ -207,7 +207,7 @@ func (c *Client) OpenChannel(ctx context.Context, name string, data []byte) (*Ch
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		"ssh.NewSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
