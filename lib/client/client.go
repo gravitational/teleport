@@ -2051,8 +2051,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
 			log.WithError(err).Errorf("SOCKS5 handshake failed.")
-			err = conn.Close()
-			if err != nil {
+			if err = conn.Close(); err != nil {
 				log.WithError(err).Errorf("Error closing failed proxy connection.")
 			}
 			continue
@@ -2061,8 +2060,8 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 
 		// Proxy the connection to the remote address.
 		go func() {
-			var err error
-			if err = proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
 				log.WithError(err).Warnf("Failed to proxy connection.")
 				if err = conn.Close(); err != nil {
 					log.WithError(err).Errorf("Error closing failed proxy connection.")
