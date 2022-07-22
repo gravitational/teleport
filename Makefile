@@ -286,8 +286,6 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	cargo install cbindgen
-	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:

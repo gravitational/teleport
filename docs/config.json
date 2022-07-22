@@ -282,6 +282,16 @@
       ]
     },
     {
+      "icon": "connect",
+      "title": "Use Teleport",
+      "entries": [
+        {
+          "title": "Using tsh",
+          "slug": "/use-teleport/tsh/"
+        }
+      ]
+    },
+    {
       "icon": "window",
       "title": "Application Access",
       "entries": [
@@ -358,10 +368,6 @@
             {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Using TSH",
-              "slug": "/server-access/guides/tsh/"
             },
             {
               "title": "OpenSSH Guide",
@@ -1228,8 +1234,8 @@
       "permanent": true
     },
     {
-      "source": "/docs/setup/reference/license/",
-      "destination": "/docs/enterprise/license/",
+      "source": "/setup/reference/license/",
+      "destination": "/enterprise/license/",
       "permanent": true
     },
     {
@@ -1253,6 +1259,11 @@
       "permanent": true
     },
     {
+      "source": "/server-access/guides/tsh/",
+      "destination": "/use-teleport/tsh/",
+      "permanent": true
+    },
+    {
       "source": "/cluster/",
       "destination": "/kubernetes-access/guides/multiple-clusters/",
       "permanent": true
@@ -1263,18 +1274,23 @@
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/agent/",
-      "destination": "/docs/kubernetes-access/getting-started/",
+      "source": "/getting-started/digitalocean/",
+      "destination": "/setup/deployments/digitalocean/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/cluster/",
-      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "source": "/kubernetes-access/getting-started/agent/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
-      "source": "/docs/kubernetes-access/getting-started/local/",
-      "destination": "/docs/getting-started/local-kubernetes/",
+      "source": "/kubernetes-access/getting-started/cluster/",
+      "destination": "/getting-started/kubernetes-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/getting-started/local/",
+      "destination": "/getting-started/local-kubernetes/",
       "permanent": true
     },
     {
