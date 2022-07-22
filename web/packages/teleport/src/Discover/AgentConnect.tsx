@@ -18,7 +18,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, ButtonPrimary, ButtonSecondary, Text, Box } from 'design';
 import * as Icons from 'design/Icon';
-import { State, AgentKind } from './useDiscover';
+import type { AgentStepProps, AgentStepComponent } from './types';
+import type { AgentKind } from './useDiscover';
+import { LoginTrait } from './LoginTrait';
 
 // agentStepTitles defines the titles per steps defined by enum `AgentStep`.
 //
@@ -37,7 +39,7 @@ export const agentStepTitles: string[] = [
 // We use the enum `AgentStep` numerical values to access the list's value,
 // so the list's order and length must be equal to the enum.
 export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
-  app: [GatherReqs, InstallTeleport, RoleConfig],
+  app: [GatherReqs, InstallTeleport, LoginTrait, RoleConfig],
   db: [],
   desktop: [],
   kube: [],
@@ -199,23 +201,3 @@ const AgentButton = styled(Flex)(
    text-align: center;
  `
 );
-
-type AgentStepProps = {
-  // attempt defines fetch attempt states when we make api calls.
-  attempt: State['attempt'];
-  // joinToken defines fields related to a fetched token.
-  joinToken: State['joinToken'];
-  // agentMeta describes fields specific to an agent kind.
-  agentMeta: State['agentMeta'];
-  // updateAgentMeta updates the data specific to agent kinds
-  // as needed as we move through the step.
-  updateAgentMeta: State['updateAgentMeta'];
-  // nextStep increments the `currentStep` to go to the next step.
-  nextStep: State['nextStep'];
-  // prevStep decrements the `currentStep` to go to the prev step.
-  prevStep: State['prevStep'];
-  // createJoinToken makes a fetch api call to get a joinToken.
-  createJoinToken: State['createJoinToken'];
-};
-
-type AgentStepComponent = (props: AgentStepProps) => JSX.Element;

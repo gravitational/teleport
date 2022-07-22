@@ -1,0 +1,580 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`failed 1`] = `
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c2 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+    kind="danger"
+  >
+    some error message
+  </div>
+</div>
+`;
+
+exports[`loaded 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c7:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #651FFF;
+}
+
+.c11:active {
+  background: #354AA4;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #2C3A73;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 8px;
+  width: 300px;
+  border-radius: 4px;
+  border-color: colors.primary.light;
+  display: flex;
+  align-items: center;
+  border: 1px solid #222C59;
+}
+
+.c5 {
+  margin-right: 10px;
+  accent-color: #512FC9;
+}
+
+.c5:hover {
+  cursor: pointer;
+}
+
+.c6 {
+  width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c8 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c10 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c10:after {
+  content: ' ';
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select or Add Linux Principles
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      width="300px"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="root"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="root"
+      >
+        root
+      </label>
+    </div>
+    <div
+      class="c4"
+      width="300px"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="llama"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="llama"
+      >
+        llama
+      </label>
+    </div>
+    <div
+      class="c4"
+      width="300px"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="george_washington_really_long_name_testing"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="george_washington_really_long_name_testing"
+      >
+        george_washington_really_long_name_testing
+      </label>
+    </div>
+    <button
+      class="c7 c8"
+      kind="text"
+    >
+      <span
+        class="c9 icon icon-add c10"
+        color="light"
+      />
+      Add New Principle
+    </button>
+  </div>
+  <button
+    class="c11"
+    kind="primary"
+    width="165px"
+  >
+    Proceed
+  </button>
+  <button
+    class="c12"
+    kind="secondary"
+    width="165px"
+  >
+    Go To Dashboard
+  </button>
+</div>
+`;
+
+exports[`loaded empty state 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+}
+
+.c4 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c4:active {
+  opacity: 0.56;
+}
+
+.c4:hover,
+.c4:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c4:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
+}
+
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c5 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c7 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c7:after {
+  content: ' ';
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select or Add Linux Principles
+  </div>
+  <div
+    class="c3"
+  >
+    <button
+      class="c4 c5"
+      kind="text"
+    >
+      <span
+        class="c6 icon icon-add c7"
+        color="light"
+      />
+      Add New Principle
+    </button>
+  </div>
+  <button
+    class="c8"
+    kind="primary"
+    width="165px"
+  >
+    Proceed
+  </button>
+  <button
+    class="c9"
+    kind="secondary"
+    width="165px"
+  >
+    Go To Dashboard
+  </button>
+</div>
+`;

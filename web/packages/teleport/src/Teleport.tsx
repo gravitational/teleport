@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// eslint-disable-next-line import/named
-import { History } from 'history';
+import type { History } from 'history';
 import React from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 import { Router, Route, Switch } from 'teleport/components/Router';
