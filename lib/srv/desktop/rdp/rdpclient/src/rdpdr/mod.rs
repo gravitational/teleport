@@ -28,8 +28,9 @@ use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
     SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
-    SharedDirectoryListResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse,
-    SharedDirectoryWriteRequest, SharedDirectoryWriteResponse, TdpErrCode,
+    SharedDirectoryListResponse, SharedDirectoryMoveRequest, SharedDirectoryMoveResponse,
+    SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -78,6 +79,7 @@ pub struct Client {
     tdp_sd_list_request: SharedDirectoryListRequestSender,
     tdp_sd_read_request: SharedDirectoryReadRequestSender,
     tdp_sd_write_request: SharedDirectoryWriteRequestSender,
+    tdp_sd_move_request: SharedDirectoryMoveRequestSender,
 
     // CompletionId-indexed maps of handlers for tdp messages coming from the browser client.
     pending_sd_info_resp_handlers: HashMap<u32, SharedDirectoryInfoResponseHandler>,
@@ -86,6 +88,7 @@ pub struct Client {
     pending_sd_list_resp_handlers: HashMap<u32, SharedDirectoryListResponseHandler>,
     pending_sd_read_resp_handlers: HashMap<u32, SharedDirectoryReadResponseHandler>,
     pending_sd_write_resp_handlers: HashMap<u32, SharedDirectoryWriteResponseHandler>,
+    pending_sd_move_resp_handlers: HashMap<u32, SharedDirectoryMoveResponseHandler>,
 }
 
 pub struct Config {
@@ -101,6 +104,7 @@ pub struct Config {
     pub tdp_sd_list_request: SharedDirectoryListRequestSender,
     pub tdp_sd_read_request: SharedDirectoryReadRequestSender,
     pub tdp_sd_write_request: SharedDirectoryWriteRequestSender,
+    pub tdp_sd_move_request: SharedDirectoryMoveRequestSender,
 }
 
 impl Client {
@@ -126,6 +130,7 @@ impl Client {
             tdp_sd_list_request: cfg.tdp_sd_list_request,
             tdp_sd_read_request: cfg.tdp_sd_read_request,
             tdp_sd_write_request: cfg.tdp_sd_write_request,
+            tdp_sd_move_request: cfg.tdp_sd_move_request,
 
             pending_sd_info_resp_handlers: HashMap::new(),
             pending_sd_create_resp_handlers: HashMap::new(),
@@ -133,6 +138,7 @@ impl Client {
             pending_sd_list_resp_handlers: HashMap::new(),
             pending_sd_read_resp_handlers: HashMap::new(),
             pending_sd_write_resp_handlers: HashMap::new(),
+            pending_sd_move_resp_handlers: HashMap::new(),
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
@@ -696,8 +702,6 @@ impl Client {
         let rdp_req = ServerDriveQueryVolumeInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
         if let Some(dir) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            // TODO(isaiah): we should support all of the fs_info_class_lvls that FreeRDP does:
-            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L468
             match rdp_req.fs_info_class_lvl {
                 FileSystemInformationClassLevel::FileFsVolumeInformation => {
                     let buffer = Some(FileSystemInformationClass::FileFsVolumeInformation(
@@ -719,13 +723,35 @@ impl Client {
                         buffer,
                     )
                 }
-                FileSystemInformationClassLevel::FileFsSizeInformation
-                | FileSystemInformationClassLevel::FileFsFullSizeInformation
-                | FileSystemInformationClassLevel::FileFsDeviceInformation => {
-                    return Err(not_implemented_error(&format!(
-                        "support for ServerDriveQueryVolumeInformationRequest with fs_info_class_lvl = {:?} is not implemented",
-                        rdp_req.fs_info_class_lvl
-                    )));
+                FileSystemInformationClassLevel::FileFsFullSizeInformation => {
+                    let buffer = Some(FileSystemInformationClass::FileFsFullSizeInformation(
+                        FileFsFullSizeInformation::new(),
+                    ));
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer,
+                    )
+                }
+                FileSystemInformationClassLevel::FileFsDeviceInformation => {
+                    let buffer = Some(FileSystemInformationClass::FileFsDeviceInformation(
+                        FileFsDeviceInformation::new(),
+                    ));
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer,
+                    )
+                }
+                FileSystemInformationClassLevel::FileFsSizeInformation => {
+                    let buffer = Some(FileSystemInformationClass::FileFsSizeInformation(
+                        FileFsSizeInformation::new(),
+                    ));
+                    self.prep_query_vol_info_response(
+                        &rdp_req.device_io_request,
+                        NTSTATUS::STATUS_SUCCESS,
+                        buffer,
+                    )
                 }
                 _ => {
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L574-L577
@@ -765,6 +791,8 @@ impl Client {
         self.tdp_sd_write(rdp_req)
     }
 
+    // TODO(isaiah): remove macro once FileInformationClassLevel::FileDispositionInformation is implemented
+    #[allow(clippy::wildcard_in_or_patterns)]
     fn process_irp_set_information(
         &mut self,
         device_io_request: DeviceIoRequest,
@@ -773,13 +801,65 @@ impl Client {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
 
         let resp = match rdp_req.file_information_class_level {
+            FileInformationClassLevel::FileRenameInformation => match rdp_req.set_buffer {
+                FileInformationClass::FileRenameInformation(rename_info) => {
+                    // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L709
+                    match rename_info.replace_if_exists {
+                        Boolean::True => {
+                            // If replace_if_exists is true, we can just send a TDP SharedDirectoryMoveRequest,
+                            // which works like the unix `mv` utility (meaning it will automatically replace if exists).
+                            // TODO(isaiah): You need to actually send the SharedDirectoryMoveRequest, you will need
+                            // to get the original request from the file cache.
+                            (self.tdp_sd_move_request)(SharedDirectoryMoveRequest{
+                                completion_id: rdp_req.completion_id,
+                                directory_id: rdp_req.directory_id,
+                                original_path: rdp_req.,
+                                new_path: todo!(),
+                            });
+                            self.pending_sd_move_resp_handlers.insert(
+                            rdp_req.device_io_request.completion_id,
+                            Box::new(
+                                move |cli: &mut Self,
+                                      res: SharedDirectoryMoveResponse|
+                                      -> RdpResult<Vec<Vec<u8>>> {
+                                        if res.err_code == TdpErrCode::Nil {
+                                            ClientDriveSetInformationResponse::new(
+                                                &rdp_req,
+                                                NTSTATUS::STATUS_SUCCESS,
+                                            )
+                                        } else {
+                                            ClientDriveSetInformationResponse::new(
+                                                &rdp_req,
+                                                NTSTATUS::STATUS_UNSUCCESSFUL,
+                                            )
+                                        }
+                                    },
+                                ),
+                            );
+                        }
+                        Boolean::False => {
+                            // TODO(isaiah)
+                            // If replace_if_exists is false, first check that the
+                        },
+                    }
+                }
+                _ => {
+                    return Err(invalid_data_error(
+                        "FileInformationClass does not match FileInformationClassLevel",
+                    ))
+                }
+            },
             FileInformationClassLevel::FileBasicInformation
             | FileInformationClassLevel::FileEndOfFileInformation
-            | FileInformationClassLevel::FileAllocationInformation
-            | FileInformationClassLevel::FileDispositionInformation => {
+            | FileInformationClassLevel::FileAllocationInformation => {
+                // Each of these ask us to change something we don't have control over at the browser
+                // level, so we just do nothing and send back a success.
+                // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L579
                 ClientDriveSetInformationResponse::new(&rdp_req, NTSTATUS::STATUS_SUCCESS)
             }
-            _ => {
+
+            // TODO(isaiah) or TODO(lkozlowski): implement FileDispositionInformation as is the case in FreeRDP.
+            FileInformationClassLevel::FileDispositionInformation | _ => {
                 return Err(not_implemented_error(&format!(
                     "support for ServerDriveSetInformationRequest with fs_info_class_lvl = {:?} is not implemented",
                     rdp_req.file_information_class_level
@@ -2457,7 +2537,7 @@ impl FileAttributeTagInformation {
 
 /// 2.1.8 Boolean
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/8ce7b38c-d3cc-415d-ab39-944000ea77ff
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Copy)]
 #[repr(u8)]
 enum Boolean {
     True = 1,
@@ -2716,10 +2796,11 @@ impl FileDispositionInformation {
 
 // 2.4.37 FileRenameInformation
 // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1d2673a8-8fb9-4868-920a-775ccaa30cf8
-#[derive(Debug)]
+#[derive(Debug, Copy)]
 struct FileRenameInformation {
     replace_if_exists: Boolean,
-    file_name: String,
+    /// file_name is the relative path to the new location of the file
+    file_name: WindowsPath,
 }
 
 impl FileRenameInformation {
@@ -2736,7 +2817,7 @@ impl FileRenameInformation {
         // RootDirectory. For network operations, this value MUST be zero.
         w.write_u8(0)?;
         w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
-        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        w.extend_from_slice(&util::to_unicode(&self.file_name.path, false));
         Ok(w)
     }
 
@@ -2748,7 +2829,7 @@ impl FileRenameInformation {
         let file_name_length = payload.read_u32::<LittleEndian>()?;
         let mut file_name = vec![0u8; file_name_length as usize];
         payload.read_exact(&mut file_name)?;
-        let file_name = util::from_unicode(file_name)?;
+        let file_name = WindowsPath::new(util::from_unicode(file_name)?);
 
         Ok(Self {
             replace_if_exists: Boolean::from_u8(replace_if_exists).unwrap(),
@@ -3755,6 +3836,7 @@ type SharedDirectoryDeleteRequestSender =
 type SharedDirectoryListRequestSender = Box<dyn Fn(SharedDirectoryListRequest) -> RdpResult<()>>;
 type SharedDirectoryReadRequestSender = Box<dyn Fn(SharedDirectoryReadRequest) -> RdpResult<()>>;
 type SharedDirectoryWriteRequestSender = Box<dyn Fn(SharedDirectoryWriteRequest) -> RdpResult<()>>;
+type SharedDirectoryMoveRequestSender = Box<dyn Fn(SharedDirectoryMoveRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
@@ -3768,6 +3850,8 @@ type SharedDirectoryReadResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryReadResponse) -> RdpResult<Vec<Vec<u8>>>>;
 type SharedDirectoryWriteResponseHandler =
     Box<dyn FnOnce(&mut Client, SharedDirectoryWriteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+type SharedDirectoryMoveResponseHandler =
+    Box<dyn FnOnce(&mut Client, SharedDirectoryMoveResponse) -> RdpResult<Vec<Vec<u8>>>>;
 
 #[cfg(test)]
 mod tests {
