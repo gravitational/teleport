@@ -149,6 +149,9 @@ func TestGatewayCRUD(t *testing.T) {
 			gatewayNamesToCreate: []string{"gateway"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
+				oldListener := c.mockTCPPortAllocator.RecentListener()
+
+				require.Equal(t, 0, oldListener.CloseCallCount)
 
 				updatedGateway, err := daemon.SetGatewayLocalPort(oldGateway.URI().String(), "12345")
 				require.NoError(t, err)
@@ -161,12 +164,10 @@ func TestGatewayCRUD(t *testing.T) {
 				require.Equal(t, oldGateway.URI(), foundGateway.URI())
 
 				// Verify that the gateway accepts connections on the new address.
-				//
-				// Ideally we'd also verify that the old address no longer accepts connections but as of now
-				// we have no way of doing this. Any connection to the gateway is immediately dropped
-				// because we use httptest.NewTLSServer as the proxy target and it doesn't speak the
-				// teleport-postgres protocol that the proxy wants to use.
 				gatewaytest.BlockUntilGatewayAcceptsConnections(t, updatedGatewayAddress)
+
+				// Verify that the old listener was closed.
+				require.Equal(t, 1, oldListener.CloseCallCount)
 			},
 		},
 		{
@@ -176,11 +177,15 @@ func TestGatewayCRUD(t *testing.T) {
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
+				listener := c.mockTCPPortAllocator.RecentListener()
+
+				require.Equal(t, 0, listener.CloseCallCount)
 
 				_, err := daemon.SetGatewayLocalPort(gateway.URI().String(), "12345")
 				require.ErrorContains(t, err, "address already in use")
 
 				// Verify that the gateway still accepts connections on the old address.
+				require.Equal(t, 0, listener.CloseCallCount)
 				gatewaytest.BlockUntilGatewayAcceptsConnections(t, gatewayAddress)
 			},
 		},
