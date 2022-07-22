@@ -30,7 +30,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -133,7 +133,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -236,7 +236,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -343,7 +343,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -630,7 +630,257 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/windows.go:33
+################################################
+
+kind: pipeline
+type: exec
+name: push-build-native-windows-amd64
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+clone:
+  disable: true
+concurrency:
+  limit: 1
+steps:
+- name: Check out Teleport
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Env:GOCACHE = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/gocache"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
+    }
+  - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
+  - cd $TeleportSrc
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout $TeleportRev
+  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
+  - cd $WebappsSrc
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $TeleportSrc/build.assets/tooling/cmd/get-webapps-version/main.go)
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Checkout Submodules
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
+  - cd $TeleportSrc
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets
+  - Reset-Git -Workspace $Workspace
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Install Node Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - $NodeVersion = "16.13.2"
+  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Create Phoney tsh
+  commands:
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - New-Item -Path "$TeleportSrc/build/tsh.exe" -Force -ItemType 'File'
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build Teleport Connect
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $NodeVersion = "16.13.2"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - cd $WebappsSrc
+  - yarn install
+  - yarn build-term
+  - yarn package-term
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Clean up workspace (post)
+  commands:
+  - $ErrorActionPreference = 'Continue'
+  - Remove-Item -Recurse -Force -Path "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+  when:
+    status:
+    - success
+    - failure
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/windows.go:33
+################################################
+
+kind: pipeline
+type: exec
+name: build-native-windows-amd64
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: C:/Drone/Workspace/build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+clone:
+  disable: true
+depends_on:
+- build-windows-amd64
+concurrency:
+  limit: 1
+steps:
+- name: Check out Teleport
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Env:GOCACHE = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/gocache"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
+    }
+  - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
+  - cd $TeleportSrc
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout $TeleportRev
+  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
+  - cd $WebappsSrc
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $TeleportSrc/build.assets/tooling/cmd/get-webapps-version/main.go)
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Checkout Submodules
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
+  - cd $TeleportSrc
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets
+  - Reset-Git -Workspace $Workspace
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Install Node Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - $NodeVersion = "16.13.2"
+  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Fetch pre-built tsh
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - $InputsDir="$Workspace/inputs"
+  - $DownloadDir="$Workspace/downloads"
+  - $TshZip="$InputsDir/teleport.zip"
+  - Read-S3Object -File $TshZip -Bucket $Env:AWS_S3_BUCKET -Key "/teleport/tag/$TeleportVersion/teleport-v$TeleportVersion-windows-amd64-bin.zip"
+    | Out-Null
+  - Expand-Archive -Path $TshZip -DestinationPath $InputsDir
+  - New-Item -Path "$TeleportSrc/build" -ItemType 'Directory' | Out-Null
+  - Copy-Item -Path "$InputsDir/teleport/tsh.exe" -Destination "$TeleportSrc/build/tsh.exe"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build Teleport Connect
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $NodeVersion = "16.13.2"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - cd $WebappsSrc
+  - yarn install
+  - yarn build-term
+  - yarn package-term
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Upload Artifacts
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - $OutputsDir="$Workspace/outputs"
+  - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
+  - Get-ChildItem "$WebappsSrc/packages/teleterm/build/release
+  - Copy-Item -Path "$WebappsSrc/packages/teleterm/build/release/Teleport Connect
+    Setup*.exe" -Destination $OutputsDir
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
+  - Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Clean up workspace (post)
+  commands:
+  - $ErrorActionPreference = 'Continue'
+  - Remove-Item -Recurse -Force -Path "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+  when:
+    status:
+    - success
+    - failure
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -733,7 +983,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:105
 ################################################
 
 kind: pipeline
@@ -1321,7 +1571,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -1481,7 +1731,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -1640,7 +1890,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -1797,7 +2047,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -1954,7 +2204,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -2138,7 +2388,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -2319,7 +2569,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -2489,7 +2739,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -2656,7 +2906,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -2813,7 +3063,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -2997,7 +3247,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -3792,7 +4042,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -3949,7 +4199,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -4106,7 +4356,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -4276,7 +4526,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -4446,7 +4696,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -4630,7 +4880,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:465
 ################################################
 
 kind: pipeline
@@ -4814,7 +5064,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:251
 ################################################
 
 kind: pipeline
@@ -6325,6 +6575,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 8ece36469050311a0d0aa6f30e51f0b66e6e60614447b519ee037ecb21b13832
+hmac: 8b1db8093fc55717ad3ac81d690d4fe0363543ea708b7dbf040bf39735a668cb
 
 ...
