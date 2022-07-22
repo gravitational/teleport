@@ -51,7 +51,7 @@ func BlockUntilGatewayAcceptsConnections(t *testing.T, address string) {
 
 type MockTCPPortAllocator struct {
 	PortsInUse    []string
-	mockListeners []MockListener
+	mockListeners []*MockListener
 	CallCount     int
 }
 
@@ -73,7 +73,7 @@ func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Liste
 		return nil, trace.Wrap(err)
 	}
 
-	mockListener := MockListener{
+	mockListener := &MockListener{
 		realListener: listener,
 		fakePort:     localPort,
 	}
@@ -87,7 +87,7 @@ func (m *MockTCPPortAllocator) RecentListener() *MockListener {
 	if len(m.mockListeners) == 0 {
 		return nil
 	}
-	return &m.mockListeners[len(m.mockListeners)-1]
+	return m.mockListeners[len(m.mockListeners)-1]
 }
 
 // MockListener forwards almost all calls to the real listener. When asked about address, it will
@@ -96,15 +96,17 @@ func (m *MockTCPPortAllocator) RecentListener() *MockListener {
 // This lets us make calls to set the gateway port to a specific port without actually occupying
 // those ports on the real system (which would lead to flaky tests otherwise).
 type MockListener struct {
-	realListener net.Listener
-	fakePort     string
+	realListener   net.Listener
+	fakePort       string
+	CloseCallCount int
 }
 
 func (m MockListener) Accept() (net.Conn, error) {
 	return m.realListener.Accept()
 }
 
-func (m MockListener) Close() error {
+func (m *MockListener) Close() error {
+	m.CloseCallCount++
 	return m.realListener.Close()
 }
 
