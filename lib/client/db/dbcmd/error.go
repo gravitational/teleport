@@ -44,6 +44,16 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 				redisBin,
 			)
 		}
+	case mysqlBin, mariadbBin:
+		// Connection failure.
+		if strings.HasPrefix(peakStderr, "ERROR 1105 (HY000):") {
+			return trace.AccessDenied("'%s' could not connect to the database.", cmd.Path)
+		}
+	case postgresBin, cockroachBin:
+		// Connection failure.
+		if strings.HasPrefix(peakStderr, "psql: error: connection to server") {
+			return trace.AccessDenied("'%s' could not connect to the database.", cmd.Path)
+		}
 	}
 
 	return trace.Wrap(err)
