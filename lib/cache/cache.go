@@ -1184,7 +1184,7 @@ func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
 		fetchSpan.End()
 	}()
 
-	var g errgroup.Group
+	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
 	applyfns := make([]applyFn, len(c.collections))
 	i := 0
