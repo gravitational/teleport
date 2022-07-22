@@ -1748,6 +1748,14 @@ message RoleOptions {
 
     // PinSourceIP forces the same client IP for certificate generation and usage
     bool PinSourceIP = 21 [ (gogoproto.jsontag) = "pin_source_ip", (gogoproto.casttype) = "Bool" ];
+
+    // SSHFileCopying indicates whether remote file operations via SCP or SFTP are allowed
+    // over an SSH session. It defaults to true unless explicitly set to false.
+    BoolValue SSHFileCopying = 22 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "ssh_file_copying",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {

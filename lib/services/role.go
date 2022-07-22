@@ -2134,6 +2134,18 @@ func (set RoleSet) PermitX11Forwarding() bool {
 	return false
 }
 
+// CanCopyFiles returns true if the role set has enabled remote file
+// operations via SCP or SFTP. Remote file operations are disabled if
+// one or more of the roles in the set has disabled it.
+func (set RoleSet) CanCopyFiles() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().SSHFileCopying) {
+			return false
+		}
+	}
+	return true
+}
+
 // CertificateFormat returns the most permissive certificate format in a
 // RoleSet.
 func (set RoleSet) CertificateFormat() string {

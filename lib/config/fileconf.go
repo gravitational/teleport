@@ -1022,6 +1022,15 @@ type SSH struct {
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
 
+	// MaybeSSHFileCopying enables or disables remote file operations via SCP/SFTP.
+	// We're using a pointer-to-bool here because the system default is to allow
+	// SCP/SFTP, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the SSHFileCopying method
+	// instead.
+	MaybeSSHFileCopying *bool `yaml:"ssh_file_copying,omitempty"`
+
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
@@ -1036,6 +1045,15 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// SSHFileCopying checks whether the config file allows for file copying
+// via SCP/SFTP.
+func (ssh *SSH) SSHFileCopying() bool {
+	if ssh.MaybeSSHFileCopying == nil {
+		return true
+	}
+	return *ssh.MaybeSSHFileCopying
 }
 
 // X11ServerConfig returns the X11 forwarding server configuration.

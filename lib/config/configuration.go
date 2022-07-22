@@ -1057,6 +1057,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopying()
+
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{

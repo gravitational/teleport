@@ -141,6 +141,7 @@ spec:
     record_session:
       default: best_effort
       desktop: true
+    ssh_file_copying: true
 version: v3
 `
 	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{

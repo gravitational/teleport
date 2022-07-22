@@ -1106,6 +1106,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		PermitPortForwarding:  req.checker.CanPortForward(),
 		PermitAgentForwarding: req.checker.CanForwardAgents(),
 		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
+		PermitFileCopying:     req.checker.CanCopyFiles(),
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
 		ActiveRequests:        req.activeRequests,

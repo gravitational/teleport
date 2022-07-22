@@ -2100,10 +2100,15 @@ func TestGenerateCerts(t *testing.T) {
 		// user should not have X11 forwarding (default setting)
 		require.NotContains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
 
-		// now update role to permit agent and X11 forwarding
+		// user should have file copying (default setting)
+		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitFileCopying)
+
+		// now update role to permit agent and X11 forwarding, as well as
+		// file copying
 		roleOptions := userRole.GetOptions()
 		roleOptions.ForwardAgent = types.NewBool(true)
 		roleOptions.PermitX11Forwarding = types.NewBool(true)
+		roleOptions.SSHFileCopying = types.NewBoolOption(true)
 		userRole.SetOptions(roleOptions)
 		err = srv.Auth().UpsertRole(ctx, userRole)
 		require.NoError(t, err)
@@ -2122,6 +2127,9 @@ func TestGenerateCerts(t *testing.T) {
 
 		// user should get X11 forwarding
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitX11Forwarding)
+
+		// user should get file copying
+		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitFileCopying)
 
 		// apply HTTP Auth to generate user cert:
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{

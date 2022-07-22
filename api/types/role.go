@@ -704,6 +704,9 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
 	}
+	if r.Spec.Options.SSHFileCopying == nil {
+		r.Spec.Options.SSHFileCopying = NewBoolOption(true)
+	}
 
 	switch r.Version {
 	case V3:

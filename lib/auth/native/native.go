@@ -253,6 +253,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	cert.Permissions.Extensions = map[string]string{
 		teleport.CertExtensionPermitPTY: "",
 	}
+	if c.PermitFileCopying {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitFileCopying] = ""
+	}
 	if c.PermitX11Forwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
 	}

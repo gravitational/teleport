@@ -575,6 +575,10 @@ ssh_service:
       # display_offset + 1000 by default
       max_display: 1010
 
+    # Enables/disables remote file operations via SCP/SFTP for this Node. Default
+    # value: true
+    ssh_file_copying: true
+
 # This section configures the 'proxy service'
 proxy_service:
     # Turns 'proxy' role on. Default is 'yes'
