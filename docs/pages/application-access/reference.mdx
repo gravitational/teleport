@@ -53,12 +53,6 @@ app_service:
     - name: "hostname"
       command: ["hostname"]
       period: 1m0s
-    # Addtional options for AWS applications.
-    aws:
-      # Optional map of External IDs by AWS role ARNs.
-      external_id_map:
-        # "arn:aws:iam::1234567890:role/ExampleUser": "external-id-for-ExampleUser"
-        # "*": "external-id-for-all-roles"
 ```
 
 ## Application resource
