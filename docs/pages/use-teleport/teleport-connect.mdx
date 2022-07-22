@@ -14,8 +14,7 @@ Head over to the [Downloads](https://goteleport.com/download/) page to download 
 version of Teleport Connect. As of now, Teleport Connect supports macOS only. Double-click the
 downloaded .dmg file and drag the Teleport Connect icon to the Applications folder.
 
-To upgrade Teleport Connect to a newer version, download the .dmg file with that version and follow
-the installation steps.
+To upgrade Teleport Connect to a newer version, drag the new version to the Applications folder.
 
 ## Interface Overview
 
@@ -34,13 +33,13 @@ The top bar of Teleport Connect consists of:
 
 ## Connecting to an SSH Server
 
-1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
-   can also press `Cmd + T` to achieve the same result.
+1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+   You can also press `Cmd + T` to achieve the same result.
 2. Look for the SSH server you want to connect to and click the Connect button to the right.
-3. Select or enter the login you wish to use and press `Enter`.
+3. Select or enter the SSH user you wish to log in as and press `Enter`.
 4. A new tab will open with a shell session on the chosen server.
 
-Alternatively, you can type `tsh ssh` into the command bar and the autocompletion will guide you to
+Alternatively, you can type `tsh ssh` into the command bar and the autocompletion will help you
 connect to a server.
 
 ## Connecting to a Database
@@ -78,9 +77,9 @@ log out of the cluster first.
 
 ## Restarting and Reconnecting
 
-Teleport Connect remembers the tabs that you had open and will ask you on restart if you want to
-reopen them. If you agree, Connect will restore connections to all resources that were active before
-you closed the app.
+Before closing, Teleport Connect will remember the tabs that you had open at the end of the previous
+session. Next time you open it, Connect will ask you if you want to reopen those tabs. If you agree,
+Connect will restore connections to all resources that were active before you closed the app.
 
 At the moment terminal tabs are restored only as far as the working directory is concerned. Teleport
 Connect doesn't attempt to re-execute commands that were in progress when the app was closed.
@@ -97,7 +96,7 @@ Support/Teleport Connect/app_state.json` will clear all remembered tabs and conn
 ### Submitting an Issue
 
 To submit an issue, click the Submit Feedback button at the bottom right (the speech bubble symbol)
-and follow the Submit a Bug link.
+and follow the *Submit a Bug* link.
 
 Be sure to attach logs which can be found under `~/Library/Application Support/Teleport
 Connect/logs`. The version of the app can be found in the app menu under the About Teleport Connect
