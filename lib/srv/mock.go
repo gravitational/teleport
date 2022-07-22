@@ -76,7 +76,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			Certificate:  cert,
 			// roles do not actually exist in mock backend, just need a non-nil
 			// access checker to avoid panic
-			AccessChecker: services.NewAccessChecker(&services.AccessInfo{RoleSet: roleSet}, clusterName),
+			AccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,

@@ -1973,7 +1973,10 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 
 	// Session joining is not supported in proxy recording mode
 	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
-		return trace.Wrap(err)
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return trace.Wrap(err)
+		}
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
 		return trace.BadParameter("session joining is not supported in proxy recording mode")
 	}
