@@ -385,6 +385,11 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	roles := awsutils.FilterAWSRoles(profile.AWSRolesARNs, app.GetAWSAccountID())
 
 	if cf.AWSRole == "" {
+		if len(roles) == 1 {
+			log.Infof("AWS Role %v is selected by default as it is the only role configured for this AWS app.", roles[0].Display)
+			return roles[0].ARN, nil
+		}
+
 		printAWSRoles(roles)
 		return "", trace.BadParameter("--aws-role flag is required")
 	}
