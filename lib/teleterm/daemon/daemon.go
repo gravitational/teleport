@@ -303,6 +303,17 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	}
 
 	if err := s.removeGateway(oldGateway); err != nil {
+		// If closing the old gateway fails, it still remains in s.gateways so the Electron app will see
+		// it as active. The user will see that the attempt to change the port has failed and will be
+		// able to retry it. That's why we return the error here.
+		//
+		// However, at this point we should close the new gateway as it won't be used.
+		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
+			)
+		}
 		return nil, trace.Wrap(err)
 	}
 
