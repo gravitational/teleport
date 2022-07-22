@@ -198,6 +198,182 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
   </TabItem>
 </Tabs>
 
+## `publicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.public_addr` | ❌ |
+
+`publicAddr` controls the advertised addresses for TLS connections.
+
+When `publicAddr` is not set, the address used is [`clusterName`](#clusterName) on port 443.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  publicAddr: ["loadbalancer.example.com:443"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set publicAddr[0]=loadbalancer.example.com:443
+  ```
+  </TabItem>
+</Tabs>
+
+## `kubePublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.kube_public_addr` | ❌ |
+
+`kubePublicAddr` controls the advertised addresses for the Kubernetes proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `kubePublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3026.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  kubePublicAddr: ["loadbalancer.example.com:3026"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set kubePublicAddr[0]=loadbalancer.example.com:3026
+  ```
+  </TabItem>
+</Tabs>
+
+## `mongoPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.mongo_public_addr` | ❌ |
+
+`mongoPublicAddr` controls the advertised addresses to MongoDB clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separateMongoListener`](#separatePostgresListener) enabled.
+
+When `mongoPublicAddr` is not set, the addresses are inferred from [`clusterName`](#clusterName) is used.
+Default port is 27017.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mongoPublicAddr: ["loadbalancer.example.com:27017"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mongoPublicAddr[0]=loadbalancer.example.com:27017
+  ```
+  </TabItem>
+</Tabs>
+
+## `mysqlPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.mysql_public_addr` | ❌ |
+
+`mysqlPublicAddr` controls the advertised addresses for the MySQL proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `mysqlPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3036.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mysqlPublicAddr: ["loadbalancer.example.com:3036"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mysqlPublicAddr[0]=loadbalancer.example.com:3036
+  ```
+  </TabItem>
+</Tabs>
+
+
+## `postgresPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.postgres_public_addr` | ❌ |
+
+`postgresPublicAddr` controls the advertised addresses to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separatePostgresListener`](#separatePostgresListener) enabled.
+
+When `postgresPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 5432.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  postgresPublicAddr: ["loadbalancer.example.com:5432"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set postgresPublicAddr[0]=loadbalancer.example.com:5432
+  ```
+  </TabItem>
+</Tabs>
+
+## `sshPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.ssh_public_addr` | ❌ |
+
+`sshPublicAddr` controls the advertised addresses for SSH clients. This is also used by the `tsh` client.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+hen `sshPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3023.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  sshPublicAddr: ["loadbalancer.example.com:3023"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sshPublicAddr[0]=loadbalancer.example.com:3023
+  ```
+  </TabItem>
+</Tabs>
+
+## `tunnelPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.tunnel_public_addr` | ❌ |
+
+`tunnelPublicAddr` controls the advertised addresses to trusted clusters or nodes joining via node-tunneling.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `tunnelPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3024.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tunnelPublicAddr: ["loadbalancer.example.com:3024"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set tunnelPublicAddr[0]=loadbalancer.example.com:3024
+  ```
+  </TabItem>
+</Tabs>
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |
