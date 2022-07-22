@@ -216,7 +216,7 @@ running on an EC2 instance with an IAM role.
 You can add optional query parameters to the S3 URL. The Teleport Auth
 Service reads these parameters to configure its interactions with S3:
 
-`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
+`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
@@ -224,6 +224,7 @@ Service reads these parameters to configure its interactions with S3:
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
+- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
 
 ### S3 Server Side Encryption
 
@@ -444,6 +445,14 @@ teleport:
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 
+The optional `GET` parameters shown below control how Teleport interacts with a DynamoDB endpoint.
+
+`dynamodb://events_table_name?region=us-east-1&endpoint=dynamo.example.com&use_fips_endpoint=true`
+
+- `region=us-east-1` - set the Amazon region to use.
+- `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
+- `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
+
 <Admonition
   type="warning"
   title="Access to DynamoDB"
@@ -534,6 +543,28 @@ To enable these options you will need to update the IAM Role for Teleport.
     "Resource": "*"
 }
 ```
+
+### Configuring AWS FIPS endpoints
+
+This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
+
+Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
+If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
+FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
+
+Config option priority is applied in the following order:
+
+- Setting the `use_fips_endpoint` query parameter as shown above
+- Using the `--fips` flag when running Teleport
+- Using the AWS environment variable
+
+<Admonition
+  type="warning"
+  title="A warning about AWS_USE_FIPS_ENDPOINT"
+>
+  Setting this environment variable to true will enable FIPS endpoints for all AWS resource types. Some FIPS endpoints
+  are not supported in certain regions or environments or are only supported in GovCloud.
+</Admonition>
 
 ## GCS
 
@@ -699,4 +730,53 @@ to the Teleport user before starting Teleport.
 $ psql -d postgres
 postgres=# CREATE DATABASE teleport;
 postgres=# GRANT ALL PRIVILEGES ON DATABASE teleport TO dbuser;
+```
+
+## SQLite
+
+The Auth Service uses the SQLite backend when no `type` is specified in the
+storage section in the Teleport configuration file, or when `type` is set to
+`sqlite` or `dir`. The SQLite backend is not designed for high throughput and
+it's not capable of serving the needs of Teleport's High Availability configurations.
+
+If you are planning to use SQLite as your backend, scale your cluster slowly and
+monitor the number of warning messages in the Auth Service's logs that say
+`SLOW TRANSACTION`, as that's a sign that the cluster has outgrown the capabilities
+of the SQLite backend.
+
+As a stopgap measure until it's possible to migrate the cluster to use a
+HA-capable backend, you can configure the SQLite backend to reduce the amount of
+disk synchronization, in exchange for less resilience against system crashes or
+power loss. For an explanation on what the options mean, see [the official
+SQLite docs](https://www.sqlite.org/pragma.html#pragma_synchronous). No matter
+the configuration, we recommend you take regular backups of your cluster state.
+
+To reduce disk synchronization:
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+```
+
+To disable disk synchronization altogether:
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: "OFF"
+```
+
+When running on a filesystem that supports file locks (i.e. a local filesystem,
+not a networked one) it's possible to also configure the SQLite database to use
+Write-Ahead Logging (see [the official docs on WAL
+mode](https://www.sqlite.org/wal.html)) for significantly improved performance
+without sacrificing reliability:
+
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+    journal: WAL
 ```
