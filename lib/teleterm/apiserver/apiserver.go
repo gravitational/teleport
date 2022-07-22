@@ -99,7 +99,7 @@ func newListener(hostAddr string) (net.Listener, error) {
 }
 
 func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
-	// Electron app needs this message to know what port the server has assigned itself
+	// The Electron app needs this message to know which port has been assigned to the server. 
 	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }
 
