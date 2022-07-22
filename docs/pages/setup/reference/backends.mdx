@@ -637,3 +637,52 @@ teleport:
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file  system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+## SQLite
+
+The Auth Service uses the SQLite backend when no `type` is specified in the
+storage section in the Teleport configuration file, or when `type` is set to
+`sqlite` or `dir`. The SQLite backend is not designed for high throughput and
+it's not capable of serving the needs of Teleport's High Availability configurations.
+
+If you are planning to use SQLite as your backend, scale your cluster slowly and
+monitor the number of warning messages in the Auth Service's logs that say
+`SLOW TRANSACTION`, as that's a sign that the cluster has outgrown the capabilities
+of the SQLite backend.
+
+As a stopgap measure until it's possible to migrate the cluster to use a
+HA-capable backend, you can configure the SQLite backend to reduce the amount of
+disk synchronization, in exchange for less resilience against system crashes or
+power loss. For an explanation on what the options mean, see [the official
+SQLite docs](https://www.sqlite.org/pragma.html#pragma_synchronous). No matter
+the configuration, we recommend you take regular backups of your cluster state.
+
+To reduce disk synchronization:
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+```
+
+To disable disk synchronization altogether:
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: "OFF"
+```
+
+Starting from version 8.3.7, when running on a filesystem that supports file locks (i.e. a local filesystem,
+not a networked one) it's possible to also configure the SQLite database to use
+Write-Ahead Logging (see [the official docs on WAL
+mode](https://www.sqlite.org/wal.html)) for significantly improved performance
+without sacrificing reliability:
+
+```yaml
+teleport:
+  storage:
+    type: sqlite
+    sync: NORMAL
+    journal: WAL
+```
