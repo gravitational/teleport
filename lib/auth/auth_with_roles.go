@@ -2079,7 +2079,9 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // desiredAccessInfo inspects the current request to determine which access
 // information (roles, traits, and allowed resource IDs) the requesting user
 // wants to be present on the resulting certificate. This does not attempt to
-// determine if the user is allowed to assume the returned roles.
+// determine if the user is allowed to assume the returned roles. Will set
+// `req.AccessRequests` and potentially shorten `req.Expires` based on the
+// access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
 		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
@@ -2135,7 +2137,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	}, nil
 }
 
-// desiredRolesAndTraitsForUser returns the desired roles and traits for a user
+// desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
 func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	currentIdentity := a.context.Identity.GetIdentity()

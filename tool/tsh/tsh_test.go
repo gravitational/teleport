@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -621,7 +622,7 @@ func TestMakeClient(t *testing.T) {
 // from access and approves them. It accepts a stop channel, which will stop the
 // loop and cancel all active requests when it is closed.
 func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -700,31 +701,33 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	require.NotNil(t, node)
 	sshHostID := node.Config.HostUUID
+
+	sshHostname2 := "test-ssh-server-2"
+	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
+	sshHostID2 := node2.Config.HostUUID
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	require.NotNil(t, nodeNoAccess)
+	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
 
-	hasNode := func(hostName string) func() bool {
+	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
 			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
+			foundCount := 0
 			for _, node := range nodes {
-				if node.GetHostname() == hostName {
-					return true
+				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+					foundCount++
 				}
 			}
-			return false
+			return foundCount == len(hostIDs)
 		}
 	}
 
 	// wait for auth to see nodes
-	require.Eventually(t, hasNode(sshHostname), 10*time.Second, time.Second,
-		sshHostname+" never showed up")
-	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
-		sshHostnameNoAccess+" never showed up")
+	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostIDNoAccess),
+		10*time.Second, 100*time.Millisecond, "nodes never showed up")
 
 	err = Run(ctx, []string{
 		"login",
@@ -810,12 +813,21 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
-	// drop the access request
+	// log out and back in with no access request
 	err = Run(ctx, []string{
-		"--insecure",
-		"request",
-		"drop",
+		"logout",
 	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
 	require.NoError(t, err)
 
 	// ssh with request, by host ID
@@ -824,6 +836,43 @@ func TestSSHAccessRequest(t *testing.T) {
 		"--insecure",
 		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other non-approved node, do not prompt for request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// drop the current access request
+	err = Run(ctx, []string{
+		"--insecure",
+		"request",
+		"drop",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other node with no active request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--disable-access-request",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// successfully ssh to other node, with new request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
