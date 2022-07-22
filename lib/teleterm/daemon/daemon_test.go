@@ -69,7 +69,6 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 }
 
 type gatewayCRUDTestContext struct {
-	t                    *testing.T
 	nameToGateway        map[string]*gateway.Gateway
 	mockGatewayCreator   *mockGatewayCreator
 	mockTCPPortAllocator *gatewaytest.MockTCPPortAllocator
@@ -83,12 +82,12 @@ func TestGatewayCRUD(t *testing.T) {
 		// tcpPortAllocator is an optional field which lets us provide a custom
 		// gatewaytest.MockTCPPortAllocator with some ports already in use.
 		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
-		testFunc         func(*gatewayCRUDTestContext, *Service)
+		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
 			name:                 "create then find",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
 				require.NoError(t, err)
@@ -98,7 +97,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "ListGateways",
 			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
 
@@ -114,7 +113,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "RemoveGateway",
 			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
 				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
 				err := daemon.RemoveGateway(gatewayToRemove.URI().String())
@@ -130,7 +129,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "RestartGateway",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				require.Equal(t, 1, c.mockGatewayCreator.callCount)
 
@@ -148,7 +147,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
 
 				updatedGateway, err := daemon.SetGatewayLocalPort(oldGateway.URI().String(), "12345")
@@ -174,7 +173,7 @@ func TestGatewayCRUD(t *testing.T) {
 			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
 			gatewayNamesToCreate: []string{"gateway"},
 			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
@@ -188,7 +187,7 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(c *gatewayCRUDTestContext, daemon *Service) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				localPort := gateway.LocalPort()
 				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
@@ -241,8 +240,7 @@ func TestGatewayCRUD(t *testing.T) {
 				nameToGateway[gatewayName] = gateway
 			}
 
-			tt.testFunc(&gatewayCRUDTestContext{
-				t:                    t,
+			tt.testFunc(t, &gatewayCRUDTestContext{
 				nameToGateway:        nameToGateway,
 				mockGatewayCreator:   mockGatewayCreator,
 				mockTCPPortAllocator: tt.tcpPortAllocator,
