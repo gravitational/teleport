@@ -410,7 +410,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 // OnStart is the handler for "start" CLI command
 func OnStart(clf config.CommandLineFlags, config *service.Config) error {
-	config.Log.Infof("Teleport has been started with the configuration located at %q", clf.ConfigFile)
+	if clf.ConfigFile != "" {
+		config.Log.Infof("Starting Teleport v%s", teleport.Version)
+	} else {
+		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, clf.ConfigFile)
+	}
 	return service.Run(context.TODO(), *config, nil)
 }
 
@@ -550,15 +554,21 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if configPath != "" {
-		canWriteToDataDir := utils.CanUserWriteTo(flags.DataDir)
-		canWriteToConfDir := utils.CanUserWriteTo(configPath)
+		canWriteToDataDir, err := utils.CanUserWriteTo(flags.DataDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to check data dir permissions: %+v", err)
+		}
+		canWriteToConfDir, err := utils.CanUserWriteTo(filepath.Dir(configPath))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to check config dir permissions: %+v", err)
+		}
 		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
-		fmt.Printf("A Teleport configuration file has been created at %q.\n", configPath)
+		fmt.Printf("\nA Teleport configuration file has been created at %q.\n", configPath)
 		if modules.GetModules().BuildType() != modules.BuildOSS {
-			fmt.Printf("Your license file should be added to %q.\n", flags.LicensePath)
+			fmt.Printf("Add your Teleport license file to %q.\n", flags.LicensePath)
 		}
-		fmt.Printf("To start a teleport node with this configuration file, run:\n\n")
+		fmt.Printf("To start Teleport with this configuration file, run:\n\n")
 		if requiresRoot {
 			fmt.Printf("sudo teleport start --config=%q\n\n", configPath)
 			fmt.Printf("Note that starting a Teleport server with this configuration will require root access as:\n")
@@ -600,7 +610,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 		}
 
 		configDir := path.Dir(outputURI)
-		err := os.MkdirAll(configDir, 0755)
+		err := os.MkdirAll(configDir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if trace.IsAccessDenied(err) {

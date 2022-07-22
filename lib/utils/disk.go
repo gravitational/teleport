@@ -23,12 +23,12 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sys/unix"
 )
 
 // PercentUsed returns percentage of disk space used. The percentage of disk
@@ -49,16 +49,13 @@ func PercentUsed(path string) (float64, error) {
 // the permissions of the user who executed the program as root.
 // This should only be used for string formatting or inconsequential use cases
 // as it's not bullet proof and can report wrong results.
-func CanUserWriteTo(path string) bool {
-	// prevent infinite loops with a maxIterations
-	maxIterations := 10
-	for {
-		if maxIterations == 0 {
-			return false
-		}
-		maxIterations--
+func CanUserWriteTo(path string) (bool, error) {
+	// prevent infinite loops with a max dir depth
+	var fileInfo os.FileInfo
+	var err error
 
-		_, err := os.Stat(path)
+	for i := 0; i < 20; i++ {
+		fileInfo, err = os.Stat(path)
 		if err == nil {
 			break
 		}
@@ -66,16 +63,63 @@ func CanUserWriteTo(path string) bool {
 			path = filepath.Dir(path)
 			continue
 		}
-		return false
+
+		return false, trace.BadParameter("Failed to find path: %+v", err)
+
 	}
 
-	ogUser := os.Getenv("SUDO_USER")
-	isRoot := ogUser != ""
-
-	if !isRoot {
-		return unix.Access(path, unix.W_OK) == nil
+	var UID int
+	var GID int
+	if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
+		UID = int(stat.Uid)
+		GID = int(stat.Gid)
 	}
 
-	cmd := exec.Command("sudo", "-u", ogUser, "test", "-w", path)
-	return cmd.Run() == nil
+	var usr *user.User
+	if ogUser := os.Getenv("SUDO_USER"); ogUser != "" {
+		usr, err = user.Lookup(ogUser)
+		if err != nil {
+			return false, trace.NotFound("Could not determine orginal user: %+v", err)
+		}
+	} else {
+		usr, err = user.Current()
+		if err != nil {
+			return false, trace.NotFound("Could not determine current user: %+v", err)
+		}
+	}
+
+	perm := fileInfo.Mode().Perm()
+
+	// file is owned by the user
+	if strconv.Itoa(UID) == usr.Uid {
+		// file has u+wx permissions
+		if perm&syscall.S_IWUSR != 0 &&
+			perm&syscall.S_IXUSR != 0 {
+			return true, nil
+		}
+	}
+
+	// file and user have a group in common
+	groupIDs, err := usr.GroupIds()
+	if err != nil {
+		return false, trace.NotFound("Could not determine current user group ids: %+v", err)
+	}
+	for _, gid := range groupIDs {
+		if strconv.Itoa(GID) == gid {
+			// file has g+wx permissions
+			if perm&syscall.S_IWGRP != 0 &&
+				perm&syscall.S_IXGRP != 0 {
+				return true, nil
+			}
+			break
+		}
+	}
+
+	// file has o+wx permissions
+	if perm&syscall.S_IWOTH != 0 &&
+		perm&syscall.S_IXOTH != 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
