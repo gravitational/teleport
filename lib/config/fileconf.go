@@ -84,6 +84,9 @@ type FileConfig struct {
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
+
+	//TenantUrl configures the tenant url for which the cluster is serving.
+	TenantUrl string `yaml:"tenant_url,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML

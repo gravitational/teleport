@@ -1037,6 +1037,19 @@ func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuth
 	return &response, nil
 }
 
+// ValidateIdemeumServiceToken invokes the validate idemeum service token on the auth service
+func (c *Client) ValidateIdemeumServiceToken(ctx context.Context, ServiceToken string, tenantUrl string) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("idemeum", "token", "validate"), IdemeumServiceTokenRequest{
+		ServiceToken: ServiceToken,
+		TenantUrl:    tenantUrl})
+	if err != nil {
+		log.Error("Idemeum token validate request failed with error", err)
+		return nil, trace.Wrap(err)
+	}
+	log.Info("Request idemeum/token/validate completed with code: %v \n", out.Code())
+	return services.UnmarshalWebSession(out.Bytes())
+}
+
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
 func (c *Client) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
@@ -1634,6 +1647,9 @@ type IdentityService interface {
 	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
 	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
 	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
+
+	// ValidateIdemeumServiceToken creates  idemeum service user from the validated service token
+	ValidateIdemeumServiceToken(ctx context.Context, ServiceToken string, tenantUrl string) (types.WebSession, error)
 }
 
 // ProvisioningService is a service in control

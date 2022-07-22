@@ -61,6 +61,9 @@ const (
 	// Github means authentication will happen remotely using a Github connector.
 	Github = "github"
 
+	// Idemeum means authentcation will happen remotely using the Idemeum and it passes the identity using session jwt
+	Idemeum = "idemeum"
+
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
 

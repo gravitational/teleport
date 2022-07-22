@@ -443,6 +443,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.TenantUrl != "" {
+		cfg.TenantUrl = fc.TenantUrl
+	}
+
 	return nil
 }
 

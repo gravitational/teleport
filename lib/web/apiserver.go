@@ -190,6 +190,7 @@ type Config struct {
 
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
+	TenantUrl     string
 }
 
 type APIHandler struct {
@@ -311,7 +312,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
-
+	// idemeum session
+	h.POST("/webapi/sessions/idemeum", httplib.MakeHandler(h.createSessionForIdemeumServiceToken))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
@@ -1685,6 +1687,40 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	res.SessionExpires = newSession.GetExpiryTime()
 
 	return res, nil
+}
+
+type IdemeumServiceTokenRequest struct {
+	ServiceToken string `json:"serviceToken"`
+}
+
+func (h *Handler) createSessionForIdemeumServiceToken(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	if h.cfg.TenantUrl == "" {
+		return nil, trace.BadParameter("Failed to issue session: Tenant Url not configured")
+	}
+
+	req := IdemeumServiceTokenRequest{}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.ServiceToken == "" {
+		return nil, trace.BadParameter("Failed to issue session: Missing 'ServiceToken' field")
+	}
+
+	newSession, err := h.auth.ValidateServiceToken(r.Context(), req.ServiceToken, h.cfg.TenantUrl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.auth.newSessionContext(newSession.GetUser(), newSession.GetName())
+	if err != nil {
+		return nil, trace.AccessDenied("need auth")
+	}
+	return newSessionResponse(ctx)
 }
 
 type changeUserAuthenticationRequest struct {

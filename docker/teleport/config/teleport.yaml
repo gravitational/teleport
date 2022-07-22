@@ -29,4 +29,6 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   https_keypairs: []
   acme: {}
+#Tenant url to which teleport cluster is setup
+tenant_url: https://team.idemeumlab.com
 

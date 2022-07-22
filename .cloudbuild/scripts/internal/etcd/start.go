@@ -22,15 +22,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"time"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (

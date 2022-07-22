@@ -188,6 +188,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/github/requests/create", srv.withAuth(srv.createGithubAuthRequest)) // DELETE in 11.0.0
 	srv.POST("/:version/github/requests/validate", srv.withAuth(srv.validateGithubAuthCallback))
 
+	// Idemeum jwt validate
+	srv.POST("/:version/idemeum/token/validate", srv.withAuth(srv.validateIdemeumServiceToken))
+
 	// Audit logs AKA events
 	srv.GET("/:version/events", srv.withAuth(srv.searchEvents))
 	srv.GET("/:version/events/session", srv.withAuth(srv.searchSessionEvents))
@@ -1647,6 +1650,19 @@ func (s *APIServer) processKubeCSR(auth ClientI, w http.ResponseWriter, r *http.
 	}
 
 	return re, nil
+}
+
+type IdemeumServiceTokenRequest struct {
+	ServiceToken string
+	TenantUrl    string
+}
+
+func (s *APIServer) validateIdemeumServiceToken(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req IdemeumServiceTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.ValidateIdemeumServiceToken(r.Context(), req.ServiceToken, req.TenantUrl)
 }
 
 func message(msg string) map[string]interface{} {

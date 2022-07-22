@@ -592,6 +592,13 @@ func (s *sessionCache) AuthenticateWebUser(
 	return s.proxyClient.AuthenticateWebUser(authReq)
 }
 
+func (s *sessionCache) ValidateServiceToken(ctx context.Context, ServiceToken string, TenantUrl string) (types.WebSession, error) {
+	log.Infof("Validating the service token using tenant url %v", TenantUrl)
+
+	//Validate the standard jwt claims
+	return s.proxyClient.ValidateIdemeumServiceToken(ctx, ServiceToken, TenantUrl)
+}
+
 // GetCertificateWithoutOTP returns a new user certificate for the specified request.
 func (s *sessionCache) GetCertificateWithoutOTP(
 	c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,

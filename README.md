@@ -159,7 +159,7 @@ $ make full
 $ sudo mkdir -p -m0700 /var/lib/teleport
 $ sudo chown $USER /var/lib/teleport
 ```
-
+  
 If the build succeeds, the installer will place the binaries in the `build` directory.
 
 **Important:**
