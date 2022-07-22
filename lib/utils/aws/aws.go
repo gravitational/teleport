@@ -273,8 +273,8 @@ func (roles Roles) Sort() {
 	})
 }
 
-// FindByARN finds the role with the provided ARN.
-func (roles Roles) FindByARN(arn string) (Role, bool) {
+// FindRoleByARN finds the role with the provided ARN.
+func (roles Roles) FindRoleByARN(arn string) (Role, bool) {
 	for _, role := range roles {
 		if role.ARN == arn {
 			return role, true
@@ -283,8 +283,8 @@ func (roles Roles) FindByARN(arn string) (Role, bool) {
 	return Role{}, false
 }
 
-// FindByName finds all roles matching the provided name.
-func (roles Roles) FindByName(name string) (result Roles) {
+// FindRolesByName finds all roles matching the provided name.
+func (roles Roles) FindRolesByName(name string) (result Roles) {
 	for _, role := range roles {
 		// Match either full name or the display name.
 		if role.Display == name || role.Name == name {

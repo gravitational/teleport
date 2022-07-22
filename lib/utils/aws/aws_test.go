@@ -160,35 +160,35 @@ func TestRoles(t *testing.T) {
 		require.Equal(t, "test-role", roles[2].Display)
 	})
 
-	t.Run("FindByARN", func(t *testing.T) {
+	t.Run("FindRoleByARN", func(t *testing.T) {
 		t.Run("found", func(t *testing.T) {
 			for _, arn := range arns {
-				role, found := roles.FindByARN(arn)
+				role, found := roles.FindRoleByARN(arn)
 				require.True(t, found)
 				require.Equal(t, role.ARN, arn)
 			}
 		})
 
 		t.Run("not found", func(t *testing.T) {
-			_, found := roles.FindByARN("arn:aws:iam::1234567890:role/unknown")
+			_, found := roles.FindRoleByARN("arn:aws:iam::1234567889:role/unknown")
 			require.False(t, found)
 		})
 	})
 
-	t.Run("FindByName", func(t *testing.T) {
+	t.Run("FindRolesByName", func(t *testing.T) {
 		t.Run("found zero", func(t *testing.T) {
-			rolesWithName := roles.FindByName("unknown")
+			rolesWithName := roles.FindRolesByName("unknown")
 			require.Empty(t, rolesWithName)
 		})
 
 		t.Run("found one", func(t *testing.T) {
-			rolesWithName := roles.FindByName("path/to/EC2FullAccess")
+			rolesWithName := roles.FindRolesByName("path/to/EC2FullAccess")
 			require.Len(t, rolesWithName, 1)
 			require.Equal(t, "path/to/EC2FullAccess", rolesWithName[0].Name)
 		})
 
 		t.Run("found two", func(t *testing.T) {
-			rolesWithName := roles.FindByName("EC2FullAccess")
+			rolesWithName := roles.FindRolesByName("EC2FullAccess")
 			require.Len(t, rolesWithName, 2)
 			require.Equal(t, "EC2FullAccess", rolesWithName[0].Display)
 			require.Equal(t, "EC2FullAccess", rolesWithName[1].Display)

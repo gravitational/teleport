@@ -167,41 +167,18 @@ func TestAppServerSorter(t *testing.T) {
 }
 
 func TestApplicationGetAWSExternalID(t *testing.T) {
-	roleARN := "arn:aws:iam::1234567890:role/test-role"
-
 	tests := []struct {
 		name               string
 		appAWS             *AppAWS
 		expectedExternalID string
 	}{
 		{
-			name: "no AWS config",
+			name: "not configured",
 		},
 		{
-			name:   "no external ID map",
-			appAWS: &AppAWS{},
-		},
-		{
-			name: "role ARN not found",
+			name: "configured",
 			appAWS: &AppAWS{
-				ExternalIDMap: map[string]string{},
-			},
-		},
-		{
-			name: "role ARN found",
-			appAWS: &AppAWS{
-				ExternalIDMap: map[string]string{
-					roleARN: "external-id-for-role",
-				},
-			},
-			expectedExternalID: "external-id-for-role",
-		},
-		{
-			name: "wildcard found",
-			appAWS: &AppAWS{
-				ExternalIDMap: map[string]string{
-					Wildcard: "default-external-id",
-				},
+				ExternalID: "default-external-id",
 			},
 			expectedExternalID: "default-external-id",
 		},
@@ -220,7 +197,7 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID(roleARN))
+			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID())
 		})
 	}
 }

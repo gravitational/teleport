@@ -391,7 +391,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 
 	// Match by role ARN.
 	if awsarn.IsARN(cf.AWSRole) {
-		if role, found := roles.FindByARN(cf.AWSRole); found {
+		if role, found := roles.FindRoleByARN(cf.AWSRole); found {
 			return role.ARN, nil
 		}
 
@@ -400,7 +400,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	}
 
 	// Match by role name.
-	rolesMatched := roles.FindByName(cf.AWSRole)
+	rolesMatched := roles.FindRolesByName(cf.AWSRole)
 	switch len(rolesMatched) {
 	case 1:
 		return rolesMatched[0].ARN, nil
