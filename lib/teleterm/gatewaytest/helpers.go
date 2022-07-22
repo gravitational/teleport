@@ -26,14 +26,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const timeout = time.Second * 5
+
 // BlockUntilGatewayAcceptsConnections attempts to initiate a connection to the gateway on the given
-// address. It will time out if that address doesn't respond after 1 second.
+// address. It will time out if that address doesn't respond in time.
 func BlockUntilGatewayAcceptsConnections(t *testing.T, address string) {
-	conn, err := net.DialTimeout("tcp", address, time.Second*1)
+	conn, err := net.DialTimeout("tcp", address, timeout)
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 
-	err = conn.SetReadDeadline(time.Now().Add(time.Second))
+	err = conn.SetReadDeadline(time.Now().Add(timeout))
 	require.NoError(t, err)
 
 	out := make([]byte, 1024)
