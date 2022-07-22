@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -386,6 +387,8 @@ func isHTTP(in []byte) bool {
 	return false
 }
 
+var proxyHelloSig = []byte(sshutils.ProxyHelloSignature)
+
 // detectProto tries to determine the network protocol used from the first
 // few bytes of a connection.
 func detectProto(r *bufio.Reader) (Protocol, error) {
@@ -409,6 +412,16 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		}
 		if bytes.HasPrefix(in, proxyV2Prefix) {
 			return ProtoProxyV2, nil
+		}
+	case bytes.HasPrefix(in, proxyHelloSig[:8]):
+		// Support for SSH connections opened with the ProxyHelloSignature for
+		// Teleport to Teleport connections.
+		in, err = r.Peek(len(proxyHelloSig))
+		if err != nil {
+			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		}
+		if bytes.HasPrefix(in, proxyHelloSig) {
+			return ProtoSSH, nil
 		}
 	case bytes.HasPrefix(in, sshPrefix):
 		return ProtoSSH, nil

@@ -2980,7 +2980,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 		if cfg.Proxy.EnableProxyProtocol {
 			// Create multiplexer for the purpose of processing proxy protocol
-			m, err := multiplexer.New(multiplexer.Config{
+			mux, err := multiplexer.New(multiplexer.Config{
 				Listener:            l,
 				EnableProxyProtocol: true,
 				ID:                  teleport.Component(teleport.ComponentProxy, "ssh"),
@@ -2988,10 +2988,10 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			listeners.ssh = m.SSH()
+			listeners.ssh = mux.SSH()
 			go func() {
-				if err := m.Serve(); err != nil {
-					m.Entry.WithError(err).Error("Mux encountered err serving")
+				if err := mux.Serve(); err != nil {
+					mux.Entry.WithError(err).Error("Mux encountered err serving")
 				}
 			}()
 		} else {
