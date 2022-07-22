@@ -70,6 +70,7 @@ Create a directory on your Linux machine called `demo-app` and run the following
 command:
 
 ```code
+$ mkdir demo-app
 $ cat<<EOF>>demo-app/index.html
 <!DOCTYPE html>
 <html><head><title>Welcome!</title><head>
@@ -217,10 +218,11 @@ Visit the provided URL in order to create your Teleport user.
 
   The users that you specify in the `logins` flag (e.g., `root`, `ubuntu` and
   `ec2-user` in our examples) must exist on your Linux machine. Otherwise, you
-  will get authentication errors later in this tutorial.
+  will get authentication errors later in this tutorial. 
 
-  If a user does not already exist, you can create it with `adduser <login>`.
-
+  If a user does not already exist, you can create it with `adduser <login>` or 
+  use [Host user creation](../server-access/guides/host-user-creation.mdx)
+  
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
   authenticate as the user that you have currently logged in as.
