@@ -1879,13 +1879,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
-		// There's not a consistent way to merge multiple search-based access
-		// requests, a user may be able to request access to different resources
-		// with different roles which should not overlap.
-		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			// There's not a consistent way to merge multiple resource access
+			// requests, a user may be able to request access to different resources
+			// with different roles which should not overlap.
+			if len(allowedResourceIDs) > 0 {
+				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
+			}
+			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
-		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
