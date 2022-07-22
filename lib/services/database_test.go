@@ -1310,56 +1310,47 @@ func TestGetLabelEngineVersion(t *testing.T) {
 	}
 }
 
-func Test_newDatabase(t *testing.T) {
-	mkDb := func(meta types.Metadata, spec types.DatabaseSpecV3) *types.DatabaseV3 {
-		db, err := types.NewDatabaseV3(meta, spec)
-		require.NoError(t, err)
-		return db
-	}
-
+func Test_setDBName(t *testing.T) {
 	tests := []struct {
-		name   string
-		suffix string
-		meta   types.Metadata
-		spec   types.DatabaseSpecV3
-		want   types.Database
+		name           string
+		meta           types.Metadata
+		firstNamePart  string
+		extraNameParts []string
+		want           types.Metadata
 	}{
 		{
-			name: "no override",
-			meta: types.Metadata{Name: "my-cluster", Labels: map[string]string{}},
-			spec: types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"},
-			want: mkDb(types.Metadata{Name: "my-cluster", Labels: map[string]string{}},
-				types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"}),
+			name:           "no override, one part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "foo"},
 		},
 		{
-			name: "no override, no labels",
-			meta: types.Metadata{Name: "my-cluster"},
-			spec: types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"},
-			want: mkDb(types.Metadata{Name: "my-cluster"},
-				types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"}),
+			name:           "no override, multi part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "foo-bar-baz"},
 		},
 		{
-			name: "override, no suffix",
-			meta: types.Metadata{Name: "my-cluster", Labels: map[string]string{labelTeleportDBName: "ov-clust-2"}},
-			spec: types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"},
-			want: mkDb(types.Metadata{Name: "ov-clust-2", Labels: map[string]string{labelTeleportDBName: "ov-clust-2"}},
-				types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"}),
+			name:           "override, one part name",
+			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "gizmo", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
 		},
 		{
-			name:   "override with suffix",
-			suffix: "-stuff",
-			meta:   types.Metadata{Name: "my-cluster", Labels: map[string]string{labelTeleportDBName: "ov-clust-2"}},
-			spec:   types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"},
-			want: mkDb(types.Metadata{Name: "ov-clust-2-stuff", Labels: map[string]string{labelTeleportDBName: "ov-clust-2"}},
-				types.DatabaseSpecV3{Protocol: defaults.ProtocolRedis, URI: "localhost:6379"}),
+			name:           "override, multi part name",
+			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "gizmo-bar-baz", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newDatabase(tt.suffix, tt.meta, tt.spec)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			result := setDBName(tt.meta, tt.firstNamePart, tt.extraNameParts...)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }

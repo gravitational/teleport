@@ -118,14 +118,20 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
 }
 
-// newDatabase is a wrapper around types.NewDatabaseV3 that additionally applies tag-based name override.
-// For some database types we don't want to override the entire name; if this is desired, caller will pass
-// suffix to be appended to the database name.
-func newDatabase(suffix string, meta types.Metadata, spec types.DatabaseSpecV3) (types.Database, error) {
+// setDBName modifies the types.Metadata argument in place, setting the database name.
+// The name is calculated based on nameParts arguments which are joined by hyphens "-".
+// If the DB name override label is present (labelTeleportDBName), it will replace the *first* name part.
+func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	nameParts := append([]string{firstNamePart}, extraNameParts...)
+
+	// apply override
 	if override, found := meta.Labels[labelTeleportDBName]; found && override != "" {
-		meta.Name = override + suffix
+		nameParts[0] = override
 	}
-	return types.NewDatabaseV3(meta, spec)
+
+	meta.Name = strings.Join(nameParts, "-")
+
+	return meta
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
@@ -139,15 +145,16 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 		return nil, trace.Wrap(err)
 	}
 
-	return newDatabase("", types.Metadata{
-		Name:        aws.StringValue(instance.DBInstanceIdentifier),
-		Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
-		Labels:      labelsFromRDSInstance(instance, metadata),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
+			Labels:      labelsFromRDSInstance(instance, metadata),
+		}, aws.StringValue(instance.DBInstanceIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromRDSCluster creates a database resource from an RDS cluster (Aurora).
@@ -156,15 +163,16 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newDatabase("", types.Metadata{
-		Name:        aws.StringValue(cluster.DBClusterIdentifier),
-		Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
-		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
+			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
+		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
@@ -173,15 +181,16 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newDatabase(fmt.Sprintf("-%v", string(RDSEndpointTypeReader)), types.Metadata{
-		Name:        fmt.Sprintf("%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
-		Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
-		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
+			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
+		}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabasesFromRDSClusterCustomEndpoints creates database resources from RDS cluster custom endpoints (Aurora).
@@ -202,21 +211,22 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			continue
 		}
 
-		database, err := newDatabase(fmt.Sprintf("-%v-%v", string(RDSEndpointTypeCustom), endpointName), types.Metadata{
-			Name:        fmt.Sprintf("%v-%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
-			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
-			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
-		}, types.DatabaseSpecV3{
-			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
-			AWS:      *metadata,
+		database, err := types.NewDatabaseV3(
+			setDBName(types.Metadata{
+				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
+				Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
+			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
+			types.DatabaseSpecV3{
+				Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
+				AWS:      *metadata,
 
-			// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
-			// away. Using primary endpoint instead as server name since it's always available.
-			TLS: types.DatabaseTLS{
-				ServerName: aws.StringValue(cluster.Endpoint),
-			},
-		})
+				// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
+				// away. Using primary endpoint instead as server name since it's always available.
+				TLS: types.DatabaseTLS{
+					ServerName: aws.StringValue(cluster.Endpoint),
+				},
+			})
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -241,15 +251,16 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 		return nil, trace.Wrap(err)
 	}
 
-	return newDatabase("", types.Metadata{
-		Name:        aws.StringValue(cluster.ClusterIdentifier),
-		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
-		Labels:      labelsFromRedshiftCluster(cluster, metadata),
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
+			Labels:      labelsFromRedshiftCluster(cluster, metadata),
+		}, aws.StringValue(cluster.ClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
@@ -293,18 +304,15 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 		return nil, trace.Wrap(err)
 	}
 
-	name := aws.StringValue(cluster.ReplicationGroupId)
-	suffix := ""
+	suffix := make([]string, 0)
 	if endpointType == awsutils.ElastiCacheReaderEndpoint {
-		name = fmt.Sprintf("%s-%s", name, endpointType)
-		suffix = fmt.Sprintf("-%s", endpointType)
+		suffix = []string{endpointType}
 	}
 
-	return newDatabase(suffix, types.Metadata{
-		Name:        name,
+	return types.NewDatabaseV3(setDBName(types.Metadata{
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
 		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-	}, types.DatabaseSpecV3{
+	}, aws.StringValue(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 		AWS:      *metadata,
@@ -321,15 +329,16 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		return nil, trace.Wrap(err)
 	}
 
-	return newDatabase("", types.Metadata{
-		Name:        aws.StringValue(cluster.Name),
-		Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
-		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
+			Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
+		}, aws.StringValue(cluster.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolRedis,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
