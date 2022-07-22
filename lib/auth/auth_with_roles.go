@@ -1576,19 +1576,19 @@ func (a *ServerWithRoles) CheckPassword(user string, password []byte, otpToken s
 	return trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) PreAuthenticatedSignIn(user string) (types.WebSession, error) {
+func (a *ServerWithRoles) PreAuthenticatedSignIn(ctx context.Context, user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.PreAuthenticatedSignIn(user, a.context.Identity.GetIdentity())
+	return a.authServer.PreAuthenticatedSignIn(ctx, user, a.context.Identity.GetIdentity())
 }
 
 // CreateWebSession creates a new web session for the specified user
-func (a *ServerWithRoles) CreateWebSession(user string) (types.WebSession, error) {
+func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateWebSession(user)
+	return a.authServer.CreateWebSession(ctx, user)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
@@ -2219,14 +2219,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	if req.Username == a.context.User.GetName() {
-		// we're going to extend the roles list based on the access requests, so
-		// we ensure that all the current requests are added to the new
-		// certificate (and are checked again)
-		req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// we're going to extend the roles list based on the access requests, so we
+	// ensure that all the current requests are added to the new certificate
+	// (and are checked again)
+	req.AccessRequests = append(req.AccessRequests, a.context.Identity.GetIdentity().ActiveRequests...)
+	if req.Username != a.context.User.GetName() && len(req.AccessRequests) > 0 {
+		return nil, trace.AccessDenied("user %q requested cert for %q and included access requests, this is not supported.", a.context.User.GetName(), req.Username)
 	}
 
 	roles, traits, err := a.determineDesiredRolesAndTraits(req, user)
@@ -2249,12 +2247,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			}
 			roles = append(roles, accessRequest.GetRoles()...)
 
-			if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-				return nil, trace.BadParameter("cannot generate certificate with multiple search-based access requests")
+			if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+				if len(allowedResourceIDs) > 0 {
+					return nil, trace.BadParameter("cannot generate certificate with multiple resource access requests")
+				}
+				allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 			}
-			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
-		// nothing prevents an access-request from including roles already possessed by the
+		// nothing prevents an access request from including roles already possessed by the
 		// user, so we must make sure to trim duplicate roles.
 		roles = apiutils.Deduplicate(roles)
 	}
@@ -2269,12 +2269,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roleSet.RoleNames(),
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
-	}, clusterName.GetClusterName())
+	}, clusterName.GetClusterName(), roleSet)
 
 	switch {
 	case a.hasBuiltinRole(types.RoleAdmin):
