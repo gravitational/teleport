@@ -170,6 +170,15 @@ func fido2Login(
 			opts.UV = libfido2.True
 		}
 		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
+			// Try again if we are getting "unsupported option" and the PIN is set.
+			// Happens inconsistently in some authenticator series (YubiKey 5).
+			// We are relying on the fact that, because the PIN is set, the
+			// authenticator will set the UV bit regardless of it being requested.
+			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
+			opts.UV = libfido2.Default
+			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -205,11 +214,8 @@ func fido2Login(
 		return nil, "", trace.Wrap(err)
 	}
 
-	// Trust the assertion user if present, otherwise go with the requested user.
+	// Trust the assertion user if present, otherwise say nothing.
 	actualUser := assertionResp.User.Name
-	if actualUser == "" {
-		actualUser = user
-	}
 
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
@@ -255,8 +261,12 @@ func pickAssertion(
 	case l == 0:
 		return nil, errors.New("authenticator returned empty assertions")
 
-	// MFA or single credential (no explicit user).
-	case !passwordless, l == 1 && user == "":
+	// MFA or single account.
+	// Note that authenticators don't return the user name, display name or icon
+	// for a single account per RP.
+	// See the authenticatorGetAssertion response, user member (0x04):
+	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorgetassertion-response-structure
+	case !passwordless, l == 1:
 		return assertions[0], nil
 
 	// Explicit user required. First occurrence wins.
@@ -270,14 +280,14 @@ func pickAssertion(
 	}
 
 	// Prepare credentials and show picker.
-	creds := make([]*Credential, len(assertions))
-	credToAssertion := make(map[*Credential]*libfido2.Assertion)
+	creds := make([]*CredentialInfo, len(assertions))
+	credToAssertion := make(map[*CredentialInfo]*libfido2.Assertion)
 	for i, assertion := range assertions {
-		cred := &Credential{
+		cred := &CredentialInfo{
 			ID: assertion.CredentialID,
-			User: User{
-				ID:   assertion.User.ID,
-				Name: assertion.User.Name,
+			User: UserInfo{
+				UserHandle: assertion.User.ID,
+				Name:       assertion.User.Name,
 			},
 		}
 		credToAssertion[cred] = assertion
@@ -518,6 +528,9 @@ type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 // (RegisterPrompt happens to match the minimal interface required.)
 type runPrompt RegisterPrompt
 
+// errNoSuitableDevices is used internally to loop over findSuitableDevices.
+var errNoSuitableDevices = errors.New("no suitable devices found")
+
 func runOnFIDO2Devices(
 	ctx context.Context,
 	prompt runPrompt,
@@ -527,7 +540,7 @@ func runOnFIDO2Devices(
 	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
 	prompted := false
 	devices, err := findSuitableDevices(filter, knownPaths)
-	if err != nil {
+	if errors.Is(err, errNoSuitableDevices) {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
 		prompt.PromptTouch()
@@ -575,11 +588,15 @@ func findSuitableDevicesOrTimeout(
 	defer ticker.Stop()
 
 	for {
-		devices, err := findSuitableDevices(filter, knownPaths)
-		if err == nil {
+		switch devices, err := findSuitableDevices(filter, knownPaths); {
+		case err == nil:
 			return devices, nil
+		case errors.Is(err, errNoSuitableDevices):
+			// OK, carry on until we find a device or timeout.
+		default:
+			// Unexpected, abort.
+			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Debug("FIDO2: Selecting devices")
 
 		select {
 		case <-ctx.Done():
@@ -613,6 +630,11 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		for i := 0; i < infoAttempts; i++ {
 			info, err = dev.Info()
 			switch {
+			case errors.Is(err, libfido2.ErrNotFIDO2):
+				// Use an empty info and carry on.
+				// A FIDO/U2F device has no capabilities beyond MFA
+				// registrations/assertions.
+				info = &libfido2.DeviceInfo{}
 			case errors.Is(err, libfido2.ErrTX):
 				// Happens occasionally, give the device a short grace period and retry.
 				time.Sleep(1 * time.Millisecond)
@@ -639,7 +661,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 
 	l := len(devs)
 	if l == 0 {
-		return nil, errors.New("no suitable devices found")
+		return nil, errNoSuitableDevices
 	}
 	log.Debugf("FIDO2: Found %v suitable devices", l)
 

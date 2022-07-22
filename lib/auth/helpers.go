@@ -357,11 +357,11 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.AuthServer)
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, a.ClusterName)
 	certs, err := a.AuthServer.generateUserCert(certRequest{
 		user:          user,
 		ttl:           ttl,
@@ -415,11 +415,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo, err := services.AccessInfoFromUser(user, authServer)
+		accessInfo := services.AccessInfoFromUser(user)
+		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
@@ -941,7 +941,7 @@ type clt interface {
 
 // CreateRole creates a role without assigning any users. Used in tests.
 func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRoleV3(name, spec)
+	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

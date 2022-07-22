@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1286,10 +1288,10 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	web, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	ns, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	ns, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
@@ -1297,20 +1299,234 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.NotNil(t, ns)
 
 	// Requesting forbidden action for user fails
-	err = web.DeleteUser(context.TODO(), user)
+	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 
-	_, err = web.ExtendWebSession(context.TODO(), WebSessionReq{
+	_, err = web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 	})
 	require.Error(t, err)
+}
+
+func TestWebSessionMultiAccessRequests(t *testing.T) {
+	// Can not use t.Parallel() when changing modules
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ResourceAccessRequests: true,
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	// Upsert a node to request access to
+	node := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "node1",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.ServerSpecV2{},
+	}
+	_, err = clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+	resourceIDs := []types.ResourceID{{
+		Kind:        node.GetKind(),
+		Name:        node.GetName(),
+		ClusterName: "foobar",
+	}}
+
+	// Create user and roles.
+	username := "user"
+	password := []byte("hunter2")
+	baseRoleName := services.RoleNameForUser(username)
+	requestableRoleName := "requestable"
+	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
+	require.NoError(t, err)
+	err = clt.UpsertPassword(username, password)
+	require.NoError(t, err)
+
+	// Set search_as_roles, user can request this role only with a resource
+	// access request.
+	resourceRequestRoleName := "resource-requestable"
+	resourceRequestRole := services.RoleForUser(user)
+	resourceRequestRole.SetName(resourceRequestRoleName)
+	err = clt.UpsertRole(ctx, resourceRequestRole)
+	require.NoError(t, err)
+	baseRole, err := clt.GetRole(ctx, baseRoleName)
+	require.NoError(t, err)
+	baseRole.SetSearchAsRoles([]string{resourceRequestRoleName})
+	err = clt.UpsertRole(ctx, baseRole)
+	require.NoError(t, err)
+
+	// Create approved role request
+	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
+	require.NoError(t, err)
+	roleReq.SetState(types.RequestState_APPROVED)
+	err = clt.CreateAccessRequest(ctx, roleReq)
+	require.NoError(t, err)
+
+	// Create approved resource request
+	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
+	require.NoError(t, err)
+	resourceReq.SetState(types.RequestState_APPROVED)
+	err = clt.CreateAccessRequest(ctx, resourceReq)
+	require.NoError(t, err)
+
+	// Create a web session and client for the user.
+	proxyClient, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	baseWebSession, err := proxyClient.AuthenticateWebUser(AuthenticateUserRequest{
+		Username: username,
+		Pass: &PassCreds{
+			Password: password,
+		},
+	})
+	require.NoError(t, err)
+	proxyClient.Close()
+	baseWebClient, err := tt.server.NewClientFromWebSession(baseWebSession)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, baseWebClient.Close()) })
+
+	expectRolesAndResources := func(t *testing.T, sess types.WebSession, expectRoles []string, expectResources []types.ResourceID) {
+		sshCert, err := sshutils.ParseCertificate(sess.GetPub())
+		require.NoError(t, err)
+		gotRoles, err := services.ExtractRolesFromCert(sshCert)
+		require.NoError(t, err)
+		gotResources, err := services.ExtractAllowedResourcesFromCert(sshCert)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, expectRoles, gotRoles)
+		assert.ElementsMatch(t, expectResources, gotResources)
+	}
+
+	type extendSessionFunc func(*testing.T, *Client, types.WebSession) (*Client, types.WebSession)
+	assumeRequest := func(request types.AccessRequest) extendSessionFunc {
+		return func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+			newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
+				User:            username,
+				PrevSessionID:   sess.GetName(),
+				AccessRequestID: request.GetMetadata().Name,
+			})
+			require.NoError(t, err)
+			newClt, err := tt.server.NewClientFromWebSession(newSess)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, newClt.Close()) })
+			return newClt, newSess
+		}
+	}
+	failToAssumeRequest := func(request types.AccessRequest) extendSessionFunc {
+		return func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+			_, err := clt.ExtendWebSession(ctx, WebSessionReq{
+				User:            username,
+				PrevSessionID:   sess.GetName(),
+				AccessRequestID: request.GetMetadata().Name,
+			})
+			require.Error(t, err)
+			return clt, sess
+		}
+	}
+	switchBack := func(t *testing.T, clt *Client, sess types.WebSession) (*Client, types.WebSession) {
+		newSess, err := clt.ExtendWebSession(ctx, WebSessionReq{
+			User:          username,
+			PrevSessionID: sess.GetName(),
+			Switchback:    true,
+		})
+		require.NoError(t, err)
+		newClt, err := tt.server.NewClientFromWebSession(newSess)
+		require.NoError(t, err)
+		return newClt, newSess
+	}
+
+	for _, tc := range []struct {
+		desc            string
+		steps           []extendSessionFunc
+		expectRoles     []string
+		expectResources []types.ResourceID
+	}{
+		{
+			desc:        "base session",
+			expectRoles: []string{baseRoleName},
+		},
+		{
+			desc: "role request",
+			steps: []extendSessionFunc{
+				assumeRequest(roleReq),
+			},
+			expectRoles: []string{baseRoleName, requestableRoleName},
+		},
+		{
+			desc: "resource request",
+			steps: []extendSessionFunc{
+				assumeRequest(resourceReq),
+			},
+			expectRoles:     []string{baseRoleName, resourceRequestRoleName},
+			expectResources: resourceIDs,
+		},
+		{
+			desc: "role then resource",
+			steps: []extendSessionFunc{
+				assumeRequest(roleReq),
+				assumeRequest(resourceReq),
+			},
+			expectRoles:     []string{baseRoleName, requestableRoleName, resourceRequestRoleName},
+			expectResources: resourceIDs,
+		},
+		{
+			desc: "resource then role",
+			steps: []extendSessionFunc{
+				assumeRequest(resourceReq),
+				assumeRequest(roleReq),
+			},
+			expectRoles:     []string{baseRoleName, requestableRoleName, resourceRequestRoleName},
+			expectResources: resourceIDs,
+		},
+		{
+			desc: "duplicates",
+			steps: []extendSessionFunc{
+				assumeRequest(resourceReq),
+				assumeRequest(roleReq),
+				// Cannot combine resource requests, this also blocks assuming
+				// the same one twice.
+				failToAssumeRequest(resourceReq),
+				assumeRequest(roleReq),
+			},
+			expectRoles:     []string{baseRoleName, requestableRoleName, resourceRequestRoleName},
+			expectResources: resourceIDs,
+		},
+		{
+			desc: "switch back",
+			steps: []extendSessionFunc{
+				assumeRequest(roleReq),
+				assumeRequest(resourceReq),
+				switchBack,
+			},
+			expectRoles: []string{baseRoleName},
+		},
+	} {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			clt, sess := baseWebClient, baseWebSession
+			for _, extendSession := range tc.steps {
+				clt, sess = extendSession(t, clt, sess)
+			}
+			expectRolesAndResources(t, sess, tc.expectRoles, tc.expectResources)
+		})
+	}
 }
 
 func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
@@ -2224,13 +2440,13 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	userClient, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	_, err = userClient.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 }
 

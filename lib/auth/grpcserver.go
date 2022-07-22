@@ -251,7 +251,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 				return trace.BadParameter("stream is not initialized yet, cannot complete")
 			}
 			// do not use stream context to give the auth server finish the upload
-			// even if the stream's context is cancelled
+			// even if the stream's context is canceled
 			err := eventStream.Complete(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
@@ -965,6 +965,10 @@ func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*empty.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := services.ValidateUserRoles(ctx, req, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -982,6 +986,10 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*empty.
 	}
 
 	if err := services.ValidateUser(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2874,6 +2882,18 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 		return nil, trace.Wrap(err)
 	}
 	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// CreateToken creates a token.
+func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &empty.Empty{}, nil
