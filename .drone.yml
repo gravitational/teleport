@@ -1006,6 +1006,87 @@ services:
 volumes:
   - name: dockersock
     temp: {}
+---
+kind: pipeline
+type: kubernetes
+name: teleport-docker-fpm
+
+trigger:
+  cron:
+    - teleport-docker-fpm
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go
+
+clone:
+  disable: false
+
+steps:
+  - name: Wait for docker
+    image: docker
+    commands:
+    - timeout 15s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+
+  - name: Set up Dockerfile
+    image: docker:git
+    environment:
+    commands:
+      - apk --update --no-cache add curl
+      # get Dockerfiles
+      - curl -Ls -o /go/build/Dockerfile-fpm https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-fpm
+
+  - name: Build and push fpm image
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_FPM_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_FPM_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_FPM_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_FPM_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      - export STAGING_FPM_IMAGE_NAME="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/fpm:$CURRENT_DATE"
+      - export PRODUCTION_FPM_IMAGE_NAME="public.ecr.aws/gravitational/fpm"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # Build and push debian image
+      - docker build -t $STAGING_FPM_IMAGE_NAME -f /go/build/Dockerfile-fpm /go/build
+      - docker push $STAGING_FPM_IMAGE_NAME
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $STAGING_FPM_IMAGE_NAME $PRODUCTION_FPM_IMAGE_NAME
+      # Promote to production registry
+      - docker push $PRODUCTION_FPM_IMAGE_NAME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -6091,6 +6172,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfe9263c545d10b26f27dc10b8b5e5b833d0fca4333860550dae28113cef681a
+hmac: 333d58503087a6737fc405d20d89b086c0237b61611fa917ecd85aac36b49ac6
 
 ...
