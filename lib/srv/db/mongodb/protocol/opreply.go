@@ -123,8 +123,6 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing number returned %v", payload)
 	}
-	// wiremessage.ReadReplyDocuments has a bug that causes infinite loop if the first 4 bytes are zeros (payload size).
-	// When that happens ReadReplyDocuments keeps creating empty documents until it uses all system memory.
 	documents, _, ok := ReadReplyDocuments(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing documents %v", payload)
@@ -140,6 +138,11 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 	}, nil
 }
 
+// ReadReplyDocuments reads multiple documents from the source.
+//
+// This function works in the same way as wiremessage.ReadReplyDocuments except, it can handle document of size 0.
+// When a document of size 0 is passed to wiremessage.ReadReplyDocuments, it will keep creating empty documents until
+// it uses all system memory/application crash.
 func ReadReplyDocuments(src []byte) (docs []bsoncore.Document, rem []byte, ok bool) {
 	rem = src
 	for {
