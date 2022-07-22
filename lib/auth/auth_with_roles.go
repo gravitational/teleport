@@ -2274,12 +2274,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roleSet.RoleNames(),
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
-	}, clusterName.GetClusterName())
+	}, clusterName.GetClusterName(), roleSet)
 
 	switch {
 	case a.hasBuiltinRole(types.RoleAdmin):
