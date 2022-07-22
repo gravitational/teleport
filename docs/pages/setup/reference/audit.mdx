@@ -187,3 +187,33 @@ $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 
 </TabItem>
 </Tabs>
+
+### Modes
+
+<Notice type="note">
+Available only for SSH sessions and when Teleport is configured with
+`auth_service.session_recording: node`.
+</Notice>
+
+Modes define how Teleport deals with recording failures, such as a full disk
+error. They are configured per-service at the role level, where the strictest
+value takes precedence. The available modes are:
+
+|Mode|After a recording failure|
+|----|-------------------------|
+|Best effort (`best_effort`)|Disables recording without terminating the session.|
+|Strict (`strict`)|Immediatly terminates the session.|
+
+If the user role doesn’t specify a recording mode, `best_effort` will be used. Here
+is an example of a role configured to use strict mode for SSH sessions:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: ssh-strict
+spec:
+  options:
+    record_session:
+      ssh: strict
+```
