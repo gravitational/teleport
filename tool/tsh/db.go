@@ -598,6 +598,7 @@ func prepareLocalProxyOptions(cf *CLIConf, tc *client.TeleportClient, profile *c
 	// cli arguments directly.
 	localProxyTunnel := cf.LocalProxyTunnel
 	if dbProtocol == defaults.ProtocolSnowflake {
+		// Snowflake only works in the local tunnel mode.
 		localProxyTunnel = true
 	}
 
