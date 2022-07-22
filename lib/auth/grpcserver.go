@@ -4164,8 +4164,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Config: cfg.TLS,
 		}),
 
-		grpc.ChainUnaryInterceptor(cfg.APIConfig.PluginInterceptor.UnaryInterceptor, otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.APIConfig.PluginInterceptor.StreamInterceptor, otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
+		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,

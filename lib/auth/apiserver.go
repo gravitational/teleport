@@ -57,8 +57,6 @@ type APIConfig struct {
 	// MetadataGetter retrieves additional metadata about session uploads.
 	// Will be nil if audit logging is not enabled.
 	MetadataGetter events.UploadMetadataGetter
-	// PluginInterceptor configures custom interceptors for the grpc server.
-	PluginInterceptor plugin.Interceptor
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -68,9 +66,6 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 	}
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax
-	}
-	if a.PluginInterceptor == nil {
-		a.PluginInterceptor = plugin.NewInterceptor()
 	}
 	return nil
 }

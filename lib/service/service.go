@@ -839,10 +839,6 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		cfg.PluginRegistry = plugin.NewRegistry()
 	}
 
-	if cfg.PluginInterceptor == nil {
-		cfg.PluginInterceptor = plugin.NewInterceptor()
-	}
-
 	var cloudLabels labels.Importer
 
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
@@ -1570,14 +1566,13 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	apiConf := &auth.APIConfig{
-		AuthServer:        authServer,
-		SessionService:    sessionService,
-		Authorizer:        authorizer,
-		AuditLog:          process.auditLog,
-		PluginRegistry:    process.PluginRegistry,
-		Emitter:           checkingEmitter,
-		MetadataGetter:    uploadHandler,
-		PluginInterceptor: cfg.PluginInterceptor,
+		AuthServer:     authServer,
+		SessionService: sessionService,
+		Authorizer:     authorizer,
+		AuditLog:       process.auditLog,
+		PluginRegistry: process.PluginRegistry,
+		Emitter:        checkingEmitter,
+		MetadataGetter: uploadHandler,
 	}
 
 	var authCache auth.Cache
