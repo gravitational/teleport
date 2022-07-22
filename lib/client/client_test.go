@@ -26,17 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
-	"github.com/stretchr/testify/require"
-
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestHelperFunctions(t *testing.T) {
