@@ -59,6 +59,8 @@ RUNTIME="$r"
 TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
+DOCKER_IMAGE="public.ecr.aws/gravitational/fpm
+
 # linux package configuration
 LINUX_BINARY_DIR=/usr/local/bin
 LINUX_SYSTEMD_DIR=/lib/systemd/system
@@ -118,13 +120,6 @@ else
     # if arch isn't set for other package types, throw an error
     if [[ "${ARCH}" == "" ]]; then
         usage
-    fi
-
-    # set docker image appropriately
-    if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
-        DOCKER_IMAGE="quay.io/gravitational/fpm-debian:8"
-    elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        DOCKER_IMAGE="quay.io/gravitational/fpm-centos:8"
     fi
 fi
 
@@ -326,7 +321,6 @@ else
 
     # build for other platforms
     docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${EXTRA_DOCKER_OPTIONS} ${DOCKER_IMAGE} \
-        fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
         --name ${RPM_NAME} \
