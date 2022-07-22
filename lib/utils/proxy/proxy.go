@@ -115,7 +115,8 @@ func (d directDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 
 // Dial calls ssh.Dial directly.
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans()))
+
 	if d.tlsRoutingEnabled {
 		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
 		if err != nil {
@@ -132,7 +133,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
-	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans()))
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}
@@ -244,7 +245,7 @@ func (d proxyDial) Dial(ctx context.Context, network string, addr string, config
 	}
 
 	// Do the same as ssh.Dial but pass in proxy connection.
-	c, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr, config)
+	c, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr, config, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

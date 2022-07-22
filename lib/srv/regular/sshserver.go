@@ -1068,6 +1068,18 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 // prior to handling any channels or requests.  Currently this callback's only
 // function is to apply session control restrictions.
 func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
+	ctx, span := s.tracerProvider.Tracer("ssh").Start(
+		oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(ctx)),
+		"ssh.Regular.HandleNewConn",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.RegularServer"),
+			semconv.RPCMethodKey.String("HandleNewChan"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
 	identityContext, err := s.authHandlers.CreateIdentityContext(ctx, ccx.ServerConn)
 	if err != nil {
 		return ctx, trace.Wrap(err)

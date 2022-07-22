@@ -32,7 +32,7 @@ import (
 
 // DialProxy creates a connection to a server via an HTTP Proxy.
 func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
-	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx))
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans()))
 	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
 }
 

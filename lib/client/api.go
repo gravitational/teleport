@@ -1874,6 +1874,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+	span.AddEvent("connected to node", oteltrace.WithAttributes(attribute.String("node", nodeAddrs[0])))
 
 	// If forwarding ports were specified, start port forwarding.
 	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {

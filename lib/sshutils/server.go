@@ -438,6 +438,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
+		s.log.Errorf(err.Error())
 		conn.SetDeadline(time.Time{})
 		return
 	}

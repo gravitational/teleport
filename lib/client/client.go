@@ -1794,7 +1794,7 @@ func newClientConn(ctx context.Context,
 
 	respCh := make(chan response, 1)
 	go func() {
-		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		conn, chans, reqs, err := tracessh.NewClientConn(ctx, conn, nodeAddress, config, false)
 		respCh <- response{conn, chans, reqs, err}
 	}()
 

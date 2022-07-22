@@ -21,17 +21,17 @@ import (
 	"net"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -88,30 +88,53 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig) (
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config)
+	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, true)
 	if err != nil {
 		return nil, err
 	}
 	return NewClient(c, chans, reqs), nil
 }
 
+func tracedHostKeyCallback(ctx context.Context, cb ssh.HostKeyCallback) ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		span := oteltrace.SpanFromContext(ctx)
+		span.AddEvent("started HostKeyCallback")
+		defer func() {
+			span.AddEvent("completed HostKeyCallback")
+		}()
+
+		if cb == nil {
+			return nil
+		}
+
+		return cb(hostname, remote, key)
+	}
+}
+
 // NewClientConn creates a new SSH client connection that is passed tracing context so that spans may be correlated
 // properly over the ssh connection.
-func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-	hp := &sshutils.HandshakePayload{
-		TracingContext: tracing.PropagationContextFromContext(ctx),
-	}
+func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, writePayload bool) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("ssh").Start(ctx, "ssh/NewClientConn")
+	defer span.End()
 
-	if len(hp.TracingContext) > 0 {
-		payloadJSON, err := json.Marshal(hp)
-		if err == nil {
-			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
-			_, err = conn.Write([]byte(payload))
-			if err != nil {
-				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
+	if writePayload {
+		hp := &sshutils.HandshakePayload{
+			TracingContext: tracing.PropagationContextFromContext(ctx),
+		}
+
+		if len(hp.TracingContext) > 0 {
+			payloadJSON, err := json.Marshal(hp)
+			if err == nil {
+				payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+				_, err = conn.Write([]byte(payload))
+				if err != nil {
+					log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
+				}
 			}
 		}
 	}
+
+	config.HostKeyCallback = tracedHostKeyCallback(ctx, config.HostKeyCallback)
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
@@ -128,7 +151,7 @@ func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, 
 			return nil, trace.Wrap(err)
 		}
 	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config)
+	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, true)
 	if err != nil {
 		return nil, err
 	}

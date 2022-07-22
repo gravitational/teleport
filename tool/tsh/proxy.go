@@ -263,7 +263,7 @@ func proxySubsystemName(userHost, cluster string) string {
 }
 
 func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
-	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg)
+	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

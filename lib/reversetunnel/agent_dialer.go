@@ -76,7 +76,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: callback,
 			Timeout:         apidefaults.DefaultDialTimeout,
-		})
+		}, true)
 		if err != nil {
 			d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
 			continue
