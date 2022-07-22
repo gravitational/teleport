@@ -127,3 +127,33 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
 }
+
+// getConnectionDiagnostic returns a connection diagnostic connection diagnostics.
+func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nameParam := p.ByName("name")
+	connectionDiagnostic, err := clt.GetConnectionDiagnostic(r.Context(), nameParam)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resLabels := connectionDiagnostic.GetAllLabels()
+	uiLabels := make([]ui.Label, len(resLabels))
+	for labelName, labelValue := range resLabels {
+		uiLabels = append(uiLabels, ui.Label{
+			Name:  labelName,
+			Value: labelValue,
+		})
+	}
+
+	return ui.ConnectionDiagnostic{
+		Name:    connectionDiagnostic.GetName(),
+		Labels:  uiLabels,
+		Success: connectionDiagnostic.IsSuccess(),
+		Message: connectionDiagnostic.GetMessage(),
+	}, nil
+}
