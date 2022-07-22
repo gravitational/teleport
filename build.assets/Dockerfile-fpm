@@ -1,0 +1,29 @@
+FROM ubuntu:18.04 as minimal-base
+# Runtime deps. Build deps go in the build or test containers
+WORKDIR /src
+
+RUN apt-get update \
+	&& apt-get -y dist-upgrade \
+	&& apt-get install --no-install-recommends -y \
+	ruby rubygems rubygems-integration \
+	bsdtar \
+	cpio \
+	debsigs \
+	pacman \
+	rpm  \
+	squashfs-tools \
+	xz-utils \
+	zip \
+    gcc \
+    make \
+    ruby-dev \
+    libc-dev \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& apt-get clean
+RUN adduser fpm 
+
+ENV GEM_PATH /fpm
+ENV PATH "/fpm/bin:${PATH}"
+RUN gem install --no-ri --no-rdoc --install-dir=/fpm fpm
+
+ENTRYPOINT ["/fpm/bin/fpm"]
