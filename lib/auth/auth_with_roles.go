@@ -1920,13 +1920,23 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-
+	heartbeat, err := a.authServer.GetLicenseCheckResult(ctx)
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+	warnings := make([]string, 0)
+	for _, notification := range heartbeat.Spec.Notifications {
+		if notification.Type == constants.LicenseExpiredType {
+			warnings = append(warnings, notification.Text)
+		}
+	}
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LicenseWarnings: warnings,
 	}, nil
 }
 

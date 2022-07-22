@@ -7150,7 +7150,7 @@ var xxx_messageInfo_DatabaseSessionMalformedPacket proto.InternalMessageInfo
 
 // UpgradeWindowStartMetadata contains common upgrade window information.
 type UpgradeWindowStartMetadata struct {
-	// Window is the upgrade window time.
+	// UpgradeWindowStart is the upgrade window time.
 	UpgradeWindowStart   string   `protobuf:"bytes,1,opt,name=UpgradeWindowStart,proto3" json:"upgrade_window_start,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

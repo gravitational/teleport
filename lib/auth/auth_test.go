@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
@@ -2034,4 +2035,40 @@ func TestCAGeneration(t *testing.T) {
 				"test CA and production CA have different JWT keys for type %v", caType)
 		})
 	}
+}
+
+type mockEnforcer struct {
+	services.Enforcer
+	notifications []reporting.Notification
+}
+
+func (m mockEnforcer) GetLicenseCheckResult(ctx context.Context) (*reporting.Heartbeat, error) {
+	return &reporting.Heartbeat{
+		Spec: reporting.HeartbeatSpec{
+			Notifications: m.notifications,
+		},
+	}, nil
+}
+
+func TestEnforcerGetLicenseCheckResult(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newAuthSuite(t)
+
+	expected := []reporting.Notification{
+		{
+			Type:     "test",
+			Severity: "warning",
+			Text:     "test warning",
+			HTML:     "test warning",
+		},
+	}
+
+	s.a.SetEnforcer(&mockEnforcer{
+		notifications: expected,
+	})
+
+	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expected, heartbeat.Spec.Notifications)
 }

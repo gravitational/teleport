@@ -134,6 +134,9 @@ const (
 
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
+
+	// LicenseExpiredType is defines a license expired notification
+	LicenseExpiredType = "licenseExpired"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
