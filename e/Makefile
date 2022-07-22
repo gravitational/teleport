@@ -22,8 +22,9 @@ CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
 endif
 endif
 
-DOCKER_IMAGE_ENT ?= quay.io/gravitational/teleport-ent
-DOCKER_IMAGE_ENT_CI ?= quay.io/gravitational/teleport-ent-ci
+DOCKER_IMAGE_ENT_QUAY ?= quay.io/gravitational/teleport-ent
+DOCKER_IMAGE_ENT_ECR ?= public.ecr.aws/gravitational/teleport-ent
+DOCKER_IMAGE_ENT_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -292,7 +293,7 @@ docker-binaries: clean
 .PHONY: image
 image: clean docker-binaries
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)
 
 .PHONY:docker-binaries-fips
 docker-binaries-fips: clean
@@ -303,15 +304,20 @@ docker-binaries-fips: clean
 image-fips: docker-binaries-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT):$(VERSION)-fips
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)-fips
 
 .PHONY: publish
 publish:
-	docker push $(DOCKER_IMAGE_ENT):$(VERSION)
+	docker push $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)
 
 .PHONY: publish-fips
 publish-fips:
-	docker push $(DOCKER_IMAGE_ENT):$(VERSION)-fips
+	docker push $(DOCKER_IMAGE_ENT_QUAY):$(VERSION)-fips
+
+.PHONY: publish-ecr
+publish-ecr: 
+	docker tag $(DOCKER_IMAGE_ENT_QUAY) $(DOCKER_IMAGE_ENT_ECR)
+	docker push $(DOCKER_IMAGE_ENT_ECR):$(VERSION)
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -322,21 +328,21 @@ publish-fips:
 image-ci: clean docker-binaries
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)
 
 .PHONY: image-fips-ci
 image-fips-ci: docker-binaries-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_CI):$(VERSION)-fips
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)-fips
 
 .PHONY: publish-ci
 publish-ci:
-	docker push $(DOCKER_IMAGE_ENT_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)
 
 .PHONY: publish-fips-ci
 publish-fips-ci:
-	docker push $(DOCKER_IMAGE_ENT_CI):$(VERSION)-fips
+	docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)-fips
 
 RUNTIME_SECTION ?=
 TARBALL_PATH_SECTION ?=
