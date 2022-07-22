@@ -305,64 +305,77 @@ Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c4
 
 ## Step 5/7. Set values to configure the cluster
 
-There are two different ways to configure the `teleport-cluster` Helm chart to use `aws` mode - using a `values.yaml` file, or using `--set`
-on the command line.
+<ScopedBlock scope="enterprise">
 
-We recommend using a `values.yaml` file as it can be easily kept in source control.
+Before you can install Teleport in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
 
-The `--set` CLI method is more appropriate for quick test deployments.
+Download your Teleport Enterprise license from the
+[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
+a file called `license.pem`.
 
-<Tabs>
-  <TabItem label="Using values.yaml">
-  Create an `aws-values.yaml` file and write the values you've chosen above to it:
+Create a secret from your license file. Teleport will automatically discover
+this secret as long as your file is named `license.pem`.
 
-  ```yaml
-  chartMode: aws
-  clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
-  aws:
-    region: us-west-2                               # AWS region
-    backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
-    auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
-    auditLogMirrorToStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-    sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
-    backups: true                                   # Whether or not to turn on DynamoDB backups
-  highAvailability:
-    replicaCount: 2                                 # Number of replicas to configure
-    certManager:
-      enabled: true                                 # Enable cert-manager support to get TLS certificates
-      issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
-  ```
+```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
 
-  Install the chart with the values from your `aws-values.yaml` file using this command:
+</ScopedBlock>
 
-  ```code
-  $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
-    --namespace teleport \
-    -f aws-values.yaml
-  ```
+Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
+a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-  </TabItem>
-  <TabItem label="Using --set via CLI">
-  Install the chart using this command, replacing the placeholders with the values you've chosen above:
+<ScopedBlock scope={["oss", "cloud"]}>
 
-  ```code
-  $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
-    --namespace teleport \
-    --set chartMode=aws \
-    --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below.` \
-    --set aws.region=us-west-2                                            `# AWS region` \
-    --set aws.backendTable=teleport-helm-backend                          `# DynamoDB table to use for the Teleport backend` \
-    --set aws.backups=true                                                `# Whether or not to turn on DynamoDB backups` \
-    --set aws.auditLogTable=teleport-helm-events                          `# DynamoDB table to use for the Teleport audit log (must be different to the backend table)` \
-    --set aws.sessionRecordingBucket=teleport-helm-sessions               `# S3 bucket to use for Teleport session recordings` \
-    --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \
-    --set highAvailability.certManager.enabled=true                       `# Enable cert-manager support to get TLS certificates` \
-    --set highAvailability.certManager.issuerName=letsencrypt-production  `# Name of the cert-manager Issuer to use`
-  ```
-  </TabItem>
-</Tabs>
+```yaml
+chartMode: aws
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+aws:
+  region: us-west-2                               # AWS region
+  backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+  backups: true                                   # Whether or not to turn on DynamoDB backups
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+  certManager:
+    enabled: true                                 # Enable cert-manager support to get TLS certificates
+    issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```yaml
+chartMode: aws
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+aws:
+  region: us-west-2                               # AWS region
+  backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+  backups: true                                   # Whether or not to turn on DynamoDB backups
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+  certManager:
+    enabled: true                                 # Enable cert-manager support to get TLS certificates
+    issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+```
+
+</ScopedBlock>
+
+Install the chart with the values from your `aws-values.yaml` file using this command:
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --create-namespace \
+  --namespace teleport \
+  -f aws-values.yaml
+```
 
 <Admonition type="note">
   You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. You should use the fully-qualified domain name that you'll use for external access to your Teleport cluster.

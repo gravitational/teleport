@@ -273,6 +273,24 @@ $ kubectl --namespace teleport create -f gcp-issuer.yaml
 
 ## Step 5/7. Set values to configure the cluster
 
+<ScopedBlock scope="enterprise">
+
+Before you can install Teleport in your Kubernetes cluster, you will need to
+create a secret that contains your Teleport license information.
+
+Download your Teleport Enterprise license from the
+[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
+a file called `license.pem`.
+
+Create a secret from your license file. Teleport will automatically discover
+this secret as long as your file is named `license.pem`.
+
+```code
+$ kubectl -n teleport create secret generic license --from-file=license.pem
+```
+
+</ScopedBlock>
+
 <Admonition type="note">
   If you are installing Teleport in a brand new GCP project, make sure you have enabled the
   [Cloud Firestore API](https://console.cloud.google.com/apis/api/firestore.googleapis.com/overview)
@@ -281,62 +299,58 @@ $ kubectl --namespace teleport create -f gcp-issuer.yaml
   in your project before continuing.
 </Admonition>
 
-There are two different ways to configure the `teleport-cluster` Helm chart to use `gcp` mode - using a `values.yaml` file or using `--set`
-on the command line.
+Next, configure the `teleport-cluster` Helm chart to use the `gcp` mode. Create a
+file called `gcp-values.yaml` file and write the values you've chosen above to
+it:
 
-We recommend using a `values.yaml` file as it can be easily kept in source control.
+<ScopedBlock scope={["oss", "cloud"]}>
 
-The `--set` CLI method is more appropriate for quick test deployments.
+```yaml
+chartMode: gcp
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below
+gcp:
+  projectId: gcpproj-123456                       # Google Cloud project ID
+  backendTable: teleport-helm-backend             # Firestore collection to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # Firestore collection to use for the Teleport audit log (must be different to the backend collection)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+  certManager:
+    enabled: true                                 # Enable cert-manager support to get TLS certificates
+    issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+```
 
-<Tabs>
-  <TabItem label="Using values.yaml">
-  Create a `gcp-values.yaml` file and write the values you've chosen above to it:
+</ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
 
-  ```yaml
-  chartMode: gcp
-  clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below
-  gcp:
-    projectId: gcpproj-123456                       # Google Cloud project ID
-    backendTable: teleport-helm-backend             # Firestore collection to use for the Teleport backend
-    auditLogTable: teleport-helm-events             # Firestore collection to use for the Teleport audit log (must be different to the backend collection)
-    auditLogMirrorToStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-    sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
-  highAvailability:
-    replicaCount: 2                                 # Number of replicas to configure
-    certManager:
-      enabled: true                                 # Enable cert-manager support to get TLS certificates
-      issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
-  ```
+```yaml
+chartMode: gcp
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below
+gcp:
+  projectId: gcpproj-123456                       # Google Cloud project ID
+  backendTable: teleport-helm-backend             # Firestore collection to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # Firestore collection to use for the Teleport audit log (must be different to the backend collection)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # Google Cloud Storage bucket to use for Teleport session recordings
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+  certManager:
+    enabled: true                                 # Enable cert-manager support to get TLS certificates
+    issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+```
 
-  Install the chart with the values from your `gcp-values.yaml` file using this command:
+</ScopedBlock>
 
-  ```code
-  $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
-    --namespace teleport \
-    -f gcp-values.yaml
-  ```
+Install the chart with the values from your `gcp-values.yaml` file using this command:
 
-  </TabItem>
-  <TabItem label="Using --set via CLI">
-  Install the chart using this command, replacing the placeholders with the values you've chosen above:
-
-  ```code
-  $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
-    --namespace teleport \
-    --set chartMode=gcp \
-    --set clusterName=teleport.example.com                                `# Name of your cluster. Use the FQDN you intend to configure in DNS below` \
-    --set gcp.projectId=gcpproj-123456                                    `# GCP project ID` \
-    --set gcp.backendTable=teleport-helm-backend                          `# Firestore collection to use for the Teleport backend` \
-    --set gcp.auditLogTable=teleport-helm-events                          `# Firestore collection to use for the Teleport audit log (must be different to the backend collection)` \
-    --set gcp.sessionRecordingBucket=teleport-helm-sessions               `# Google Cloud storage bucket to use for Teleport session recordings` \
-    --set highAvailability.replicaCount=2                                 `# Number of replicas to configure` \
-    --set highAvailability.certManager.enabled=true                       `# Enable cert-manager support to get TLS certificates` \
-    --set highAvailability.certManager.issuerName=letsencrypt-production  `# Name of the cert-manager Issuer to use`
-  ```
-  </TabItem>
-</Tabs>
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --create-namespace \
+  --namespace teleport \
+  -f gcp-values.yaml
+```
 
 <Admonition type="note">
   You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. We recommend using the fully-qualified domain name that you'll use for external access to your Teleport cluster.

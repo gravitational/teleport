@@ -61,11 +61,12 @@ Let's start with a single-pod Teleport using persistent volume as a backend.
     # Create a namespace for a deployment.
     $ kubectl create namespace teleport-cluster-ent
 
-    # Set kubectl context to the namespace to save some typing
+    # Set the kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
 
-    # Get a license from Teleport and create a secret "license" in the namespace teleport-cluster-ent
-    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license.pem
+    # Get a license from Teleport and create a secret called "license" in the
+    # namespace you created
+    $ kubectl create secret generic license --from-file=license.pem
 
     # Install Teleport
     $ helm install teleport-cluster teleport/teleport-cluster --namespace=teleport-cluster-ent \
