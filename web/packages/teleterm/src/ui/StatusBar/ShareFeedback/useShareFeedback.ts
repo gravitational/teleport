@@ -27,7 +27,10 @@ export function useShareFeedback() {
     preValidateForm();
 
     const formData = new FormData();
-    formData.set('OS', ctx.mainProcessClient.getRuntimeSettings().platform);
+    const { platform } = ctx.mainProcessClient.getRuntimeSettings();
+    // The `c-` prefix is added on purpose to differentiate feedback forms sent from Connect.
+    const os = `c-${platform}`;
+    formData.set('OS', os);
     formData.set('email', formValues.email);
     formData.set('company', formValues.company);
     formData.set('use-case', formValues.feedback);
