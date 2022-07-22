@@ -34,6 +34,9 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		License.GetSupportsDatabaseAccess,
 		License.GetSupportsDesktopAccess,
 		License.GetSupportsModeratedSessions,
+		License.GetSupportsMachineID,
+		License.GetSupportsResourceAccessRequests,
+		License.GetTrial,
 	}
 
 	// unsetFields returns a list of license fields getters minus
@@ -96,6 +99,24 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			getter:      License.GetSupportsModeratedSessions,
 			unsetFields: unsetFields(License.GetSupportsModeratedSessions),
 		},
+		{
+			name:        "Set Machine ID Support",
+			setter:      License.SetSupportsMachineID,
+			getter:      License.GetSupportsMachineID,
+			unsetFields: unsetFields(License.GetSupportsMachineID),
+		},
+		{
+			name:        "Set Resource Access Request Support",
+			setter:      License.SetSupportsResourceAccessRequests,
+			getter:      License.GetSupportsResourceAccessRequests,
+			unsetFields: unsetFields(License.GetSupportsResourceAccessRequests),
+		},
+		{
+			name:        "Set Trial Support",
+			setter:      License.SetTrial,
+			getter:      License.GetTrial,
+			unsetFields: unsetFields(License.GetTrial),
+		},
 	}
 
 	for _, tc := range tt {
@@ -123,6 +144,9 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsDatabaseAccess()))
 	require.False(t, bool(license.GetSupportsDesktopAccess()))
 	require.False(t, bool(license.GetSupportsModeratedSessions()))
+	require.False(t, bool(license.GetSupportsMachineID()))
+	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
+	require.False(t, bool(license.GetTrial()))
 }
 
 func fnName(i interface{}) string {
