@@ -1353,8 +1353,8 @@ type Rewrite struct {
 
 // AppAWS contains additional options for AWS applications.
 type AppAWS struct {
-	// ExternalIDMap is a map of External IDs by AWS role ARNs.
-	ExternalIDMap map[string]string `yaml:"external_id_map,omitempty"`
+	// ExternalID is the AWS External ID used when assuming roles in this app.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

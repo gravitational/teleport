@@ -603,9 +603,8 @@ message CommandLabelV2 {
 
 // AppAWS contains additional options for AWS applications.
 message AppAWS {
-    // ExternalIDMap is a map of External IDs by AWS role ARNs.
-    // Currently only used for local config.
-    map<string, string> ExternalIDMap = 1 [ (gogoproto.jsontag) = "-" ];
+    // ExternalID is the AWS External ID used when assuming roles in this app.
+    string ExternalID = 1 [ (gogoproto.jsontag) = "external_id,omitempty" ];
 }
 
 // PrivateKeyType is the storage type of a private key.

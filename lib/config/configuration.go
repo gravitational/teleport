@@ -1281,7 +1281,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		if application.AWS != nil {
 			app.AWS = &service.AppAWS{
-				ExternalIDMap: application.AWS.ExternalIDMap,
+				ExternalID: application.AWS.ExternalID,
 			}
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {

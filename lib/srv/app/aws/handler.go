@@ -217,7 +217,7 @@ func getAWSCredentialsFromSTSAPI(provider client.ConfigProvider, sessionCtx *com
 			cred.RoleSessionName = sessionCtx.Identity.Username
 			cred.Expiry.SetExpiration(sessionCtx.Identity.Expires, 0)
 
-			if externalID := sessionCtx.App.GetAWSExternalID(sessionCtx.Identity.RouteToApp.AWSRoleARN); externalID != "" {
+			if externalID := sessionCtx.App.GetAWSExternalID(); externalID != "" {
 				cred.ExternalID = aws.String(externalID)
 			}
 		},

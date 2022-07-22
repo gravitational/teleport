@@ -639,7 +639,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 			Identity:   identity,
 			TargetURL:  app.GetURI(),
 			Issuer:     app.GetPublicAddr(),
-			ExternalID: app.GetAWSExternalID(identity.RouteToApp.AWSRoleARN),
+			ExternalID: app.GetAWSExternalID(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
