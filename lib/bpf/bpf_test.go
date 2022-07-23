@@ -32,43 +32,36 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+
+	"github.com/aquasecurity/libbpfgo"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-
-	"github.com/google/uuid"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type Suite struct{}
-
-var _ = check.Suite(&Suite{})
-
-func TestRootBPF(t *testing.T) {
-	if !bpfTestEnabled() {
-		t.Skip("BPF testing is disabled")
-	}
-
-	check.TestingT(t)
-}
-
-func (s *Suite) TestWatch(c *check.C) {
+func TestWatch(t *testing.T) {
 	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
-	c.Skip("this test always fails when running inside a CGroup/Docker")
+	t.Skip("this test always fails when running inside a CGroup/Docker")
 
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+		return
+	}
 	if !isRoot() {
-		c.Skip("Tests for package bpf can only be run as root.")
+		t.Skip("Tests for package bpf can only be run as root.")
+		return
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	dir, err := os.MkdirTemp("", "cgroup-test")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
 	// Create BPF service.
@@ -85,7 +78,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	// than we wait below, nothing should be emitted to the Audit Log.
 	cmd := os_exec.Command("sleep", "10")
 	err = cmd.Start()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create a monitoring session for init. The events we execute should not
 	// have PID 1, so nothing should be captured in the Audit Log.
@@ -103,18 +96,18 @@ func (s *Suite) TestWatch(c *check.C) {
 			constants.EnhancedRecordingNetwork: true,
 		},
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(cgroupID > 0, check.Equals, true)
+	require.NoError(t, err)
+	require.Equal(t, cgroupID > 0, true)
 
 	// Find "ls" binary.
 	lsPath, err := os_exec.LookPath("ls")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Execute "ls" a few times
 	for i := 0; i < 5; i++ {
 		// Run "ls".
 		err = os_exec.Command(lsPath).Run()
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		// Delay.
 		time.Sleep(25 * time.Millisecond)
@@ -132,29 +125,33 @@ func (s *Suite) TestWatch(c *check.C) {
 		case *apievents.SessionNetwork:
 			pid = ev.BPFMetadata.PID
 		}
-		c.Assert(int(pid), check.Equals, cmd.Process.Pid)
+		require.Equal(t, int(pid), cmd.Process.Pid)
 	}
 }
 
 // TestObfuscate checks if execsnoop can capture Obfuscated commands.
-func (s *Suite) TestObfuscate(c *check.C) {
+func TestObfuscate(t *testing.T) {
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+		return
+	}
 	if !isRoot() {
-		c.Skip("Tests for package bpf can only be run as root.")
+		t.Skip("Tests for package bpf can only be run as root.")
 		return
 	}
 
 	// Find the programs needed to run these tests on the host.
 	decoderPath, err := os_exec.LookPath("base64")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	shellPath, err := os_exec.LookPath("sh")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
 	defer execsnoop.close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create a context that will be used to signal that an event has been received.
 	doneContext, doneFunc := context.WithCancel(context.Background())
@@ -165,25 +162,25 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	go func() {
 		// Create temporary file.
 		file, err := os.CreateTemp("", "test-script")
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		defer os.Remove(file.Name())
 
 		// Write script to file.
 		shellContents := fmt.Sprintf("#!%v\necho bHM= | %v --decode | %v",
 			shellPath, decoderPath, shellPath)
 		_, err = file.Write([]byte(shellContents))
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		err = file.Close()
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		// Make script executable.
 		err = os.Chmod(file.Name(), 0700)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		for {
 			// Run script.
 			err = os_exec.Command(file.Name()).Run()
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 
 			// Delay.
 			time.Sleep(250 * time.Millisecond)
@@ -195,7 +192,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 			// Unmarshal the event.
 			var event rawExecEvent
 			err := unmarshalEvent(eventBytes, &event)
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 
 			// Check the event is what we expect, in this case "ls".
 			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
@@ -211,23 +208,28 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	select {
 	case <-doneContext.Done():
 	case <-time.After(10 * time.Second):
-		c.Fatalf("Timed out waiting for an event.")
+		t.Fatalf("Timed out waiting for an event.")
 	}
 
 }
 
 // TestScript checks if execsnoop can capture what a script executes.
-func (s *Suite) TestScript(c *check.C) {
+func TestScript(t *testing.T) {
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+		return
+	}
 	if !isRoot() {
-		c.Skip("Tests for package bpf can only be run as root.")
+		t.Skip("Tests for package bpf can only be run as root.")
+		return
 	}
 
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
 	defer execsnoop.close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create a context that will be used to signal that an event has been received.
 	doneContext, doneFunc := context.WithCancel(context.Background())
@@ -238,23 +240,23 @@ func (s *Suite) TestScript(c *check.C) {
 	go func() {
 		// Create temporary file.
 		file, err := os.CreateTemp("", "test-script")
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		defer os.Remove(file.Name())
 
 		// Write script to file.
 		_, err = file.Write([]byte("#!/bin/sh\nls"))
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		err = file.Close()
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		// Make script executable.
 		err = os.Chmod(file.Name(), 0700)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		for {
 			// Run script.
 			err = os_exec.Command(file.Name()).Run()
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 			// Delay.
 			time.Sleep(250 * time.Millisecond)
 		}
@@ -265,7 +267,7 @@ func (s *Suite) TestScript(c *check.C) {
 			// Unmarshal the event.
 			var event rawExecEvent
 			err := unmarshalEvent(eventBytes, &event)
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 
 			// Check the event is what we expect, in this case "ls".
 			if ConvertString(unsafe.Pointer(&event.Command)) == "ls" {
@@ -281,16 +283,21 @@ func (s *Suite) TestScript(c *check.C) {
 	select {
 	case <-doneContext.Done():
 	case <-time.After(10 * time.Second):
-		c.Fatalf("Timed out waiting for an event.")
+		t.Fatalf("Timed out waiting for an event.")
 	}
 }
 
 // TestPrograms tests execsnoop, opensnoop, and tcpconnect to make sure they
 // run and receive events.
-func (s *Suite) TestPrograms(c *check.C) {
+func TestPrograms(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+		return
+	}
 	if !isRoot() {
-		c.Skip("Tests for package bpf can only be run as root.")
+		t.Skip("Tests for package bpf can only be run as root.")
+		return
 	}
 
 	// Start a debug server that tcpconnect will connect to.
@@ -301,17 +308,17 @@ func (s *Suite) TestPrograms(c *check.C) {
 
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer execsnoop.close()
 
 	// Start opensnoop.
 	opensnoop, err := startOpen(8192)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer opensnoop.close()
 
 	// Start tcpconnect.
 	tcpconnect, err := startConn(8192)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer tcpconnect.close()
 
 	// Loop over all three programs and make sure events are received off the
@@ -367,16 +374,21 @@ func (s *Suite) TestPrograms(c *check.C) {
 		select {
 		case <-doneContext.Done():
 		case <-time.After(10 * time.Second):
-			c.Fatalf("Timed out waiting for an %v event.", tt.inName)
+			t.Fatalf("Timed out waiting for an %v event.", tt.inName)
 		}
 	}
 }
 
 // TestBPFCounter tests that BPF-to-Prometheus counter works ok
-func (s *Suite) TestBPFCounter(c *check.C) {
+func TestBPFCounter(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+		return
+	}
 	if !isRoot() {
-		c.Skip("Tests for package bpf can only be run as root.")
+		t.Skip("Tests for package bpf can only be run as root.")
+		return
 	}
 
 	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
@@ -385,22 +397,22 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	}
 
 	module, err := libbpfgo.NewModuleFromBuffer(counterTestBPF, "counter_test")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Load into the kernel
 	err = module.BPFLoadObject()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = AttachSyscallTracepoint(module, "close")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	promCounter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test"})
 
 	counter, err := NewCounter(module, "test_counter", promCounter)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Make sure the counter starts with 0
-	c.Assert(testutil.ToFloat64(promCounter), check.Equals, float64(0))
+	require.Equal(t, testutil.ToFloat64(promCounter), float64(0))
 
 	// close(1234) will cause the counter to get incremented.
 	magicFD := 1234
@@ -415,7 +427,7 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	time.Sleep(time.Second)
 
 	// Make sure all are accounted for
-	c.Assert(testutil.ToFloat64(promCounter), check.Equals, float64(gentleBumps))
+	require.Equal(t, testutil.ToFloat64(promCounter), float64(gentleBumps))
 
 	// Next, pound the counter to hopefully overflow the doorbell.
 	poundingBumps := 100000
@@ -427,7 +439,7 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	time.Sleep(time.Second)
 
 	// Make sure all are accounted for
-	c.Assert(testutil.ToFloat64(promCounter), check.Equals, float64(gentleBumps+poundingBumps))
+	require.Equal(t, testutil.ToFloat64(promCounter), float64(gentleBumps+poundingBumps))
 
 	counter.Close()
 }
@@ -446,7 +458,7 @@ func waitForEvent(ctx context.Context, cancel context.CancelFunc, eventCh <-chan
 }
 
 // executeCommand will execute some command in a loop.
-func executeCommand(c *check.C, doneContext context.Context, file string) {
+func executeCommand(t *testing.T, doneContext context.Context, file string) {
 	for {
 		// Lookup and run the requested command.
 		path, err := os_exec.LookPath(file)
@@ -462,12 +474,12 @@ func executeCommand(c *check.C, doneContext context.Context, file string) {
 	}
 }
 
-// executeHTTP will perform an HTTP GET to some endpoint in a loop.
-func executeHTTP(c *check.C, doneContext context.Context, endpoint string) {
+// executeHTTP will perform a HTTP GET to some endpoint in a loop.
+func executeHTTP(t *testing.T, doneContext context.Context, endpoint string) {
 	for {
 		// Perform HTTP GET to the requested endpoint.
 		_, err := http.Get(endpoint)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		time.Sleep(250 * time.Millisecond)
 	}
