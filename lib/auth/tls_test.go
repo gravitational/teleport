@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -1713,7 +1713,8 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -1805,7 +1806,8 @@ func TestGenerateCerts(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2261,7 +2263,8 @@ func TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
 	tt := setupAuthContext(ctx, t)
 
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -2340,7 +2343,8 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	//_, pub, err := native.GenerateKeyPair()
+	_, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should fail because we are recording
@@ -2592,7 +2596,8 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := native.GenerateKeyPair()
+	//_, pub, err := native.GenerateKeyPair()
+	_, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = tt.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
@@ -2704,7 +2709,8 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -2843,7 +2849,8 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate public and private keys for node.
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)

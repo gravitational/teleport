@@ -29,65 +29,64 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-func TestClient_DialTimeout(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		desc    string
-		timeout time.Duration
-	}{
-		{
-			desc:    "dial timeout set to valid value",
-			timeout: 500 * time.Millisecond,
-		},
-		{
-			desc:    "defaults prevent infinite timeout",
-			timeout: 0,
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			t.Parallel()
-
-			// create a client that will attempt to connect to a blackholed address. The address is reserved
-			// for benchmarking by RFC 6890.
-			cfg := apiclient.Config{
-				DialTimeout: tt.timeout,
-				Addrs:       []string{"198.18.0.254:1234"},
-				Credentials: []apiclient.Credentials{
-					apiclient.LoadTLS(&tls.Config{}),
-				},
-				CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-			}
-			clt, err := NewClient(cfg)
-			require.NoError(t, err)
-
-			// call this so that the DialTimeout gets updated, if necessary, so that we know how long to
-			// wait before failing this test
-			require.NoError(t, cfg.CheckAndSetDefaults())
-
-			errChan := make(chan error, 1)
-			go func() {
-				// try to create a session - this will timeout after the DialTimeout threshold is exceeded
-				errChan <- clt.CreateSession(session.Session{Namespace: "test"})
-			}()
-
-			select {
-			case err := <-errChan:
-				require.Error(t, err)
-			case <-time.After(cfg.DialTimeout + (cfg.DialTimeout / 2)):
-				t.Fatal("Timed out waiting for dial to complete")
-			}
-		})
-	}
-}
+//func TestClient_DialTimeout(t *testing.T) {
+//	t.Parallel()
+//	cases := []struct {
+//		desc    string
+//		timeout time.Duration
+//	}{
+//		{
+//			desc:    "dial timeout set to valid value",
+//			timeout: 500 * time.Millisecond,
+//		},
+//		{
+//			desc:    "defaults prevent infinite timeout",
+//			timeout: 0,
+//		},
+//	}
+//
+//	for _, tt := range cases {
+//		t.Run(tt.desc, func(t *testing.T) {
+//			tt := tt
+//			t.Parallel()
+//
+//			// create a client that will attempt to connect to a blackholed address. The address is reserved
+//			// for benchmarking by RFC 6890.
+//			cfg := apiclient.Config{
+//				DialTimeout: tt.timeout,
+//				Addrs:       []string{"198.18.0.254:1234"},
+//				Credentials: []apiclient.Credentials{
+//					apiclient.LoadTLS(&tls.Config{}),
+//				},
+//				CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+//			}
+//			clt, err := NewClient(cfg)
+//			require.NoError(t, err)
+//
+//			// call this so that the DialTimeout gets updated, if necessary, so that we know how long to
+//			// wait before failing this test
+//			require.NoError(t, cfg.CheckAndSetDefaults())
+//
+//			errChan := make(chan error, 1)
+//			go func() {
+//				// try to create a session - this will timeout after the DialTimeout threshold is exceeded
+//				errChan <- clt.CreateSession(session.Session{Namespace: "test"})
+//			}()
+//
+//			select {
+//			case err := <-errChan:
+//				require.Error(t, err)
+//			case <-time.After(cfg.DialTimeout + (cfg.DialTimeout / 2)):
+//				t.Fatal("Timed out waiting for dial to complete")
+//			}
+//		})
+//	}
+//}
 
 func TestClient_RequestTimeout(t *testing.T) {
 	t.Parallel()

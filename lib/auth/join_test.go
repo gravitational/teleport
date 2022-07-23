@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -59,7 +59,8 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, dynamicToken)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	//sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -297,7 +298,8 @@ func TestRegister_Bot(t *testing.T) {
 	err = srv.Auth().UpsertToken(context.Background(), wrongUser)
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	//privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)

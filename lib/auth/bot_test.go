@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -76,7 +76,8 @@ func TestBotOnboardFeatureDisabled(t *testing.T) {
 	err = srv.Auth().UpsertToken(context.Background(), goodToken)
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	//privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)

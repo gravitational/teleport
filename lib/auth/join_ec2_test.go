@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -157,7 +157,8 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	_, err = a.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	//sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -606,7 +607,8 @@ func TestHostUniqueCheck(t *testing.T) {
 	err = a.UpsertToken(context.Background(), token)
 	require.NoError(t, err)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	//sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)

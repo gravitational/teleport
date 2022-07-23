@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -159,7 +159,8 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		require.NoError(t, err)
 	}
 
-	privKey, pubKey, err := native.GenerateKeyPair()
+	//privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	return &accessRequestTestPack{
