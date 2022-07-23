@@ -1695,6 +1695,16 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
+			//auditd, err2 := srv.NewAuditDClient("")
+			//if err != nil {
+			//	log.Warnf("auditd err: %v", err2)
+			//}
+			//defer auditd.Close()
+			//
+			//if err := auditd.SendLoginFailed(); err != nil {
+			//	log.Warnf("failed to auditd log: %v", err)
+			//}
+
 			proxyConn.Close()
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}

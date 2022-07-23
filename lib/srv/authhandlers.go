@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"time"
 
+	auditd2 "github.com/gravitational/teleport/lib/auditd"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -285,6 +286,16 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			},
 		}); err != nil {
 			h.log.WithError(err).Warn("Failed to emit failed login audit event.")
+		}
+
+		auditd, err2 := auditd2.NewAuditDClient(conn.User(), "")
+		if err2 != nil {
+			log.Warnf("auditd err: %v", err2)
+		}
+		defer auditd.Close()
+
+		if err := auditd.SendInvalidUser(); err != nil {
+			log.Warnf("failed to auditd log: %v", err)
 		}
 	}
 
