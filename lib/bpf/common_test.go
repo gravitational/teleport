@@ -22,8 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -31,14 +30,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type CommonSuite struct{}
-
-var _ = check.Suite(&CommonSuite{})
-
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not
 // provide values for the page sizes and hard coded values (like zero or a
 // specific page size) are respected when given.
-func (s *CommonSuite) TestCheckAndSetDefaults(c *check.C) {
+func TestCheckAndSetDefaults(t *testing.T) {
 	var perfBufferPageCount = defaults.PerfBufferPageCount
 	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
 	var zeroPageCount = 0
@@ -77,9 +72,9 @@ func (s *CommonSuite) TestCheckAndSetDefaults(c *check.C) {
 
 	for _, tt := range tests {
 		err := tt.inConfig.CheckAndSetDefaults()
-		c.Assert(err, check.IsNil)
-		c.Assert(*tt.inConfig.CommandBufferSize, check.Equals, *tt.outConfig.CommandBufferSize)
-		c.Assert(*tt.inConfig.DiskBufferSize, check.Equals, *tt.outConfig.DiskBufferSize)
-		c.Assert(*tt.inConfig.NetworkBufferSize, check.Equals, *tt.outConfig.NetworkBufferSize)
+		require.NoError(t, err)
+		require.Equal(t, *tt.inConfig.CommandBufferSize, *tt.outConfig.CommandBufferSize)
+		require.Equal(t, *tt.inConfig.DiskBufferSize, *tt.outConfig.DiskBufferSize)
+		require.Equal(t, *tt.inConfig.NetworkBufferSize, *tt.outConfig.NetworkBufferSize)
 	}
 }
