@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -42,8 +43,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -73,6 +74,8 @@ type testPack struct {
 }
 
 func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+	logrus.SetLevel(logrus.PanicLevel)
+
 	var (
 		p   testPack
 		err error
@@ -92,6 +95,9 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	p.a, err = NewServer(authConfig)
 	if err != nil {
@@ -836,6 +842,9 @@ func TestUpdateConfig(t *testing.T) {
 		Backend:                s.bk,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	authServer, err := NewServer(authConfig)
 	require.NoError(t, err)
@@ -2007,9 +2016,10 @@ func TestCAGeneration(t *testing.T) {
 		clusterName = "cluster1"
 		HostUUID    = "0000-000-000-0000"
 	)
-	native.PrecomputeKeys()
+	//native.PrecomputeKeys()
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := native.GenerateKeyPair()
+	//privKey, pubKey, err := native.GenerateKeyPair()
+	privKey, pubKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	ksConfig := keystore.Config{

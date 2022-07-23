@@ -154,7 +154,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	fmt.Printf("--> cfg.KeyStoreConfig.RSAKeyPairSource: %v\n", cfg.KeyStoreConfig.RSAKeyPairSource)
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		fmt.Printf("--> precomputing keys\n")
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
@@ -78,6 +79,9 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Backend:                s.bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
+		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)

@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -100,6 +101,7 @@ func PrecomputeKeys() {
 // GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute in a worst case.
 // This will pull from a precomputed cache of ready to use keys if PrecomputeKeys was enabled.
 func GenerateKeyPair() ([]byte, []byte, error) {
+	debug.PrintStack()
 	select {
 	case k := <-precomputedKeys:
 		return k.privPem, k.pubBytes, nil

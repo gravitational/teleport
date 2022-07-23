@@ -34,7 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -54,7 +54,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	_, pub, err := native.GenerateKeyPair()
+	//_, pub, err := native.GenerateKeyPair()
+	_, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	start := srv.AuthServer.Clock().Now()
@@ -165,7 +166,8 @@ func TestBotCertificateGenerationCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	//privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -222,7 +224,8 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	//privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
@@ -297,7 +300,8 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
 
-	_, pub, err := native.GenerateKeyPair()
+	//_, pub, err := native.GenerateKeyPair()
+	_, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1068,7 +1072,8 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, pub, err := native.GenerateKeyPair()
+			//_, pub, err := native.GenerateKeyPair()
+			_, pub, err := authority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1166,7 +1171,8 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	// Generate cert with a role request.
 	client, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	priv, pub, err := native.GenerateKeyPair()
+	//priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Request certs for only the `foo` role.
@@ -1264,7 +1270,8 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	//priv, _, err := native.GenerateKeyPair()
+	priv, _, err := authority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)

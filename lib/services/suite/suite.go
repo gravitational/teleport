@@ -33,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
@@ -119,7 +119,9 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	case types.KindJWT:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
-		publicKey, privateKey, err := jwt.GenerateKeyPair()
+		publicKey, privateKey, err := authority.New().GenerateJWT()
+		//publicKey, privateKey, err = jwt.GenerateKeyPair()
+		//fmt.Printf("--> publicKey: %v, privateKey: %v\n", string(publicKey), string(privateKey))
 		if err != nil {
 			panic(err)
 		}
