@@ -408,7 +408,7 @@ you can connect to the Teleport SSH Service via your OpenSSH client.
  to the cluster's Proxy Service. When you run an `ssh` command to access a host
  in your Teleport cluster using the configuration we generated, the Teleport
  Proxy Service will attempt to connect to the host via this reverse tunnel and,
- if that fails, try directly dialling the address.
+ if that fails, try directly dialing the address.
 
 In our case, the `sshd` host is not running Teleport, so no reverse tunnel will
 exist. Instead, the Proxy Service will establish a direct connection on the
