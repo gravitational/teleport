@@ -18,8 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
@@ -292,7 +290,8 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	//caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := authority.New().GenerateKey()
 	require.NoError(t, err)
 
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
@@ -462,7 +461,8 @@ RAH1HuypwMH0FJRLIdW36pw7FCrGrXpk3UC6mEumXC9FptjSK1FlW+ZckgDprePOoUpypEygr2UC
 XXOsqT0dwBUUttdOQMZHqIiXS5VPJ8zhYPHBGYI8WGk5FWVuXIXhgRm7LN/EyXIvCOFmDH0tVnQL
 V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo></ds:Signature><saml2:Subject xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">ops@gravitational.io</saml2:NameID><saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml2:SubjectConfirmationData InResponseTo="_4f256462-6c2d-466d-afc0-6ee36602b6f2" NotOnOrAfter="2022-04-25T09:00:18.711Z" Recipient="https://boson.tener.io:3080/v1/webapi/saml/acs"/></saml2:SubjectConfirmation></saml2:Subject><saml2:Conditions NotBefore="2022-04-25T08:50:18.711Z" NotOnOrAfter="2022-04-25T09:00:18.711Z" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:AudienceRestriction><saml2:Audience>https://boson.tener.io:3080/v1/webapi/saml/acs</saml2:Audience></saml2:AudienceRestriction></saml2:Conditions><saml2:AuthnStatement AuthnInstant="2022-04-25T08:03:11.779Z" SessionIndex="_4f256462-6c2d-466d-afc0-6ee36602b6f2" xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:AuthnContext><saml2:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml2:AuthnContextClassRef></saml2:AuthnContext></saml2:AuthnStatement><saml2:AttributeStatement xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion"><saml2:Attribute Name="username" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">ops@gravitational.io</saml2:AttributeValue></saml2:Attribute><saml2:Attribute Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">Everyone</saml2:AttributeValue><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">okta-admin</saml2:AttributeValue><saml2:AttributeValue xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xs:string">okta-dev</saml2:AttributeValue></saml2:Attribute></saml2:AttributeStatement></saml2:Assertion></saml2p:Response>`
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	//caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := authority.New().GenerateKey()
 	require.NoError(t, err)
 
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(

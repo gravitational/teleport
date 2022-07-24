@@ -15,7 +15,6 @@
 package auth
 
 import (
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -24,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
@@ -98,7 +98,8 @@ func TestProcessKubeCSR(t *testing.T) {
 func newTestCSR(subj pkix.Name) ([]byte, error) {
 	// Use math/rand to avoid blocking on system entropy.
 	rng := rand.New(rand.NewSource(0))
-	priv, err := rsa.GenerateKey(rng, 2048)
+	//priv, err := rsa.GenerateKey(rng, 2048)
+	priv, err := authority.New().GenerateKey()
 	if err != nil {
 		return nil, err
 	}

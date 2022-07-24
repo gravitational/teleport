@@ -18,8 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
 	"errors"
@@ -1054,7 +1052,8 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := authority.New().GenerateKey()
+	//privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	testClock := clockwork.NewFakeClock()

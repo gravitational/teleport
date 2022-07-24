@@ -38,6 +38,7 @@ func Test_findDuplicatedCertificates(t *testing.T) {
 	addCA := func(t *testing.T, certType types.CertAuthType) {
 		// Use weak private key for better performance.
 		caKey, err := rsa.GenerateKey(rand.Reader, 512)
+		//caKey, err := authority.New().GenerateKey()
 		require.NoError(t, err)
 		name := "teleport.localhost.me"
 		cert, err := tlsca.GenerateSelfSignedCAWithSigner(caKey, pkix.Name{CommonName: name}, nil, time.Minute)
