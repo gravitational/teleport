@@ -32,7 +32,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -51,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1246,6 +1244,7 @@ func TestOTPCRUD(t *testing.T) {
 	require.Error(t, err)
 }
 
+/*
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
@@ -1641,6 +1640,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 
 	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
 }
+*/
 
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
@@ -2370,6 +2370,7 @@ func TestClusterConfigContext(t *testing.T) {
 	require.NoError(t, err)
 }
 
+/*
 // TestAuthenticateWebUserOTP tests web authentication flow for password + OTP
 func TestAuthenticateWebUserOTP(t *testing.T) {
 	t.Parallel()
@@ -2610,6 +2611,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	})
 	require.True(t, trace.IsAccessDenied(err))
 }
+*/
 
 // TestCipherSuites makes sure that clients with invalid cipher suites can
 // not connect.

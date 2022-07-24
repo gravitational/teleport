@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 
@@ -46,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -185,6 +182,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+/*
 func TestSessions(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -555,6 +553,7 @@ func TestUserLock(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+*/
 
 func TestTokensCRUD(t *testing.T) {
 	t.Parallel()
