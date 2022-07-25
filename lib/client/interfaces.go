@@ -152,6 +152,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	dbTLSCerts := make(map[string][]byte)
+	appCerts := make(map[string][]byte)
 
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
@@ -169,7 +170,11 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 			dbTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
 		}
 
-		// TODO: add k8s, app, etc certs as well.
+		// Similarly, if this identity has any app certs, copy them in.
+		if parsedIdent.RouteToApp.Name != "" {
+			appCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+		}
+
 	}
 
 	// Validate TLS CA certs (if present).
@@ -195,12 +200,13 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		Priv:       ident.PrivateKey,
-		Pub:        ssh.MarshalAuthorizedKey(signer.PublicKey()),
-		Cert:       ident.Certs.SSH,
-		TLSCert:    ident.Certs.TLS,
-		TrustedCA:  trustedCA,
-		DBTLSCerts: dbTLSCerts,
+		Priv:        ident.PrivateKey,
+		Pub:         ssh.MarshalAuthorizedKey(signer.PublicKey()),
+		Cert:        ident.Certs.SSH,
+		TLSCert:     ident.Certs.TLS,
+		TrustedCA:   trustedCA,
+		DBTLSCerts:  dbTLSCerts,
+		AppTLSCerts: appCerts,
 	}, nil
 }
 
