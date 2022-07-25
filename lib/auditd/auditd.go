@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"sync"
 	"syscall"
 
 	"github.com/mdlayher/netlink"
@@ -33,17 +34,28 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	AUDIT_GET        = 1000
-	AUDIT_USER_END   = 1106
-	AUDIT_USER_LOGIN = 1112
-	AUDIT_USER_ERR   = 1109
-)
+type EventType int
 
 const (
-	success = "success"
-	failed  = "failed"
+	AUDIT_GET        EventType = 1000
+	AUDIT_USER_END   EventType = 1106
+	AUDIT_USER_LOGIN EventType = 1112
+	AUDIT_USER_ERR   EventType = 1109
 )
+
+type ResultType string
+
+const (
+	Success ResultType = "success"
+	Failed  ResultType = "failed"
+)
+
+type NetlinkConnecter interface {
+	Execute(m netlink.Message) ([]netlink.Message, error)
+	Receive() ([]netlink.Message, error)
+
+	Close() error
+}
 
 // sshd
 // type=USER_LOGIN msg=audit(1657493525.955:466): pid=16059 uid=0 auid=4294967295 ses=4294967295 subj==unconfined msg='op=login acct="jnyckowski" exe="/usr/sbin/sshd" hostname=? addr=127.0.0.1 terminal=sshd res=failed'UID="root" AUID="unset"
@@ -51,15 +63,18 @@ const (
 // type=USER_END msg=audit(1657744078.476:5916): pid=275303 uid=0 auid=1000 ses=118 subj==unconfined msg='op=PAM:session_close grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct="jnyckowski" exe="/usr/sbin/sshd" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID="root" AUID="jnyckowski"
 
 type AuditDClient struct {
-	conn *netlink.Conn
+	conn NetlinkConnecter
 
-	pid          int
 	execName     string
 	hostname     string
 	user         string
 	teleportUser string
 	address      string
 	ttyName      string
+
+	mtx     *sync.Mutex
+	dial    func(family int, config *netlink.Config) (NetlinkConnecter, error)
+	enabled bool
 }
 
 type auditStatus struct {
@@ -76,32 +91,104 @@ type auditStatus struct {
 	BacklogWaitTimeActual uint32 /* message queue wait timeout */
 }
 
-func NewAuditDClient(teleportUser, ttyName string) (*AuditDClient, error) {
-	conn, err := netlink.Dial(syscall.NETLINK_AUDIT, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
+type Message struct {
+	SystemUser   string
+	TeleportUser string
+	ConnAddress  string
+	TTYName      string
+}
+
+func SendEvent(event EventType, result ResultType, msg *Message) error {
+	if msg == nil {
+		msg = &Message{}
 	}
 
-	status, err := getAuditStatus(conn)
+	auditd, err := NewAuditDClient(msg.TeleportUser, msg.TTYName)
 	if err != nil {
-		return nil, trace.Errorf("failed to get audutd state: %v", err)
+		return trace.Wrap(err)
 	}
+	defer auditd.Close()
+
+	if err := auditd.SendMsg(event, result); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func eventToOp(event EventType) string {
+	switch event {
+	case AUDIT_USER_END:
+		return "session_close"
+	case AUDIT_USER_LOGIN:
+		return "login"
+	case AUDIT_USER_ERR:
+		return "invalid_user"
+	default:
+		return "?"
+	}
+}
+
+func (c *AuditDClient) connect() error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if !c.enabled && c.conn != nil {
+		return trace.Errorf("audutd is disabled")
+	}
+
+	conn, err := c.dial(syscall.NETLINK_AUDIT, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.conn = conn
+
+	status, err := c.getAuditStatus()
+	if err != nil {
+		//if errors.Is(err, syscall.EPERM) {
+		//	return nil, trace.ConvertSystemError()
+		//}
+		return trace.Errorf("failed to get audutd state: %v", trace.ConvertSystemError(err))
+	}
+
+	c.enabled = status.Enabled == 1
 
 	if status.Enabled != 1 {
-		return nil, trace.Errorf("audutd is disabled")
+		return trace.Errorf("audutd is disabled")
 	}
 	log.Warnf("auditd is enabled")
 
-	pid := os.Getpid()
+	return nil
+}
+
+func NewAuditDClient(teleportUser, ttyName string) (*AuditDClient, error) {
+	//conn, err := netlink.Dial(syscall.NETLINK_AUDIT, nil)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//
+	//status, err := getAuditStatus(conn)
+	//if err != nil {
+	//	//if errors.Is(err, syscall.EPERM) {
+	//	//	return nil, trace.ConvertSystemError()
+	//	//}
+	//	return nil, trace.Errorf("failed to get audutd state: %v", trace.ConvertSystemError(err))
+	//}
+	//
+	//if status.Enabled != 1 {
+	//	return nil, trace.Errorf("audutd is disabled")
+	//}
+	//log.Warnf("auditd is enabled")
+
 	execName, err := os.Executable()
 	if err != nil {
 		log.WithError(err).Warn("failed to get executable name")
 		execName = "?"
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.WithError(err).Warn("failed to get hostname")
-	}
+	// Match sshd
+	hostname := "?"
+
 	currentUser, err := user.Current()
 	if err != nil {
 		log.WithError(err).Warn("failed to get the current user")
@@ -113,19 +200,22 @@ func NewAuditDClient(teleportUser, ttyName string) (*AuditDClient, error) {
 	}
 
 	return &AuditDClient{
-		conn:         conn,
-		pid:          pid,
 		execName:     execName,
 		hostname:     hostname,
 		user:         currentUser.Username, //TODO: fix me
 		teleportUser: teleportUser,
 		address:      addr,
 		ttyName:      ttyName,
+
+		dial: func(family int, config *netlink.Config) (NetlinkConnecter, error) {
+			return netlink.Dial(family, config)
+		},
+		mtx: &sync.Mutex{},
 	}, nil
 }
 
-func getAuditStatus(conn *netlink.Conn) (*auditStatus, error) {
-	resp, err := conn.Execute(netlink.Message{
+func (c *AuditDClient) getAuditStatus() (*auditStatus, error) {
+	resp, err := c.conn.Execute(netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType(AUDIT_GET),
 			Flags: netlink.Request | netlink.Acknowledge,
@@ -138,7 +228,7 @@ func getAuditStatus(conn *netlink.Conn) (*auditStatus, error) {
 
 	log.Warnf("AuditGetResp: %v\n", resp)
 
-	msgs, err := conn.Receive()
+	msgs, err := c.conn.Receive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -168,9 +258,9 @@ func (c *AuditDClient) SendLogin() error {
 	const msgDataTmpl = "op=%s acct=\"%s\" teleportUser=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
 	const op = "login"
 
-	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.teleportUser, c.execName, c.hostname, c.address, c.ttyName, success))
+	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.teleportUser, c.execName, c.hostname, c.address, c.ttyName, Success))
 
-	return c.sendMsg(AUDIT_USER_LOGIN, MsgData)
+	return c.sendMsg(netlink.HeaderType(AUDIT_USER_LOGIN), MsgData)
 }
 
 func (c *AuditDClient) SendLoginFailed() error {
@@ -179,9 +269,9 @@ func (c *AuditDClient) SendLoginFailed() error {
 	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
 	const op = "login"
 
-	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, failed))
+	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, Failed))
 
-	return c.sendMsg(AUDIT_USER_LOGIN, MsgData)
+	return c.sendMsg(netlink.HeaderType(AUDIT_USER_LOGIN), MsgData)
 }
 
 // type=USER_ERR msg=audit(1658343692.733:471): pid=7113 uid=0 auid=4294967295 ses=4294967295 subj=? msg='op=PAM:bad_ident grantors=? acct="?" exe="/usr/sbin/sshd" hostname=::1 addr=::1 terminal=ssh res=failed'UID="root" AUID="unset"
@@ -192,9 +282,9 @@ func (c *AuditDClient) SendInvalidUser() error {
 	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
 	const op = "invalid_user"
 
-	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, failed))
+	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, Failed))
 
-	return c.sendMsg(AUDIT_USER_ERR, MsgData)
+	return c.sendMsg(netlink.HeaderType(AUDIT_USER_ERR), MsgData)
 }
 
 // type=USER_END msg=audit(1657744078.476:5916): pid=275303 uid=0 auid=1000 ses=118 subj==unconfined msg='op=PAM:session_close grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct="jnyckowski" exe="/usr/sbin/sshd" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID="root" AUID="jnyckowski"
@@ -206,12 +296,25 @@ func (c *AuditDClient) SendSessionEnd() error {
 	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
 	const op = "session_close"
 
-	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, success))
+	MsgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, Success))
 
-	return c.sendMsg(AUDIT_USER_END, MsgData)
+	return c.sendMsg(netlink.HeaderType(AUDIT_USER_END), MsgData)
+}
+
+func (c *AuditDClient) SendMsg(event EventType, result ResultType) error {
+	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s res=%s"
+	op := eventToOp(event)
+
+	msgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.user, c.execName, c.hostname, c.address, c.ttyName, result))
+
+	return trace.Wrap(c.sendMsg(netlink.HeaderType(event), msgData))
 }
 
 func (c *AuditDClient) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
+	if err := c.connect(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	msg := netlink.Message{
 		Header: netlink.Header{
 			Type:  eventType,
