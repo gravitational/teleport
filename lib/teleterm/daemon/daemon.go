@@ -279,8 +279,8 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 // under the same URI in s.gateways and then closes the old gateway. It doesn't fetch a fresh db
 // cert.
 //
-// If it gateway.NewWithLocalPort fails it's imperative that the current gateway is kept intact.
-// This way if the user attempts to change the port to one that cannot be obtained, they're able to
+// If gateway.NewWithLocalPort fails it's imperative that the current gateway is kept intact. This
+// way if the user attempts to change the port to one that cannot be obtained, they're able to
 // correct that mistake and choose a different port.
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
