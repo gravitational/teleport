@@ -377,7 +377,7 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 			return nil
 		}
 
-		return trace.BadParameter("unable to parse oidc claim: %q, must be set to either 'true' or 'false'", claimName)
+		return trace.BadParameter("unable to parse oidc claim: %q, must be either 'true' or 'false', got '%s'", claimName, emailVerified)
 	}
 
 	data, ok := claims[claimName]
