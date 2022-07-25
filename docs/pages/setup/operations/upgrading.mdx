@@ -32,10 +32,10 @@ command, where `mytenant` is the name of your Teleport Cloud tenant:
 $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
 ```
 
-Read the following rules to ensure that your Teleport Nodes are compatible with
-the Teleport Auth and Proxy Services. You should check the version of the Auth
-and Proxy Services regularly to make sure that your Teleport Nodes are
-compatible.
+Read the following rules to ensure that your Teleport resource services (e.g.,
+the SSH Service and Database Service) are compatible with the Teleport Auth and
+Proxy Services. You should check the version of the Auth and Proxy Services
+regularly to make sure that your Teleport resource services are compatible.
 
 </Details>
 
@@ -66,7 +66,8 @@ When upgrading a single Teleport cluster:
    perform necessary migrations.
 2. Upgrade Proxy Service instances. These are stateless and can be upgraded in
    any sequence or at the same time.
-3. Finally, upgrade your Teleport Nodes in any sequence or at the same time.
+3. Finally, upgrade your Teleport resource services in any sequence or at the
+   same time.
 
 <Admonition
   type="warning"
@@ -90,7 +91,8 @@ When upgrading multiple clusters:
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 The Teleport Auth Service and Proxy Service are upgraded automatically. When
-upgrading Nodes, you may upgrade in any sequence or at the same time.
+upgrading resource services, you may upgrade in any sequence or at the same
+time.
 
 When upgrading multiple clusters:
 
