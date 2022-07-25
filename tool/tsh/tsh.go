@@ -116,6 +116,8 @@ type CLIConf struct {
 	RequestedResourceIDs []string
 	// RequestID is an access request ID
 	RequestID string
+	// RequestIDs is a list of access request IDs
+	RequestIDs []string
 	// ReviewReason indicates the reason for an access review.
 	ReviewReason string
 	// ReviewableRequests indicates that only requests which can be reviewed should
@@ -743,6 +745,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
 
+	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
+	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
+
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -947,6 +952,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onRequestReview(&cf)
 	case reqSearch.FullCommand():
 		err = onRequestSearch(&cf)
+	case reqDrop.FullCommand():
+		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case aws.FullCommand():
@@ -1238,22 +1245,11 @@ func onLogin(cf *CLIConf) error {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
-
-			return nil
+		//   OR
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
+			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1266,6 +1262,24 @@ func onLogin(cf *CLIConf) error {
 			printProfiles(cf.Debug, active, others, env, cf.Verbose)
 
 			return nil
+
+		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return trace.Wrap(onStatus(cf))
+
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
@@ -1305,8 +1319,10 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
-		// otherwise just passthrough to standard login
+
+		// otherwise just pass through to standard login
 		default:
+
 		}
 	}
 
@@ -3253,6 +3269,9 @@ func onStatus(cf *CLIConf) error {
 	// Return error if not logged in, no active profile, or expired.
 	profile, profiles, err := client.Status(cf.HomePath, cf.Proxy)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("Not logged in.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -3594,13 +3613,13 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 	}
 	fmt.Fprint(os.Stderr, msg)
 
-	err := reissueWithRequests(cf, tc, req.GetName())
+	err := reissueWithRequests(cf, tc, []string{req.GetName()}, nil /*dropRequests*/)
 	return trace.Wrap(err)
 }
 
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
-func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
+func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []string, dropRequests []string) error {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3609,12 +3628,15 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
-		AccessRequests: reqIDs,
-		RouteToCluster: cf.SiteName,
+		AccessRequests:     newRequests,
+		DropAccessRequests: dropRequests,
+		RouteToCluster:     cf.SiteName,
 	}
-	// if the certificate already had active requests, add them to our inputs parameters.
-	if len(profile.ActiveRequests.AccessRequests) > 0 {
-		params.AccessRequests = append(params.AccessRequests, profile.ActiveRequests.AccessRequests...)
+	// If the certificate already had active requests, add them to our inputs parameters.
+	for _, reqID := range profile.ActiveRequests.AccessRequests {
+		if !apiutils.SliceContainsStr(dropRequests, reqID) {
+			params.AccessRequests = append(params.AccessRequests, reqID)
+		}
 	}
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster

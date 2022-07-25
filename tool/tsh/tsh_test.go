@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -380,6 +381,128 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSwitchingProxies(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+	// Connector need not be functional since we are going to mock the actual
+	// login operation.
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	auth1, proxy1 := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+
+	auth2, proxy2 := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+	authServer1 := auth1.GetAuthServer()
+	require.NotNil(t, authServer1)
+
+	proxyAddr1, err := proxy1.ProxyWebAddr()
+	require.NoError(t, err)
+
+	authServer2 := auth2.GetAuthServer()
+	require.NotNil(t, authServer2)
+
+	proxyAddr2, err := proxy2.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// perform initial login to both proxies
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer1, alice)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, authServer2, alice)
+			return nil
+		})
+
+	require.NoError(t, err)
+
+	// login again while both proxies are still valid and ensure it is successful without an SSO login provided
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	// logout
+
+	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			return nil
+		})
+	require.NoError(t, err)
+
+	// after logging out, make sure that any attempt to log in without providing a valid login function fails
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.Error(t, err)
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.Error(t, err)
+
+	cancel()
+}
+
 func TestMakeClient(t *testing.T) {
 	var conf CLIConf
 	conf.HomePath = t.TempDir()
@@ -499,7 +622,7 @@ func TestMakeClient(t *testing.T) {
 // from access and approves them. It accepts a stop channel, which will stop the
 // loop and cancel all active requests when it is closed.
 func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -578,31 +701,33 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	require.NotNil(t, node)
 	sshHostID := node.Config.HostUUID
+
+	sshHostname2 := "test-ssh-server-2"
+	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
+	sshHostID2 := node2.Config.HostUUID
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	require.NotNil(t, nodeNoAccess)
+	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
 
-	hasNode := func(hostName string) func() bool {
+	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
 			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
+			foundCount := 0
 			for _, node := range nodes {
-				if node.GetHostname() == hostName {
-					return true
+				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+					foundCount++
 				}
 			}
-			return false
+			return foundCount == len(hostIDs)
 		}
 	}
 
 	// wait for auth to see nodes
-	require.Eventually(t, hasNode(sshHostname), 10*time.Second, time.Second,
-		sshHostname+" never showed up")
-	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
-		sshHostnameNoAccess+" never showed up")
+	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostIDNoAccess),
+		10*time.Second, 100*time.Millisecond, "nodes never showed up")
 
 	err = Run(ctx, []string{
 		"login",
@@ -668,15 +793,23 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
-	// ssh with request, by hostname
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--request-reason", "reason here to bypass prompt",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+	// the first ssh request can fail if the proxy node watcher doesn't know
+	// about the nodes yet, retry a few times until it works
+	require.Eventually(t, func() bool {
+		// ssh with request, by hostname
+		err := Run(ctx, []string{
+			"ssh",
+			"--debug",
+			"--insecure",
+			"--request-reason", "reason here to bypass prompt",
+			fmt.Sprintf("%s@%s", user.Username, sshHostname),
+			"echo", "test",
+		}, setHomePath(tmpHomePath))
+		if err != nil {
+			t.Logf("Got error while trying to SSH to node, retrying. Error: %v", err)
+		}
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond, "failed to ssh with retries")
 
 	// now that we have an approved access request, it should work without
 	// prompting for a request reason
@@ -711,6 +844,43 @@ func TestSSHAccessRequest(t *testing.T) {
 		"--insecure",
 		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other non-approved node, do not prompt for request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// drop the current access request
+	err = Run(ctx, []string{
+		"--insecure",
+		"request",
+		"drop",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other node with no active request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--disable-access-request",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// successfully ssh to other node, with new request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -1585,6 +1755,7 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 		AddString("").
 		AddString(""))
 	return withAuthConfig(func(cfg *service.AuthConfig) {
+		fmt.Printf("\n\n Setting MOTD: '%s' \n\n", motd)
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }

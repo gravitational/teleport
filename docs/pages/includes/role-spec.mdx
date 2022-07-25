@@ -52,14 +52,26 @@ spec:
     max_connections: 2
     # limit number of concurrent Kubernetes sessions per user
     max_kubernetes_connections: 1
-    # Specify whether or not to record the user's desktop sessions.
-    # Desktop session recording is enabled if one or more of the user's
-    # roles has enabled recording. Defaults to true if unspecified.
-    # Desktop sessions will never be recorded if auth_service.session_recording
-    # is set to 'off' in teleport.yaml or if the cluster's session_recording_config
-    # resource has set 'mode: off'.
+    # Define how Teleport deals with session recording failures, such as a full
+    # disk error. The value can be set to either `best_effort` or `strict`. If
+    # set to `strict`, the session will terminate immediately. If set to
+    # `best_effort`, the session won’t be terminated, and the recording will be
+    # disabled. The configuration is done per service (currently, only `ssh` is
+    # supported).
     record_session:
+      # Specify whether or not to record the user's desktop sessions.
+      # Desktop session recording is enabled if one or more of the user's
+      # roles has enabled recording. Defaults to true if unspecified.
+      # Desktop sessions will never be recorded if auth_service.session_recording
+      # is set to 'off' in teleport.yaml (Auth Service) or if the cluster's
+      # session_recording_config resource has set 'mode: off'.
       desktop: true
+      # Optional: the default session recording mode to use when a
+      # protocol-specific mode is not set.
+      default: best_effort|strict
+      # Optional: Session recording mode for SSH sessions (Teleport Server
+      # Access). If not set, the value set on default will be used.
+      ssh: best_effort|strict
     # Specify whether clipboard sharing should be allowed with the
     # remote desktop (requires a supported browser). Defaults to true
     # if unspecified. If one or more of the user's roles has disabled

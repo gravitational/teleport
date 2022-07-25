@@ -205,20 +205,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeStrict,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.Error,
@@ -244,20 +244,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeBestEffort,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.NoError,
