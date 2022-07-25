@@ -268,7 +268,7 @@ type Roles []Role
 
 // Sort sorts the roles by their display names.
 func (roles Roles) Sort() {
-	sort.Slice(roles, func(x, y int) bool {
+	sort.SliceStable(roles, func(x, y int) bool {
 		return strings.ToLower(roles[x].Display) < strings.ToLower(roles[y].Display)
 	})
 }

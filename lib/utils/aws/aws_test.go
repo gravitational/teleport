@@ -155,9 +155,9 @@ func TestRoles(t *testing.T) {
 
 	t.Run("Sort", func(t *testing.T) {
 		roles.Sort()
-		require.Equal(t, "EC2FullAccess", roles[0].Display)
-		require.Equal(t, "EC2FullAccess", roles[1].Display)
-		require.Equal(t, "test-role", roles[2].Display)
+		require.Equal(t, "arn:aws:iam::1234567890:role/EC2FullAccess", roles[0].ARN)
+		require.Equal(t, "arn:aws:iam::1234567890:role/path/to/EC2FullAccess", roles[1].ARN)
+		require.Equal(t, "arn:aws:iam::1234567890:role/test-role", roles[2].ARN)
 	})
 
 	t.Run("FindRoleByARN", func(t *testing.T) {

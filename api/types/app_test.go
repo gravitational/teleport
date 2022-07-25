@@ -20,9 +20,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
@@ -167,6 +168,8 @@ func TestAppServerSorter(t *testing.T) {
 }
 
 func TestApplicationGetAWSExternalID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		appAWS             *AppAWS
@@ -185,10 +188,7 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			app, err := NewAppV3(Metadata{
 				Name: "aws",
 			}, AppSpecV3{
