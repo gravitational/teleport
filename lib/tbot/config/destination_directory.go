@@ -17,7 +17,9 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/user"
 	"path"
@@ -121,11 +123,18 @@ func mkdir(p string) error {
 	stat, err := os.Stat(p)
 	if trace.IsNotFound(err) {
 		if err := os.MkdirAll(p, botfs.DefaultDirMode); err != nil {
+			if errors.Is(err, fs.ErrPermission) {
+				return trace.Wrap(err, "Teleport does not have permission to write to %v. Ensure that you are running as a user with appropriate permissions.", p)
+			}
 			return trace.Wrap(err)
 		}
 
 		log.Infof("Created directory %q", p)
 	} else if err != nil {
+		// this can occur if we are unable to read the data dir
+		if errors.Is(err, fs.ErrPermission) {
+			return trace.Wrap(err, "Teleport does not have permission to access: %v. Ensure that you are running as a user with appropriate permissions.", p)
+		}
 		return trace.Wrap(err)
 	} else if !stat.IsDir() {
 		return trace.BadParameter("Path %q already exists and is not a directory", p)
