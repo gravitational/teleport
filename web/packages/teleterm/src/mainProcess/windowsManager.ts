@@ -41,6 +41,10 @@ export class WindowsManager {
       title: 'Teleport Connect Preview',
       icon: getAssetPath('icon.png'),
       webPreferences: {
+        devTools: this.settings.dev,
+        webgl: false,
+        enableWebSQL: false,
+        safeDialogs: true,
         contextIsolation: true,
         nodeIntegration: false,
         preload: path.join(__dirname, 'preload.js'),
