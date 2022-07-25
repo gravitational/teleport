@@ -23,12 +23,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -130,6 +131,58 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 			labelEngineVersion: "13.0",
 			labelEndpointType:  "instance",
 			"key":              "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-west-1",
+			RDS: types.RDS{
+				InstanceID: "instance-1",
+				ClusterID:  "cluster-1",
+				ResourceID: "resource-1",
+				IAMAuth:    true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRDSInstance(instance)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
+func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
+	instance := &rds.DBInstance{
+		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:1234567890:db:instance-1"),
+		DBInstanceIdentifier:             aws.String("instance-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbiResourceId:                    aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String(RDSEnginePostgres),
+		EngineVersion:                    aws.String("13.0"),
+		Endpoint: &rds.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5432),
+		},
+		TagList: []*rds.Tag{
+			{Key: aws.String("key"), Value: aws.String("val")},
+			{Key: aws.String(labelTeleportDBName), Value: aws.String("override-1")},
+		},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "override-1",
+		Description: "RDS instance in us-west-1",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-west-1",
+			labelEngine:         RDSEnginePostgres,
+			labelEngineVersion:  "13.0",
+			labelEndpointType:   "instance",
+			labelTeleportDBName: "override-1",
+			"key":               "val",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -258,6 +311,144 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
 			Name:        "cluster-1-custom-myendpoint2",
+			Description: "Aurora cluster in us-east-1 (custom endpoint)",
+			Labels:      expectedLabels,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			AWS:      expectedAWS,
+			TLS: types.DatabaseTLS{
+				ServerName: "localhost",
+			},
+		})
+		require.NoError(t, err)
+
+		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+		require.NoError(t, err)
+		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
+	})
+
+	t.Run("bad custom endpoints ", func(t *testing.T) {
+		badCluster := *cluster
+		badCluster.CustomEndpoints = []*string{
+			aws.String("badendpoint1"),
+			aws.String("badendpoint2"),
+		}
+		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+		require.Error(t, err)
+	})
+}
+
+// TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
+func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
+	cluster := &rds.DBCluster{
+		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:1234567890:cluster:cluster-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbClusterResourceId:              aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String(RDSEngineAuroraMySQL),
+		EngineVersion:                    aws.String("8.0.0"),
+		Endpoint:                         aws.String("localhost"),
+		ReaderEndpoint:                   aws.String("reader.host"),
+		Port:                             aws.Int64(3306),
+		CustomEndpoints: []*string{
+			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+		},
+		TagList: []*rds.Tag{
+			{Key: aws.String("key"), Value: aws.String("val")},
+			{Key: aws.String(labelTeleportDBName), Value: aws.String("mycluster-2")},
+		},
+	}
+
+	expectedAWS := types.AWS{
+		AccountID: "1234567890",
+		Region:    "us-east-1",
+		RDS: types.RDS{
+			ClusterID:  "cluster-1",
+			ResourceID: "resource-1",
+			IAMAuth:    true,
+		},
+	}
+
+	t.Run("primary", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster-2",
+			Description: "Aurora cluster in us-east-1",
+			Labels: map[string]string{
+				types.OriginLabel:   types.OriginCloud,
+				labelAccountID:      "1234567890",
+				labelRegion:         "us-east-1",
+				labelEngine:         RDSEngineAuroraMySQL,
+				labelEngineVersion:  "8.0.0",
+				labelEndpointType:   "primary",
+				labelTeleportDBName: "mycluster-2",
+				"key":               "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+			AWS:      expectedAWS,
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSCluster(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("reader", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster-2-reader",
+			Description: "Aurora cluster in us-east-1 (reader endpoint)",
+			Labels: map[string]string{
+				types.OriginLabel:   types.OriginCloud,
+				labelAccountID:      "1234567890",
+				labelRegion:         "us-east-1",
+				labelEngine:         RDSEngineAuroraMySQL,
+				labelEngineVersion:  "8.0.0",
+				labelEndpointType:   "reader",
+				labelTeleportDBName: "mycluster-2",
+				"key":               "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "reader.host:3306",
+			AWS:      expectedAWS,
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("custom endpoints", func(t *testing.T) {
+		expectedLabels := map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-east-1",
+			labelEngine:         RDSEngineAuroraMySQL,
+			labelEngineVersion:  "8.0.0",
+			labelEndpointType:   "custom",
+			labelTeleportDBName: "mycluster-2",
+			"key":               "val",
+		}
+
+		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster-2-custom-myendpoint1",
+			Description: "Aurora cluster in us-east-1 (custom endpoint)",
+			Labels:      expectedLabels,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+			AWS:      expectedAWS,
+			TLS: types.DatabaseTLS{
+				ServerName: "localhost",
+			},
+		})
+		require.NoError(t, err)
+
+		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster-2-custom-myendpoint2",
 			Description: "Aurora cluster in us-east-1 (custom endpoint)",
 			Labels:      expectedLabels,
 		}, types.DatabaseSpecV3{
@@ -480,6 +671,59 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		require.Equal(t, expected, actual)
 	})
 
+	t.Run("success with name override", func(t *testing.T) {
+		cluster := &redshift.Cluster{
+			ClusterIdentifier:   aws.String("mycluster"),
+			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:1234567890:namespace:u-u-i-d"),
+			Endpoint: &redshift.Endpoint{
+				Address: aws.String("localhost"),
+				Port:    aws.Int64(5439),
+			},
+			Tags: []*redshift.Tag{
+				{
+					Key:   aws.String("key"),
+					Value: aws.String("val"),
+				},
+				{
+					Key:   aws.String("elasticbeanstalk:environment-id"),
+					Value: aws.String("id"),
+				},
+				{
+					Key:   aws.String(labelTeleportDBName),
+					Value: aws.String("mycluster-override-2"),
+				},
+			},
+		}
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "mycluster-override-2",
+			Description: "Redshift cluster in us-east-1",
+			Labels: map[string]string{
+				types.OriginLabel:                 types.OriginCloud,
+				labelAccountID:                    "1234567890",
+				labelRegion:                       "us-east-1",
+				labelTeleportDBName:               "mycluster-override-2",
+				"key":                             "val",
+				"elasticbeanstalk:environment-id": "id",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5439",
+			AWS: types.AWS{
+				AccountID: "1234567890",
+				Region:    "us-east-1",
+				Redshift: types.Redshift{
+					ClusterID: "mycluster",
+				},
+			},
+		})
+
+		require.NoError(t, err)
+
+		actual, err := NewDatabaseFromRedshiftCluster(cluster)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
 	t.Run("missing endpoint", func(t *testing.T) {
 		_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
 			ClusterIdentifier: aws.String("still-creating"),
@@ -537,6 +781,80 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 			labelRegion:       "us-east-1",
 			labelEndpointType: "configuration",
 			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "configuration.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheConfigurationEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
+	cluster := &elasticache.ReplicationGroup{
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ReplicationGroupId:       aws.String("my-cluster"),
+		Status:                   aws.String("available"),
+		TransitEncryptionEnabled: aws.Bool(true),
+		ClusterEnabled:           aws.Bool(true),
+		ConfigurationEndpoint: &elasticache.Endpoint{
+			Address: aws.String("configuration.localhost"),
+			Port:    aws.Int64(6379),
+		},
+		UserGroupIds: []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
+			{
+				NodeGroupId: aws.String("0001"),
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
+					{
+						CacheClusterId: aws.String("my-cluster-0001-001"),
+					},
+					{
+						CacheClusterId: aws.String("my-cluster-0001-002"),
+					},
+				},
+			},
+			{
+				NodeGroupId: aws.String("0002"),
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
+					{
+						CacheClusterId: aws.String("my-cluster-0002-001"),
+					},
+					{
+						CacheClusterId: aws.String("my-cluster-0002-002"),
+					},
+				},
+			},
+		},
+	}
+	extraLabels := map[string]string{
+		labelTeleportDBName: "my-override-cluster-2",
+		"key":               "value",
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-override-cluster-2",
+		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-east-1",
+			labelEndpointType:   "configuration",
+			labelTeleportDBName: "my-override-cluster-2",
+			"key":               "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -640,6 +958,92 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 	require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
 }
 
+func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
+	cluster := &elasticache.ReplicationGroup{
+		ARN:                      aws.String("arn:aws:elasticache:us-east-1:1234567890:replicationgroup:my-cluster"),
+		ReplicationGroupId:       aws.String("my-cluster"),
+		Status:                   aws.String("available"),
+		TransitEncryptionEnabled: aws.Bool(true),
+		ClusterEnabled:           aws.Bool(false),
+		UserGroupIds:             []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
+			{
+				NodeGroupId: aws.String("0001"),
+				PrimaryEndpoint: &elasticache.Endpoint{
+					Address: aws.String("primary.localhost"),
+					Port:    aws.Int64(6379),
+				},
+				ReaderEndpoint: &elasticache.Endpoint{
+					Address: aws.String("reader.localhost"),
+					Port:    aws.Int64(6379),
+				},
+			},
+		},
+	}
+	extraLabels := map[string]string{
+		labelTeleportDBName: "my-override-cluster-2",
+		"key":               "value",
+	}
+
+	expectedPrimary, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-override-cluster-2",
+		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-east-1",
+			labelEndpointType:   "primary",
+			labelTeleportDBName: "my-override-cluster-2",
+			"key":               "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "primary.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCachePrimaryEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	expectedReader, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-override-cluster-2-reader",
+		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-east-1",
+			labelEndpointType:   "reader",
+			labelTeleportDBName: "my-override-cluster-2",
+			"key":               "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "reader.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID:       "my-cluster",
+				UserGroupIDs:             []string{"my-user-group"},
+				TransitEncryptionEnabled: true,
+				EndpointType:             awsutils.ElastiCacheReaderEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
+}
+
 func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 	cluster := &memorydb.Cluster{
 		ARN:        aws.String("arn:aws:memorydb:us-east-1:1234567890:cluster:my-cluster"),
@@ -663,6 +1067,55 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 			labelRegion:       "us-east-1",
 			labelEndpointType: "cluster",
 			"key":             "value",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "memorydb.localhost:6379",
+		AWS: types.AWS{
+			AccountID: "1234567890",
+			Region:    "us-east-1",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-cluster",
+				ACLName:      "my-user-group",
+				TLSEnabled:   true,
+				EndpointType: awsutils.MemoryDBClusterEndpoint,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
+	cluster := &memorydb.Cluster{
+		ARN:        aws.String("arn:aws:memorydb:us-east-1:1234567890:cluster:my-cluster"),
+		Name:       aws.String("my-cluster"),
+		Status:     aws.String("available"),
+		TLSEnabled: aws.Bool(true),
+		ACLName:    aws.String("my-user-group"),
+		ClusterEndpoint: &memorydb.Endpoint{
+			Address: aws.String("memorydb.localhost"),
+			Port:    aws.Int64(6379),
+		},
+	}
+	extraLabels := map[string]string{
+		labelTeleportDBName: "override-1",
+		"key":               "value",
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "override-1",
+		Description: "MemoryDB cluster in us-east-1",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelAccountID:      "1234567890",
+			labelRegion:         "us-east-1",
+			labelEndpointType:   "cluster",
+			labelTeleportDBName: "override-1",
+			"key":               "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -853,6 +1306,51 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			if got := GetMySQLEngineVersion(tt.labels); got != tt.want {
 				t.Errorf("GetMySQLEngineVersion() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_setDBName(t *testing.T) {
+	tests := []struct {
+		name           string
+		meta           types.Metadata
+		firstNamePart  string
+		extraNameParts []string
+		want           types.Metadata
+	}{
+		{
+			name:           "no override, one part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "foo"},
+		},
+		{
+			name:           "no override, multi part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "foo-bar-baz"},
+		},
+		{
+			name:           "override, one part name",
+			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "gizmo", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+		},
+		{
+			name:           "override, multi part name",
+			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "gizmo-bar-baz", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := setDBName(tt.meta, tt.firstNamePart, tt.extraNameParts...)
+			require.Equal(t, tt.want, result)
 		})
 	}
 }
