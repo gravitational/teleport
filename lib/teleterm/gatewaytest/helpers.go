@@ -126,6 +126,6 @@ func (m *MockListener) Addr() net.Addr {
 	return addr
 }
 
-func (m MockListener) RealAddr() net.Addr {
+func (m *MockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
 }
