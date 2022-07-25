@@ -404,8 +404,8 @@ that as shown above. To configure Teleport to use DynamoDB:
   section of `teleport.yaml` as shown below.
 - Deploy several auth servers connected to DynamoDB storage back-end.
 - Deploy several proxy nodes.
-- Make sure that all Teleport nodes have `auth_servers` configuration setting
-  populated with the auth servers.
+- Make sure that all Teleport resource services have the `auth_servers` configuration setting
+  populated with the addresses of your cluster's Auth Service instances.
 
 ```yaml
 teleport:
@@ -598,9 +598,10 @@ Firestore:
   section of `teleport.yaml` as shown below.
 - Deploy several auth servers connected to Firestore storage back-end.
 - Deploy several proxy nodes.
-- Make sure that all Teleport nodes have `auth_servers` configuration setting
-  populated with the auth servers or use a load balancer for the auth servers in
-  high availability mode.
+- Make sure that all Teleport resource services have the `auth_servers`
+  configuration setting populated with the addresses of your cluster's Auth
+  Service instances or use a load balancer for Auth Service instances in high
+  availability mode.
 
 ```yaml
 teleport:
