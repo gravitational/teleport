@@ -25,10 +25,9 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
-
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -36,13 +35,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestSocks(t *testing.T) { check.TestingT(t) }
+func TestHandshake(t *testing.T) {
+	t.Parallel()
 
-type SOCKSSuite struct{}
-
-var _ = check.Suite(&SOCKSSuite{})
-
-func (s *SOCKSSuite) TestHandshake(c *check.C) {
 	remoteAddrs := []string{
 		"example.com:443",
 		"9.8.7.6:443",
@@ -50,28 +45,28 @@ func (s *SOCKSSuite) TestHandshake(c *check.C) {
 
 	// Create and start a debug SOCKS5 server that calls socks.Handshake().
 	socksServer, err := newDebugServer()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	go socksServer.Serve()
 
 	// Create a proxy dialer that can perform a SOCKS5 handshake.
 	proxy, err := proxy.SOCKS5("tcp", socksServer.Addr().String(), nil, nil)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	for _, remoteAddr := range remoteAddrs {
 		// Connect to the SOCKS5 server, this is where the handshake function is called.
 		conn, err := proxy.Dial("tcp", remoteAddr)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 
 		// Read in what was written on the connection. With the debug server it's
 		// always the address requested.
 		buf := make([]byte, len(remoteAddr))
 		_, err = io.ReadFull(conn, buf)
-		c.Assert(err, check.IsNil)
-		c.Assert(string(buf), check.Equals, remoteAddr)
+		require.NoError(t, err)
+		require.Equal(t, string(buf), remoteAddr)
 
 		// Close and cleanup.
 		err = conn.Close()
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 	}
 }
 

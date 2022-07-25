@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 )
@@ -74,7 +75,7 @@ func (p *DefaultPrompt) PromptTouch() {
 
 // PromptCredential prompts the user to choose a credential, in case multiple
 // credentials are available.
-func (p *DefaultPrompt) PromptCredential(creds []*Credential) (*Credential, error) {
+func (p *DefaultPrompt) PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error) {
 	// Shouldn't happen, but let's check just in case.
 	if len(creds) == 0 {
 		return nil, errors.New("attempted to prompt credential with empty credentials")
@@ -106,6 +107,47 @@ func (p *DefaultPrompt) PromptCredential(creds []*Credential) (*Credential, erro
 			return creds[num-1], nil
 		}
 
-		fmt.Fprintf(p.out, "Invalid user choice: %q", numOrName)
+		fmt.Fprintf(p.out, "Invalid user choice: %q\n", numOrName)
 	}
+}
+
+type credentialPicker interface {
+	PromptCredential([]*CredentialInfo) (*CredentialInfo, error)
+}
+
+// ToTouchIDCredentialPicker adapts a wancli credential picker, such as
+// LoginPrompt or DefaultPrompt, to a touchid.CredentialPicker
+func ToTouchIDCredentialPicker(p credentialPicker) touchid.CredentialPicker {
+	return tidPickerAdapter{impl: p}
+}
+
+type tidPickerAdapter struct {
+	impl credentialPicker
+}
+
+func (p tidPickerAdapter) PromptCredential(creds []*touchid.CredentialInfo) (*touchid.CredentialInfo, error) {
+	credMap := make(map[*CredentialInfo]*touchid.CredentialInfo)
+	wcreds := make([]*CredentialInfo, len(creds))
+	for i, c := range creds {
+		cred := &CredentialInfo{
+			ID: []byte(c.CredentialID),
+			User: UserInfo{
+				UserHandle: c.User.UserHandle,
+				Name:       c.User.Name,
+			},
+		}
+		credMap[cred] = c
+		wcreds[i] = cred
+	}
+
+	wchoice, err := p.impl.PromptCredential(wcreds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	choice, ok := credMap[wchoice]
+	if !ok {
+		return nil, fmt.Errorf("prompt returned invalid credential: %#v", wchoice)
+	}
+	return choice, nil
 }

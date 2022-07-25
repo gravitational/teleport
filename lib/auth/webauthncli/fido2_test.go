@@ -108,7 +108,7 @@ var (
 // simplePicker is a credential picker that always picks the first credential.
 type simplePicker struct{}
 
-func (p simplePicker) PromptCredential(creds []*wancli.Credential) (*wancli.Credential, error) {
+func (p simplePicker) PromptCredential(creds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
 	return creds[0], nil
 }
 
@@ -472,7 +472,7 @@ func TestFIDO2Login(t *testing.T) {
 				assert.Equal(t, pin3.credentials[0].ID, resp.RawId, "RawId mismatch (want %q resident credential)", alpacaName)
 				assert.Equal(t, alpacaID, resp.Response.UserHandle, "UserHandle mismatch (want %q)", alpacaName)
 			},
-			wantUser: alpacaName,
+			wantUser: "", // single account response
 		},
 		{
 			name:  "passwordless biometric (llama)",
@@ -529,7 +529,7 @@ func TestFIDO2Login(t *testing.T) {
 				assert.Equal(t, pin3.credentials[0].ID, resp.RawId, "RawId mismatch (want %q resident credential)", alpacaName)
 				assert.Equal(t, alpacaID, resp.Response.UserHandle, "UserHandle mismatch (want %q)", alpacaName)
 			},
-			wantUser: alpacaName,
+			wantUser: "", // single account response
 		},
 		{
 			name:  "passwordless multi-choice credential picker",
@@ -661,6 +661,147 @@ func TestFIDO2Login(t *testing.T) {
 		})
 		t.Run(test.name+"/nonMetered", func(t *testing.T) {
 			runTest(t, test.fido2.withNonMeteredLocations())
+		})
+	}
+}
+
+func TestFIDO2Login_retryUVFailures(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	const user = "llama"
+	pin1 := mustNewFIDO2Device("/pin1", "supersecretpinllama", &libfido2.DeviceInfo{
+		Options: pinOpts,
+	}, &libfido2.Credential{
+		ID: []byte{1, 1, 1, 1, 1},
+		User: libfido2.User{
+			ID:   []byte{1, 1, 1, 1, 2},
+			Name: user,
+		},
+	})
+	pin1.failUV = true // fail UV regardless of PIN
+
+	f2 := newFakeFIDO2(pin1).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+	ctx := context.Background()
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   rpID,
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+
+	pin1.setUP()
+	_, _, err := wancli.FIDO2Login(ctx, origin, assertion, pin1 /* prompt */, nil /* opts */)
+	require.NoError(t, err, "FIDO2Login failed UV retry")
+}
+
+func TestFIDO2Login_singleResidentCredential(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	const user1Name = "llama"
+	const user2Name = "alpaca"
+	user1ID := []byte{1, 1, 1, 1, 1}
+	user2ID := []byte{1, 1, 1, 1, 2}
+
+	oneCredential := mustNewFIDO2Device("/bio1", "supersecretBIO1pin", &libfido2.DeviceInfo{
+		Options: bioOpts,
+	}, &libfido2.Credential{
+		ID: []byte{1, 1, 1, 1, 1},
+		User: libfido2.User{
+			ID:   user1ID,
+			Name: user1Name,
+		},
+	})
+	manyCredentials := mustNewFIDO2Device("/bio2", "supersecretBIO2pin", &libfido2.DeviceInfo{
+		Options: bioOpts,
+	},
+		&libfido2.Credential{
+			ID: user1ID,
+			User: libfido2.User{
+				ID:   user1ID,
+				Name: user1Name,
+			},
+		},
+		&libfido2.Credential{
+			ID: user2ID,
+			User: libfido2.User{
+				ID:   user2ID,
+				Name: user2Name,
+			},
+		})
+
+	f2 := newFakeFIDO2(oneCredential, manyCredentials).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+	ctx := context.Background()
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:        []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID:   rpID,
+			UserVerification: protocol.VerificationRequired,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		up         func()
+		prompt     wancli.LoginPrompt
+		opts       *wancli.LoginOpts
+		wantUserID []byte
+		// Actual user is empty for all single account cases.
+		// Authenticators don't return the data.
+		wantUser string
+	}{
+		{
+			name:       "single credential with empty user",
+			up:         oneCredential.setUP,
+			prompt:     oneCredential,
+			wantUserID: user1ID,
+		},
+		{
+			name:   "single credential with correct user",
+			up:     oneCredential.setUP,
+			prompt: oneCredential,
+			opts: &wancli.LoginOpts{
+				User: user1Name, // happens to match
+			},
+			wantUserID: user1ID,
+		},
+		{
+			name:   "single credential with ignored user",
+			up:     oneCredential.setUP,
+			prompt: oneCredential,
+			opts: &wancli.LoginOpts{
+				User: user2Name, // ignored, we just can't know
+			},
+			wantUserID: user1ID,
+		},
+		{
+			name:   "multi credentials",
+			up:     manyCredentials.setUP,
+			prompt: manyCredentials,
+			opts: &wancli.LoginOpts{
+				User: user2Name, // respected, authenticator returns the data
+			},
+			wantUserID: user2ID,
+			wantUser:   user2Name,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.up()
+
+			resp, gotUser, err := wancli.FIDO2Login(ctx, origin, assertion, test.prompt, test.opts)
+			require.NoError(t, err, "FIDO2Login failed")
+			gotUserID := resp.GetWebauthn().GetResponse().GetUserHandle()
+			assert.Equal(t, test.wantUserID, gotUserID, "FIDO2Login user ID mismatch")
+			assert.Equal(t, test.wantUser, gotUser, "FIDO2Login user mismatch")
 		})
 	}
 }
@@ -801,6 +942,63 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 			assert.Equal(t, test.wantTouches, prompt.count, "FIDO2Login did an unexpected number of touch prompts")
 		})
 	}
+}
+
+func TestFIDO2Login_u2fDevice(t *testing.T) {
+	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	dev.u2fOnly = true
+
+	f2 := newFakeFIDO2(dev).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+
+	// Set a ctx timeout in case something goes wrong.
+	// Under normal circumstances the test gets nowhere near this timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cc := &wanlib.CredentialCreation{
+		Response: protocol.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingParty: protocol.RelyingPartyEntity{
+				ID: rpID,
+			},
+			Parameters: []protocol.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			AuthenticatorSelection: protocol.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	ccr, err := wancli.FIDO2Register(ctx, origin, cc, dev /* prompt */)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:      []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID: rpID,
+			AllowedCredentials: []protocol.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: ccr.GetWebauthn().GetRawId(),
+				},
+			},
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+
+	dev.setUP() // simulate touch
+	_, _, err = wancli.FIDO2Login(ctx, origin, assertion, dev /* prompt */, nil /* opts */)
+	assert.NoError(t, err, "FIDO2Login errored")
 }
 
 func TestFIDO2Login_errors(t *testing.T) {
@@ -1439,6 +1637,14 @@ func (f *fakeFIDO2) NewDevice(path string) (wancli.FIDODevice, error) {
 type fakeFIDO2Device struct {
 	simplePicker
 
+	// Set to true to cause "unsupported option" UV errors, regardless of other
+	// conditions.
+	failUV bool
+
+	// Set to true to simulate an U2F-only device.
+	// Causes libfido2.ErrNotFIDO2 on Info.
+	u2fOnly bool
+
 	path        string
 	info        *libfido2.DeviceInfo
 	pin         string
@@ -1513,6 +1719,9 @@ func (f *fakeFIDO2Device) cert() []byte {
 }
 
 func (f *fakeFIDO2Device) Info() (*libfido2.DeviceInfo, error) {
+	if f.u2fOnly {
+		return nil, libfido2.ErrNotFIDO2
+	}
 	return f.info, nil
 }
 
@@ -1550,6 +1759,9 @@ func (f *fakeFIDO2Device) MakeCredential(
 		return nil, libfido2.ErrUnsupportedOption
 	case opts.UV == libfido2.True && !f.hasUV():
 		return nil, libfido2.ErrUnsupportedOption // PIN authenticators don't like UV
+	case opts.RK == libfido2.True && !f.hasRK():
+		// TODO(codingllama): Confirm scenario with a real authenticator.
+		return nil, libfido2.ErrUnsupportedOption
 	}
 
 	// Validate PIN regardless of opts.
@@ -1614,6 +1826,10 @@ func (f *fakeFIDO2Device) Assertion(
 	// Validate UV.
 	switch {
 	case opts.UV == "": // OK, actually works as false.
+	case opts.UV == libfido2.True && f.failUV:
+		// Emulate UV failures, as seen in some devices regardless of other
+		// settings.
+		return nil, libfido2.ErrUnsupportedOption
 	case opts.UV == libfido2.True && f.isBio(): // OK.
 	case opts.UV == libfido2.True && f.hasClientPin() && pin != "": // OK, doubles as UV.
 	default: // Anything else is invalid, including libfido2.False.
@@ -1685,10 +1901,20 @@ func (f *fakeFIDO2Device) Assertion(
 		}
 	}
 
-	if len(assertions) == 0 {
+	switch len(assertions) {
+	case 0:
 		return nil, libfido2.ErrNoCredentials
+	case 1:
+		// Remove user name / display name / icon.
+		// See the authenticatorGetAssertion response structure, user member (0x04):
+		// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorgetassertion-response-structure
+		assertions[0].User.Name = ""
+		assertions[0].User.DisplayName = ""
+		assertions[0].User.Icon = ""
+		return assertions, nil
+	default:
+		return assertions, nil
 	}
-	return assertions, nil
 }
 
 func (f *fakeFIDO2Device) validatePIN(pin string) error {
@@ -1706,6 +1932,10 @@ func (f *fakeFIDO2Device) hasClientPin() bool {
 	return f.hasBoolOpt("clientPin")
 }
 
+func (f *fakeFIDO2Device) hasRK() bool {
+	return f.hasBoolOpt("rk")
+}
+
 func (f *fakeFIDO2Device) hasUV() bool {
 	return f.hasBoolOpt("uv")
 }
@@ -1715,6 +1945,10 @@ func (f *fakeFIDO2Device) isBio() bool {
 }
 
 func (f *fakeFIDO2Device) hasBoolOpt(name string) bool {
+	if f.info == nil {
+		return false
+	}
+
 	for _, opt := range f.info.Options {
 		if opt.Name == name {
 			return opt.Value == libfido2.True

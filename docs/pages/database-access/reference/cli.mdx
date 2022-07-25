@@ -19,7 +19,7 @@ Database Access, including:
 
 ## teleport db start
 
-Starts Teleport Database Service agent.
+Starts Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -103,10 +103,10 @@ $ teleport db configure create \
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions in which the agent will discover RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions in which the agent will discover Redshift instances. |
-| `--elasticache-discovery` | List of AWS regions in which the agent will discover ElastiCache Redis clusters. |
-| `--memorydb-discovery` | List of AWS regions in which the agent will discover MemoryDB clusters. |
+| `--rds-discovery` | List of AWS regions in which the Database Service will discover RDS/Aurora instances. |
+| `--redshift-discovery` | List of AWS regions in which the Database Service will discover Redshift instances. |
+| `--elasticache-discovery` | List of AWS regions in which the Database Service will discover ElastiCache Redis clusters. |
+| `--memorydb-discovery` | List of AWS regions in which the Database Service will discover MemoryDB clusters. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
@@ -116,7 +116,8 @@ $ teleport db configure create \
 
 ## teleport db configure bootstrap
 
-Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.
+Bootstrap the necessary configuration for the Database Service. It reads the
+provided configuration to determine what will be bootstrapped.
 
 ```code
 $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
@@ -138,6 +139,12 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
 configuring Database Access with self-hosted database instances.
+
+<Admonition type="note" title="Note">
+  For database formats, `tctl` must be run on an Auth Service host or the remote
+  user must be be able to impersonate the built-in `Db` role and user. See the [impersonation guide](../../access-controls/guides/impersonation.mdx)
+  for details on how to allow impersonation.
+</Admonition>
 
 ```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h

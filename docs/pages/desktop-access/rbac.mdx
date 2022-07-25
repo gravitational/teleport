@@ -24,7 +24,7 @@ spec:
     # Desktop sessions will never be recorded if auth_service.session_recording
     # is set to 'off' in teleport.yaml or if the cluster's session_recording_config
     # resource has set 'mode: off'.
-    record_sessions:
+    record_session:
       desktop: true
 
     # Specify whether clipboard sharing should be allowed with the
@@ -152,7 +152,7 @@ By default, desktop session recording is considered enabled in Teleport roles
 unless it is explicitly disabled:
 
 ```yaml
-record_sessions:
+record_session:
   desktop: false
 ```
 
