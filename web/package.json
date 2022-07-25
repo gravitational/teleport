@@ -19,8 +19,8 @@
     "build-teleport-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../dist/e/teleport/app",
     "build-oss": "yarn build-teleport-oss",
     "build-e": "yarn build-teleport-e",
-    "type-check-and-lint": "yarn type-check && yarn prettier-check && yarn lint",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
+    "lint": "yarn prettier-check && yarn eslint",
+    "eslint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check 'packages/**/*.{ts,tsx,js,jsx,md}'",
     "prettier-write": "yarn prettier --write 'packages/**/*.{ts,tsx,js,jsx,md}'"

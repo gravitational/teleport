@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install git g++ make python -y
 RUN mkdir -p web-apps
 COPY yarn.lock web-apps/
 COPY package.json web-apps/
+COPY tsconfig.json web-apps/
 # copy entire build package as it has required .bin files
 COPY packages/build/ web-apps/packages/build/
 

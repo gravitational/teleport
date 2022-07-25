@@ -21,6 +21,8 @@ const configFactory = require('@gravitational/build/webpack/webpack.base');
 // include open source stories
 const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
 
+const tsconfigPath = path.join(__dirname, '../tsconfig.json');
+
 // include enterprise stories if available (**/* pattern ignores dot dir names)
 if (fs.existsSync(path.join(__dirname, '/../packages/webapps.e/'))) {
   stories.unshift('../packages/webapps.e/**/*.story@(js|jsx|ts|tsx)');
@@ -61,8 +63,25 @@ module.exports = {
     };
 
     storybookConfig.module.rules.push({
+      resourceQuery: /raw/,
+      type: 'asset/source',
+    });
+
+    storybookConfig.module.rules.push({
       test: /\.(ts|tsx)$/,
-      loader: require.resolve('babel-loader'),
+      use: [
+        {
+          loader: require.resolve('babel-loader'),
+        },
+        {
+          loader: require.resolve('ts-loader'),
+          options: {
+            onlyCompileBundledFiles: true,
+            configFile: tsconfigPath,
+            transpileOnly: configType === 'DEVELOPMENT',
+          },
+        },
+      ],
     });
 
     return storybookConfig;

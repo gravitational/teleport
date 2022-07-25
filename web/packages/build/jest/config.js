@@ -21,7 +21,7 @@ module.exports = {
   moduleNameMapper: {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
-    '\\.(png|svg|yaml)$': path.join(__dirname, 'mockFiles.js'),
+    '\\.(png|svg|yaml|yaml\\?raw)$': path.join(__dirname, 'mockFiles.js'),
     '^shared/(.*)$': '<rootDir>/packages/shared/$1',
     '^design($|/.*)': '<rootDir>/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/packages/teleport/src/$1',

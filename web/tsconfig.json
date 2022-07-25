@@ -1,40 +1,61 @@
 {
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
-    "jsx": "preserve",
-    // Base directory to resolve non-relative module names (project root)
-    "baseUrl": ".",
-    // List of path mapping entries for module names to locations relative to the baseUrl.
-    "paths": {
-      "grpc": ["node_modules/@grpc/grpc-js"], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
-      "shared/*": ["packages/shared/*"],
-      "design/*": ["packages/design/src/*"],
-      "design": ["packages/design/src/"],
-      "teleport/*": ["packages/teleport/src/*"],
-      "teleport": ["packages/teleport/src/"],
-      "teleterm/*": ["packages/teleterm/src/*"],
-      "e-teleport/*": ["packages/webapps.e/teleport/src/*"]
-    },
-    // Process & infer types from .js files.
     "allowJs": true,
-    // Disable source maps
-    "sourceMap": false,
-    // Only do type-checking, leave transformation to Babel.
-    "noEmit": true,
-    // Target ES6
-    "target": "ESNext",
-    // Require format
-    "module": "commonjs",
-    // Import non-ES modules as default imports.
+    "baseUrl": ".",
     "esModuleInterop": true,
-    // Skip type checking of libraries' declaration files.
+    "importHelpers": true,
+    "lib": [
+      "dom",
+      "esnext"
+    ],
+    "jsx": "preserve",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmitHelpers": true,
+    "pretty": true,
     "skipLibCheck": true,
-    // TODO: https://github.com/gravitational/webapps/issues/957
-    "strictNullChecks": false,
+    "sourceMap": true,
+    "stripInternal": true,
+    "target": "esnext",
+    "types": [
+      "node",
+      "@emotion/core",
+      "@types/wicg-native-file-system"
+    ],
+    "paths": {
+      "grpc": [
+        "node_modules/@grpc/grpc-js"
+      ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
+      "shared/*": [
+        "packages/shared/*"
+      ],
+      "design/*": [
+        "packages/design/src/*"
+      ],
+      "design": [
+        "packages/design/src/"
+      ],
+      "teleport/*": [
+        "packages/teleport/src/*"
+      ],
+      "teleport": [
+        "packages/teleport/src/"
+      ],
+      "teleterm/*": [
+        "packages/teleterm/src/*"
+      ],
+      "e-teleport/*": [
+        "packages/webapps.e/teleport/src/*"
+      ]
+    }
   },
   "exclude": [
     "node_modules",
     "**/node_modules/*",
-    "dist", "**/dist/*",
-    "**/build/app/**", "**/build/release/**"]
+    "dist",
+    "**/dist/*",
+    "**/build/app/**",
+    "**/build/release/**"
+  ]
 }

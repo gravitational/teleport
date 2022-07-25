@@ -32,6 +32,7 @@ module.exports = {
   module: {
     strictExportPresence: true,
     rules: [
+      configFactory.rules.raw(),
       configFactory.rules.fonts(),
       configFactory.rules.svg(),
       configFactory.rules.images(),

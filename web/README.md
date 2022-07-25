@@ -68,6 +68,18 @@ requests to the given target.
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
 
+#### Source Maps
+
+During development, Webpack will default to generating source maps using `eval-source-map`.
+This can be overridden by setting the `WEBPACK_SOURCE_MAP` environment variable to one of the
+[available values that Webpack offers](https://webpack.js.org/configuration/devtool/#devtool).
+
+To turn them off, set `WEBPACK_SOURCE_MAP` to `none` -
+
+```
+$ WEBPACK_SOURCE_MAP=none yarn start-teleport --target=https://example.com:3080/web
+```
+
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.
