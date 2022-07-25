@@ -106,7 +106,7 @@ func newListener(hostAddr string) (net.Listener, error) {
 }
 
 func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
-	// The Electron app needs this message to know which port has been assigned to the server. 
+	// Connect needs this message to know which port has been assigned to the server.
 	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }
 
@@ -139,14 +139,24 @@ func getGrpcCredentials(cfg Config) (grpc.ServerOption, error) {
 }
 
 func generateKeyPair(certsDir string) (credentials.TransportCredentials, error) {
+	// File is first saved using under `tshServerCertTempPath` and then renamed to `tshServerCertFullPath`.
+	// It prevents Connect from reading half written file.
+	tshServerCertFullPath := filepath.Join(certsDir, tshServerCertFileName)
+	tshServerCertTempPath := tshServerCertFullPath + ".tmp"
+
 	cert, err := utils.GenerateSelfSignedCert([]string{"localhost"})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate a certificate")
 	}
 
-	err = os.WriteFile(tshServerCertFileName, cert.Cert, 0600)
+	err = os.WriteFile(tshServerCertTempPath, cert.Cert, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to save server certificate")
+	}
+
+	err = os.Rename(tshServerCertTempPath, tshServerCertFullPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to rename server certificate")
 	}
 
 	certificate, err := tls.X509KeyPair(cert.Cert, cert.PrivateKey)
