@@ -187,6 +187,7 @@ func TestDateRangeGenerator(t *testing.T) {
 }
 
 func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
+	ctx := context.Background()
 	eventTemplate := preRFD24event{
 		SessionID:      uuid.New().String(),
 		EventIndex:     -1,
@@ -199,18 +200,18 @@ func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
 		eventTemplate.EventIndex++
 		event := eventTemplate
 		event.CreatedAt = time.Date(2021, 4, 10, 8, 5, 0, 0, time.UTC).Add(time.Hour * time.Duration(24*i)).Unix()
-		err := s.log.emitTestAuditEvent(context.TODO(), event)
+		err := s.log.emitTestAuditEvent(ctx, event)
 		c.Assert(err, check.IsNil)
 	}
 
-	err := s.log.migrateDateAttribute(context.TODO())
+	err := s.log.migrateDateAttribute(ctx)
 	c.Assert(err, check.IsNil)
 
 	start := time.Date(2021, 4, 9, 8, 5, 0, 0, time.UTC)
 	end := start.Add(time.Hour * time.Duration(24*11))
 	var eventArr []event
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}}, "")
+		eventArr, _, err = s.log.searchEventsRaw(ctx, start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}}, "")
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -264,7 +265,7 @@ func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
 	err = s.log.convertFieldsToDynamoMapFormat(ctx)
 	c.Assert(err, check.IsNil)
 
-	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{}, "")
+	eventArr, _, err := s.log.searchEventsRaw(ctx, start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{}, "")
 	c.Assert(err, check.IsNil)
 
 	for _, event := range eventArr {
