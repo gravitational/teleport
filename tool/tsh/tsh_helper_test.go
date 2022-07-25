@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 
@@ -365,4 +366,21 @@ func (h traceHelper) countClientSpans(spanNamePrefixes ...string) int {
 		}
 	}
 	return count
+}
+
+func (h traceHelper) printClientSpans(t *testing.T) {
+	h.ForceFlush(h.ctx)
+
+	for _, span := range h.exporter.GetSpans() {
+		data, err := yaml.Marshal(span)
+		require.NoError(t, err)
+		t.Logf("client span %v\n%v\n", span.Name, string(data))
+	}
+}
+
+func (h traceHelper) teleportClientSpanName(name string) string {
+	return fmt.Sprintf("%v/%v", "teleportClient", name)
+}
+func (h traceHelper) authServiceSpanName(name string) string {
+	return fmt.Sprintf("%v/%v", "proto.AuthService", name)
 }

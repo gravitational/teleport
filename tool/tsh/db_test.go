@@ -150,38 +150,52 @@ func TestListDatabases(t *testing.T) {
 
 	traceHelper := newTraceHelper(s.ctx)
 	t.Cleanup(traceHelper.close)
-	spansNamesToCount := []string{
-		"teleportClient/ConnectToCluster", // New connection is expensive.
-		"proto.AuthService/",              // Capture all grpc calls.
-	}
+
+	// New connection is expensive.
+	tcConnectSpan := traceHelper.teleportClientSpanName("ConnectToProxy")
+	// Use "" to capture all calls to auth service.
+	authServiceSpan := traceHelper.authServiceSpanName("")
 
 	tests := []struct {
 		name            string
 		runCommand      []string
 		expectDatabases []string
 
-		// maxSpanCount is an arbitrary cap used to ensure the number of
-		// outgoing APIs does NOT scale with the number of resources. Bump up
-		// if necessary (e.g. new API call added to the function).
-		maxSpanCount int
+		// clientSpanCounts is used to assert each provided span name prefix is
+		// called n number of times. This is originally used to ensure that
+		// number of outgoing APIs does NOT scale with the number of resources.
+		// Bump up the numbers if necessary (e.g. new API calls added to the
+		// function).
+		clientSpanCounts map[string]int
+		// debugSpan is used to print all client spans for debugging purpose.
+		debugSpan bool
 	}{
 		{
 			name:            "root cluster",
 			runCommand:      []string{"db", "ls", "--insecure", "--debug"},
 			expectDatabases: []string{"root-postgres"},
-			maxSpanCount:    5,
+			clientSpanCounts: map[string]int{
+				tcConnectSpan:   1,
+				authServiceSpan: 3, // ListResources,GetCurrentUser,GetCurrentUserRoles
+			},
 		},
 		{
 			name:            "leaf cluster",
 			runCommand:      []string{"db", "ls", "--cluster", "leaf1", "--insecure", "--debug"},
 			expectDatabases: []string{"leaf-postgres"},
-			maxSpanCount:    5,
+			clientSpanCounts: map[string]int{
+				tcConnectSpan:   1,
+				authServiceSpan: 3,
+			},
 		},
 		{
 			name:            "all clusters",
 			runCommand:      []string{"db", "ls", "--all", "--insecure", "--debug", "-v"},
 			expectDatabases: []string{"root-postgres", "leaf-postgres"},
-			maxSpanCount:    10,
+			clientSpanCounts: map[string]int{
+				tcConnectSpan:   1,
+				authServiceSpan: 6,
+			},
 		},
 	}
 
@@ -201,7 +215,13 @@ func TestListDatabases(t *testing.T) {
 				require.Contains(t, captureStdout.String(), expectedDatabase)
 			}
 
-			require.LessOrEqual(t, traceHelper.countClientSpans(spansNamesToCount...), test.maxSpanCount)
+			if test.debugSpan {
+				traceHelper.printClientSpans(t)
+			}
+
+			for spanName, expectedCount := range test.clientSpanCounts {
+				require.Equal(t, expectedCount, traceHelper.countClientSpans(spanName))
+			}
 		})
 	}
 }
