@@ -17,7 +17,9 @@ import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
+
 import { colors } from 'teleport/Console/colors';
+
 import ActionMenu from './ActionMenu';
 
 export default function TopBar(props: Props) {

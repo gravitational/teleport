@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+
 import { State as ResourceState } from 'teleport/components/useResources';
+
 import { State as RolesState } from '../useRoles';
 
 export default function RoleList({

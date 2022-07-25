@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
+
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 

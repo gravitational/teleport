@@ -1,6 +1,8 @@
 import React from 'react';
+
 import { Flex, Text } from 'design';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+
 import { StyledArrowBtn, StyledFetchMoreBtn } from './StyledPager';
 import usePager, { State, Props } from './usePager';
 

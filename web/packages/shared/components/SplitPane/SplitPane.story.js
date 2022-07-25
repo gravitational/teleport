@@ -18,6 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { storiesOf } from '@storybook/react';
 import { Box } from 'design';
+
 import SplitPane from './SplitPane';
 
 storiesOf('Shared', module).add('SplitPane', () => {

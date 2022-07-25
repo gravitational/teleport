@@ -16,6 +16,7 @@
 
 import { useMemo } from 'react';
 import { useLocation, useHistory } from 'react-router';
+
 import { Filter } from 'teleport/types';
 
 // QUERY_PARAM_FILTER is the url query parameter name for filters.

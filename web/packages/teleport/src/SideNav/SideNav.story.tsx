@@ -19,6 +19,7 @@ import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import * as Icons from 'design/Icon';
 import { Box } from 'design';
+
 import { SideNav } from './SideNav';
 import { Item } from './useSideNav';
 

@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import {
   WithToken,
   Processing,

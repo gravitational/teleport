@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+
 import isMatch, { MatchCallback } from 'design/utils/match';
+
 import paginateData from './Pager/paginateData';
 import { TableProps, TableColumn } from './types';
 

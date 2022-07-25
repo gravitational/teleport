@@ -3,6 +3,7 @@ import {
   DocumentTshNode,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
+
 import { TrackedGatewayConnection, TrackedServerConnection } from './types';
 
 export function getGatewayConnectionByDocument(document: DocumentGateway) {

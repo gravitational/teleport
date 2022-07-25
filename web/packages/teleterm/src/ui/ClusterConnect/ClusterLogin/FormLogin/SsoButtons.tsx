@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Box } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
+
 import * as types from 'teleterm/ui/services/clusters/types';
 
 const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {

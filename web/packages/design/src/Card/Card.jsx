@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+
 import Box from './../Box';
 import theme from './../theme';
 

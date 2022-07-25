@@ -15,12 +15,16 @@
  */
 
 import React from 'react';
-import type { RenderResult } from '@testing-library/react';
+
 import { render, screen, act, fireEvent } from 'design/utils/testing';
-import type { User } from 'teleport/services/user';
+
 import { DiscoverContext } from '../discoverContext';
 import ContextProvider from '../discoverContextProvider';
+
 import LoginTrait from './LoginTrait';
+
+import type { User } from 'teleport/services/user';
+import type { RenderResult } from '@testing-library/react';
 
 describe('login trait comp behavior', () => {
   const ctx = new DiscoverContext();

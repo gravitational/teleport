@@ -1,4 +1,5 @@
 import { Platform } from '../../mainProcess/types';
+
 import { KeyboardShortcutsConfig } from './providers/keyboardShortcutsConfigProvider';
 import { AppearanceConfig } from './providers/appearanceConfigProvider';
 

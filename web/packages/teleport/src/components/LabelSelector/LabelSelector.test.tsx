@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { LabelSelector } from './LabelSelector';
+
 import { render, screen, fireEvent } from 'design/utils/testing';
+
+import { LabelSelector } from './LabelSelector';
 
 describe('teleport/LabelSelector', () => {
   it('clicking the Pill area opens add input', () => {

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { useStore } from 'shared/libs/stores';
+
 import { ImmutableStore } from '../immutableStore';
 
 export class ModalsService extends ImmutableStore<Dialog> {

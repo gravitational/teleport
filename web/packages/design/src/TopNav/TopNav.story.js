@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import TopNav from './TopNav';
 import TopNavItem from './TopNavItem';
 import TopNavUserMenu from './TopNavUserMenu';

@@ -17,8 +17,10 @@ limitations under the License.
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { Indicator, Box, Alert, Text, Flex } from 'design';
+
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
 

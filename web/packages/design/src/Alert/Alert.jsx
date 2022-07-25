@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+
 import { space, color, width } from 'design/system';
 import defaultTheme from 'design/theme';
 

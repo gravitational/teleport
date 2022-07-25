@@ -4,6 +4,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Text } from 'design';
 import Toggle from 'teleport/components/Toggle';
+
 import { ShareFeedbackFormValues } from './types';
 
 interface ShareFeedbackFormProps {

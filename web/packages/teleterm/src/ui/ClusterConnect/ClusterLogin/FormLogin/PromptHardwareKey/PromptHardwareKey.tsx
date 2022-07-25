@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Box, ButtonSecondary, Text, Image, Flex } from 'design';
+
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 const svg = require('./hardware.svg');

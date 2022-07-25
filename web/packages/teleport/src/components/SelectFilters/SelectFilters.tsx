@@ -23,8 +23,10 @@ import Select, {
   Option as BaseOption,
   ActionMeta,
 } from 'shared/components/Select';
+
 import { makeLabelTag } from 'teleport/components/formatters';
 import { Filter } from 'teleport/types';
+
 import usePages from './usePages';
 import Pager from './Pager';
 

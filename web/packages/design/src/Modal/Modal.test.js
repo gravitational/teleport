@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import Modal from './Modal';
+
 import { render, fireEvent } from 'design/utils/testing';
+
+import Modal from './Modal';
 
 const renderModal = props => {
   return render(

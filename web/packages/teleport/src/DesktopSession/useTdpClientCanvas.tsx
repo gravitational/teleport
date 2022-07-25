@@ -16,10 +16,12 @@ limitations under the License.
 
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
+
 import { TopBarHeight } from './TopBar';
 import { ClipboardPermissionStatus } from './useClipboard';
 

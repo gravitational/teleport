@@ -1,12 +1,15 @@
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { Document, DocumentsService } from './documentsService';
 import { useStore } from 'shared/libs/stores';
+
+import { isEqual } from 'lodash';
+
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
-import { isEqual } from 'lodash';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { routing } from 'teleterm/ui/uri';
+
+import { Document, DocumentsService } from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: string;

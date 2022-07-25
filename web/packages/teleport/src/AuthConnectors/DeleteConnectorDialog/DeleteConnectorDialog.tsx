@@ -23,6 +23,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+
 import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function DeleteConnectorDialog(props: Props) {

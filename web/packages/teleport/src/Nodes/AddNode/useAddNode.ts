@@ -16,8 +16,10 @@ limitations under the License.
 
 import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import TeleportContext from 'teleport/teleportContext';
 import cfg from 'teleport/config';
+
 import type { JoinToken, JoinRule } from 'teleport/services/joinToken';
 
 export default function useAddNode(ctx: TeleportContext) {

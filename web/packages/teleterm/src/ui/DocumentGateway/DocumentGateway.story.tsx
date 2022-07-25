@@ -1,7 +1,8 @@
 import React from 'react';
 
-import { DocumentGateway } from './DocumentGateway';
 import { makeEmptyAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
+
+import { DocumentGateway } from './DocumentGateway';
 
 export default {
   title: 'Teleterm/DocumentGateway',

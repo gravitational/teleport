@@ -1,4 +1,5 @@
 import { routing } from 'teleterm/ui/uri';
+
 import { Document } from './types';
 
 export function getResourceUri(document: Document): string {

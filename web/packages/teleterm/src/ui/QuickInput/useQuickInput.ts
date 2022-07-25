@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React, { useEffect } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   useKeyboardShortcuts,

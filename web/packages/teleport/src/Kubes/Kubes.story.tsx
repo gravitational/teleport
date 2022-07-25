@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { AuthType } from 'teleport/services/user';
+
 import { Kubes } from './Kubes';
 import { State } from './useKubes';
 import { kubes } from './fixtures';

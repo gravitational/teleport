@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Flex } from 'design';
+
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
 import { StatusBar } from 'teleterm/ui/StatusBar';

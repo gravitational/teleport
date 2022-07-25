@@ -19,12 +19,14 @@ import React, { Suspense } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
+
 import { Redirect, Switch, Route } from 'teleport/components/Router';
 import CatchError from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
 import SideNav from 'teleport/SideNav';
 import TopBar from 'teleport/TopBar';
 import getFeatures from 'teleport/features';
+
 import useMain, { State } from './useMain';
 
 export default function Container() {

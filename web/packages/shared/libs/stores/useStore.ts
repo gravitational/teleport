@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Store from './store';
 
 // This is the primary method to subscribe to store updates

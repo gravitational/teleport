@@ -22,6 +22,7 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
+
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { DbProtocol } from 'teleport/services/databases';

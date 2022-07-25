@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { ConsoleTabs } from './Tabs.story';
+
 import { render } from 'design/utils/testing';
+
+import { ConsoleTabs } from './Tabs.story';
 
 test('render ConsoleTabs', () => {
   const { container } = render(<ConsoleTabs />);

@@ -20,7 +20,9 @@ import { Text, Box, Flex, Link } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/Pager';
+
 import Toggle from 'teleport/components/Toggle';
+
 import Tooltip from './Tooltip';
 import useServersideSearchPanel, {
   State,

@@ -16,6 +16,7 @@ limitations under the License.
 
 import styled from 'styled-components';
 import { Text } from 'design';
+
 import { colors } from 'teleport/Console/colors';
 
 const Label = styled(Text)`

@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import Ctx from 'teleport/teleportContext';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,

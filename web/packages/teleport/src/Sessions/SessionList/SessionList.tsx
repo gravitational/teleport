@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
 import Icon, * as Icons from 'design/Icon/Icon';
+
 import cfg from 'teleport/config';
 import { Session, Participant, SessionKind } from 'teleport/services/session';
 

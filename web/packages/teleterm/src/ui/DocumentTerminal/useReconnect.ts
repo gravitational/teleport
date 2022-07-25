@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { useEffect } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
-import { useEffect } from 'react';
 
 export function useReconnect(doc: types.DocumentTshNode) {
   const ctx = useAppContext();

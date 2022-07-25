@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import { AddApp } from './AddApp';
 
 export default {

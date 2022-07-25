@@ -20,6 +20,7 @@ import { Danger, Info } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import { Props, SliderProps } from './NewCredentials';
 
 export function NewPasswordlessDevice(props: Props & SliderProps) {

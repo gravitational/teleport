@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import Discover from './Discover';
 import { DiscoverContext } from './discoverContext';
 import DiscoverContextProvider from './discoverContextProvider';

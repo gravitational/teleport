@@ -15,9 +15,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
+
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useAsync } from 'shared/hooks/useAsync';
 import { getClusterName } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {

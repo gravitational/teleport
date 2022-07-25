@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import Logger from 'shared/libs/logger';
+
 import { TermEventEnum } from 'teleport/lib/term/enums.js';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
+
 import Codec, {
   MessageType,
   MouseButton,

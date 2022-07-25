@@ -16,6 +16,7 @@ limitations under the License.
 
 import { useRouteMatch } from 'react-router';
 import { useRef } from 'react';
+
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
 

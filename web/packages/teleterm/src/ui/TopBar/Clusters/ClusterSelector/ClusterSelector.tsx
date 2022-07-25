@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import { SortAsc, SortDesc } from 'design/Icon';
 import styled from 'styled-components';
 import { Text } from 'design';
+
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 interface ClusterSelectorProps {

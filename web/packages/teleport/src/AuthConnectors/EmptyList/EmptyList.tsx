@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Text, Box, Flex, ButtonPrimary, Card } from 'design';
 import * as Icons from 'design/Icon';
+
 import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function EmptyList({ onCreate }: Props) {

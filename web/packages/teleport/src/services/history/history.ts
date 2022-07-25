@@ -15,9 +15,12 @@ limitations under the License.
 */
 
 import { createBrowserHistory } from 'history';
-import type { History } from 'history';
+
 import { matchPath } from 'react-router';
+
 import cfg from 'teleport/config';
+
+import type { History } from 'history';
 
 let _inst: History = null;
 

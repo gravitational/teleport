@@ -22,7 +22,9 @@ import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
+
 import cfg from 'teleport/config';
+
 import { useDiscoverContext } from './discoverContextProvider';
 import { useDiscover, State, AgentStep } from './useDiscover';
 import { agentStepTitles, agentViews, SelectAgent } from './AgentConnect';

@@ -15,9 +15,11 @@
  */
 
 import React from 'react';
+
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
+
 import FormPassword from './FormPassword';
 import { On, Optional } from './FormPassword.story';
-import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {

@@ -16,8 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { space } from 'design/system';
+
 import PropTypes from 'prop-types';
+
+import { space } from 'design/system';
 
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {

@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import { AppLauncher } from './AppLauncher';
 
 export default {

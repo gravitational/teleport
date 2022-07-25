@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Close as CloseIcon } from 'design/Icon';
 import { space } from 'design/system';
 import { Flex, Text } from 'design';
+
 import JoinedUsers from './JoinedUsers';
 
 export default function TabItem(props: Props) {

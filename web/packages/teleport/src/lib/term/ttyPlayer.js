@@ -16,6 +16,7 @@ limitations under the License.
 
 import BufferModule from 'buffer/';
 import Logger from 'shared/libs/logger';
+
 import Tty from './tty';
 import { TermEventEnum } from './enums';
 import { onlyPrintEvents } from './ttyPlayerEventProvider';

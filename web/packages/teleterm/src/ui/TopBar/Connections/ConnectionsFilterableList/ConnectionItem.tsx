@@ -1,10 +1,13 @@
 import React from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
+
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
+
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 interface ConnectionItemProps {
   index: number;

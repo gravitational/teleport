@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import { DiscoverContext } from './discoverContext';
 
 export const DiscoverReactContext = React.createContext<DiscoverContext>(null);

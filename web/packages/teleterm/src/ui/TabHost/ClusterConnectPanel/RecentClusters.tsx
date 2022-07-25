@@ -1,7 +1,9 @@
 import React from 'react';
+
+import { Box, ButtonBorder, Card, Text } from 'design';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { getClusterName, getUserWithClusterName } from 'teleterm/ui/utils';
-import { Box, ButtonBorder, Card, Text } from 'design';
 
 export function RecentClusters() {
   const ctx = useAppContext();

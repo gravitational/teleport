@@ -26,9 +26,11 @@ import {
   requiredToken,
 } from 'shared/components/Validation/rules';
 import createMfaOptions from 'shared/utils/createMfaOptions';
+
+import { Auth2faType } from 'shared/services';
+
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 import secKeyGraphic from './sec-key-with-bg.png';
-import { Auth2faType } from 'shared/services';
 
 export function NewMfaDevice(props: Props) {
   const {

@@ -1,4 +1,5 @@
 const { notarize } = require('electron-notarize');
+
 const package = require('./package.json');
 
 exports.default = async function notarizing(context) {

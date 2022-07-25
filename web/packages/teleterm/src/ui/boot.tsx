@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom';
 import React from 'react';
+
 import { ElectronGlobals } from 'teleterm/types';
 import App from 'teleterm/ui/App';
 import AppContext from 'teleterm/ui/appContext';

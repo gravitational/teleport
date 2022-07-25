@@ -1,5 +1,6 @@
 import { fireEvent, render } from 'design/utils/testing';
 import React from 'react';
+
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import {

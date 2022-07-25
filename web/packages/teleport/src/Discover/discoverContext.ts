@@ -15,6 +15,7 @@
  */
 
 import Logger from 'shared/libs/logger';
+
 import session from 'teleport/services/websession';
 import serviceNodes from 'teleport/services/nodes';
 import userService from 'teleport/services/user';
@@ -23,6 +24,7 @@ import desktopService from 'teleport/services/desktops';
 import KubeService from 'teleport/services/kube';
 import DatabaseService from 'teleport/services/databases';
 import JoinTokenService from 'teleport/services/joinToken';
+
 import type { AgentIdKind } from 'teleport/services/agents';
 
 const logger = Logger.create('teleport/discover');

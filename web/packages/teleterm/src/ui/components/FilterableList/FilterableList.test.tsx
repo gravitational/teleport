@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from 'design/utils/testing';
+
 import { FilterableList } from './FilterableList';
 
 interface TestItem {

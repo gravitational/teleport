@@ -2,9 +2,11 @@ import React from 'react';
 import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import { Close } from 'design/Icon';
-import { ShareFeedbackFormFields } from './ShareFeedbackFormFields';
+
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
+
+import { ShareFeedbackFormFields } from './ShareFeedbackFormFields';
 import { FEEDBACK_TOO_LONG_ERROR } from './useShareFeedback';
 import { ShareFeedbackFormValues } from './types';
 

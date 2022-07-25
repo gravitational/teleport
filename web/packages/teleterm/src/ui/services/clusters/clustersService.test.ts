@@ -1,6 +1,8 @@
 import { tsh, SyncStatus } from 'teleterm/ui/services/clusters/types';
-import { ClustersService } from './clustersService';
+
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+
+import { ClustersService } from './clustersService';
 
 const clusterUri = '/clusters/test';
 

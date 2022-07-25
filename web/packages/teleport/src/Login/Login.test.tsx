@@ -16,9 +16,11 @@
 
 import React from 'react';
 import { render, fireEvent, waitFor } from 'design/utils/testing';
+
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
+
 import Login from './Login';
 
 beforeEach(() => {

@@ -1,12 +1,16 @@
 import React from 'react';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import { Text, Box, ButtonPrimary, Link, Alert, ButtonSecondary } from 'design';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import type { JoinRule } from 'teleport/services/joinToken';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import { createBashCommand, State } from '../useAddNode';
+
+import type { JoinRule } from 'teleport/services/joinToken';
 
 export default function Iam({ token, attempt, onGenerate, onClose }: Props) {
   const [rule, setRule] = React.useState<JoinRule>({

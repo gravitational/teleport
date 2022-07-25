@@ -16,6 +16,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import DocumentBlank from './DocumentBlank';
 import { TestLayout } from './../Console.story';
 

@@ -16,6 +16,7 @@ limitations under the License.
 
 import styled from 'styled-components';
 import { space } from 'design/system';
+
 import { colors } from '../../colors';
 
 const Button = styled.button`

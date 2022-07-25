@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 
 const WorkspaceDocumentsServiceContext =

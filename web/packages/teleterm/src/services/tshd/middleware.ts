@@ -1,6 +1,8 @@
 import * as grpc from '@grpc/grpc-js';
-import Logger from 'teleterm/logger';
+
 import { isObject, transform } from 'lodash';
+
+import Logger from 'teleterm/logger';
 
 const SENSITIVE_PROPERTIES = ['passw'];
 

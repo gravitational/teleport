@@ -15,6 +15,7 @@
  */
 
 import { at } from 'lodash';
+
 import { ResetToken } from './types';
 
 export default function makeResetToken(json): ResetToken {

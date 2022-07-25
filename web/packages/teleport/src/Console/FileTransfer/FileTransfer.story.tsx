@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import { Uploader, Downloader } from 'teleport/Console/services/fileTransfer';
+
 import { FileTransfer } from './FileTransfer';
 import { ScpContext } from './scpContextProvider';
 import { Scp } from './scpContext';
-import { Uploader, Downloader } from 'teleport/Console/services/fileTransfer';
 
 export default {
   title: 'Teleport/Console/FileTransfer',

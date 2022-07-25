@@ -1,4 +1,5 @@
 const path = require('path');
+
 const configFactory = require('@gravitational/build/webpack/webpack.base');
 const defaultDevConfig = require('@gravitational/build/webpack/webpack.dev.config');
 

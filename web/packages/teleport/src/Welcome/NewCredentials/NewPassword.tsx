@@ -23,6 +23,7 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
+
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 
 export function NewPassword(props: Props) {

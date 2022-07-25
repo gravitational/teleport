@@ -15,9 +15,11 @@ limitations under the License.
 */
 
 import { Store, useStore } from 'shared/libs/stores';
+
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+
 import * as pickers from './quickPickers';
 import { AutocompleteResult, AutocompleteToken, Suggestion } from './types';
 

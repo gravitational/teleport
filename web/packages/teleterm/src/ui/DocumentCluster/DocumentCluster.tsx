@@ -17,16 +17,19 @@ limitations under the License.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
+
 import * as types from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import { routing } from 'teleterm/ui/uri';
+
 import ClusterCtx, {
   ClusterContextProvider,
   useClusterContext,
 } from './clusterContext';
 import ClusterResources from './ClusterResources';
 import ClusterSearch from './ClusterResources/ClusterSearch';
-import { routing } from 'teleterm/ui/uri';
 
 export default function Container(props: DocumentProps) {
   const { clusterUri } = props.doc;

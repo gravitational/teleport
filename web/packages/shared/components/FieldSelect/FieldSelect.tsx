@@ -15,9 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import Select, { Props as SelectProps } from './../Select';
+
 import { Box, LabelInput } from 'design';
+
 import { useRule } from 'shared/components/Validation';
+
+import Select, { Props as SelectProps } from './../Select';
 
 export default function FieldSelect({
   label,

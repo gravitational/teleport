@@ -1,4 +1,5 @@
 import { ipcMain, ipcRenderer, Menu } from 'electron';
+
 import { TerminalContextMenuEventChannel } from '../types';
 
 export function subscribeToTerminalContextMenuEvent(): void {

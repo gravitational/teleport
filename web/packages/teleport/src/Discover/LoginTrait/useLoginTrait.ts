@@ -16,8 +16,10 @@
 
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import type { User } from 'teleport/services/user';
+
 import { DiscoverContext } from '../discoverContext';
+
+import type { User } from 'teleport/services/user';
 import type { AgentStepProps } from '../types';
 
 export function useLoginTrait({ ctx, props }: Props) {

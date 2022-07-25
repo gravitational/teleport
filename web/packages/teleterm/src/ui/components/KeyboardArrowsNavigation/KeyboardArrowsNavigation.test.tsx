@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
 } from 'react';
 import { act, fireEvent, render } from 'design/utils/testing';
+
 import { KeyboardArrowsNavigation } from './KeyboardArrowsNavigation';
 import {
   useKeyboardArrowsNavigation,

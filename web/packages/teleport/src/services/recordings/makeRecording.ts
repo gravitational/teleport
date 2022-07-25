@@ -1,6 +1,8 @@
 import { differenceInMilliseconds, formatDistanceStrict } from 'date-fns';
-import { Recording } from './types';
+
 import { eventCodes } from 'teleport/services/audit';
+
+import { Recording } from './types';
 
 // Takes in json objects built by SessionEnd and WindowsDesktopSessionEnd as defined in teleport/api/types/events/events.proto.
 export function makeRecording(event: any): Recording {

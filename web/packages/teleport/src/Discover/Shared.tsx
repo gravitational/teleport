@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Text, ButtonSecondary } from 'design';
+
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 

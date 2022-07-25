@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import FormLogin, { Props } from './FormLogin';
+
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
+
+import FormLogin, { Props } from './FormLogin';
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();

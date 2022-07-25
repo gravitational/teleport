@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import Alert from './index';
+
 import { Box } from './../';
+
+import Alert from './index';
 
 export default {
   title: 'Design/Alerts',

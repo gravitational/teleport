@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+
+import Dialog from 'design/Dialog';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
-import Dialog from 'design/Dialog';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function ClusterConnect(props: ClusterConnectProps) {
   const [createdClusterUri, setCreatedClusterUri] = useState<

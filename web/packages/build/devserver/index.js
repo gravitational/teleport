@@ -19,11 +19,13 @@ limitations under the License.
 const uri = require('url');
 const WebpackDevServer = require('webpack-dev-server');
 const httpProxy = require('http-proxy');
+const optimist = require('optimist');
+
 const modifyIndexHtmlMiddleware = require('./modifyResponse');
 const initCompiler = require('./initCompiler');
 
 // parse target URL
-const argv = require('optimist')
+const argv = optimist
   .usage('Usage: $0 -target [url] -config [config]')
   .demand(['target', 'config']).argv;
 

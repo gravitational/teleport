@@ -1,9 +1,12 @@
 import React from 'react';
-import { FilterableList } from 'teleterm/ui/components/FilterableList';
-import { ClusterItem } from './ClusterItem';
+
 import { Box, Text } from 'design';
+
+import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { Cluster } from 'teleterm/services/tshd/types';
+
+import { ClusterItem } from './ClusterItem';
 
 interface ClustersFilterableListProps {
   items: Cluster[];

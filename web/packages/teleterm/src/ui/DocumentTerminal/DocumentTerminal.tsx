@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Document from 'teleterm/ui/Document';
+
 import useDocTerminal, { Props } from './useDocumentTerminal';
 import Terminal from './Terminal';
 import DocumentReconnect from './DocumentReconnect';

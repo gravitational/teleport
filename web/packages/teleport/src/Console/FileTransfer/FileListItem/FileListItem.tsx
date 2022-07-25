@@ -18,8 +18,10 @@ import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import * as Icons from 'design/Icon';
 import { Box } from 'design';
+
 import { colors } from 'teleport/Console/colors';
 import useHttpTransfer from 'teleport/Console/FileTransfer/useHttpTransfer';
+
 import { File } from './../types';
 
 type FileListItemProps = {

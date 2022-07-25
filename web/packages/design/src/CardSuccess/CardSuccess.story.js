@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import CardSuccess, { CardSuccessLogin } from './index';
 
 export default {

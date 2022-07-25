@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import * as Icon from '../Icon';
+
 import Flex from './../Flex';
 
 export default {

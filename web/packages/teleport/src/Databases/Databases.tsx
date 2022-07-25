@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Indicator, Box } from 'design';
+
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -24,6 +25,7 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
 import ButtonAdd from './ButtonAdd';

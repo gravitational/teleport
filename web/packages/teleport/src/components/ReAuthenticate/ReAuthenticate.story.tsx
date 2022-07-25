@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { State } from './useReAuthenticate';
 import { ReAuthenticate } from './ReAuthenticate';
 

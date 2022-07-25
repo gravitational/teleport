@@ -15,13 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import { ButtonPrimary, Input, LabelInput } from './..';
+
 import Dialog, {
   DialogHeader,
   DialogContent,
   DialogFooter,
   DialogTitle,
 } from './index';
-import { ButtonPrimary, Input, LabelInput } from './..';
 
 export default {
   title: 'Design/Dialog/Basic',

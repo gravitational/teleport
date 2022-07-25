@@ -1,4 +1,5 @@
 import { AgentLabel } from 'teleport/services/agents';
+
 import { ResourceUrlQueryParams } from './getUrlQueryParams';
 import encodeUrlQueryParams from './encodeUrlQueryParams';
 

@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import ButtonOutlined from './index';
+
 import { render, theme } from 'design/utils/testing';
+
+import ButtonOutlined from './index';
 
 describe('design/ButtonOutlined', () => {
   it('renders a <button> and respects default props', () => {

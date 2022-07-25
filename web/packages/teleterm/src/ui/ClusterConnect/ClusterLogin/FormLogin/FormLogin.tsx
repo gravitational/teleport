@@ -27,7 +27,9 @@ import {
 } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+
 import * as types from 'teleterm/ui/services/clusters/types';
+
 import SSOButtonList from './SsoButtons';
 import PromptHardwareKey from './PromptHardwareKey';
 import PromptSsoStatus from './PromptSsoStatus';

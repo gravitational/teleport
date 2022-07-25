@@ -1,7 +1,9 @@
 import React from 'react';
+
+import styled from 'styled-components';
+
 import { NotificationItem } from './types';
 import { Notification } from './Notification';
-import styled from 'styled-components';
 
 interface NotificationsProps {
   items: NotificationItem[];

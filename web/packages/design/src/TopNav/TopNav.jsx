@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Flex from 'design/Flex';
 
 export default function TopNav(props) {

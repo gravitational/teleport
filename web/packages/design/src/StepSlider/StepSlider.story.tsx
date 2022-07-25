@@ -15,8 +15,10 @@
  */
 
 import React, { useState } from 'react';
-import { StepSlider, StepComponentProps, NewFlow } from './StepSlider';
+
 import { Text, Card, ButtonPrimary, ButtonLink, Box } from 'design';
+
+import { StepSlider, StepComponentProps, NewFlow } from './StepSlider';
 
 export default {
   title: 'Design/StepSlider',

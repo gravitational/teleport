@@ -1,9 +1,12 @@
 import React from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import styled from 'styled-components';
-import clusterPng from './clusters.png';
+
 import Image from 'design/Image';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import clusterPng from './clusters.png';
 import { RecentClusters } from './RecentClusters';
 
 export function ClusterConnectPanel() {

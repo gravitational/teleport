@@ -15,10 +15,13 @@
  */
 
 import React from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import ClusterLogout from '../ClusterLogout/ClusterLogout';
+
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
+
+import ClusterLogout from '../ClusterLogout/ClusterLogout';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();

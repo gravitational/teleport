@@ -1,8 +1,10 @@
 import { Server, ServerCredentials } from '@grpc/grpc-js';
-import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
+
 import createLoggerService from 'teleterm/services/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
+
+import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
 import { createPtyHostService } from './ptyHost/ptyHostService';
 
 function getRuntimeSettings(): RuntimeSettings {

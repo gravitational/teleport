@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+
 import { space, width, maxWidth, height, maxHeight } from 'design/system';
 
 /**

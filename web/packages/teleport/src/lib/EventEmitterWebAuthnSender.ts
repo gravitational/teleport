@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 class EventEmitterWebAuthnSender extends EventEmitter {

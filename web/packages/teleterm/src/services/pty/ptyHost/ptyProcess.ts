@@ -1,4 +1,5 @@
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+
 import { PtyHostClient } from '../types';
 
 export function createPtyProcess(

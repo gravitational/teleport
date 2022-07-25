@@ -17,10 +17,13 @@ limitations under the License.
 import React from 'react';
 import { Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
+
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import * as stores from 'teleport/Console/stores';
-import Document from './../Document';
+
 import { colors } from '../colors';
+
+import Document from './../Document';
 
 export default function DocumentBlank(props: PropTypes) {
   const { visible, doc } = props;

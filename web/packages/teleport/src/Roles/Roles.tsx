@@ -15,15 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import { Indicator, Flex, Box, ButtonPrimary, Text, Alert, Link } from 'design';
+
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Indicator, Flex, Box, ButtonPrimary, Text, Alert, Link } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 import useTeleport from 'teleport/useTeleport';
+
 import RoleList from './RoleList';
 import DeleteRole from './DeleteRole';
 import useRoles, { State } from './useRoles';

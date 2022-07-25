@@ -19,10 +19,13 @@ import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import Menu, { MenuItem } from 'design/Menu';
 import { space } from 'design/system';
-import { MenuLoginProps, LoginItem, MenuLoginHandle } from './types';
+
 import { ButtonBorder, Flex, Indicator } from 'design';
 import { CarrotDown } from 'design/Icon';
+
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
+
+import { MenuLoginProps, LoginItem, MenuLoginHandle } from './types';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
   (props, ref) => {

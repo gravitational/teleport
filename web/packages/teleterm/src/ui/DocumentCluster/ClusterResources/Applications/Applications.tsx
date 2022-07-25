@@ -29,12 +29,17 @@ import {
   deepOrange,
   blueGrey,
 } from 'design/theme/palette';
-import { Table } from 'teleterm/ui/components/Table';
+
 import { Cell } from 'design/DataTable';
-import * as types from 'teleterm/ui/services/clusters/types';
-import { useApps, State } from './useApps';
-import { renderLabelCell } from '../renderLabelCell';
+
 import { Danger } from 'design/Alert';
+
+import { Table } from 'teleterm/ui/components/Table';
+import * as types from 'teleterm/ui/services/clusters/types';
+
+import { renderLabelCell } from '../renderLabelCell';
+
+import { useApps, State } from './useApps';
 
 export default function Container() {
   const state = useApps();

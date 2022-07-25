@@ -16,10 +16,14 @@
 
 import React from 'react';
 import { Flex } from 'design';
+
+import * as Icons from 'design/Icon';
+
+import Dialog, { DialogTitle } from 'design/Dialog';
+
 import { TabIcon } from 'teleport/components/Tabs';
 import useTeleport from 'teleport/useTeleport';
-import * as Icons from 'design/Icon';
-import Dialog, { DialogTitle } from 'design/Dialog';
+
 import Manually from './Manually';
 import Automatically from './Automatically';
 import Iam from './Iam';

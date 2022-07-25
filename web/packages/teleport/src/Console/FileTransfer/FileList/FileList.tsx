@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
+
 import FileListItem from './../FileListItem';
 import { File } from './../types';
 

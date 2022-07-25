@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Flex, Box } from 'design';
+
 import Select, { DarkStyledSelect } from '../Select';
 
 export default {

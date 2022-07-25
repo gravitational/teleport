@@ -1,4 +1,5 @@
 import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
 export enum PtyProcessCreationStatus {

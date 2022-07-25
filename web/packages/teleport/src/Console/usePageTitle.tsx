@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import * as stores from './stores/types';
 
 export default function usePageTitle(doc: stores.Document) {

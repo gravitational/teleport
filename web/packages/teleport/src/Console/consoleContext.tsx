@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 import Logger from 'shared/libs/logger';
+
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
@@ -28,6 +28,8 @@ import serviceSession, {
 } from 'teleport/services/session';
 import serviceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
+
+import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
 const logger = Logger.create('teleport/console');
 

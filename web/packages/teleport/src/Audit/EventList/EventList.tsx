@@ -19,9 +19,12 @@ import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 import { displayDateTime } from 'shared/services/loc';
+
 import { Event } from 'teleport/services/audit';
+
 import { State } from '../useAuditEvents';
 import EventDialog from '../EventDialog';
+
 import renderTypeCell from './EventTypeCell';
 
 export default function EventList(props: Props) {

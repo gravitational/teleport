@@ -1,10 +1,13 @@
 import * as grpc from '@grpc/grpc-js';
+
 import { TerminalServiceClient } from 'teleterm/services/tshd/v1/service_grpc_pb';
 import * as api from 'teleterm/services/tshd/v1/service_pb';
 import * as types from 'teleterm/services/tshd/types';
+
+import Logger from 'teleterm/logger';
+
 import middleware, { withLogging } from './middleware';
 import createAbortController from './createAbortController';
-import Logger from 'teleterm/logger';
 
 export function createGrpcClient(addr?: string) {
   return new TerminalServiceClient(addr, grpc.credentials.createInsecure());

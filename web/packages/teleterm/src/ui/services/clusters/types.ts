@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as tsh from 'teleterm/services/tshd/types';
 import * as shared from 'shared/services/types';
+
+import * as tsh from 'teleterm/services/tshd/types';
 
 export type SyncStatus = {
   status: 'processing' | 'ready' | 'failed' | '';

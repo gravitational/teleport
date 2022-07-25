@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import DeleteRole from './DeleteRole';
 
 export default {

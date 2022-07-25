@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { CarrotDown } from 'design/Icon';
+
 import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
 

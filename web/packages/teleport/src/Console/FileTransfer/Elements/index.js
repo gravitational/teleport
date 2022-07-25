@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Text, Box } from 'design';
+
 import { colors } from '../../colors';
+
 import Button from './Button';
 import ButtonClose from './ButtonClose';
 import Input from './Input';

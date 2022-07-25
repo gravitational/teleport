@@ -16,8 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import Popover from './../Popover';
+
 import { ButtonPrimary, Box, Flex, Text } from '../';
+
+import Popover from './../Popover';
 
 export default {
   title: 'Design/Popover',

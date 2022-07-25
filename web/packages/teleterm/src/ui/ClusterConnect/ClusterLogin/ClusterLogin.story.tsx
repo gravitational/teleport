@@ -15,8 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
-import * as types from 'teleterm/ui/services/clusters/types';
+
 import { Attempt } from 'shared/hooks/useAsync';
+
+import * as types from 'teleterm/ui/services/clusters/types';
+
 import { ClusterLoginPresentation } from './ClusterLogin';
 
 export default {

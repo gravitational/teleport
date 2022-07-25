@@ -1,5 +1,7 @@
 import React from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
 import { Notifications } from './Notifications';
 
 export function NotificationsHost() {

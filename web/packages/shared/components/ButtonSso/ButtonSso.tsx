@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import Button from 'design/Button';
 import { fade } from 'design/theme/utils/colorManipulator';
 import * as Icons from 'design/Icon';
+
 import { AuthProviderType } from 'shared/services';
 
 const ButtonSso = (props: Props) => {

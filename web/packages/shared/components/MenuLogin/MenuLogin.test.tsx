@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from 'design/utils/testing';
+
 import { MenuLogin } from './MenuLogin';
 
 test('does not accept an empty value when required is set to true', async () => {

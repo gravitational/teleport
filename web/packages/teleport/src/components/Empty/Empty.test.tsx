@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import Empty, { Props } from './Empty';
 
 test('empty state for enterprise or oss, with create perms', async () => {

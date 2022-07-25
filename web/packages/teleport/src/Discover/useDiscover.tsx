@@ -16,13 +16,15 @@
 
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { DiscoverContext } from './discoverContext';
+
 import type {
   JoinMethod,
   JoinRole,
   JoinToken,
   JoinRule,
 } from 'teleport/services/joinToken';
-import { DiscoverContext } from './discoverContext';
 
 export function useDiscover(ctx: DiscoverContext) {
   const { attempt, run } = useAttempt('');

@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
-import type { Session } from 'teleport/services/session';
+
 import DocumentSsh from './DocumentSsh';
 import { TestLayout } from './../Console.story';
 import ConsoleCtx from './../consoleContext';
+
+import type { Session } from 'teleport/services/session';
 
 export const Connected = () => {
   const ctx = new ConsoleCtx();

@@ -1,6 +1,7 @@
-import { retryWithRelogin } from './retryWithRelogin';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
+
+import { retryWithRelogin } from './retryWithRelogin';
 
 beforeAll(() => {
   Logger.init(new NullService());

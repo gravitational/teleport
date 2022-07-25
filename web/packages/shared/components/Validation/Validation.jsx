@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import Logger from '../../libs/logger';
+
 import { isObject } from 'lodash';
+
+import Logger from '../../libs/logger';
 
 const logger = Logger.create('validation');
 

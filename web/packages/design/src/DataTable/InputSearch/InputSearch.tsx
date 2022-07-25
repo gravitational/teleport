@@ -16,6 +16,7 @@ limitations under the License.
 
 import React, { SetStateAction } from 'react';
 import styled from 'styled-components';
+
 import { height, space, color } from 'design/system';
 
 export default function InputSearch({

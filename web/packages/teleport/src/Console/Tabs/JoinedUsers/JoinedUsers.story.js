@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Component from './JoinedUsers';
 
 export default {

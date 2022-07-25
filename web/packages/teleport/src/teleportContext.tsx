@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { StoreNav, StoreUserContext, defaultNavState } from './stores';
 import cfg from 'teleport/config';
+
+import { StoreNav, StoreUserContext, defaultNavState } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';

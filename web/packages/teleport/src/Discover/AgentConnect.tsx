@@ -18,9 +18,11 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, ButtonPrimary, ButtonSecondary, Text, Box } from 'design';
 import * as Icons from 'design/Icon';
+
+import { LoginTrait } from './LoginTrait';
+
 import type { AgentStepProps, AgentStepComponent } from './types';
 import type { AgentKind } from './useDiscover';
-import { LoginTrait } from './LoginTrait';
 
 // agentStepTitles defines the titles per steps defined by enum `AgentStep`.
 //

@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { AuthType } from 'teleport/services/user';
+
 import { AddDatabase } from './AddDatabase';
 
 export default {

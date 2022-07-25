@@ -19,6 +19,7 @@ import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import styled from 'styled-components';
 import { width, space } from 'design/system';
+
 import { Props, AsyncProps } from './types';
 
 export default function Select(props: Props) {

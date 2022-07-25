@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
+
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+
 import QuickInput from './QuickInput';
 
 export default {

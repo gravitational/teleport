@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { format } from 'date-fns';
+
 import Logger from 'shared/libs/logger';
 import cfg from 'shared/config';
 

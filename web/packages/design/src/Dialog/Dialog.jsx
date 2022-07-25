@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
+
 import Modal from './../Modal';
 
 export default class Dialog extends React.Component {

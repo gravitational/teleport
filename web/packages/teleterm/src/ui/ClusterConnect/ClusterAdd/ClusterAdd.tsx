@@ -21,8 +21,10 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { DialogContent, DialogHeader } from 'design/Dialog';
-import { useClusterAdd } from 'teleterm/ui/ClusterConnect/ClusterAdd/useClusterAdd';
+
 import { Attempt } from 'shared/hooks/useAsync';
+
+import { useClusterAdd } from 'teleterm/ui/ClusterConnect/ClusterAdd/useClusterAdd';
 
 export function ClusterAdd(props: ClusterAddProps) {
   const clusterAdd = useClusterAdd(props);

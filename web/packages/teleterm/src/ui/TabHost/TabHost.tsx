@@ -17,15 +17,20 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
-import { useTabShortcuts } from './useTabShortcuts';
+
 import { DocumentsRenderer } from 'teleterm/ui/Documents';
+
+import AppContext from 'teleterm/ui/appContext';
+
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { useTabShortcuts } from './useTabShortcuts';
 import { useNewTabOpener } from './useNewTabOpener';
 import { ClusterConnectPanel } from './ClusterConnectPanel/ClusterConnectPanel';
-import AppContext from 'teleterm/ui/appContext';
-import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
 export function TabHostContainer() {
   const ctx = useAppContext();

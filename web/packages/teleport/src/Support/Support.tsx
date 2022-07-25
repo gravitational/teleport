@@ -17,10 +17,12 @@
 import React from 'react';
 import * as Icons from 'design/Icon';
 import { Card, Box, Text, Flex } from 'design';
+
+import styled from 'styled-components';
+
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
-import styled from 'styled-components';
 
 export default function Container() {
   const ctx = useTeleport();

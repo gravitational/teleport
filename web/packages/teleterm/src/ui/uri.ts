@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { matchPath, generatePath } from 'react-router';
+
 import type { RouteProps } from 'react-router';
 
 export const paths = {

@@ -1,6 +1,7 @@
-import { ConfigService } from '../services/config';
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
+
+import { ConfigService } from '../services/config';
 
 export type RuntimeSettings = {
   dev: boolean;

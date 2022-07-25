@@ -16,6 +16,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import styled from 'styled-components';
+
 import { Box } from 'design';
 
 export function StepSlider<T>(props: Props<T>) {

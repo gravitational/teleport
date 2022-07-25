@@ -1,5 +1,6 @@
 const path = require('path');
 const { spawn } = require('child_process');
+
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const resolvepath = require('@gravitational/build/webpack/resolvepath');
 const configFactory = require('@gravitational/build/webpack/webpack.base');

@@ -14,21 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
 import React from 'react';
 import { Danger } from 'design/Alert';
 import { Indicator, Text, Box, Flex, ButtonPrimary, Link } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
+
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import TrustedList from './TrustedList';
+
+import useResources from 'teleport/components/useResources';
+
 import DeleteTrust from './DeleteTrust';
 import templates from './templates';
-import useResources from 'teleport/components/useResources';
+import TrustedList from './TrustedList';
 import useTrustedClusters from './useTrustedClusters';
 import { emptyPng } from './assets';
 

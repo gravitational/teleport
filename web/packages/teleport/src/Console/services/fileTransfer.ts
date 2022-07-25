@@ -16,6 +16,7 @@ limitations under the License.
 
 import { EventEmitter } from 'events';
 import Logger from 'shared/libs/logger';
+
 import { getAuthHeaders, getNoCacheHeaders } from 'teleport/services/api';
 
 const logger = Logger.create('console/services/fileTransfer');

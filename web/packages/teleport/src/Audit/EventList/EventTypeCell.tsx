@@ -18,6 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Cell } from 'design/DataTable';
 import Icon, * as Icons from 'design/Icon/Icon';
+
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
 import cfg from 'teleport/config';
 

@@ -19,7 +19,9 @@ import styled from 'styled-components';
 import { typography } from 'design/system';
 import { Box, ButtonIcon } from 'design';
 import * as Icons from 'design/Icon';
+
 import { Document } from 'teleterm/ui/services/workspacesService';
+
 import { TabItem } from './TabItem';
 
 export function Tabs(props: Props) {

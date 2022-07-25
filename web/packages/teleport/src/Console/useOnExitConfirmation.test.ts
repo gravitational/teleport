@@ -15,9 +15,11 @@
  */
 
 import renderHook from 'design/utils/renderHook';
+
+import session from 'teleport/services/websession';
+
 import ConsoleContext from './consoleContext';
 import useOnExitConfirmation from './useOnExitConfirmation';
-import session from 'teleport/services/websession';
 
 test('confirmation dialog before terminating an active ssh session', () => {
   const ctx = new ConsoleContext();

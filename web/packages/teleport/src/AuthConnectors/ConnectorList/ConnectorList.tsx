@@ -18,7 +18,9 @@ import React from 'react';
 import { Text, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
+
 import { State as ResourceState } from 'teleport/components/useResources';
+
 import { State as AuthConnectorState } from '../useAuthConnectors';
 
 export default function ConnectorList({ items, onEdit, onDelete }: Props) {

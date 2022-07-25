@@ -21,9 +21,11 @@ import { Text, Flex, ButtonPrimary, TopNav } from 'design';
 import { Wand } from 'design/Icon';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { MenuItemIcon, MenuItem } from 'design/Menu';
+
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import ClusterSelector from './ClusterSelector';
 import useTopBar from './useTopBar';
 

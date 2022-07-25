@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { createMemoryHistory } from 'history';
+
 import history from './history';
 
 describe('services/history', () => {

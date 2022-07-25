@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Dialog from 'design/Dialog';
 
 function DialogConfirmation(props) {

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 
 export function useNewTabOpener({

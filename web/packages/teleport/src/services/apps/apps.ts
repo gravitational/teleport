@@ -17,6 +17,7 @@
 import api from 'teleport/services/api';
 import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
+
 import makeApp from './makeApps';
 import { App } from './types';
 

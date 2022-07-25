@@ -15,9 +15,11 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
-import Icon from '../Icon';
+
 import { space, borderRadius } from 'design/system';
 import { darken } from 'design/theme/utils/colorManipulator';
+
+import Icon from '../Icon';
 
 export const StyledTable = styled.table(
   props => `

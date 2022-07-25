@@ -24,15 +24,19 @@ import {
   Link,
   Indicator,
 } from 'design';
-import Document from 'teleterm/ui/Document';
+
 import * as Alerts from 'design/Alert';
-import * as types from 'teleterm/ui/services/workspacesService';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import useDocumentGateway, { State } from './useDocumentGateway';
+
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { debounce } from 'lodash';
 import styled from 'styled-components';
+
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import * as types from 'teleterm/ui/services/workspacesService';
+import Document from 'teleterm/ui/Document';
+
+import useDocumentGateway, { State } from './useDocumentGateway';
 
 type Props = {
   visible: boolean;

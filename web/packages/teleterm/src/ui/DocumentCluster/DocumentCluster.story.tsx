@@ -16,12 +16,14 @@
 
 import React from 'react';
 import styled from 'styled-components';
+
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   createClusterServiceState,
   ClustersServiceState,
 } from 'teleterm/ui/services/clusters';
+
 import DocumentCluster from './DocumentCluster';
 
 export default {

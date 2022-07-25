@@ -23,8 +23,10 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 import { useAttemptNext } from 'shared/hooks';
-import UserTokenLink from './../UserTokenLink';
+
 import { ResetToken } from 'teleport/services/user';
+
+import UserTokenLink from './../UserTokenLink';
 
 export default function Container(props: Props) {
   const dialog = useDialog(props);

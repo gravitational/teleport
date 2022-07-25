@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import { map } from 'lodash';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+
 import makeSession, { makeParticipant } from './makeSession';
 import { ParticipantList } from './types';
 

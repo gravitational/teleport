@@ -27,8 +27,10 @@ import { DialogContent, DialogFooter } from 'design/Dialog';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import { State } from '../useAddApp';
 
 export default function Automatically(props: Props) {

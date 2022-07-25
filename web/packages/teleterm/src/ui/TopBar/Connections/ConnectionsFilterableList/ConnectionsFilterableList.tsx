@@ -1,9 +1,13 @@
 import React from 'react';
+
+import { Box, Text } from 'design';
+
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { ConnectionItem } from './ConnectionItem';
-import { Box, Text } from 'design';
+
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+
+import { ConnectionItem } from './ConnectionItem';
 
 interface ConnectionsFilterableListProps {
   items: ExtendedTrackedConnection[];

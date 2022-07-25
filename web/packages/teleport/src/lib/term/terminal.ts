@@ -18,6 +18,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce, Cancelable, isInteger } from 'lodash';
 import Logger from 'shared/libs/logger';
+
 import { TermEventEnum } from './enums';
 import Tty from './tty';
 

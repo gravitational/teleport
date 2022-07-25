@@ -1,9 +1,13 @@
 import React from 'react';
-import { MockAppContext } from './mocks';
+
+import { HTML5Backend } from 'react-dnd-html5-backend';
+
+import { DndProvider } from 'react-dnd';
+
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import AppContext from 'teleterm/ui/appContext';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import { DndProvider } from 'react-dnd';
+
+import { MockAppContext } from './mocks';
 
 export const MockAppContextProvider: React.FC<{
   appContext?: AppContext;

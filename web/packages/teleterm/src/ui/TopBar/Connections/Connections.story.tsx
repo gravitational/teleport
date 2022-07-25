@@ -1,6 +1,8 @@
 import React from 'react';
+
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+
 import { Connections } from './Connections';
 
 export default {

@@ -32,10 +32,12 @@ import {
   blueGrey,
 } from 'design/theme/palette';
 import { AmazonAws } from 'design/Icon';
+
 import { App } from 'teleport/services/apps';
 import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
+
 import AwsLaunchButton from './AwsLaunchButton';
 
 export default function AppList(props: Props) {

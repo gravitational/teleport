@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
+
 import { NewCredentials } from './NewCredentials';
 import { CardWelcome } from './CardWelcome';
 

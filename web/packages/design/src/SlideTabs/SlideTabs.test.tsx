@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import SlideTabs from './SlideTabs';
+
 import { render, fireEvent } from 'design/utils/testing';
+
+import SlideTabs from './SlideTabs';
 
 describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(3)', () => {

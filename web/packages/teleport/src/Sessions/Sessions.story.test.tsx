@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Loaded } from './Sessions.story';
+
 import { render } from 'design/utils/testing';
+
+import { Loaded } from './Sessions.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);

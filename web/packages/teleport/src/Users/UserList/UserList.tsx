@@ -18,6 +18,7 @@ import React from 'react';
 import { Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+
 import { User } from 'teleport/services/user';
 
 export default function UserList({

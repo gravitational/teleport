@@ -18,6 +18,7 @@ import React from 'react';
 import Menu from 'design/Menu';
 import { ButtonBorder } from 'design';
 import { CarrotDown } from 'design/Icon';
+
 import { MenuProps, AnchorProps } from './types';
 
 export default class MenuActionIcon extends React.Component<Props> {

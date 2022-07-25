@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
+
 import AjaxPoller from 'teleport/components/AjaxPoller';
+
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import * as stores from './stores/types';
 import { colors } from './colors';

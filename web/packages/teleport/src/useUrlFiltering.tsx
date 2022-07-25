@@ -15,8 +15,10 @@
  */
 
 import { useMemo } from 'react';
+
 import { makeLabelTag } from 'teleport/components/formatters';
 import { Label, Filter } from 'teleport/types';
+
 import useUrlQueryParams from './useUrlQueryParams';
 
 export default function useUrlFiltering<T extends Filterable>(data: T[]) {

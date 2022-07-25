@@ -1,12 +1,15 @@
 import { Metadata, credentials } from '@grpc/grpc-js';
 import { Struct } from 'google-protobuf/google/protobuf/struct_pb';
+
 import {
   PtyHostClient as GrpcClient,
   PtyCreate,
   PtyId,
 } from 'teleterm/sharedProcess/ptyHost';
-import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
+
 import { PtyHostClient } from '../types';
+
+import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 
 export function createPtyHostClient(address: string): PtyHostClient {
   const client = new GrpcClient(address, credentials.createInsecure());

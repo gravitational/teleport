@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Card } from 'design';
+
 import { Props, NewCredentials, SliderProps } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
 

@@ -16,6 +16,7 @@ limitations under the License.
 
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+
 import { space } from 'design/system';
 
 const LabelInput = styled.label`

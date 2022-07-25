@@ -17,6 +17,7 @@ limitations under the License.
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { fontSize, color, space } from 'styled-system';
+
 import defaultTheme from './../theme';
 
 const defaultValues = {

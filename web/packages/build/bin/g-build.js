@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const path = require('path');
+
 const spawn = require('cross-spawn');
 
 if (!process.argv.some(arg => arg.startsWith('--config'))) {

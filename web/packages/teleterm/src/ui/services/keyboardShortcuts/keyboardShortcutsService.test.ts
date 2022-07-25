@@ -1,5 +1,6 @@
-import { KeyboardShortcutsService } from './keyboardShortcutsService';
 import { ConfigService } from 'teleterm/services/config';
+
+import { KeyboardShortcutsService } from './keyboardShortcutsService';
 
 test('call subscriber on event', () => {
   const { subscriber } = getTestSetup();

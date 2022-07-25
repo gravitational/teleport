@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import { useEffect, useState } from 'react';
-import Ctx from 'teleport/teleportContext';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
+
+import Ctx from 'teleport/teleportContext';
 import * as Features from 'teleport/features';
 
 export default function useClusters(ctx: Ctx) {

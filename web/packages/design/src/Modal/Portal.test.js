@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { render } from 'design/utils/testing';
+
 import Portal from './Portal';
 
 describe('design/Modal/Portal', () => {

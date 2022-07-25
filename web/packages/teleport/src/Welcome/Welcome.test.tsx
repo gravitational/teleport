@@ -19,9 +19,11 @@ import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import { screen, fireEvent, act, render, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
+
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
+
 import Welcome from './Welcome';
 
 const invitePath = '/web/invite/5182';

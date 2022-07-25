@@ -15,13 +15,20 @@ limitations under the License.
 */
 
 import { useStore } from 'shared/libs/stores';
-import { ImmutableStore } from '../immutableStore';
+
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   Document,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
+
+import { getClusterName } from 'teleterm/ui/utils';
+
+import { routing } from 'teleterm/ui/uri';
+
+import { ImmutableStore } from '../immutableStore';
+
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
   createGatewayConnection,
@@ -34,8 +41,6 @@ import {
   TrackedConnection,
   TrackedGatewayConnection,
 } from './types';
-import { getClusterName } from 'teleterm/ui/utils';
-import { routing } from 'teleterm/ui/uri';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
   private _trackedConnectionOperationsFactory: TrackedConnectionOperationsFactory;

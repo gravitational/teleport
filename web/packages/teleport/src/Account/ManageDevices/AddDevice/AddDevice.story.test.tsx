@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import { LoadedWebauthn, Failed, QrCodeFailed } from './AddDevice.story';
 
 test('render dialog to add a new mfa device with webauthn as preferred type', () => {

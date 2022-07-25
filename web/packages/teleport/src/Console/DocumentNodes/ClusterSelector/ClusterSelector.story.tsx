@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { TestLayout } from 'teleport/Console/Console.story';
 import ConsoleContext from 'teleport/Console/consoleContext';
+
 import ClusterSelector from './ClusterSelector';
 import ThemeProvider from './../ThemeProvider';
 

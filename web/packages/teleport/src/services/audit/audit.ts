@@ -16,6 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+
 import makeEvent from './makeEvent';
 import { EventQuery, EventResponse } from './types';
 

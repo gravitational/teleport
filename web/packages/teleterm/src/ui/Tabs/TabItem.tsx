@@ -18,6 +18,7 @@ import React, { useRef } from 'react';
 import styled from 'styled-components';
 import { Close as CloseIcon } from 'design/Icon';
 import { ButtonIcon, Text } from 'design';
+
 import { useTabDnD } from './useTabDnD';
 
 type TabItemProps = {

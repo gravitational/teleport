@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { useState, useRef, useEffect } from 'react';
+
 import useAttempt from './useAttempt';
 import useFavicon from './useFavicon';
 import useDocTitle from './useDocTitle';

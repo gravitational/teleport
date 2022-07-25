@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import BufferModule from 'buffer/';
+
 import api from 'teleport/services/api';
+
 import { EventTypeEnum } from './enums';
 
 const URL_PREFIX_EVENTS = '/events';

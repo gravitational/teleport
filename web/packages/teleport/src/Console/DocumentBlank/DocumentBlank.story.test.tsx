@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Blank } from './DocumentBlank.story';
 
 test('render DocumentBlank', () => {

@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import { AppsResponse } from 'teleport/services/apps';
 import history from 'teleport/services/history';
 import Ctx from 'teleport/teleportContext';

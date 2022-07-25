@@ -26,10 +26,14 @@ import {
 } from 'design';
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
+
 import { Header, CancelButton } from '../Shared';
-import type { AgentStepProps } from '../types';
+
 import { useDiscoverContext } from '../discoverContextProvider';
+
 import { useLoginTrait, State } from './useLoginTrait';
+
+import type { AgentStepProps } from '../types';
 
 export default function Container(props: AgentStepProps) {
   const ctx = useDiscoverContext();

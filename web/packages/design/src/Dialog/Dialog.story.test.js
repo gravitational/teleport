@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { Basic } from './Dialog.story';
+
 import { render } from 'design/utils/testing';
+
+import { Basic } from './Dialog.story';
 
 test('rendering of Dialog* components', () => {
   const { container } = render(<Basic />);

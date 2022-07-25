@@ -16,6 +16,7 @@ limitations under the License.
 
 import React, { useRef, useEffect } from 'react';
 import { Box, Input, LabelInput, Text } from 'design';
+
 import { useRule } from 'shared/components/Validation';
 
 export default function FieldInput({

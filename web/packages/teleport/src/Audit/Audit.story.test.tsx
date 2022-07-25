@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { LoadedSample, AllEvents } from './Audit.story';
 
 test('loaded audit log screen', async () => {
