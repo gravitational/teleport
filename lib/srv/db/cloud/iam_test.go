@@ -18,6 +18,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -213,43 +215,70 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	stsClient := &STSMock{
 		ARN: "arn:aws:iam::1234567890:role/test-role",
 	}
-	rdsClient := &RDSMockUnauth{}
-	redshiftClient := &RedshiftMockUnauth{}
-	iamClient := &IAMMockUnauth{}
-
 	// Make configurator.
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
-		Clients: &common.TestCloudClients{
-			STS:      stsClient,
-			RDS:      rdsClient,
-			Redshift: redshiftClient,
-			IAM:      iamClient,
-		},
-		HostID: "host-id",
+		Clients:     &common.TestCloudClients{}, // placeholder,
+		HostID:      "host-id",
 	})
 	require.NoError(t, err)
 
 	tests := []struct {
-		name string
-		meta types.AWS
+		name    string
+		meta    types.AWS
+		clients common.CloudClients
 	}{
 		{
 			name: "RDS database",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+			clients: &common.TestCloudClients{
+				RDS: &RDSMockUnauth{},
+				IAM: &IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
 		},
 		{
 			name: "Aurora cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			clients: &common.TestCloudClients{
+				RDS: &RDSMockUnauth{},
+				IAM: &IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
 		},
 		{
 			name: "Redshift cluster",
 			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			clients: &common.TestCloudClients{
+				Redshift: &RedshiftMockUnauth{},
+				IAM: &IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
+		},
+		{
+			name: "IAM UnmodifiableEntityException",
+			meta: types.AWS{Region: "localhost", AccountID: "1234567890", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			clients: &common.TestCloudClients{
+				Redshift: &RedshiftMockUnauth{},
+				IAM: &IAMErrorMock{
+					Error: awserr.New(iam.ErrCodeUnmodifiableEntityException, "unauthorized", fmt.Errorf("unauthorized")),
+				},
+				STS: stsClient,
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Update cloud clients.
+			configurator.cfg.Clients = test.clients
+
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: "test",
 			}, types.DatabaseSpecV3{
