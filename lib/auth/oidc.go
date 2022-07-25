@@ -369,8 +369,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
 
 	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
-	if hasEmailVerifiedClaim && emailVerified == "false" {
-		return unverifiedErr
+	if hasEmailVerifiedClaim {
+		if emailVerified == "false" {
+			return unverifiedErr
+		}
+		if emailVerified == "true" {
+			return nil
+		}
+
+		return trace.BadParameter("unable to parse oidc claim: %q, must be set to either 'true' or 'false'", claimName)
 	}
 
 	data, ok := claims[claimName]
