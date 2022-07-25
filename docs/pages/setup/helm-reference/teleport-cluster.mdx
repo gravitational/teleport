@@ -415,6 +415,119 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   </TabItem>
 </Tabs>
 
+## `installCRDs`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false`| ✅ |
+
+CRDs are required by the teleport-operator and are installed by default when `operator.enabled` is true.
+`installCRDs` overrides this behaviour and allows users to explicit whether to deploy Teleport CRDs.
+
+Unless you are deploying multiple `teleport-cluster` Helm releases in the same Kubernetes cluster or installing
+the CRDs on your own you should not have to set this value.
+
+<Admonition type="note">
+  CRDs are not namespace-scoped resources, they can be installed only once in a cluster.
+
+  If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+  release should have `installCRDs` enabled.
+</Admonition>
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  installCRDs: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set installCRDs=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `operator`
+
+### `operator.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false`| ✅ |
+
+`operator.enabled` controls whether to deploy the Teleport Kubernetes Operator as a side-car.
+
+Enabling the operator will also deploy the Teleport CRDs in the Kubernetes clusters.
+If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
+[`installCRDs`](#installCRDs).
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+   enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `operator.image`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `quay.io/gravitational/teleport-operator`| ✅ |
+
+`operator.image` sets the Teleport Operator container image used for Teleport pods in the cluster.
+You can override this to use your own Teleport Operator image rather than a Teleport-published image.
+
+This setting requires [`operator.enabled`](#operatorenabled).
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+    image: my.docker.registry/teleport-operator-image-name
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.image=my.docker.registry/teleport-operator-image-name
+  ```
+  </TabItem>
+</Tabs>
+
+### `operator.resources`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+Resource requests/limits which should be configured for the Teleport Operator container.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.resources.requests.cpu=1 \
+  --set operator.resources.requests.memory=2Gi
+  ```
+  </TabItem>
+</Tabs>
+
 ## `teleportVersionOverride`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -1005,7 +1118,7 @@ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 | - | - | - |
 | `string` | `quay.io/gravitational/teleport` | ✅ |
 
-`image` sets the container image used for Teleport Community pods in the cluster.
+`image` sets the Teleport container image used for Teleport Community pods in the cluster.
 
 You can override this to use your own Teleport Community image rather than a Teleport-published image.
 
@@ -1608,8 +1721,8 @@ A `postStart` lifecycle handler to be configured on the main Teleport container.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
-Resource requests/limits which should be configured for each container inside the pod. These resource limits
-will also be applied to `initContainers`.
+Resource requests/limits which should be configured for Teleport containers. These resource limits will also be
+applied to `initContainers`.
 
 <Tabs>
   <TabItem label="values.yaml">
