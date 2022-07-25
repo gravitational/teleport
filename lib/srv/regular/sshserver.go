@@ -31,10 +31,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1355,7 +1356,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				scx.Debugf("Client %v disconnected.", scx.ServerConn.RemoteAddr())
 				return
 			}
-			if err := s.dispatch(ch, req, scx); err != nil {
+			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				return
 			}
@@ -1384,22 +1385,22 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
-func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
+func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	serverContext.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
 	// If this SSH server is configured to only proxy, we do not support anything
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
 		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ch, req, ctx)
+			return s.handleSubsystem(ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// we currently ignore setting any environment variables via SSH for security purposes
-			return s.handleEnv(ch, req, ctx)
+			return s.handleEnv(ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
-			err := s.handleAgentForwardProxy(req, ctx)
+			err := s.handleAgentForwardProxy(req, serverContext)
 			if err != nil {
 				log.Warn(err)
 			}
@@ -1412,21 +1413,21 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 
 	switch req.Type {
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, ctx)
+		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, ctx)
+		return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, ctx)
+		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, ctx)
+		return s.termHandlers.HandleWinChange(ch, req, serverContext)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, ctx)
+		return s.handleEnv(ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
-		return s.handleSubsystem(ch, req, ctx)
+		return s.handleSubsystem(ch, req, serverContext)
 	case sshutils.X11ForwardRequest:
-		return s.handleX11Forward(ch, req, ctx)
+		return s.handleX11Forward(ch, req, serverContext)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1438,7 +1439,7 @@ func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerConte
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForwardNode(req, ctx)
+		err := s.handleAgentForwardNode(req, serverContext)
 		if err != nil {
 			log.Warn(err)
 		}

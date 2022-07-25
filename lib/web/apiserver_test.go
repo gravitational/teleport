@@ -56,13 +56,14 @@ import (
 	"golang.org/x/text/encoding/unicode"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/gravitational/teleport"
 	apiProto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -1353,7 +1354,7 @@ func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
 		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 	}
-	err = nodeClient.CreateSession(sess1)
+	err = nodeClient.CreateSession(s.ctx, sess1)
 	require.NoError(t, err)
 
 	// Retrieve the session with the empty ClusterName.
@@ -1372,7 +1373,7 @@ func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
 	sess2 := sess1
 	sess2.ID = session.NewID()
 	sess2.ServerID = string(session.NewID())
-	err = nodeClient.CreateSession(sess2)
+	err = nodeClient.CreateSession(s.ctx, sess2)
 	require.NoError(t, err)
 
 	// Retrieve sessions list.

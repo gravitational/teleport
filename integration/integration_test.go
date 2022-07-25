@@ -316,7 +316,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(apidefaults.Namespace)
+			sessions, err := site.GetSessions(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -356,7 +356,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessionID)
+				session, err = site.GetSession(ctx, apidefaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -3376,6 +3376,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	var err error
 
@@ -3406,7 +3407,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(apidefaults.Namespace)
+	sessions, _ := site.GetSessions(ctx, apidefaults.Namespace)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3423,12 +3424,12 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		endCh <- err
 	}()
 
 	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
 	require.NoError(t, err)
@@ -3437,7 +3438,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
+		session, err = site.GetSession(ctx, apidefaults.Namespace, sessions[0].ID)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
