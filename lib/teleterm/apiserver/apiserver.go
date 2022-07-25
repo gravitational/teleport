@@ -34,6 +34,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// Server certificate file name (created by tsh), Connect expects exactly the same name
+	tshServerCertFileName = "tsh_server.crt"
+	// Client certificate file name (created by Connect)
+	clientCertFileName = "client.crt"
+)
+
 // New creates an instance of API Server
 func New(cfg Config) (*APIServer, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -137,7 +144,7 @@ func generateKeyPair(certsDir string) (credentials.TransportCredentials, error) 
 		return nil, trace.Wrap(err, "failed to generate a certificate")
 	}
 
-	err = os.WriteFile(filepath.Join(certsDir, "tsh_server.crt"), cert.Cert, 0600)
+	err = os.WriteFile(tshServerCertFileName, cert.Cert, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to save server certificate")
 	}
@@ -149,7 +156,7 @@ func generateKeyPair(certsDir string) (credentials.TransportCredentials, error) 
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-			caCert, err := os.ReadFile(filepath.Join(certsDir, "client.crt"))
+			caCert, err := os.ReadFile(filepath.Join(certsDir, clientCertFileName))
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to read client certificate file")
 			}
