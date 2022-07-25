@@ -119,7 +119,7 @@ func NewWithLocalPort(gateway Gateway, port string) (*Gateway, error) {
 	return newGateway, trace.Wrap(err)
 }
 
-// Close terminates gateway connection
+// Close terminates gateway connection. Fails if called on an already closed gateway.
 func (g *Gateway) Close() error {
 	g.closeCancel()
 
