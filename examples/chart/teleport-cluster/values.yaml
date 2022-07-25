@@ -37,6 +37,28 @@ proxyListenerMode: ""
 separatePostgresListener: false
 separateMongoListener: false
 
+# Do not set any of these values unless you explicitly need to. Teleport always uses the cluster name by default.
+# Public cluster addresses, including port. Defaults to `clusterName` on 443 port.
+publicAddr: []
+# Public cluster kube addresses, including port. Defaults to `publicAddr` on 3026 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+kubePublicAddr: []
+# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on 27017 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
+mongoPublicAddr: []
+# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on 3036 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+mysqlPublicAddr: []
+# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on 5432 port.
+# Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
+postgresPublicAddr: []
+# Public cluster SSH addresses, including port. Defaults to `publicAddr` on 3023 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+sshPublicAddr: []
+# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on 3024 port.
+# Only used when `proxyListenerMode` is not 'multiplex'.
+tunnelPublicAddr: []
+
 # ACME is a protocol for getting Web X.509 certificates
 # Note: ACME can only be used for single-instance clusters. It is not suitable for use in HA configurations.
 # For HA configurations, see either the "highAvailability.certManager" or "tls" values.
@@ -53,6 +75,23 @@ acmeURI: ""
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
+
+installCRDs: false
+# Configuration of the optional Teleport operator
+operator:
+  # Set enabled to true to add the Kubernetes Teleport Operator
+  enabled: false
+  # Kubernetes Teleport Operator image
+  image: quay.io/gravitational/teleport-operator
+  # Resources to request for the operator container
+  # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+  resources: {}
+  #  requests:
+  #    cpu: "0.5"
+  #    memory: "1Gi"
+  #  limits:
+  #    memory: "1Gi"
+
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
@@ -275,7 +314,7 @@ initContainers: []
 postStart:
   command: []
 
-# Resources to request for each pod in the deployment
+# Resources to request for the teleport container
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources: {}
 #  requests:
