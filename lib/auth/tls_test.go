@@ -1480,14 +1480,14 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 		},
 	}
 	// authentication attempt fails with no password set up
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	fixtures.ExpectAccessDenied(c, err)
 
 	err = clt.UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	// success with password set up
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	c.Assert(err, check.IsNil)
 	c.Assert(ws, check.Not(check.Equals), "")
 
@@ -1548,7 +1548,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	err = clt.UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	c.Assert(err, check.IsNil)
 
 	web, err := s.server.NewClientFromWebSession(ws)
@@ -1566,7 +1566,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 	accessReq.SetAccessExpiry(s.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	err = clt.CreateAccessRequest(ctx, accessReq)
 	c.Assert(err, check.IsNil)
 
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
@@ -2467,7 +2467,7 @@ func (s *TLSSuite) TestCertificateFormat(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// authentication attempt fails with password auth only
-		re, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+		re, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 			AuthenticateUserRequest: AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &PassCreds{
@@ -2560,21 +2560,21 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// authentication attempt fails with wrong password
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
 	})
 	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication attempt fails with wrong otp
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: "wrong123"},
 	})
 	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication attempt fails with password auth only
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2583,7 +2583,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	fixtures.ExpectAccessDenied(c, err)
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: validToken},
 	})
@@ -2607,6 +2607,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
 	user := "user1"
 	pass := []byte("abc123")
@@ -2627,7 +2628,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 		},
 	}
 	// authentication attempt fails with bad password
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	fixtures.ExpectAccessDenied(c, err)
 
 	// creates first failed login attempt
@@ -2637,7 +2638,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 
 	// try second time with wrong pass
 	req.Pass.Password = pass
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	c.Assert(err, check.IsNil)
 
 	// clears all failed attempts after success
@@ -2722,7 +2723,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Make sure access is denied for web login.
-	_, err = s.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = s.server.Auth().AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2733,7 +2734,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	// Make sure access is denied for SSH login.
 	_, pub, err := s.server.Auth().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	_, err = s.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.server.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass: &PassCreds{
