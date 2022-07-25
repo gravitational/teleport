@@ -130,7 +130,7 @@ Create your dynamic resource using `tctl create -f <path to your YAML file>`.
 </Tabs> 
 
 ## Require dual authorization for role requests
-Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicous user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
+Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicious user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
 
 Dual authorization uses Teleport's access plugins—e.g., Slack, JIRA, and PagerDuty—to notify reviewers that a user has requested a role. For access plugins that require a SAML or OIDC connector, you must enable the Cloud or Enterprise versions of Teleport.
 
