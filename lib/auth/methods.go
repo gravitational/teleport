@@ -460,11 +460,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, s)
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{

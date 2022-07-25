@@ -480,9 +480,9 @@ func TestAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 			authCtx := auth.Context{
 				User: user,
-				Checker: services.NewAccessChecker(&services.AccessInfo{
-					RoleSet: roles,
-				}, "local"),
+				Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+					Roles: roles.RoleNames(),
+				}, "local", roles),
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
