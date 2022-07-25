@@ -872,6 +872,8 @@ steps:
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
+
       # wait for Docker to be ready
       - sleep 3
 
@@ -953,13 +955,16 @@ steps:
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build/push Teleport Lab Docker image
@@ -4743,12 +4748,13 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make bash
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
+      - make publish-operator-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -5306,11 +5312,13 @@ steps:
       - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
       # retag images to production naming
       - echo "---> Tagging images for $${VERSION}"
       - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
       # reauthenticate with production credentials
       - docker logout quay.io
       - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
@@ -5319,6 +5327,7 @@ steps:
       - docker push quay.io/gravitational/teleport:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -5614,6 +5623,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 0b31aa60031631eb74ab6f6cc76917472d5b239ad2151d37b1b19b263fb5d1c4
+hmac: 5a84f1468c34f05ab0815842e8760c683908b0eee7d5b431b26da434bf81f97f
 
 ...
