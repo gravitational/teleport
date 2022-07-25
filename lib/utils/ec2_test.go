@@ -17,10 +17,15 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsEC2NodeID(t *testing.T) {
@@ -61,4 +66,42 @@ func TestIsEC2NodeID(t *testing.T) {
 			assert.Equal(t, IsEC2NodeID(tc.id), tc.expected)
 		})
 	}
+}
+
+func TestEC2IsInstanceMetadataAvailable(t *testing.T) {
+	t.Run("not available", func(t *testing.T) {
+		t.Parallel()
+		if os.Getenv("TELEPORT_TEST_EC2") != "" {
+			t.Skip("on EC2")
+		}
+		ctx := context.Background()
+		client, err := NewInstanceMetadataClient(ctx)
+		require.NoError(t, err)
+		require.False(t, client.IsAvailable(ctx))
+	})
+
+	t.Run("mistake some other service for instance metadata", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client, err := NewInstanceMetadataClient(ctx)
+		require.NoError(t, err)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("Hello there!"))
+		}))
+		t.Cleanup(server.Close)
+		client.instanceMetadataURL = server.URL
+		require.False(t, client.IsAvailable(ctx))
+	})
+
+	t.Run("available", func(t *testing.T) {
+		t.Parallel()
+		if os.Getenv("TELEPORT_TEST_EC2") == "" {
+			t.Skip("not on EC2")
+		}
+		ctx := context.Background()
+		client, err := NewInstanceMetadataClient(ctx)
+		require.NoError(t, err)
+		require.True(t, client.IsAvailable(ctx))
+	})
 }
