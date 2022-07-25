@@ -4001,9 +4001,9 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
-	// and in the case where Kube service was enabled cert rotation flow was broken.
+	// Enable Kubernetes/Desktop services to test that the ready event is propagated.
 	helpers.EnableKubernetesService(t, config)
+	helpers.EnableDesktopService(config)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 

@@ -38,8 +38,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -1126,15 +1129,100 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyfns := make([]func(ctx context.Context) error, 0, len(c.collections))
-	for _, collection := range c.collections {
-		applyfn, err := collection.fetch(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		applyfns = append(applyfns, applyfn)
+// applyFn applies the fetched resources for a
+// particular collection
+type applyFn func(ctx context.Context) error
+
+// tracedApplyFn wraps an apply function with a span that is
+// a child of the provided parent span. Since the context provided
+// to the applyFn won't be from fetch, we need to manually link
+// the spans.
+func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resourceKind, f applyFn) applyFn {
+	return func(ctx context.Context) (err error) {
+		ctx, span := tracer.Start(
+			oteltrace.ContextWithSpan(ctx, parent),
+			fmt.Sprintf("cache/apply/%s", kind.String()),
+			oteltrace.WithAttributes(
+				attribute.String("version", kind.version),
+			),
+		)
+
+		defer func() {
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			span.End()
+		}()
+
+		return f(ctx)
 	}
+}
+
+// fetchLimit determines the parallelism of the
+// fetch operations based on the target. Both the
+// auth and proxy caches are permitted to run parallel
+// fetches for resources, while all other targets are
+// throttled to limit load spiking during a mass
+// restart of nodes
+func fetchLimit(target string) int {
+	switch target {
+	case "auth", "proxy":
+		return 5
+	}
+
+	return 1
+}
+
+func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
+	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
+	defer func() {
+		if err != nil {
+			fetchSpan.RecordError(err)
+			fetchSpan.SetStatus(codes.Error, err.Error())
+		}
+		fetchSpan.End()
+	}()
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(fetchLimit(c.target))
+	applyfns := make([]applyFn, len(c.collections))
+	i := 0
+	for kind, collection := range c.collections {
+		kind, collection := kind, collection
+		ii := i
+		i++
+
+		g.Go(func() (err error) {
+			ctx, span := c.Tracer.Start(
+				ctx,
+				fmt.Sprintf("cache/fetch/%s", kind.String()),
+				oteltrace.WithAttributes(
+					attribute.String("target", c.target),
+				),
+			)
+			defer func() {
+				if err != nil {
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+				}
+				span.End()
+			}()
+
+			applyfn, err := collection.fetch(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		for _, applyfn := range applyfns {
 			if err := applyfn(ctx); err != nil {
