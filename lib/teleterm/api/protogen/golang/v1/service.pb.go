@@ -2316,8 +2316,8 @@ type TerminalServiceClient interface {
 	//
 	// In Connect this is used to update the db name of a db connection along with the CLI command.
 	SetGatewayTargetSubresourceName(ctx context.Context, in *SetGatewayTargetSubresourceNameRequest, opts ...grpc.CallOption) (*Gateway, error)
-	// SetGatewayLocalPort changes the LocalPort field of gateway.Gateway, restarts the gateway
-	// without fetching new certs and returns the updated version of gateway.Gateway.
+	// SetGatewayLocalPort starts a new gateway on the new port, stops the old gateway and then
+	// assigns the URI of the old gateway to the new one. It does so without fetching a new db cert.
 	SetGatewayLocalPort(ctx context.Context, in *SetGatewayLocalPortRequest, opts ...grpc.CallOption) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(ctx context.Context, in *GetAuthSettingsRequest, opts ...grpc.CallOption) (*AuthSettings, error)
@@ -2543,8 +2543,8 @@ type TerminalServiceServer interface {
 	//
 	// In Connect this is used to update the db name of a db connection along with the CLI command.
 	SetGatewayTargetSubresourceName(context.Context, *SetGatewayTargetSubresourceNameRequest) (*Gateway, error)
-	// SetGatewayLocalPort changes the LocalPort field of gateway.Gateway, restarts the gateway
-	// without fetching new certs and returns the updated version of gateway.Gateway.
+	// SetGatewayLocalPort starts a new gateway on the new port, stops the old gateway and then
+	// assigns the URI of the old gateway to the new one. It does so without fetching a new db cert.
 	SetGatewayLocalPort(context.Context, *SetGatewayLocalPortRequest) (*Gateway, error)
 	// GetAuthSettings returns cluster auth settigns
 	GetAuthSettings(context.Context, *GetAuthSettingsRequest) (*AuthSettings, error)
