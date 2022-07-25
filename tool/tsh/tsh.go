@@ -532,6 +532,9 @@ func Run(args []string, opts ...cliOption) error {
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
+	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
