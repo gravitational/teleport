@@ -878,7 +878,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=6e4623bd6939759e6bdd32a9806cd2579a3b5d8f#6e4623bd6939759e6bdd32a9806cd2579a3b5d8f"
+source = "git+https://github.com/gravitational/rdp-rs?rev=004207e2edfbc6a57fd04daf6bcade93bcc3495e#004207e2edfbc6a57fd04daf6bcade93bcc3495e"
 dependencies = [
  "bufstream",
  "byteorder",
