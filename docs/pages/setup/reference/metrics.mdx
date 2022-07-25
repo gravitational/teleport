@@ -102,6 +102,9 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `backend_write_requests_total` | counter | cache | Number of write requests to the backend. |
 | `backend_write_seconds` | histogram | cache | Latency for backend write operations. |
 | `cluster_name_not_found_total` | counter | Teleport Auth | Number of times a cluster was not found. |
+| `dynamo_requests_total` | counter | dynamodb | Number of requests to the DynamoDB api. |
+| `dynamo_requests` | counter | dynamodb |  Number of failed requests to the DynamoDB api. |
+| `dynamo_requests_seconds` | histogram | dynamodb | Latency of DynamoDB api requests. |
 | `etcd_backend_batch_read_requests` | counter | etcd | Number of read requests to the etcd database. |
 | `etcd_backend_batch_read_seconds` | histogram | etcd | Latency for etcd read operations. |
 | `etcd_backend_read_requests` | counter | etcd | Number of read requests to the etcd database. |
