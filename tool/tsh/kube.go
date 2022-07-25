@@ -155,8 +155,12 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
-				var err error
-				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+				pc, err := tc.ConnectToProxy(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer pc.Close()
+				k, err = tc.IssueUserCertsWithMFA(cf.Context, pc, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
 				})
@@ -601,8 +605,12 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
-		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+		pc, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pc.Close()
+		k, err = tc.IssueUserCertsWithMFA(cf.Context, pc, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		})

@@ -316,11 +316,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	pc, err := client.ConnectToProxy(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase, db); err != nil {
+	defer pc.Close()
+
+	routeToDatabase, db, err := getDatabaseInfo(cf, client, pc, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := maybeDatabaseLogin(cf, client, pc, profile, routeToDatabase, db); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -347,14 +354,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
-	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
-		profile:          profile,
-		routeToDatabase:  routeToDatabase,
-		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
-	})
+	proxyOpts, err := prepareLocalProxyOptions(cf, client, profile, db, listener)
 	if err != nil {
 		return trace.Wrap(err)
 	}
