@@ -873,9 +873,9 @@ func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types
 }
 
 // CreateWebSession creates a new web session for a user
-func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
+func (c *Client) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", user, "web", "sessions"),
 		WebSessionReq{User: user},
 	)
@@ -887,9 +887,9 @@ func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
-func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+func (c *Client) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "web", "authenticate"),
 		req,
 	)
@@ -901,9 +901,9 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "ssh", "authenticate"),
 		req,
 	)
@@ -930,8 +930,8 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 // DeleteWebSession deletes the web session specified with sid for the given user
-func (c *Client) DeleteWebSession(user string, sid string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
+func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) error {
+	_, err := c.Delete(ctx, c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
 }
 
@@ -1448,7 +1448,7 @@ type WebService interface {
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (types.WebSession, error)
+	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -1655,6 +1655,9 @@ type ProvisioningService interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken creates a new provision token for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
@@ -1713,10 +1716,10 @@ type ClientI interface {
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
-	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
+	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// short lived certificates as a result
-	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	// short-lived certificates as a result
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.

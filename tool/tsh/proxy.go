@@ -58,19 +58,21 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyParams, err := getSSHProxyParams(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(tc.JumpHosts) > 0 {
-		err := setupJumpHost(cf, tc, *proxyParams)
+	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		proxyParams, err := getSSHProxyParams(cf, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
 
-	return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+		if len(tc.JumpHosts) > 0 {
+			err := setupJumpHost(cf, tc, *proxyParams)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+	})
+	return trace.Wrap(err)
 }
 
 // sshProxyParams combines parameters for establishing an SSH proxy used
@@ -90,12 +92,13 @@ type sshProxyParams struct {
 	tlsRouting bool
 }
 
-// getSSHProxyParams prepares parameters for establishing an SSH proxy.
+// getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
 func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
 	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Without jump hosts, we will be connecting to the current Teleport client
 	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
@@ -112,6 +115,7 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 			tlsRouting:  tc.TLSRoutingEnabled,
 		}, nil
 	}
+
 	// When jump host is specified, we will be connecting to the jump host's
 	// proxy directly. Call its ping endpoint to figure out the cluster details
 	// such as cluster name, SSH proxy address, etc.
@@ -123,10 +127,12 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sshProxyHost, sshProxyPort, err := ping.Proxy.SSHProxyHostPort()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &sshProxyParams{
 		proxyHost:   sshProxyHost,
 		proxyPort:   sshProxyPort,

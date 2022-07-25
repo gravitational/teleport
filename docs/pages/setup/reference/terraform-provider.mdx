@@ -43,7 +43,7 @@ The provider supports the following options:
 | `profile_name`        | string | Teleport profile name.                                                          | `TF_TELEPORT_PROFILE_NAME`        |
 | `root_ca_path`        | string | Path to Teleport CA file.                                                       | `TF_TELEPORT_ROOT_CA`             |
 | `root_ca_base64`      | string | Teleport CA as base64.                                                          | `TF_TELEPORT_ROOT_CA_BASE64`      |
-| `retry_base_duration` | string | Base durantion between retries. [Format](https://pkg.go.dev/time#ParseDuration) | `TF_TELEPORT_RETRY_BASE_DURATION` |
+| `retry_base_duration` | string | Base duration between retries. [Format](https://pkg.go.dev/time#ParseDuration) | `TF_TELEPORT_RETRY_BASE_DURATION` |
 | `retry_cap_duration`  | string | Max duration between retries. [Format](https://pkg.go.dev/time#ParseDuration)   | `TF_TELEPORT_RETRY_CAP_DURATION`  |
 | `retry_max_tries`     | string | Max number of retries.                                                          | `TF_TELEPORT_RETRY_MAX_TRIES`     |
 
@@ -448,7 +448,7 @@ Spec contains parameters of a resource.
 
 ## teleport_auth_preference
 
-The auth preferenfce resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
+The auth preference resource defines cluster auth preference for the Teleport cluster. This resource is a singleton. It gots reset on deletion.
 
 **metadata**
 

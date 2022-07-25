@@ -841,15 +841,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -891,15 +891,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -949,15 +949,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1343,12 +1343,12 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
 	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
@@ -1358,7 +1358,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -1879,13 +1879,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
-		// There's not a consistent way to merge multiple search-based access
-		// requests, a user may be able to request access to different resources
-		// with different roles which should not overlap.
-		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			// There's not a consistent way to merge multiple resource access
+			// requests, a user may be able to request access to different resources
+			// with different roles which should not overlap.
+			if len(allowedResourceIDs) > 0 {
+				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
+			}
+			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
-		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -1922,7 +1924,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
 		Roles:                roles,
 		Traits:               traits,
@@ -1982,12 +1984,12 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
+func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	u, err := a.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -1996,7 +1998,7 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -2434,12 +2436,8 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 }
 
 // NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession, error) {
+func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	user, err := a.GetUser(req.User, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2447,14 +2445,16 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
-		RoleSet:            roleSet,
 		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName())
+	}, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3629,6 +3629,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	}
 }
 
+// newKeySet generates a new sets of keys for a given CA type.
+// Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {
