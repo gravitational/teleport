@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
@@ -59,85 +60,72 @@ func withInsecure(insecure bool) optionsFunc {
 	}
 }
 
-func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+func getAuthClient(t *testing.T, ctx context.Context, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
 	var options options
 	for _, v := range opts {
 		v(&options)
 	}
-	var stdoutBuff bytes.Buffer
-	command := &ResourceCommand{
-		stdout: &stdoutBuff,
+	cfg := service.MakeDefaultConfig()
+
+	var ccf GlobalCLIFlags
+	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
+	ccf.Insecure = options.Insecure
+
+	clientConfig, err := applyConfig(&ccf, cfg)
+	require.NoError(t, err)
+
+	if options.CertPool != nil {
+		clientConfig.TLS.RootCAs = options.CertPool
 	}
+
+	client, err := authclient.Connect(ctx, clientConfig)
+	require.NoError(t, err)
+	return client
+}
+
+type cliCommand interface {
+	Initialize(app *kingpin.Application, cfg *service.Config)
+	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
+}
+
+func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	command.Initialize(app, cfg)
+	cmd.Initialize(app, cfg)
 
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	var ccf GlobalCLIFlags
-	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
-	ccf.Insecure = options.Insecure
-
-	clientConfig, err := applyConfig(&ccf, cfg)
-	require.NoError(t, err)
-
-	if options.CertPool != nil {
-		clientConfig.TLS.RootCAs = options.CertPool
-	}
-
 	ctx := context.Background()
-	client, err := authclient.Connect(ctx, clientConfig)
-	require.NoError(t, err)
+	client := getAuthClient(t, ctx, fc, opts...)
+	_, err = cmd.TryRun(ctx, selectedCmd, client)
+	return err
+}
 
-	_, err = command.TryRun(ctx, selectedCmd, client)
-	if err != nil {
-		return nil, err
+func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &ResourceCommand{
+		stdout: &stdoutBuff,
 	}
-	return &stdoutBuff, nil
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
-	var options options
-	for _, v := range opts {
-		v(&options)
-	}
-
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
 		stdout: &stdoutBuff,
 	}
-	cfg := service.MakeDefaultConfig()
-
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
-	command.Initialize(app, cfg)
 
 	args = append([]string{"tokens"}, args...)
-	selectedCmd, err := app.Parse(args)
-	require.NoError(t, err)
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
 
-	var ccf GlobalCLIFlags
-	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
-	ccf.Insecure = options.Insecure
-
-	clientConfig, err := applyConfig(&ccf, cfg)
-	require.NoError(t, err)
-
-	if options.CertPool != nil {
-		clientConfig.TLS.RootCAs = options.CertPool
-	}
-
-	ctx := context.Background()
-	client, err := authclient.Connect(ctx, clientConfig)
-	require.NoError(t, err)
-
-	_, err = command.TryRun(ctx, selectedCmd, client)
-	if err != nil {
-		return nil, err
-	}
-	return &stdoutBuff, nil
+func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &UserCommand{}
+	args = append([]string{"users"}, args...)
+	return runCommand(t, fc, command, args, opts...)
 }
 
 func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
