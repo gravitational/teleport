@@ -102,10 +102,6 @@ func (g *GRPCServer) serverContext() context.Context {
 	return g.AuthServer.closeCtx
 }
 
-const (
-	forwardedTag = "teleport.forwarded.for"
-)
-
 // Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
 // tsh, tctl, etc to be able to export traces without having to know how to connect to the upstream collector
 // for the cluster.

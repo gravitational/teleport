@@ -315,9 +315,20 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	return true
 }
 
+const (
+	forwardedTag = "teleport.forwarded.for"
+)
+
 // Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
 // tsh, tctl, etc to be able to export traces without having to know how to connect to the upstream collector
 // for the cluster.
+//
+// All spans received will have a `teleport.forwarded.for` attribute added to them with the value being one of
+// two things depending on the role of the forwarder:
+//  1) User forwarded: `teleport.forwarded.for: alice`
+//  2) Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
+//
+// This allows upstream consumers of the spans to be able to identify forwarded spans and act on them accordingly.
 func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracepb.ExportTraceServiceRequest) (*collectortracepb.ExportTraceServiceResponse, error) {
 	var sb strings.Builder
 
