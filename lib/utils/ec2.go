@@ -103,7 +103,8 @@ func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
-	c *imds.Client
+	c                   *imds.Client
+	instanceMetadataURL string
 }
 
 // NewInstanceMetadataClient creates a new instance metadata client.
@@ -113,18 +114,18 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 		return nil, trace.Wrap(err)
 	}
 	return &InstanceMetadataClient{
-		c: imds.NewFromConfig(cfg),
+		c:                   imds.NewFromConfig(cfg),
+		instanceMetadataURL: instanceMetadataURL,
 	}, nil
 }
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	// Doing this check via imds.Client.GetMetadata() involves several unrelated requests and takes a few seconds
-	// to complete when not on EC2. This approach is faster.
+	// Check if a server exists at the instance metadata URL. If not, we can quit early.
 	httpClient := http.Client{
 		Timeout: 250 * time.Millisecond,
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instanceMetadataURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.instanceMetadataURL, nil)
 	if err != nil {
 		return false
 	}
@@ -132,8 +133,10 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+	resp.Body.Close()
+	// If a server exists, do a full check.
+	_, err = client.getMetadata(ctx, "")
+	return err == nil
 }
 
 // getMetadata gets the raw metadata from a specified path.
