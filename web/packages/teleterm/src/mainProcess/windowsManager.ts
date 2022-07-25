@@ -60,6 +60,13 @@ export class WindowsManager {
     window.webContents.on('context-menu', (_, props) => {
       this.popupUniversalContextMenu(window, props);
     });
+
+    window.webContents.session.setPermissionRequestHandler(
+      (webContents, permission, callback) => {
+        // deny all permissions requests, we currently do not require any
+        return callback(false);
+      }
+    );
   }
 
   private saveWindowState(window: BrowserWindow): void {
