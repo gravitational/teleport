@@ -28,6 +28,7 @@ function createHtmlPlugin() {
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="referrer" content="no-referrer" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod https://usage.teleport.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; font-src 'self' data:">
       </head>
       <body>
         <div id="app"></div>
