@@ -103,7 +103,7 @@ type MockListener struct {
 	CloseCallCount int
 }
 
-func (m MockListener) Accept() (net.Conn, error) {
+func (m *MockListener) Accept() (net.Conn, error) {
 	return m.realListener.Accept()
 }
 
@@ -112,7 +112,7 @@ func (m *MockListener) Close() error {
 	return m.realListener.Close()
 }
 
-func (m MockListener) Addr() net.Addr {
+func (m *MockListener) Addr() net.Addr {
 	if m.fakePort == "0" {
 		return m.realListener.Addr()
 	}
