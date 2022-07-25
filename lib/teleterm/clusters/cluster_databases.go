@@ -42,6 +42,8 @@ type Database struct {
 
 // GetDatabase returns a database
 func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
+	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
+	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 	dbs, err := c.GetDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

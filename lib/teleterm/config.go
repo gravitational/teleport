@@ -16,6 +16,7 @@ package teleterm
 
 import (
 	"os"
+	"syscall"
 
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -57,6 +58,12 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if !(addr.Network() == "unix" || addr.Network() == "tcp") {
 		return trace.BadParameter("network address should start with unix:// or tcp:// or be empty (tcp:// is used in that case)")
+	}
+
+	if len(c.ShutdownSignals) == 0 {
+		// If ShutdownSignals is empty, the service will be immediately shut down on start as
+		// Signal.Notify relays all signals if it's given no specific signals to watch for.
+		c.ShutdownSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}
 	}
 
 	return nil
