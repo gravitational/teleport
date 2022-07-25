@@ -1754,6 +1754,20 @@ func enableKubernetesService(t *testing.T, config *service.Config) {
 	require.NoError(t, enableKube(config, "teleport-cluster"))
 }
 
+func enableDesktopService(config *service.Config) {
+	// This config won't actually work, because there is no LDAP server,
+	// but it's enough to force desktop service to run.
+	config.WindowsDesktop.Enabled = true
+	config.WindowsDesktop.ListenAddr = *utils.MustParseAddr("127.0.0.1:0")
+	config.WindowsDesktop.Discovery.BaseDN = ""
+	config.WindowsDesktop.LDAP = service.LDAPConfig{
+		Domain:             "example.com",
+		Addr:               "127.0.0.1:636",
+		Username:           "test",
+		InsecureSkipVerify: true,
+	}
+}
+
 func enableKube(config *service.Config, clusterName string) error {
 	kubeConfigPath := config.Kube.KubeconfigPath
 	if kubeConfigPath == "" {
