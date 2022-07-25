@@ -70,7 +70,7 @@ and will require access to both the public internet and the Teleport Auth Servic
   $ cd teleport-plugins/access/slack
   $ make
   ```
-  Place `./teleport-access-slack/teleport-slack` into an appropriate location within the sytem's PATH, e.g.`/usr/local/bin`.
+  Place `./teleport-access-slack/teleport-slack` into an appropriate location within the system's PATH, e.g.`/usr/local/bin`.
   ```code
   mv ./teleport-access-slack/teleport-slack /usr/local/bin
   ```
@@ -207,7 +207,7 @@ For example:
 
 If a user requests the `dev` role, the plugin will send a message to both the `dev-slack-channel`
 and `admin-slack-channel`. If a user requests the `alex` role, the Slack user with the username
-`alex@gmail.com`, if one exists, will recieve a DM. If any other role is requested, the plugin will
+`alex@gmail.com`, if one exists, will receive a DM. If any other role is requested, the plugin will
 follow the `*` entry and send a message to the `admin-slack-channel`.
 
 ## Step 6/7. Test your Slack app
