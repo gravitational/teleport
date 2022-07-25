@@ -1,6 +1,7 @@
 import React from 'react';
 import { ClickableLabelCell } from 'design/DataTable';
 import { Desktop } from 'teleport/services/desktops';
+
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Desktops(props: ListProps & { desktops: Desktop[] }) {

@@ -3,12 +3,14 @@ import { Indicator } from 'design';
 import { useStore } from 'shared/libs/stores';
 import { AppVerticalSplit } from 'teleport/components/Layout';
 import AjaxPoller from 'teleport/components/AjaxPoller';
+
+import useTeleportE from 'e-teleport/useTeleportE';
+
 import RequestReason from './RequestReason';
 import RequestPending from './RequestPending';
 import RequestDenied from './RequestDenied';
 import RequestError from './RequestError';
 import useWaitingRoom, { State } from './useWaitingRoom';
-import useTeleportE from 'e-teleport/useTeleportE';
 
 const Container: React.FC<Props> = props => {
   const ctx = useTeleportE();

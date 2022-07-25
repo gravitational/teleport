@@ -3,6 +3,7 @@ import LoginForm from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 import history from 'teleport/services/history';
 import useLogin, { State } from 'teleport/Login/useLogin';
+
 import cfg from 'e-teleport/config';
 
 const logoSrc = require('design/assets/images/teleport-medallion.svg');

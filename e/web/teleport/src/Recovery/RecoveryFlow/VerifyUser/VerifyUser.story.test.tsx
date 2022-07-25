@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import * as WithMulti from './Multi.story';
 import * as WithPassword from './Password.story';
 import * as WithTotp from './Totp.story';

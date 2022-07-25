@@ -2,6 +2,7 @@ import React from 'react';
 import Flex from 'design/Flex';
 import { Info } from 'design/Icon';
 import Text from 'design/Text';
+
 import type { Severity } from 'e-teleport/services/license';
 
 export function LicenseWarning({ text, severity }: Props) {

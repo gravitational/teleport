@@ -5,6 +5,7 @@ import ResourceService, {
   makeResource,
 } from 'teleport/services/resources';
 import api from 'teleport/services/api';
+
 import cfg from 'e-teleport/config';
 
 class ResourceServiceE extends ResourceService {

@@ -1,11 +1,15 @@
 import React from 'react';
-import WaitingRoom from './WaitingRoom';
+
 import { ContextProvider } from 'teleport';
-import TeleportContextE from 'e-teleport/teleportContextE';
+
 import { makeUserContext } from 'teleport/services/user';
 import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import historyService from 'teleport/services/history';
+
+import TeleportContextE from 'e-teleport/teleportContextE';
 import { makeAccessRequest } from 'e-teleport/services/workflow';
+
+import WaitingRoom from './WaitingRoom';
 
 beforeAll(() => {
   jest.useFakeTimers('modern');

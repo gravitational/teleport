@@ -1,5 +1,5 @@
 import React from 'react';
-import { RequestView } from './RequestView';
+
 import {
   requestRoleApproved,
   requestRoleDenied,
@@ -7,6 +7,8 @@ import {
   requestSearchPending,
   requestRoleEmpty,
 } from '../../fixtures';
+
+import { RequestView } from './RequestView';
 
 export default {
   title: 'TeleportE/Workflow/RequestView',

@@ -1,6 +1,8 @@
 import React from 'react';
-import { Loaded, LoadedWithPrompt, Failed } from './RequestReason.story';
+
 import { render, screen } from 'design/utils/testing';
+
+import { Loaded, LoadedWithPrompt, Failed } from './RequestReason.story';
 
 test('loaded without custom prompt', () => {
   render(<Loaded />);

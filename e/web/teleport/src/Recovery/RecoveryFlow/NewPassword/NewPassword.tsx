@@ -7,6 +7,7 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
+
 import useNewPassword, { State, Props } from './useNewPassword';
 
 export default function Container(props: Props) {

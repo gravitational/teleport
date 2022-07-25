@@ -1,6 +1,8 @@
 import React from 'react';
-import { Loaded, Failed, Processing, Approved } from './RequestDelete.story';
+
 import { render, screen } from 'design/utils/testing';
+
+import { Loaded, Failed, Processing, Approved } from './RequestDelete.story';
 
 test('loaded state', () => {
   render(<Loaded />);

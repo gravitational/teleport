@@ -4,6 +4,7 @@ import { Text, Box, Flex } from 'design';
 import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';
 import { State as ResourceState } from 'teleport/components/useResources';
+
 import getSsoIcon from '../getSsoIcon';
 
 export default function EmptyList({ onCreate }: Props) {

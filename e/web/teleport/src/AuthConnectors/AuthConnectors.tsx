@@ -7,9 +7,11 @@ import {
 import { Indicator, Text, Box, Flex, Alert } from 'design';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
+
+import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
+
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
-import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
 import AddMenu from './AddMenu';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';

@@ -1,5 +1,6 @@
 import { generatePath } from 'react-router';
 import ossCfg from 'teleport/config';
+
 import { AccessRequestFilter } from 'e-teleport/services/workflow';
 
 const cfg = {

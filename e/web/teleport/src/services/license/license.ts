@@ -1,4 +1,5 @@
 import api from 'teleport/services/api';
+
 import { LicenseStatus } from './types';
 
 const service = {

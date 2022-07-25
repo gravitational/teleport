@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Loaded, Failed } from './NewPassword.story';
 
 test('render correct form for resetting password', () => {

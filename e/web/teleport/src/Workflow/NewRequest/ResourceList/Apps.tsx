@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cell, ClickableLabelCell } from 'design/DataTable';
 import { App } from 'teleport/services/apps';
+
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Apps(props: ListProps & { apps: App[] }) {

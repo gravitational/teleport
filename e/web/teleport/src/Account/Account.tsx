@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box } from 'design';
-import cfg from 'e-teleport/config';
-import useTeleportE from 'e-teleport/useTeleportE';
+
 import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
 import {
   FeatureBox,
@@ -11,6 +10,10 @@ import {
 } from 'teleport/components/Layout';
 import ChangePassword from 'teleport/Account/ChangePassword';
 import ManageDevices from 'teleport/Account/ManageDevices';
+
+import useTeleportE from 'e-teleport/useTeleportE';
+import cfg from 'e-teleport/config';
+
 import Recovery from './Recovery';
 
 export default function Container() {

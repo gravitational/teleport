@@ -1,6 +1,7 @@
 import React from 'react';
 import { ClickableLabelCell } from 'design/DataTable';
 import { Kube } from 'teleport/services/kube';
+
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Kubes(props: ListProps & { kubes: Kube[] }) {

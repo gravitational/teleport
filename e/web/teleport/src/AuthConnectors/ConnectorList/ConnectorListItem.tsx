@@ -3,6 +3,7 @@ import { Text, Flex, ButtonPrimary } from 'design';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { AuthProviderType } from 'shared/services';
 import { State as ResourceState } from 'teleport/components/useResources';
+
 import getSsoIcon from './../getSsoIcon';
 
 export default function ConnectorListItem({

@@ -1,10 +1,13 @@
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
-import useRequestView from './useRequestView';
+
 import renderHook, { act } from 'design/utils/renderHook';
 import makeUserContext from 'teleport/services/user/makeUserContext';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { requestRolePending } from 'e-teleport/Workflow/fixtures';
+
+import useRequestView from './useRequestView';
 
 test('flags for own request', async () => {
   const ctx = new TeleportContextE();

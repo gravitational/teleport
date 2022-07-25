@@ -4,7 +4,9 @@ import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import RecoveryService from 'e-teleport/services/recovery/recovery';
+
 import useRecoveryStart, { State, RecoveryType } from './useRecoveryStart';
 
 export default function Container({ recoveryType }: Props) {

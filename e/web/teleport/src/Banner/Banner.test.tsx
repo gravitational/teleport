@@ -1,10 +1,13 @@
 import React from 'react';
-import Banner from './Banner';
+
 import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
+
+import Banner from './Banner';
 
 beforeAll(() => {
   jest.useFakeTimers('modern');

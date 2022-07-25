@@ -1,5 +1,7 @@
 import React from 'react';
+
 import { RecoveryToken } from 'e-teleport/services/recovery/types';
+
 import { VerifyUser } from './VerifyUser';
 import { State } from './useVerifyUser';
 

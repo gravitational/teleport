@@ -1,6 +1,8 @@
 import React from 'react';
-import { Error, Warning, Info } from './LicenseWarning.story';
+
 import { render, screen } from 'design/utils/testing';
+
+import { Error, Warning, Info } from './LicenseWarning.story';
 
 test('render error license warning', async () => {
   render(<Error />);

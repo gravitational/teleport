@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import Ctx from 'e-teleport/teleportContextE';
+
 import type {
   AgentLabel,
   AgentFilter,
@@ -9,7 +12,6 @@ import type {
   AgentKind,
   AgentIdKind,
 } from 'teleport/services/agents';
-import Ctx from 'e-teleport/teleportContextE';
 
 const pageSize = 10;
 

@@ -1,4 +1,7 @@
 import api from 'teleport/services/api';
+
+import cfg from 'e-teleport/config';
+
 import {
   UpdateAccountRequest,
   Invoice,
@@ -8,7 +11,6 @@ import {
   UpdateCardRequest,
   RemoveCardRequest,
 } from './types';
-import cfg from 'e-teleport/config';
 
 class CloudService {
   updateAccount(req: UpdateAccountRequest) {

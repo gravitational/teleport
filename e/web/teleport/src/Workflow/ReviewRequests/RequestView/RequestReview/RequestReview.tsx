@@ -5,7 +5,9 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { requiredField } from 'shared/components/Validation/rules';
+
 import { RequestState } from 'e-teleport/services/workflow';
+
 import { State as RequestViewState } from '../useRequestView';
 
 const stateOptions = [

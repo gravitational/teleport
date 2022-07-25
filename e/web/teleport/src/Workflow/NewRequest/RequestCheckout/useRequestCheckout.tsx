@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import Ctx from 'e-teleport/teleportContextE';
+
+import { State as NewRequestState, ResourceKind } from '../useNewRequest';
+
 import type { AgentIdKind } from 'teleport/services/agents';
 import type { ResourceId } from 'e-teleport/services/workflow';
-import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
 export function useRequestCheckout({
   ctx,

@@ -12,9 +12,11 @@ import {
   Indicator,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
 import { ResourceId, AccessRequest } from 'e-teleport/services/workflow';
+
 import useRequestList, { State, Row } from './useRequestList';
 
 export default function Container() {

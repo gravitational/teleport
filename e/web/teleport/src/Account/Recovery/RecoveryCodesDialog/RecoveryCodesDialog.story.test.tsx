@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import { Loaded, LoadedFirstTime, Failed } from './RecoveryCodesDialog.story';
 
 test('render successful recovery codes dialog', () => {

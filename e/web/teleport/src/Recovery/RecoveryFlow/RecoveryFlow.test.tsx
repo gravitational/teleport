@@ -4,8 +4,10 @@ import { createMemoryHistory } from 'history';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import history from 'teleport/services/history';
 import MfaService from 'teleport/services/mfa';
+
 import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
+
 import Recovery from '../Recovery';
 
 const startToken = {

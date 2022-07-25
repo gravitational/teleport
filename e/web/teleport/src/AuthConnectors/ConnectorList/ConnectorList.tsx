@@ -2,8 +2,10 @@ import React from 'react';
 import { Flex } from 'design';
 import { AuthProviderType } from 'shared/services';
 import { State as ResourceState } from 'teleport/components/useResources';
-import ConnectorListItem from './ConnectorListItem';
+
 import { State as AuthConnectorsState } from '../useAuthConnectors';
+
+import ConnectorListItem from './ConnectorListItem';
 
 export default function ConnectorList({ items, onEdit, onDelete }: Props) {
   items = items || [];

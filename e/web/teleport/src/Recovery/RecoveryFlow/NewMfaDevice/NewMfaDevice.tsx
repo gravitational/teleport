@@ -9,6 +9,7 @@ import {
   requiredField,
 } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+
 import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
 
 const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');

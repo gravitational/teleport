@@ -7,7 +7,9 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
 import cfg from 'e-teleport/config';
+
 import Usage from './Usage';
 
 export default function Billing() {

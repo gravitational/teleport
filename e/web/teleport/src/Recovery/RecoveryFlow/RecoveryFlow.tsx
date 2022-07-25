@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
 import { Indicator, Box } from 'design';
 import { Route, Switch } from 'teleport/components/Router';
+
 import RecoveryService from 'e-teleport/services/recovery/recovery';
 import cfg from 'e-teleport/config';
+
 import Invalid from './InvalidLink';
 import VerifyUser from './VerifyUser';
 import NewPassword from './NewPassword';

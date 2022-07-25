@@ -1,5 +1,7 @@
 import React from 'react';
+
 import { LicenseWarning } from './LicenseWarning';
+
 import type { Props } from './LicenseWarning';
 
 export default {

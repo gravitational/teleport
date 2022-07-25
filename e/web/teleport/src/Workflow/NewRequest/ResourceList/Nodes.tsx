@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cell, ClickableLabelCell } from 'design/DataTable';
 import { Node } from 'teleport/services/nodes';
+
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Nodes(props: ListProps & { nodes: Node[] }) {

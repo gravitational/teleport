@@ -2,8 +2,10 @@ import React from 'react';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import AuthService from 'teleport/services/auth';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'e-teleport/config';
+
 import Recovery from './Recovery';
 
 const privilegeToken = 'privilegeToken123';

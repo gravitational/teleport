@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { ListProps, StyledTable, renderActionCell } from './ResourceList';
 
 export function Roles(props: ListProps & { roles: string[] }) {

@@ -3,8 +3,7 @@ import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 import { Flex } from 'design';
 import { ContextProvider } from 'teleport';
-import TeleportContextE from 'e-teleport/teleportContextE';
-import getFeatures from 'e-teleport/features';
+
 import { Main } from 'teleport/Main/Main';
 import { clusters } from 'teleport/Clusters/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
@@ -15,6 +14,9 @@ import { kubes } from 'teleport/Kubes/fixtures';
 import { userContext } from 'teleport/Main/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
+
+import getFeatures from 'e-teleport/features';
+import TeleportContextE from 'e-teleport/teleportContextE';
 import {
   MockedWorkflowService,
   MockedStoreAccessRequests,

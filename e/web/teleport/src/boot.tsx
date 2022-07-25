@@ -1,7 +1,9 @@
 import ReactDOM from 'react-dom';
 import React from 'react';
 import history from 'teleport/services/history';
+
 import cfg from 'e-teleport/config';
+
 import TeleportE from './TeleportE';
 import TeleportContextE from './teleportContextE';
 

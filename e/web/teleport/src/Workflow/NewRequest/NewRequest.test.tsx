@@ -2,8 +2,11 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, fireEvent, act } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import TeleportContextE from 'e-teleport/teleportContextE';
+
 import makeUserContext from 'teleport/services/user/makeUserContext';
+
+import TeleportContextE from 'e-teleport/teleportContextE';
+
 import NewRequest from './NewRequest';
 
 describe('new request behavior', () => {

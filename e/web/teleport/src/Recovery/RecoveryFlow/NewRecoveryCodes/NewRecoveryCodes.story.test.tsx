@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Loaded, Failed } from './NewRecoveryCodes.story';
 
 test('render recovery codes', () => {

@@ -5,8 +5,10 @@ import Teleport, {
   renderPrivateRoutes,
   Props,
 } from 'teleport/Teleport';
+
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
+
 import Login from './Login';
 import Recovery from './Recovery';
 import Main from './Main';

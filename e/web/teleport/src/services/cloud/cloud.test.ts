@@ -1,5 +1,6 @@
-import CloudSvc from './cloud';
 import api from 'teleport/services/api';
+
+import CloudSvc from './cloud';
 import { Invoice, BillingInformation, BillingCycle } from './types';
 
 test('fetch billing information', async () => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Logger from 'shared/libs/logger';
+
 import licenseService, { LicenseStatus } from 'e-teleport/services/license';
 
 const logger = Logger.create('LicenseEnforcer');

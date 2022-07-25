@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import { Loaded, Failed, RemoveDeviceDialog } from './Devices.story';
 
 test('render device list', () => {

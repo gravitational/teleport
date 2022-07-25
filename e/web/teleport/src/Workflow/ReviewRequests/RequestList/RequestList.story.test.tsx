@@ -1,6 +1,8 @@
 import React from 'react';
-import { Loaded } from './RequestList.story';
+
 import { render } from 'design/utils/testing';
+
+import { Loaded } from './RequestList.story';
 
 test('loaded state', () => {
   const { container } = render(<Loaded />);

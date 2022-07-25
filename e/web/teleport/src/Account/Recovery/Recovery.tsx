@@ -2,9 +2,11 @@ import React from 'react';
 import { Text, Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
+
+import useTeleportE from 'e-teleport/useTeleportE';
+
 import RecoveryCodesDialog from './RecoveryCodesDialog';
 import useRecovery, { State } from './useRecovery';
-import useTeleportE from 'e-teleport/useTeleportE';
 
 export default function Container() {
   const ctx = useTeleportE();

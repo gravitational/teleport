@@ -1,6 +1,8 @@
 import renderHook, { act } from 'design/utils/renderHook';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { BillingCycle } from 'e-teleport/services/cloud';
+
 import useUsage from './useUsage';
 
 test('formatting of cycles and its item list in yearlyUsages', async () => {

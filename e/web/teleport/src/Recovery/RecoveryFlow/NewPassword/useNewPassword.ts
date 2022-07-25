@@ -1,4 +1,5 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import RecoveryService from 'e-teleport/services/recovery';
 
 export default function useNewPassword({

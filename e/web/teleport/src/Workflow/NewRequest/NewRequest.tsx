@@ -19,7 +19,9 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
 import useTeleportE from 'e-teleport/useTeleportE';
+
 import { SearchPanel } from './SearchPanel';
 import { ResourceList } from './ResourceList';
 import { RequestCheckout } from './RequestCheckout';

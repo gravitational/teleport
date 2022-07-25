@@ -3,7 +3,9 @@ import { Indicator, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, { DialogHeader, DialogTitle, DialogFooter } from 'design/Dialog';
 import { Danger } from 'design/Alert';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
+
 import useTeleportE from 'e-teleport/useTeleportE';
+
 import useRecoveryCodesDialog, { State, Props } from './useRecoveryCodesDialog';
 
 export default function Container(props: Props) {

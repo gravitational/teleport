@@ -1,6 +1,8 @@
 import React from 'react';
-import { WithReason, WithoutReason } from './RequestDenied.story';
+
 import { render, screen } from 'design/utils/testing';
+
+import { WithReason, WithoutReason } from './RequestDenied.story';
 
 test('loaded with denied reason', () => {
   render(<WithReason />);

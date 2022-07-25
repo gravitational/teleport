@@ -1,7 +1,10 @@
 import React from 'react';
 import { Route, Switch } from 'teleport/components/Router';
-import cfg from 'e-teleport/config';
+
 import LogoHero from 'teleport/components/LogoHero';
+
+import cfg from 'e-teleport/config';
+
 import RecoveryStart from './RecoveryStart';
 import RecoveryFlow from './RecoveryFlow';
 

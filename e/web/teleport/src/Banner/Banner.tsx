@@ -2,7 +2,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
 import { StyledMain } from 'teleport/Main';
+
 import useTeleport from 'e-teleport/useTeleportE';
+
 import SwitchBack from './Switchback';
 import { useBanner } from './useBanner';
 import { LicenseWarning } from './LicenseWarning/LicenseWarning';

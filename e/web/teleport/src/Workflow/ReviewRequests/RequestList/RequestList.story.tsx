@@ -1,11 +1,13 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
+
 import {
   requestRolePending,
   requestRoleDenied,
   requestRoleApproved,
   requestSearchPending,
 } from '../../fixtures';
+
 import { RequestList } from './RequestList';
 
 export default {

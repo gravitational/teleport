@@ -8,7 +8,9 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
 import cfg from 'e-teleport/config';
+
 import RequestList from './RequestList';
 import RequestView from './RequestView';
 

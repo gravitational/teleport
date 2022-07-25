@@ -1,11 +1,13 @@
 import React from 'react';
+
+import { render } from 'design/utils/testing';
+
 import {
   LoadedSearchPending,
   LoadedRolePending,
   LoadedRoleApproved,
   LoadedRoleDenied,
 } from './RequestView.story';
-import { render } from 'design/utils/testing';
 
 test('loaded pending role based request state', () => {
   const { container } = render(<LoadedRolePending />);

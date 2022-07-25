@@ -11,6 +11,9 @@ import {
   Indicator,
 } from 'design';
 import { CircleCheck, CircleCross, ChevronCircleDown } from 'design/Icon';
+
+import Table from 'design/DataTable';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
   RequestState,
@@ -18,11 +21,11 @@ import {
   AccessRequestReviewer,
   ResourceId,
 } from 'e-teleport/services/workflow';
+
 import RequestDelete from './RequestDelete';
 import RequestReview from './RequestReview';
 import RolesRequested from './RolesRequested';
 import useRequestView, { State } from './useRequestView';
-import Table from 'design/DataTable';
 
 export default function Container() {
   const ctx = useTeleportE();

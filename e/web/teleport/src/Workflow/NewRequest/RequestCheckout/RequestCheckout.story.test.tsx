@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Loaded, Failed, Success } from './RequestCheckout.story';
 
 test('loaded state', async () => {

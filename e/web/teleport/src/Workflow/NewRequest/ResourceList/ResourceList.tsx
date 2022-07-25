@@ -8,13 +8,14 @@ import { App } from 'teleport/services/apps';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
 
+import { State } from '../useNewRequest';
+
 import { Apps } from './Apps';
 import { Databases } from './Databases';
 import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
 import { Kubes } from './Kubes';
 import { Roles } from './Roles';
-import { State } from '../useNewRequest';
 
 export function ResourceList(props: Props) {
   const {

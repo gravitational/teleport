@@ -1,11 +1,14 @@
 import React from 'react';
-import { ResourceList, Props } from './ResourceList';
+
 import { Desktop } from 'teleport/services/desktops';
 import { Database } from 'teleport/services/databases';
 import { App } from 'teleport/services/apps';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
+
 import { getEmptyResourceState } from '../useNewRequest';
+
+import { ResourceList, Props } from './ResourceList';
 
 export default {
   title: 'TeleportE/Workflow/ResourceList',

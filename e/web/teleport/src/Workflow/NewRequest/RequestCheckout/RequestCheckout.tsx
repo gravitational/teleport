@@ -16,12 +16,15 @@ import Table, { Cell } from 'design/DataTable';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 import { pluralize } from 'teleport/lib/util';
+
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
+
+import { State as NewRequestState } from '../useNewRequest';
+
 import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { State, useRequestCheckout } from './useRequestCheckout';
-import { State as NewRequestState } from '../useNewRequest';
 
 type CreateOption = Option & {
   isDisabled?: boolean;

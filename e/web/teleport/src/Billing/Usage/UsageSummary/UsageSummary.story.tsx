@@ -1,6 +1,8 @@
 import React from 'react';
-import UsageSummary from './UsageSummary';
+
 import { MonthlyItem } from '../useUsage';
+
+import UsageSummary from './UsageSummary';
 
 export default {
   title: 'TeleportE/Billing/Usage/Summary',

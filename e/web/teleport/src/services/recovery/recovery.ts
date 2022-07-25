@@ -5,7 +5,9 @@ import auth, {
   makeRecoveryCodes,
   NewCredentialRequest,
 } from 'teleport/services/auth';
+
 import cfg from 'e-teleport/config';
+
 import makeRecoveryToken from './makeRecoveryToken';
 import { StartRecoveryRequest, VerifyUserRequest } from './types';
 

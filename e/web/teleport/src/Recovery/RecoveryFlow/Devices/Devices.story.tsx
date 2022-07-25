@@ -2,6 +2,7 @@ import React from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import RemoveDialog from 'teleport/components/MfaDeviceList/RemoveDialog';
 import { MfaDevice } from 'teleport/services/mfa';
+
 import { Devices } from './Devices';
 
 export default {

@@ -1,5 +1,6 @@
-import Workflow from './workflow';
 import api from 'teleport/services/api';
+
+import Workflow from './workflow';
 
 test('handling of empty access request list', async () => {
   // Test null response.

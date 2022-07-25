@@ -3,6 +3,7 @@ import { Card, Text, Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import MfaService from 'teleport/services/mfa';
 import MfaDeviceList, { RemoveDialog } from 'teleport/components/MfaDeviceList';
+
 import useDevices, { State, Props } from './useDevices';
 
 export default function Container(props: Props) {
