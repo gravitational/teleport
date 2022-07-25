@@ -409,7 +409,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.GetAuthPreference(ctx)
+	storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}

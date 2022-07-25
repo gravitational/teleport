@@ -318,7 +318,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)

@@ -3408,7 +3408,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 		}
 		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
 
-		currentCA, err = a.GetCertAuthority(ctx, currentCA.GetID(), true)
+		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3505,7 +3505,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	var usedKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.GetCertAuthority(ctx, caID, true)
+		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
