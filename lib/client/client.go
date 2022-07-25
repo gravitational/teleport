@@ -166,6 +166,7 @@ type ReissueParams struct {
 	NodeName              string
 	KubernetesCluster     string
 	AccessRequests        []string
+	DropAccessRequests    []string
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp
 	RouteToWindowsDesktop proto.RouteToWindowsDesktop
@@ -544,6 +545,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		RouteToCluster:        params.RouteToCluster,
 		KubernetesCluster:     params.KubernetesCluster,
 		AccessRequests:        params.AccessRequests,
+		DropAccessRequests:    params.DropAccessRequests,
 		RouteToDatabase:       params.RouteToDatabase,
 		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
 		RouteToApp:            params.RouteToApp,

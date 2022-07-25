@@ -15,6 +15,7 @@ VERSION=11.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -159,12 +160,15 @@ LIBFIDO2_TEST_TAG := libfido2
 endif
 
 # Build tsh against libfido2?
-# Only build if FIDO2=yes, each platform we support must make this decision
-# explicitly.
+# FIDO2=yes and FIDO2=static enable static libfido2 builds.
+# FIDO2=dynamic enables dynamic libfido2 builds.
 LIBFIDO2_MESSAGE := without libfido2
-ifeq ("$(FIDO2)", "yes")
+ifneq (, $(filter $(FIDO2), yes static))
 LIBFIDO2_MESSAGE := with libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+else ifeq ("$(FIDO2)", "dynamic")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
@@ -283,8 +287,6 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
-	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -319,13 +321,17 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(ER_BPF_BUILDDIR)
-	rm -rf $(RS_BPF_BUILDDIR)
+# Check if the variable is set to prevent calling remove on the root directory.
+ifneq ($(ER_BPF_BUILDDIR),)
+	rm -f $(ER_BPF_BUILDDIR)/*.o
+endif
+ifneq ($(RS_BPF_BUILDDIR),)
+	rm -f $(RS_BPF_BUILDDIR)/*.o
+endif
 	-cargo clean
 	-go clean -cache
-	rm -rf teleport
-	rm -rf *.gz
-	rm -rf *.zip
+	rm -f *.gz
+	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 
@@ -473,7 +479,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust
+test: test-helm test-sh test-ci test-api test-go test-rust test-operator
 
 # Runs bot Go tests.
 #
@@ -506,7 +512,7 @@ test-helm-update-snapshots:
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go: FLAGS ?= -race -shuffle on
-test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
+test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
@@ -548,7 +554,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 		| tee $(TEST_LOG_DIR)/unit-root.json \
@@ -565,6 +571,14 @@ test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
 		| ${RENDER_TESTS}
+
+#
+# Runs Teleport Operator tests.
+# We have to run them using the makefile to ensure the installation of the k8s test tools (envtest)
+#
+.PHONY: test-operator
+test-operator:
+	make -C operator test
 
 #
 # Runs cargo test on our Rust modules.
@@ -995,6 +1009,15 @@ image-ci: clean docker-binaries
 publish-ci: image-ci
 	docker push $(DOCKER_IMAGE_CI):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
+
+# Docker image build for Teleport Operator
+.PHONY: image-operator-ci
+image-operator-ci:
+	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+
+.PHONY: publish-operator-ci
+publish-operator-ci: image-operator-ci
+	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
 
 .PHONY: print-version
 print-version:

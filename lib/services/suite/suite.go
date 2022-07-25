@@ -67,6 +67,8 @@ type TestCAConfig struct {
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
 // configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
@@ -96,11 +98,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		panic(err)
 	}
 
-	publicKey, privateKey, err := jwt.GenerateKeyPair()
-	if err != nil {
-		panic(err)
-	}
-
 	ca := &types.CertAuthorityV2{
 		Kind:    types.KindCertAuthority,
 		SubKind: string(config.Type),
@@ -112,19 +109,36 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		Spec: types.CertAuthoritySpecV2{
 			Type:        config.Type,
 			ClusterName: config.ClusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
-					PrivateKey: keyBytes,
-				}},
-				TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  publicKey,
-					PrivateKey: privateKey,
-				}},
-			},
 		},
 	}
+
+	// Match the key set to lib/auth/auth.go:newKeySet().
+	switch config.Type {
+	case types.DatabaseCA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
+	case types.KindJWT:
+		// Generating keys is CPU intensive operation. Generate JWT keys only
+		// when needed.
+		publicKey, privateKey, err := jwt.GenerateKeyPair()
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PublicKey:  publicKey,
+			PrivateKey: privateKey,
+		}}
+	case types.UserCA, types.HostCA:
+		ca.Spec.ActiveKeys = types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
+				PrivateKey: keyBytes,
+			}},
+			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
+		}
+	default:
+		panic("unknown CA type")
+	}
+
 	if err := services.SyncCertAuthorityKeys(ca); err != nil {
 		panic(err)
 	}
@@ -297,8 +311,6 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ca2.Spec.SigningKeys = nil
 	ca2.Spec.ActiveKeys.TLS[0].Key = nil
 	ca2.Spec.TLSKeyPairs[0].Key = nil
-	ca2.Spec.ActiveKeys.JWT[0].PrivateKey = nil
-	ca2.Spec.JWTKeyPairs[0].PrivateKey = nil
 	require.Equal(t, cas[0], ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(ctx, types.UserCA, true)
