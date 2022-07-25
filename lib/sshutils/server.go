@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	auditd2 "github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -448,6 +449,18 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				Warn("Error occurred in handshake for new SSH conn")
 		}
 		conn.SetDeadline(time.Time{})
+
+		auditd, err2 := auditd2.NewAuditDClient("", "")
+		if err2 != nil {
+			s.log.Warnf("auditd err: %v", err2)
+			return
+		}
+		defer auditd.Close()
+
+		if err := auditd2.SendEvent(auditd2.AUDIT_USER_ERR, auditd2.Failed, nil); err != nil {
+			s.log.Warnf("failed to send message to auditd: %v", err)
+		}
+
 		return
 	}
 
