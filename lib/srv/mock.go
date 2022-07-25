@@ -48,7 +48,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func newTestServerContext(t *testing.T, srv Server) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -74,6 +74,7 @@ func newTestServerContext(t *testing.T, srv Server) *ServerContext {
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
 			Certificate:  cert,
+			RoleSet:      roleSet,
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
