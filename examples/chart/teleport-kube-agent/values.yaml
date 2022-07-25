@@ -22,18 +22,27 @@ kubeClusterName: ""
 # Values that must be provided if Application access is enabled.
 ################################################################
 
+# At least one of 'apps', 'appResources' must be provided
+# when application access is enabled. See the README for more details.
+
 # Details of at least one app to be proxied. Example:
 # apps:
 #  - name: grafana
 #    uri: http://localhost:3000
 apps: []
 
+# Dynamic application configuration mode. Example:
+# appResources:
+#  - labels:
+#      "*": "*"
+appResources: []
+
 ################################################################
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# At least one of 'databases' or 'awsDatabases' must be provided when database access
-# is enabled. See the README for more details.
+# At least one of 'databases', 'awsDatabases' or 'databaseResources' must be provided
+# when database access is enabled. See the README for more details.
 
 # Database auto-discovery mode (AWS only)
 # Details of at least one awsDatabase discovery pattern to be discovered
@@ -54,6 +63,12 @@ awsDatabases: []
 #    static_labels:
 #      env: "prod"
 databases: []
+
+# Dynamic database configuration mode. Example:
+# databaseResources:
+#  - labels:
+#      "*": "*"
+databaseResources: []
 
 ################################################################
 # Values that you may need to change.
