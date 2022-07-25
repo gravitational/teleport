@@ -79,6 +79,62 @@
             "type": "boolean",
             "default": false
         },
+        "publicAddr": {
+            "$id": "#/properties/publicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "kubePublicAddr": {
+            "$id": "#/properties/kubePublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "mongoPublicAddr": {
+            "$id": "#/properties/mongoPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "mysqlPublicAddr": {
+            "$id": "#/properties/mysqlPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "postgresPublicAddr": {
+            "$id": "#/properties/postgresPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "sshPublicAddr": {
+            "$id": "#/properties/sshPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "tunnelPublicAddr": {
+            "$id": "#/properties/tunnelPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
