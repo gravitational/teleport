@@ -57,8 +57,11 @@ func blockUntilServerAcceptsConnections(t *testing.T, sockPath string) {
 	// Wait for the socket to be created.
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(sockPath)
-
-		return !errors.Is(err, os.ErrNotExist)
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+		require.NoError(t, err)
+		return true
 	}, time.Millisecond*500, time.Millisecond*50)
 
 	conn, err := net.DialTimeout("unix", sockPath, time.Second*1)
