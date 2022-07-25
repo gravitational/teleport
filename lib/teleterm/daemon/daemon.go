@@ -185,14 +185,8 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 
 // removeGateway assumes that mu is already held by a public method.
 func (s *Service) removeGateway(gateway *gateway.Gateway) error {
-	// In case closing the gateway fails, we want to return early and leave the gateway in the map.
-	//
-	// This way the gateway will remain shown as available in the app. The user will see the error
-	// related to closing the gateway and will be able to attempt to close it again.
-	//
-	// This is preferable to removing the gateway from the hash map. Since Connect remembers the port
-	// used for a particular db server + username pair, the user would be able to reopen the same
-	// gateway on the occupied port only to see an error.
+	// If gateway.Close() fails it most likely means it was called on a gateway that was already
+	// closed and that we have a race condition. Let's return an error in that case.
 	if err := gateway.Close(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -303,11 +297,11 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	}
 
 	if err := s.removeGateway(oldGateway); err != nil {
-		// If closing the old gateway fails, it still remains in s.gateways so the Electron app will see
-		// it as active. The user will see that the attempt to change the port has failed and will be
-		// able to retry it. That's why we return the error here.
+		// s.removeGateway() fails only if it was called on a gateway that was already close. This
+		// shouldn't happen and would mean that we have a race condition.
 		//
-		// However, at this point we should close the new gateway as it won't be used.
+		// Rather than continuing in presence of the race condition, let's attempt to close the new
+		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
 			newGateway.Log().Warnf(
 				"Failed to close the new gateway after failing to close the old gateway: %v",
