@@ -121,6 +121,8 @@ func newServer(t *testing.T, handler func(*ssh.ServerConn, <-chan ssh.NewChannel
 		hSigner:  hSigner,
 	}
 
+	t.Cleanup(func() { require.NoError(t, srv.Stop()) })
+
 	return srv
 }
 
