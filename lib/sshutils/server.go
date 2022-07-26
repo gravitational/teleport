@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -438,11 +439,14 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
-		s.log.
-			WithError(err).
-			WithFields(logrus.Fields{
-				"remote_addr": conn.RemoteAddr(),
-			}).Debug("Failed to instantiate SSH server conn")
+		// Ignore EOF as these are triggered by loadbalancer health checks
+		if !errors.Is(err, io.EOF) {
+			s.log.
+				WithError(err).
+				WithFields(logrus.Fields{
+					"remote_addr": conn.RemoteAddr(),
+				}).Warn("Error occurred in handshake for new SSH conn")
+		}
 		conn.SetDeadline(time.Time{})
 		return
 	}
