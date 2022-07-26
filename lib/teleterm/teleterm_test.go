@@ -25,16 +25,18 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/teleterm"
-
 	"github.com/stretchr/testify/require"
 )
 
 func TestStart(t *testing.T) {
 	homeDir := t.TempDir()
+	certsDir := t.TempDir()
 	sockPath := filepath.Join(homeDir, "teleterm.sock")
+
 	cfg := teleterm.Config{
-		Addr:    fmt.Sprintf("unix://%v", sockPath),
-		HomeDir: fmt.Sprintf("%v/", homeDir),
+		Addr:     fmt.Sprintf("unix://%v", sockPath),
+		HomeDir:  homeDir,
+		CertsDir: certsDir,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
