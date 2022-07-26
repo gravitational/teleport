@@ -1132,7 +1132,7 @@ func (s *TLSSuite) TestValidateUploadSessionRecording(c *check.C) {
 			Login:          "bob",
 			Namespace:      apidefaults.Namespace,
 		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
+		c.Assert(clt.CreateSession(context.Background(), sess), check.IsNil)
 
 		err = clt.UploadSessionRecording(events.SessionRecording{
 			Namespace: apidefaults.Namespace,
@@ -1223,7 +1223,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 			Login:          "bob",
 			Namespace:      apidefaults.Namespace,
 		}
-		c.Assert(clt.CreateSession(sess), check.IsNil)
+		c.Assert(clt.CreateSession(context.Background(), sess), check.IsNil)
 
 		marshal := func(f events.EventFields) []byte {
 			data, err := json.Marshal(f)
@@ -1255,8 +1255,9 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
+	ctx := context.Background()
 
-	out, err := clt.GetSessions(apidefaults.Namespace)
+	out, err := clt.GetSessions(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, []session.Session{})
 
@@ -1269,9 +1270,9 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Login:          "bob",
 		Namespace:      apidefaults.Namespace,
 	}
-	c.Assert(clt.CreateSession(sess), check.IsNil)
+	c.Assert(clt.CreateSession(ctx, sess), check.IsNil)
 
-	out, err = clt.GetSessions(apidefaults.Namespace)
+	out, err = clt.GetSessions(ctx, apidefaults.Namespace)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(out, check.DeepEquals, []session.Session{sess})
