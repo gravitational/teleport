@@ -216,7 +216,7 @@ func TestAlias(t *testing.T) {
 			args:    []string{"bb"},
 			wantErr: true,
 			validateOutput: func(t *testing.T, output string) {
-				require.Contains(t, output, fmt.Sprintf("%vnot logged in", utils.Color(utils.Red, "ERROR: ")))
+				require.Contains(t, output, fmt.Sprintf("%vNot logged in", utils.Color(utils.Red, "ERROR: ")))
 				require.Contains(t, output, fmt.Sprintf("%vexit status 1", utils.Color(utils.Red, "ERROR: ")))
 			},
 		},

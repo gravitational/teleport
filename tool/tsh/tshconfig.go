@@ -46,7 +46,7 @@ type TshConfig struct {
 	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
 	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
 	// Aliases are custom commands extending baseline tsh functionality.
-	Aliases map[string]string `yaml:"aliases"`
+	Aliases map[string]string `yaml:"aliases,omitempty"`
 }
 
 // Check validates the tsh config.

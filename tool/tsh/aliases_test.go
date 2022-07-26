@@ -48,11 +48,12 @@ func newTestAliasRunner(t *testing.T) *aliasRunner {
 
 func Test_expandAliasDefinition(t *testing.T) {
 	tests := []struct {
-		name      string
-		aliasDef  string
-		argsGiven []string
-		want      []string
-		wantErr   bool
+		name       string
+		aliasDef   string
+		argsGiven  []string
+		want       []string
+		wantErr    bool
+		errMessage string
 	}{
 		{
 			name:      "empty",
@@ -76,6 +77,20 @@ func Test_expandAliasDefinition(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			name:      "numerous arguments",
+			aliasDef:  "$0$1$2$3$4$5$6$7$8$9$10",
+			argsGiven: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			want:      []string{"012345678910"},
+			wantErr:   false,
+		},
+		{
+			name:      "numerous arguments, reverse order",
+			aliasDef:  "$10$9$8$7$6$5$4$3$2$1$0",
+			argsGiven: []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			want:      []string{"109876543210"},
+			wantErr:   false,
+		},
+		{
 			name:      "no references, append args",
 			aliasDef:  "foo1 foo2 foo3",
 			argsGiven: []string{"arg1", "arg2", "arg3"},
@@ -90,10 +105,18 @@ func Test_expandAliasDefinition(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "out of range reference",
-			aliasDef:  "refFoo $0 refBar $1",
-			argsGiven: []string{"foo"},
-			wantErr:   true,
+			name:       "out of range reference",
+			aliasDef:   "refFoo $0 refBar $1",
+			argsGiven:  []string{"foo"},
+			wantErr:    true,
+			errMessage: "tsh alias \"foo\" requires 2 arguments, but was invoked with 1",
+		},
+		{
+			name:       "very large variable number",
+			argsGiven:  nil,
+			aliasDef:   "$1000 bar baz",
+			wantErr:    true,
+			errMessage: "tsh alias \"foo\" requires 1001 arguments, but was invoked with 0",
 		},
 		{
 			name:      "ignore negative reference",
@@ -102,18 +125,13 @@ func Test_expandAliasDefinition(t *testing.T) {
 			want:      []string{"$-100"},
 			wantErr:   false,
 		},
-		{
-			name:      "unknown references fail",
-			argsGiven: nil,
-			aliasDef:  "$100 200 300",
-			wantErr:   true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := expandAliasDefinition(tt.aliasDef, tt.argsGiven)
+			got, err := expandAliasDefinition("foo", tt.aliasDef, tt.argsGiven)
 			if tt.wantErr {
 				require.Error(t, err)
+				require.Equal(t, tt.errMessage, err.Error())
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.want, got)

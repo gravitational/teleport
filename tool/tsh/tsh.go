@@ -476,17 +476,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
 
-	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
-	// shouldTerminate will be checked after app.Parse() call.
-	var shouldTerminate *int
-	app.Terminate(func(exitCode int) {
-		// make non-zero exit code sticky
-		if exitCode == 0 && shouldTerminate != nil {
-			return
-		}
-		shouldTerminate = &exitCode
-	})
-
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
@@ -817,7 +806,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			return trace.Wrap(err)
 		}
 
-		newArgs, err := expandAliasDefinition(aliasDefinition, runtimeArgs)
+		newArgs, err := expandAliasDefinition(aliasCommand, aliasDefinition, runtimeArgs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -835,10 +824,21 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	command, err := app.Parse(args)
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
-			log.Debugf("failing due to recursive alias %q. aliases seen: %v", aliasCommand, ar.getSeenAliases())
-			return trace.Wrap(fmt.Errorf("recursive alias %q; correct alias definition and try again", aliasCommand))
+			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
+			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
 	}
+
+	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
+	// shouldTerminate will be checked after app.Parse() call.
+	var shouldTerminate *int
+	app.Terminate(func(exitCode int) {
+		// make non-zero exit code sticky
+		if exitCode == 0 && shouldTerminate != nil {
+			return
+		}
+		shouldTerminate = &exitCode
+	})
 
 	if err != nil {
 		app.Usage(args)

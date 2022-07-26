@@ -26,16 +26,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded.
+// This is primarily to avoid infinite loops with ill-defined aliases, but can also be used to disable a particular alias on demand.
 const tshAliasEnvKey = "TSH_ALIAS"
 
 // aliasRunner coordinates alias running as well as provides a suitable testing target.
 type aliasRunner struct {
+	// getEnv is a function to retrieve env variable, for example os.Getenv.
 	getEnv func(key string) string
+	// setEnv is a function to set env variable, for example os.Setenv.
 	setEnv func(key, value string) error
 
+	// aliases is a list of alias definitions, keyed by alias name.
 	aliases map[string]string
 
-	runTshMain         func(ctx context.Context, args []string, opts ...cliOption) error
+	// runTshMain is a function to run tsh; for example Run().
+	runTshMain func(ctx context.Context, args []string, opts ...cliOption) error
+	// runExternalCommand is a function to execute the command passed in as argument; outside of test, it should simply invoke the Run() method.
 	runExternalCommand func(cmd *exec.Cmd) error
 }
 
@@ -52,7 +59,12 @@ func newAliasRunner(aliases map[string]string) *aliasRunner {
 	}
 }
 
-// findAliasCommand inspects the argument list to find first non-option (i.e. command). The command is returned along with the argument list from which the command was removed.
+// findAliasCommand inspects the argument list to find first non-option (i.e. command).
+// The command is returned along with the argument list from which the command was removed.
+// Examples:
+// - []string{"foo", "bar", "baz"}   => "foo", []string{"bar", "baz"}
+// - []string{"--foo", "bar", "baz"} => "bar", []string{"--foo", "baz"}
+// - []string{"--foo", "", "baz"}    => "baz", []string{"--foo", ""}
 func findAliasCommand(args []string) (string, []string) {
 	aliasCmd := ""
 	aliasIx := -1
@@ -62,6 +74,7 @@ func findAliasCommand(args []string) (string, []string) {
 			continue
 		}
 
+		// we are looking for the first non-flag argument.
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
@@ -82,27 +95,57 @@ func findAliasCommand(args []string) (string, []string) {
 	return aliasCmd, runtimeArgs
 }
 
+// numVarRegex is a regex for variables such as $0, $1 ...  $100 ... that can be used in alias definitions.
+var numVarRegex = regexp.MustCompile(`\$\d+`)
+
 // expandAliasDefinition expands $0, $1, ... within alias definition. Arguments not referenced in alias are appended at the end.
-func expandAliasDefinition(aliasDef string, runtimeArgs []string) ([]string, error) {
-	var appendArgs []string
-
-	for i, arg := range runtimeArgs {
+func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []string) ([]string, error) {
+	// prepare maps for all arguments
+	varMap := map[string]string{}
+	unusedVars := map[string]int{}
+	for i, value := range runtimeArgs {
 		variable := "$" + strconv.Itoa(i)
-		if strings.Contains(aliasDef, variable) {
-			aliasDef = strings.ReplaceAll(aliasDef, variable, arg)
-		} else {
-			appendArgs = append(appendArgs, arg)
+		varMap[variable] = value
+		unusedVars[variable] = i
+	}
+
+	// keep count of maximum missing variable
+	maxMissing := -1
+
+	expanded := numVarRegex.ReplaceAllStringFunc(aliasDef, func(variable string) string {
+		if value, ok := varMap[variable]; ok {
+			delete(unusedVars, variable)
+			return value
 		}
+
+		ix, err := strconv.Atoi(variable[1:])
+		if err != nil {
+			return variable
+		}
+
+		if maxMissing < ix {
+			maxMissing = ix
+		}
+
+		return variable
+	})
+
+	// report missing variables
+	if maxMissing > -1 {
+		return nil, trace.BadParameter("tsh alias %q requires %v arguments, but was invoked with %v", aliasName, maxMissing+1, len(runtimeArgs))
 	}
 
-	missingRefs := regexp.MustCompile(`\$\d`)
-	if missingRefs.MatchString(aliasDef) {
-		return nil, trace.BadParameter("unsatisfied argument variables for alias: %v", aliasDef)
-	}
-
-	split, err := shlex.Split(aliasDef)
+	split, err := shlex.Split(expanded)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var appendArgs []string
+	for i, value := range runtimeArgs {
+		variable := "$" + strconv.Itoa(i)
+		if _, ok := unusedVars[variable]; ok {
+			appendArgs = append(appendArgs, value)
+		}
 	}
 
 	out := append(split, appendArgs...)
@@ -143,7 +186,7 @@ func (ar *aliasRunner) getSeenAliases() []string {
 }
 
 // runAliasCommand actually runs requested alias command. If the executable resolves to the process itself it will directly call `Run()`, otherwise a new process will be spawned.
-func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath string, executable string, arguments []string) error {
+func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, executable string, arguments []string) error {
 	execPath, err := exec.LookPath(executable)
 	if err != nil {
 		return trace.Wrap(err, "failed to find the executable %q", executable)
@@ -152,7 +195,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath stri
 	// if execPath is our path, skip re-execution and run main directly instead.
 	// this makes for better error messages in case of failures.
 	if execPath == currentExecPath {
-		log.Debugf("self re-exec command: tsh %v", arguments)
+		log.Debugf("Self re-exec command: tsh %v.", arguments)
 		return trace.Wrap(ar.runTshMain(ctx, arguments))
 	}
 
@@ -161,7 +204,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath stri
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	log.Debugf("running external command: %v", cmd)
+	log.Debugf("Running external command: %v", cmd)
 	err = ar.runExternalCommand(cmd)
 	if err == nil {
 		return nil
