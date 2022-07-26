@@ -282,6 +282,11 @@ message UserCertsRequest {
     // UseRoleRequests is used to ensure a certificate request is intended to
     // use role impersonation, even if the list of role requests is empty.
     bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
+
+    // DropAccessRequests is an optional list of request IDs indicating requests
+    // whose escalated privileges should be removed from the certificate.
+    repeated string DropAccessRequests = 15
+        [ (gogoproto.jsontag) = "drop_access_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

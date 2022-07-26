@@ -160,11 +160,12 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 
 	// set new roles on the context user and create a new access checker
 	c.User.SetRoles(newRoleNames)
-	accessInfo, err := services.AccessInfoFromUser(c.User, access)
+	accessInfo := services.AccessInfoFromUser(c.User)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	c.Checker = services.NewAccessChecker(accessInfo, clusterName)
+	c.Checker = checker
 	return nil
 }
 
@@ -221,11 +222,14 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, a.accessPoint, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, a.clusterName)
+	checker, err := services.NewAccessChecker(accessInfo, a.clusterName, a.accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
@@ -301,7 +305,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		string(types.RoleRemoteProxy),
 		types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Namespaces: []string{types.Wildcard},
+				Namespaces:       []string{types.Wildcard},
+				NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindProxy, services.RO()),
@@ -341,12 +349,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	}
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
-		RoleSet:            roleSet,
-	}, a.clusterName)
+	}, a.clusterName, roleSet)
 	return &Context{
 		User:             user,
 		Checker:          checker,
@@ -390,6 +397,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
@@ -420,6 +428,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
+					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -449,7 +458,8 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:     []string{types.Wildcard},
+					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -480,8 +490,12 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				role.String(),
 				types.RoleSpecV5{
 					Allow: types.RoleConditions{
-						Namespaces:    []string{types.Wildcard},
-						ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						Namespaces:       []string{types.Wildcard},
+						ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							types.NewRule(types.KindProxy, services.RW()),
 							types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -543,8 +557,12 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces:    []string{types.Wildcard},
-					ClusterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:       []string{types.Wildcard},
+					ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+					NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindProxy, services.RW()),
 						types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -623,6 +641,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:           []string{types.Wildcard},
 					Logins:               []string{},
 					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
@@ -644,7 +665,8 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:       []string{types.Wildcard},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
@@ -717,12 +739,11 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		roles = append(roles, string(r))
 	}
 	user.SetRoles(roles)
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
-		RoleSet:            roleSet,
-	}, r.ClusterName)
+	}, r.ClusterName, roleSet)
 	return &Context{
 		User:             user,
 		Checker:          checker,
@@ -741,7 +762,10 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessChecker := services.NewAccessChecker(accessInfo, clusterName)
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Override roles and traits from the local user based on the identity roles
 	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old

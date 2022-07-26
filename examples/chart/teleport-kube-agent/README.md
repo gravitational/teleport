@@ -91,6 +91,26 @@ detailed below.
 
 ## Application access
 
+### Dynamic Registration mode
+
+To use Teleport application access in [dynamic registration mode](https://goteleport.com/docs/application-access/guides/dynamic-registration/),
+you will need to know the application resource selector. (`$APP_RESOURCE_KEY` and `$APP_RESOURCE_VALUE`)
+
+To listen for all application resources, set both variables to `*`.
+
+To install the agent in dynamic application registration mode, run:
+```sh
+$ helm install teleport-kube-agent . \
+--create-namespace \
+--namespace teleport \
+--set roles=app \
+--set proxyAddr=${PROXY_ENDPOINT?} \
+--set authToken=${JOIN_TOKEN?} \
+--set "appResources[0].labels.${APP_RESOURCE_KEY?}=${APP_RESOURCE_VALUE?}"
+```
+
+### Manual configuration mode
+
 To use Teleport Application access, you will also need:
 - the name of an application that you would like to proxy (`$APP_NAME`)
 - the URI to connect to the application from the node where this chart is deployed (`$APP_URI`)
@@ -126,6 +146,24 @@ You can add multiple apps using `apps[1].name`, `apps[1].uri`, `apps[2].name`, `
 After installing, the new application should show up in `tsh apps ls` after a few minutes.
 
 ## Database access
+
+### Dynamic Registration mode
+
+To use Teleport database access in [dynamic registration mode](https://goteleport.com/docs/database-access/guides/dynamic-registration/),
+you will need to know the database resource selector. (`$DB_RESOURCE_KEY` and `$DB_RESOURCE_VALUE`)
+
+To listen for all database resources, set both variables to `*`.
+
+To install the agent in dynamic database registration mode, run:
+```sh
+$ helm install teleport-kube-agent . \
+--create-namespace \
+--namespace teleport \
+--set roles=db \
+--set proxyAddr=${PROXY_ENDPOINT?} \
+--set authToken=${JOIN_TOKEN?} \
+--set "databaseResources[0].labels.${DB_RESOURCE_KEY?}=${DB_RESOURCE_VALUE?}"
+```
 
 ### Auto-discovery mode (AWS only)
 

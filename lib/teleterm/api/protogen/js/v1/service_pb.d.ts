@@ -538,6 +538,31 @@ export namespace SetGatewayTargetSubresourceNameRequest {
     }
 }
 
+export class SetGatewayLocalPortRequest extends jspb.Message { 
+    getGatewayUri(): string;
+    setGatewayUri(value: string): SetGatewayLocalPortRequest;
+
+    getLocalPort(): string;
+    setLocalPort(value: string): SetGatewayLocalPortRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetGatewayLocalPortRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SetGatewayLocalPortRequest): SetGatewayLocalPortRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetGatewayLocalPortRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetGatewayLocalPortRequest;
+    static deserializeBinaryFromReader(message: SetGatewayLocalPortRequest, reader: jspb.BinaryReader): SetGatewayLocalPortRequest;
+}
+
+export namespace SetGatewayLocalPortRequest {
+    export type AsObject = {
+        gatewayUri: string,
+        localPort: string,
+    }
+}
+
 export class ListServersRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): ListServersRequest;

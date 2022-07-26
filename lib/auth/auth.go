@@ -851,15 +851,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -901,15 +901,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -959,15 +959,15 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1889,13 +1889,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
-		// There's not a consistent way to merge multiple search-based access
-		// requests, a user may be able to request access to different resources
-		// with different roles which should not overlap.
-		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			// There's not a consistent way to merge multiple resource access
+			// requests, a user may be able to request access to different resources
+			// with different roles which should not overlap.
+			if len(allowedResourceIDs) > 0 {
+				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
+			}
+			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
-		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -2449,20 +2451,18 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
-		RoleSet:            roleSet,
 		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName())
+	}, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	netCfg, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {

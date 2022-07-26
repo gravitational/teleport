@@ -191,7 +191,7 @@ func TestSessions(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -203,7 +203,7 @@ func TestSessions(t *testing.T) {
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -243,7 +243,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	pass := []byte("abc123")
 
 	// Try to login as an unknown user.
-	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -268,7 +268,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login to the root cluster.
-	resp, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -306,7 +306,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, *gotID, wantID)
 
 	// Login to the leaf cluster.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -350,7 +350,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -381,7 +381,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -425,7 +425,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -456,7 +456,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -488,7 +488,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, *gotID, wantID)
 
 	// Login specifying an invalid kube cluster. This should fail.
-	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -504,11 +504,12 @@ func TestAuthenticateSSHUser(t *testing.T) {
 func TestUserLock(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
+	ctx := context.Background()
 
 	username := "user1"
 	pass := []byte("abc123")
 
-	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -521,7 +522,7 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// successful log in
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -532,7 +533,7 @@ func TestUserLock(t *testing.T) {
 	s.a.SetClock(fakeClock)
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
-		_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 			Username: username,
 			Pass:     &PassCreds{Password: []byte("wrong pass")},
 		})
@@ -546,7 +547,7 @@ func TestUserLock(t *testing.T) {
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
-	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -1146,7 +1147,8 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	accessInfo := services.AccessInfoFromUser(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
 	keygen := testauthority.New()
@@ -1154,7 +1156,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:      user,
-		checker:   services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
+		checker:   accessChecker,
 		publicKey: pub,
 	}
 	certs, err := p.a.generateUserCert(certReq)
@@ -1176,7 +1178,8 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	accessInfo := services.AccessInfoFromUser(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
 	requestID := "test-access-request"
@@ -1185,7 +1188,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:           user,
-		checker:        services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
+		checker:        accessChecker,
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
