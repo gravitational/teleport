@@ -28,6 +28,6 @@ devCfg.devServer = {
 };
 
 devCfg.output.publicPath = '';
-devCfg.plugins.push(createHtmlPlugin());
+devCfg.plugins.push(createHtmlPlugin({ isDev: true }));
 
 module.exports = devCfg;
