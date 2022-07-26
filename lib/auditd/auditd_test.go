@@ -131,6 +131,99 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
+			name: "send login failed",
+			args: args{
+				event:  AUDIT_USER_LOGIN,
+				result: Failed,
+			},
+			newMock: func(t *testing.T) NetlinkConnecter {
+				return &netlinkMock{
+					t: t,
+					expectedMessages: []msgOrErr{
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x3e8,
+									Flags: 0x5,
+								},
+							},
+						},
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x458,
+									Flags: 0x5,
+								},
+								Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=failed"),
+							},
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "send session end",
+			args: args{
+				event:  AUDIT_USER_END,
+				result: Success,
+			},
+			newMock: func(t *testing.T) NetlinkConnecter {
+				return &netlinkMock{
+					t: t,
+					expectedMessages: []msgOrErr{
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x3e8,
+									Flags: 0x5,
+								},
+							},
+						},
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x452,
+									Flags: 0x5,
+								},
+								Data: []byte("op=session_close acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
+							},
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "send invalid user",
+			args: args{
+				event:  AUDIT_USER_ERR,
+				result: Success,
+			},
+			newMock: func(t *testing.T) NetlinkConnecter {
+				return &netlinkMock{
+					t: t,
+					expectedMessages: []msgOrErr{
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x3e8,
+									Flags: 0x5,
+								},
+							},
+						},
+						{
+							msg: netlink.Message{
+								Header: netlink.Header{
+									Type:  0x455,
+									Flags: 0x5,
+								},
+								Data: []byte("op=invalid_user acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
+							},
+						},
+					},
+				}
+			},
+		},
+		{
 			name: "auditd disabled",
 			args: args{
 				event:  AUDIT_USER_LOGIN,
