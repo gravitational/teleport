@@ -4743,12 +4743,13 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make bash
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
+      - make publish-operator-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -5306,11 +5307,13 @@ steps:
       - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
       # retag images to production naming
       - echo "---> Tagging images for $${VERSION}"
       - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
       # reauthenticate with production credentials
       - docker logout quay.io
       - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
@@ -5319,6 +5322,7 @@ steps:
       - docker push quay.io/gravitational/teleport:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -5614,6 +5618,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 34263b8b17bde404ec85a7f09a6edd6679664c70a6ce53c66e6e3104a94212f4
+hmac: f137549081eaceb5429931c90a01131c470d1772e0b9eed92b0e8ba9676ccacd
 
 ...
