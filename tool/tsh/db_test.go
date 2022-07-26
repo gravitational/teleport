@@ -44,7 +44,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDatabaseLogin verifies "tsh db login" command.
+// TestDatabaseLogin tests "tsh db login" command and verifies "tsh db
+// env/config" after login.
 func TestDatabaseLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
@@ -63,6 +64,10 @@ func TestDatabaseLogin(t *testing.T) {
 		Name:     "mongo",
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      "localhost:27017",
+	}, service.Database{
+		Name:     "mssql",
+		Protocol: defaults.ProtocolSQLServer,
+		URI:      "localhost:1433",
 	})
 
 	authServer := authProcess.GetAuthServer()
@@ -84,29 +89,75 @@ func TestDatabaseLogin(t *testing.T) {
 	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
 	require.NoError(t, err)
 
-	// Log into test Postgres database.
-	err = Run(context.Background(), []string{
-		"db", "login", "--debug", "postgres",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+	testCases := []struct {
+		databaseName       string
+		expectCertsLen     int
+		expectKeysLen      int
+		expectErrForConfig bool
+		expectErrForEnv    bool
+	}{
+		{
+			databaseName:   "postgres",
+			expectCertsLen: 1,
+		},
+		{
+			databaseName:    "mongo",
+			expectCertsLen:  1,
+			expectKeysLen:   1,
+			expectErrForEnv: true, // "tsh db env" not supported for Mongo.
+		},
+		{
+			databaseName:       "mssql",
+			expectCertsLen:     1,
+			expectErrForConfig: true, // "tsh db config" not supported for MSSQL.
+			expectErrForEnv:    true, // "tsh db env" not supported for MSSQL.
+		},
+	}
 
-	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 0)
+	for _, test := range testCases {
+		test := test
+		t.Run(test.databaseName, func(t *testing.T) {
+			t.Parallel()
 
-	// Log into test Mongo database.
-	err = Run(context.Background(), []string{
-		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			t.Run("tsh db login", func(t *testing.T) {
+				err := Run(context.Background(), []string{
+					"db", "login", "--debug", "--db-user", "admin", test.databaseName,
+				}, setHomePath(tmpHomePath))
+				require.NoError(t, err)
 
-	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 1)
+				// Verify certificates.
+				certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
+				require.NoError(t, err)
+				require.Len(t, certs, test.expectCertsLen)
+				require.Len(t, keys, test.expectKeysLen)
+			})
+
+			t.Run("tsh db config", func(t *testing.T) {
+				err := Run(context.Background(), []string{
+					"db", "config", "--debug", test.databaseName,
+				}, setHomePath(tmpHomePath))
+
+				if test.expectErrForConfig {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+
+			t.Run("tsh db env", func(t *testing.T) {
+				// Verify "tsh db env".
+				err := Run(context.Background(), []string{
+					"db", "env", "--debug", test.databaseName,
+				}, setHomePath(tmpHomePath))
+
+				if test.expectErrForEnv {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		})
+	}
 }
 
 func TestListDatabase(t *testing.T) {

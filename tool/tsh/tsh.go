@@ -2162,7 +2162,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	for _, a := range active {
 		if a.ServiceName == name {
 			name = formatActiveDB(a)
-			connect = formatConnectCommand(clusterFlag, a)
+			connect = formatDatabaseConnectCommand(clusterFlag, a)
 		}
 	}
 
@@ -2246,25 +2246,6 @@ func formatDatabaseLabels(database types.Database) string {
 	// Hide the origin label unless printing verbose table.
 	delete(labels, types.OriginLabel)
 	return sortedLabels(labels)
-}
-
-// formatConnectCommand formats an appropriate database connection command
-// for a user based on the provided database parameters.
-func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
-	cmdTokens := []string{"tsh", "db", "connect"}
-
-	if clusterFlag != "" {
-		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
-	}
-	if active.Username == "" {
-		cmdTokens = append(cmdTokens, "--db-user=<user>")
-	}
-	if active.Database == "" {
-		cmdTokens = append(cmdTokens, "--db-name=<name>")
-	}
-
-	cmdTokens = append(cmdTokens, active.ServiceName)
-	return strings.Join(cmdTokens, " ")
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {

@@ -1145,7 +1145,7 @@ func TestFormatConnectCommand(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.comment, func(t *testing.T) {
-			require.Equal(t, test.command, formatConnectCommand(test.clusterFlag, test.db))
+			require.Equal(t, test.command, formatDatabaseConnectCommand(test.clusterFlag, test.db))
 		})
 	}
 }

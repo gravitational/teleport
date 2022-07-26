@@ -25,6 +25,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -258,9 +259,18 @@ func onDatabaseLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Print after-connect message.
-	fmt.Println(formatDatabaseConnectMessage(cf.SiteName, routeToDatabase))
-	return nil
+	// Print after-login message.
+	templateData := map[string]string{
+		"name":           routeToDatabase.ServiceName,
+		"connectCommand": utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase)),
+	}
+
+	if isLocalProxyRequiredForDatabase(tc, &routeToDatabase) {
+		templateData["proxyCommand"] = utils.Color(utils.Yellow, formatDatabaseProxyCommand(cf.SiteName, routeToDatabase))
+	} else {
+		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, routeToDatabase))
+	}
+	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
 }
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
@@ -393,6 +403,10 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if isLocalProxyRequiredForDatabase(tc, database) {
+		return formatLocalProxyRequiredForDatabaseError(tc, database, "tsh db env")
+	}
+
 	env, err := dbprofile.Env(tc, *database)
 	if err != nil {
 		return trace.Wrap(err)
@@ -441,6 +455,9 @@ func onDatabaseConfig(cf *CLIConf) error {
 	database, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if isLocalProxyRequiredForDatabase(tc, database) {
+		return formatLocalProxyRequiredForDatabaseError(tc, database, "tsh db config")
 	}
 	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
@@ -529,15 +546,14 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
 	database types.Database, cluster string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
+	if !isLocalProxyRequiredForDatabase(tc, db) {
+		return []dbcmd.ConnectCommandFunc{}, nil
+	}
+
 	// Snowflake only works in the local tunnel mode.
 	localProxyTunnel := cf.LocalProxyTunnel
 	if db.Protocol == defaults.ProtocolSnowflake {
 		localProxyTunnel = true
-	}
-	// Local proxy is started if TLS routing is enabled, or if this is a SQL
-	// Server connection which always requires a local proxy.
-	if !tc.TLSRoutingEnabled && db.Protocol != defaults.ProtocolSQLServer {
-		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
 	log.Debugf("Starting local proxy")
@@ -926,6 +942,39 @@ func formatDatabaseListCommand(clusterFlag string) string {
 	return fmt.Sprintf("tsh db ls --cluster=%v", clusterFlag)
 }
 
+// formatDatabaseConnectCommand formats an appropriate database connection
+// command for a user based on the provided database parameters.
+func formatDatabaseConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	cmdTokens := append(
+		[]string{"tsh", "db", "connect"},
+		formatDatabaseConnectArgs(clusterFlag, active)...,
+	)
+	return strings.Join(cmdTokens, " ")
+}
+
+func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase) (flags []string) {
+	if clusterFlag != "" {
+		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
+	}
+	if active.Username == "" {
+		flags = append(flags, "--db-user=<user>")
+	}
+	if active.Database == "" {
+		flags = append(flags, "--db-name=<name>")
+	}
+	flags = append(flags, active.ServiceName)
+	return
+}
+
+func formatDatabaseProxyCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
+	// "tsh proxy db" support same args as "tsh db connect".
+	cmdTokens := append(
+		[]string{"tsh", "proxy", "db", "--tunnel"},
+		formatDatabaseConnectArgs(clusterFlag, active)...,
+	)
+	return strings.Join(cmdTokens, " ")
+}
+
 func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) string {
 	if clusterFlag == "" {
 		return fmt.Sprintf("tsh db config --format=cmd %v", db.ServiceName)
@@ -933,25 +982,31 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
-func formatDatabaseConnectMessage(clusterFlag string, db tlsca.RouteToDatabase) string {
-	connectCommand := formatConnectCommand(clusterFlag, db)
-	configCommand := formatDatabaseConfigCommand(clusterFlag, db)
+// isLocalProxyRequiredForDatabase returns true if local proxy has to be used
+// for connecting to the provided database. Currently return true if:
+//   - TLS routing is enabled.
+//   - or this is a SQL Server connection which always requires a local proxy.
+func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
+	return tc.TLSRoutingEnabled || db.Protocol == defaults.ProtocolSQLServer
+}
 
-	return fmt.Sprintf(`
-Connection information for database "%v" has been saved.
+// formatLocalProxyRequiredForDatabaseError creates an error message when local
+// proxy is required for legacy commands like "tsh db env" and "tsh db config".
+func formatLocalProxyRequiredForDatabaseError(tc *client.TeleportClient, db *tlsca.RouteToDatabase, command string) error {
+	if db.Protocol == defaults.ProtocolSQLServer {
+		return trace.BadParameter(`"%v" is not supported for Microsoft SQL Server databases.
 
-You can now connect to it using the following command:
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`,
+			command,
+		)
+	}
 
-  %v
+	return trace.BadParameter(`"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
 
-Or view the connect command for the native database CLI client:
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`,
+		command,
+	)
 
-  %v
-
-`,
-		db.ServiceName,
-		utils.Color(utils.Yellow, connectCommand),
-		utils.Color(utils.Yellow, configCommand))
 }
 
 const (
@@ -963,4 +1018,27 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+)
+
+var (
+	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
+	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
+
+You can now connect to it using the following command:
+
+  {{.connectCommand}}
+
+{{if .configCommand -}}
+Or view the connect command for the native database CLI client:
+
+  {{ .configCommand }}
+
+{{end -}}
+{{if .proxyCommand -}}
+Or start a local proxy for the native database CLI client or a GUI client:
+
+  {{ .proxyCommand }}
+
+{{end -}}
+`))
 )
