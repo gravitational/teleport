@@ -12,16 +12,6 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
-  - it: matches snapshot for all-v5.yaml
-    values:
-      - ../.lint/all-v5.yaml
-    asserts:
-      - hasDocuments:
-          count: 1
-      - isKind:
-          of: ConfigMap
-      - matchSnapshot: {}
-
   - it: matches snapshot for all-v6.yaml
     values:
       - ../.lint/all-v6.yaml
@@ -93,6 +83,26 @@ tests:
   - it: matches snapshot for db.yaml
     values:
       - ../.lint/db.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for dynamic-app.yaml
+    values:
+      - ../.lint/dynamic-app.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for dynamic-db.yaml
+    values:
+      - ../.lint/dynamic-db.yaml
     asserts:
       - hasDocuments:
           count: 1
