@@ -1924,9 +1924,9 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	warnings := make([]string, 0)
+	var warnings []string
 	for _, notification := range heartbeat.Spec.Notifications {
-		if notification.Type == constants.LicenseExpiredType {
+		if notification.Type == LicenseExpiredNotification {
 			warnings = append(warnings, notification.Text)
 		}
 	}

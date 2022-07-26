@@ -1452,22 +1452,15 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := displayLicenseWarnings(cf.Context, tc); err != nil {
-		log.WithError(err).Debug("Failed to display license warnings.")
-	}
-
-	return nil
-}
-
-// displayLicenseWarnings displays license out of compliance warnings.
-func displayLicenseWarnings(ctx context.Context, tc *client.TeleportClient) error {
-	resp, err := tc.Ping(ctx)
+	// Display any license compliance warnings
+	resp, err := tc.Ping(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, warning := range resp.LicenseWarnings {
-		fmt.Fprintln(os.Stderr, warning)
+		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
+
 	return nil
 }
 

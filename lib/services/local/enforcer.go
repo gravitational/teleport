@@ -22,15 +22,15 @@ import (
 	"github.com/gravitational/reporting/types"
 )
 
-// NoopEnforcerService is a no-op enforcer service.
-type NoopEnforcerService struct{}
+// NoopEnforcer is a no-op enforcer.
+type NoopEnforcer struct{}
 
-// NewNoopEnforcerService returns a new no-op enforcer service.
-func NewNoopEnforcerService() *NoopEnforcerService {
-	return &NoopEnforcerService{}
+// NewNoopEnforcer returns a new no-op enforcer.
+func NewNoopEnforcer() *NoopEnforcer {
+	return &NoopEnforcer{}
 }
 
 // GetLicenseCheckResult returns the default heartbeat.
-func (r *NoopEnforcerService) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error) {
+func (r *NoopEnforcer) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error) {
 	return types.NewHeartbeat(), nil
 }

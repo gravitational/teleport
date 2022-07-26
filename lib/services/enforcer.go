@@ -24,6 +24,6 @@ import (
 
 // Enforcer defines interface for fetching license status.
 type Enforcer interface {
-	// GetLicenseCheckResult returns the license status in a as heartbeat.
+	// GetLicenseCheckResult returns the license status in a heartbeat.
 	GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat, error)
 }

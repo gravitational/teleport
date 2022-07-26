@@ -155,7 +155,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.Enforcer == nil {
-		cfg.Enforcer = local.NewNoopEnforcerService()
+		cfg.Enforcer = local.NewNoopEnforcer()
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
