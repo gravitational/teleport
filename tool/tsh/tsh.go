@@ -176,6 +176,8 @@ type CLIConf struct {
 	KubernetesCluster string
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
+	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
+	DaemonCertsDir string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -532,6 +534,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
 	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
+	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -2687,17 +2690,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// split login & host
 	hostLogin := cf.NodeLogin
+	hostUser := cf.UserHost
 	var labels map[string]string
-	if cf.UserHost != "" {
-		parts := strings.Split(cf.UserHost, "@")
+	if hostUser != "" {
+		parts := strings.Split(hostUser, "@")
 		partsLength := len(parts)
 		if partsLength > 1 {
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
-			cf.UserHost = parts[partsLength-1]
+			hostUser = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
-			labels, err = client.ParseLabelSpec(cf.UserHost)
+		if strings.Contains(hostUser, "=") {
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2710,7 +2714,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			partsLength := len(parts)
 			if partsLength > 1 {
 				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				cf.UserHost = parts[partsLength-1]
+				hostUser = parts[partsLength-1]
 				break
 			}
 		}
@@ -2727,7 +2731,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = cf.UserHost
+	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}

@@ -912,7 +912,7 @@ func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Session.Namespace = namespace
-	if err := auth.CreateSession(req.Session); err != nil {
+	if err := auth.CreateSession(r.Context(), req.Session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -932,14 +932,14 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Update.Namespace = namespace
-	if err := auth.UpdateSession(req.Update); err != nil {
+	if err := auth.UpdateSession(r.Context(), req.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
 func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
+	err := auth.DeleteSession(r.Context(), p.ByName("namespace"), session.ID(p.ByName("id")))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -951,7 +951,7 @@ func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Req
 	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	sessions, err := auth.GetSessions(namespace)
+	sessions, err := auth.GetSessions(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -967,7 +967,7 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	se, err := auth.GetSession(namespace, *sid)
+	se, err := auth.GetSession(r.Context(), namespace, *sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
