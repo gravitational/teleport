@@ -1518,6 +1518,7 @@ func (process *TeleportProcess) initAuthService() error {
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
 			events:    true,
+			unstarted: true,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1590,6 +1591,12 @@ func (process *TeleportProcess) initAuthService() error {
 		PluginRegistry: process.PluginRegistry,
 		Emitter:        checkingEmitter,
 		MetadataGetter: uploadHandler,
+	}
+
+	if c, ok := authServer.Cache.(*cache.Cache); ok {
+		if err := c.Start(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Register TLS endpoint of the auth service
@@ -1820,6 +1827,8 @@ type accessCacheConfig struct {
 	cacheName []string
 	// events is true if cache should turn on events
 	events bool
+	// unstarted is true if the cache should not be started
+	unstarted bool
 }
 
 func (c *accessCacheConfig) CheckAndSetDefaults() error {
@@ -1880,6 +1889,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
+		Unstarted:        cfg.unstarted,
 	}))
 }
 
