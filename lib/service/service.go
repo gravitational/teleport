@@ -2771,6 +2771,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			process.Config.Proxy.SSHAddr,
 			process.Config.Proxy.ReverseTunnelListenAddr,
 			process.Config.Proxy.MySQLAddr,
+			process.Config.Proxy.PeerAddr,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
@@ -2781,6 +2782,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 		addrs = append(addrs, process.Config.Proxy.PostgresPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.MySQLPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.PeerPublicAddrs...)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
 			for _, publicAddr := range utils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {
@@ -3029,7 +3031,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
-		addr, err := peerAddr(&process.Config.Proxy.PeerAddr)
+		addr, err := process.Config.Proxy.peerAddr()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3428,10 +3430,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		log.Info("Web UI is disabled.")
 	}
 
-	var peerAddr string
+	var peerAddr *utils.NetAddr
 	var proxyServer *proxy.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
-		peerAddr = listeners.proxy.Addr().String()
+		peerAddr, err = process.Config.Proxy.publicPeerAddr()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		proxyServer, err = proxy.NewServer(proxy.ServerConfig{
 			AccessCache:   accessPoint,
 			Listener:      listeners.proxy,
@@ -3473,7 +3478,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.proxyPublicAddr(),
 		conn.Client,
 		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddr, tsrv, accessPoint),
+		regular.SetProxyMode(peerAddr.String(), tsrv, accessPoint),
 		regular.SetSessionServer(conn.Client),
 		regular.SetCiphers(cfg.Ciphers),
 		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -3834,29 +3839,6 @@ func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAdd
 		return config.WebAddr
 	}
 	return config.Kube.ListenAddr
-}
-
-func peerAddr(addr *utils.NetAddr) (*utils.NetAddr, error) {
-	if addr.IsEmpty() {
-		addr = defaults.ProxyPeeringListenAddr()
-	}
-
-	if !addr.IsHostUnspecified() {
-		return addr, nil
-	}
-
-	ip, err := utils.GuessHostIP()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return addr, nil
 }
 
 func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {

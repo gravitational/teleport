@@ -1371,6 +1371,8 @@ type Proxy struct {
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
 	// PeerAddr is the address this proxy will be dialed at by its peers.
 	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
+	// PeerPublicAddr is the address this proxy will be dialed at by its peers.
+	PeerPublicAddr apiutils.Strings `yaml:"peer_listen_public_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file

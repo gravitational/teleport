@@ -425,6 +425,10 @@ type ProxyConfig struct {
 	// advertises for Mongo clients.
 	MongoPublicAddrs []utils.NetAddr
 
+	// PeerPublicAddrs is a list of the public addresses the proxy
+	// advertises for proxy peering clients.
+	PeerPublicAddrs []utils.NetAddr
+
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
 
@@ -475,6 +479,43 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
 	}
 	return u.String(), nil
+}
+
+// publicPeerAddr attempts to returns the public address the proxy advertises
+// for proxy peering clients if available. It falls back to PeerAddr othewise.
+func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
+	var addr *utils.NetAddr
+	if len(c.PeerPublicAddrs) > 0 {
+		addr = &c.PeerPublicAddrs[0]
+	}
+	if addr.IsEmpty() || addr.IsHostUnspecified() {
+		return c.peerAddr()
+	}
+	return addr, nil
+}
+
+// peerAddr returns the address the proxy advertises for proxy peering clients.
+func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerAddr
+	if addr.IsEmpty() {
+		addr = defaults.ProxyPeeringListenAddr()
+	}
+	if !addr.IsHostUnspecified() {
+		return addr, nil
+	}
+
+	ip, err := utils.GuessHostIP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	port := addr.Port(defaults.ProxyPeeringListenPort)
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return addr, nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
