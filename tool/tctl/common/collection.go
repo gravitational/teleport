@@ -490,10 +490,10 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 		app := server.GetApp()
 		labels := stripInternalTeleportLabels(a.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
+			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
 	}
 	var t asciitable.Table
-	headers := []string{"Host", "Name", "Public Address", "URI", "Labels", "Version"}
+	headers := []string{"Host", "Name", "Type", "Public Address", "URI", "Labels", "Version"}
 	if a.verbose {
 		t = asciitable.MakeTable(headers, rows...)
 	} else {
