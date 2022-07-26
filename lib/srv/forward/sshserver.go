@@ -918,7 +918,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ch, req, scx)
 		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ch, req, scx)
+			return s.termHandlers.HandleShell(ctx, ch, req, scx)
 		case sshutils.WindowChangeRequest:
 			return s.termHandlers.HandleWinChange(ch, req, scx)
 		case teleport.ForceTerminateRequest:
@@ -946,11 +946,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, scx)
+		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ch, req, scx)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, scx)
+		return s.termHandlers.HandleShell(ctx, ch, req, scx)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ch, req, scx)
 	case teleport.ForceTerminateRequest:
