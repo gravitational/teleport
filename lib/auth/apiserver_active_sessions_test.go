@@ -15,6 +15,7 @@
 package auth
 
 import (
+	"context"
 	"sort"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	tlsServer := newTestTLSServer(t)
 	authServer := tlsServer.Auth()
 
@@ -68,7 +70,7 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 		now := time.Now()
 
 		// Create initial session.
-		require.NoError(t, clt.CreateSession(session.Session{
+		require.NoError(t, clt.CreateSession(ctx, session.Session{
 			ID:        id,
 			Namespace: apidefaults.Namespace,
 			TerminalParams: session.TerminalParams{
@@ -83,7 +85,7 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 		// Add parties, must be done via update.
 		// Usually the Node does this, in the test we are taking a shortcut and
 		// using admin due to its powerful permissions.
-		require.NoError(t, adminClient.UpdateSession(session.UpdateRequest{
+		require.NoError(t, adminClient.UpdateSession(ctx, session.UpdateRequest{
 			ID:        id,
 			Namespace: apidefaults.Namespace,
 			Parties: &[]session.Party{
@@ -114,7 +116,7 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				sessions, err := test.clt.GetSessions(apidefaults.Namespace)
+				sessions, err := test.clt.GetSessions(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 
 				got := make([]session.ID, len(sessions))
@@ -134,13 +136,13 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 	// Helper functions used by test cases below.
 	getSession := func(clt ClientI) func(id session.ID) error {
 		return func(id session.ID) error {
-			_, err := clt.GetSession(apidefaults.Namespace, id)
+			_, err := clt.GetSession(ctx, apidefaults.Namespace, id)
 			return err
 		}
 	}
 	updateSession := func(clt ClientI) func(id session.ID) error {
 		return func(id session.ID) error {
-			return clt.UpdateSession(session.UpdateRequest{
+			return clt.UpdateSession(ctx, session.UpdateRequest{
 				ID:             id,
 				Namespace:      apidefaults.Namespace,
 				TerminalParams: &session.TerminalParams{W: 150, H: 150},
@@ -149,7 +151,7 @@ func TestAPIServer_activeSessions_whereConditions(t *testing.T) {
 	}
 	deleteSession := func(clt ClientI) func(id session.ID) error {
 		return func(id session.ID) error {
-			return clt.UpdateSession(session.UpdateRequest{
+			return clt.UpdateSession(ctx, session.UpdateRequest{
 				ID:             id,
 				Namespace:      apidefaults.Namespace,
 				TerminalParams: &session.TerminalParams{W: 150, H: 150},
