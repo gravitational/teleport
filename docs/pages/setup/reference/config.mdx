@@ -45,7 +45,8 @@ By default, it is stored in `/etc/teleport.yaml`.
   enable you to roll back to the previous configuration if you need to.
 
 - Teleport Cloud manages the Auth Service and Proxy Service for you. Your
-  Teleport Nodes should include the following configuration options to avoid
+  Teleport resource services (e.g., the Application Service and Database
+  Service) should include the following configuration options to avoid
   unintended effects:
 
   ```yaml
@@ -91,8 +92,8 @@ teleport:
     # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
-    # When running in multi-homed or NATed environments Teleport nodes need
-    # to know which IP it will be reachable at by other nodes
+    # When running in multi-homed or NATed environments Teleport Nodes need
+    # to know which IP it will be reachable at by other Nodes.
     #
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
@@ -365,7 +366,7 @@ auth_service:
         # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
         locking_mode: best_effort
 
-    # IP and the port to bind to. Other Teleport nodes will be connecting to
+    # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates
     listen_addr: 0.0.0.0:3025
@@ -534,7 +535,7 @@ ssh_service:
     # "tsh ssh -X".
     #
     # X11 forwarding will only work if the server has the "xauth" binary
-    # installed and the Teleport node can open Unix sockets.
+    # installed and the Teleport Node can open Unix sockets.
     # e.g. "$TEMP/.X11-unix/X[display_number]."
     x11:
       # no by default

@@ -143,8 +143,15 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	database, err := pickActiveDatabase(cf)
+	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	database, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := maybeDatabaseLogin(cf, client, profile, database); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -169,11 +176,6 @@ func onProxyCommandDB(cf *CLIConf) error {
 		<-cf.Context.Done()
 		lp.Close()
 	}()
-
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	err = dbProxyTpl.Execute(os.Stdout, map[string]string{
 		"database": database.ServiceName,
