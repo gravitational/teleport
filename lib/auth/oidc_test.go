@@ -28,6 +28,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	directory "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/cloudidentity/v1"
+	"google.golang.org/api/option"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -37,17 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	directory "google.golang.org/api/admin/directory/v1"
-	"google.golang.org/api/cloudidentity/v1"
-	"google.golang.org/api/option"
 )
 
 type OIDCSuite struct {

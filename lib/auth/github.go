@@ -24,6 +24,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ErrGithubNoTeams results from a github user not beloging to any teams.
@@ -274,7 +274,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.GetGithubAuthRequest(ctx, state)
+			req, err := a.Uncached.GetGithubAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -298,7 +298,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.GetGithubAuthRequest(ctx, stateToken)
+	req, err := a.Uncached.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -513,7 +513,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.GetUser(p.username, false)
+	existingUser, err := a.Uncached.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

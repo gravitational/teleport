@@ -50,7 +50,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
-	users, err := a.GetUsers(false)
+	users, err := a.Uncached.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,7 +66,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	}
 	// check if it's used by some external cert authorities, e.g.
 	// cert authorities related to external cluster
-	cas, err := a.GetCertAuthorities(ctx, types.UserCA, false)
+	cas, err := a.Uncached.GetCertAuthorities(ctx, types.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

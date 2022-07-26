@@ -4223,7 +4223,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 		authServer: cfg.AuthServer,
 		context:    *nopCtx,
 		sessions:   cfg.SessionService,
-		alog:       cfg.AuthServer.Uncached,
+		alog:       cfg.AuthServer,
 	}, nil
 }
 
@@ -4258,7 +4258,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			sessions:   g.SessionService,
-			alog:       g.AuthServer.Uncached,
+			alog:       g.AuthServer,
 		},
 	}, nil
 }

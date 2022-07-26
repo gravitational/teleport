@@ -26,13 +26,13 @@ package auth
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
 )
 
 // CreateUser inserts a new user entry in a backend.
@@ -183,7 +183,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.GetRole(ctx, services.RoleNameForUser(user))
+	role, err := s.Uncached.GetRole(ctx, services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)

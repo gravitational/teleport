@@ -22,6 +22,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sethvargo/go-diceware/diceware"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -31,10 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/sethvargo/go-diceware/diceware"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -102,7 +101,7 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 // After MaxAccountRecoveryAttempts, user is temporarily locked from further attempts at recovering and also
 // locked from logging in. Modeled after existing function WithUserLock.
 func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string, recoveryCode []byte) error {
-	user, err := s.GetUser(username, false)
+	user, err := s.Uncached.GetUser(username, false)
 	switch {
 	case trace.IsNotFound(err):
 		// If user is not found, still authenticate. It should always return an error.
@@ -291,7 +290,7 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken types.UserToken, authenticateFn func() error) error {
 	// Determine user exists first since an existence of token
 	// does not guarantee the user defined in token exists anymore.
-	user, err := s.GetUser(startToken.GetUser(), false)
+	user, err := s.Uncached.GetUser(startToken.GetUser(), false)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
@@ -432,7 +431,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
-	user, err := s.GetUser(approvedToken.GetUser(), false /* without secrets */)
+	user, err := s.Uncached.GetUser(approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)

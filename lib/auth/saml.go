@@ -24,6 +24,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/beevik/etree"
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	saml2 "github.com/russellhaering/gosaml2"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,11 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/beevik/etree"
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
-	saml2 "github.com/russellhaering/gosaml2"
 )
 
 // ErrSAMLNoRoles results from not mapping any roles from SAML claims.
@@ -270,7 +270,7 @@ func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.GetUser(p.username, false)
+	existingUser, err := a.Uncached.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

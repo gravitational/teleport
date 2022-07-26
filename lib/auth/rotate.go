@@ -23,17 +23,17 @@ import (
 	"crypto/x509/pkix"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RotateRequest is a request to start rotation of the certificate authority.
@@ -268,7 +268,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.GetCertAuthority(ctx, types.CertAuthID{
+	existing, err := a.Uncached.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
