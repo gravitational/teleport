@@ -141,7 +141,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 	}
 
-	tc, err := a.Services.UpsertTrustedCluster(ctx, trustedCluster)
+	tc, err := a.Uncached.UpsertTrustedCluster(ctx, trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,7 +210,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Services.DeleteTrustedCluster(ctx, name); err != nil {
+	if err := a.Uncached.DeleteTrustedCluster(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -354,14 +354,14 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 			return trace.Wrap(err)
 		}
 	}
-	return a.Services.DeleteRemoteCluster(clusterName)
+	return a.Uncached.DeleteRemoteCluster(clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name
 func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteCluster, err := a.Services.GetRemoteCluster(clusterName)
+	remoteCluster, err := a.Uncached.GetRemoteCluster(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,7 +440,7 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Services.GetRemoteClusters(opts...)
+	remoteClusters, err := a.Uncached.GetRemoteClusters(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

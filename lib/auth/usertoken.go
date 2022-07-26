@@ -187,7 +187,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.Services.GetMFADevices(ctx, user, false)
+	devs, err := s.Uncached.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -495,7 +495,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	switch {
 	case req.GetExistingMFAResponse() == nil:
 		// Allows users with no devices to bypass second factor re-auth.
-		devices, err := s.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+		devices, err := s.Uncached.GetMFADevices(ctx, username, false /* withSecrets */)
 		switch {
 		case err != nil:
 			return nil, trace.Wrap(err)

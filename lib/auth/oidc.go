@@ -220,7 +220,7 @@ func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
-	if err := a.Services.UpsertOIDCConnector(ctx, connector); err != nil {
+	if err := a.Uncached.UpsertOIDCConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
@@ -241,7 +241,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
 func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
-	if err := a.Services.DeleteOIDCConnector(ctx, connectorName); err != nil {
+	if err := a.Uncached.DeleteOIDCConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
@@ -299,7 +299,7 @@ func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Services.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
+	err = a.Uncached.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

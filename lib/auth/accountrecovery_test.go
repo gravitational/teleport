@@ -712,7 +712,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 			require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
 
 			// Test new device has been added.
-			mfas, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
+			mfas, err := srv.Auth().Uncached.GetMFADevices(ctx, u.username, false)
 			require.NoError(t, err)
 
 			found := false
@@ -808,7 +808,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 				require.NoError(t, err)
 
 				// Retrieve list of devices to get the name of an existing device.
-				devs, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
+				devs, err := srv.Auth().Uncached.GetMFADevices(ctx, u.username, false)
 				require.NoError(t, err)
 				require.NotEmpty(t, devs)
 

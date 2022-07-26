@@ -39,13 +39,13 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		Uncached: &Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
+	srv.Uncached.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
@@ -68,13 +68,13 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		Uncached: &Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
+	srv.Uncached.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
@@ -110,13 +110,13 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		Uncached: &Services{},
 	}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	srv.Services.SessionTrackerService, err = local.NewSessionTrackerService(bk)
+	srv.Uncached.SessionTrackerService, err = local.NewSessionTrackerService(bk)
 	require.NoError(t, err)
 
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{

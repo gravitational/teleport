@@ -28,7 +28,7 @@ import (
 
 // UpsertRole creates or updates a role and emits a related audit event.
 func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
-	if err := a.Services.UpsertRole(ctx, role); err != nil {
+	if err := a.Uncached.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -81,7 +81,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Services.DeleteRole(ctx, name); err != nil {
+	if err := a.Uncached.DeleteRole(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -102,7 +102,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 
 // UpsertLock upserts a lock and emits a related audit event.
 func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
-	if err := a.Services.UpsertLock(ctx, lock); err != nil {
+	if err := a.Uncached.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -123,7 +123,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 
 // DeleteLock deletes a lock and emits a related audit event.
 func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
-	if err := a.Services.DeleteLock(ctx, lockName); err != nil {
+	if err := a.Uncached.DeleteLock(ctx, lockName); err != nil {
 		return trace.Wrap(err)
 	}
 

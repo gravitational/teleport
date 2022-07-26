@@ -2102,7 +2102,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.Services.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
+	devs, err := gctx.authServer.Uncached.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2155,7 +2155,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Keep Webauthn session data in memory, we can afford that for the streaming
 	// RPCs.
-	webIdentity := wanlib.WithInMemorySessionData(auth.Services)
+	webIdentity := wanlib.WithInMemorySessionData(auth.Uncached)
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)
@@ -4223,7 +4223,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 		authServer: cfg.AuthServer,
 		context:    *nopCtx,
 		sessions:   cfg.SessionService,
-		alog:       cfg.AuthServer.Services,
+		alog:       cfg.AuthServer.Uncached,
 	}, nil
 }
 
@@ -4258,7 +4258,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			sessions:   g.SessionService,
-			alog:       g.AuthServer.Services,
+			alog:       g.AuthServer.Uncached,
 		},
 	}, nil
 }

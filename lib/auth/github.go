@@ -56,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Services.CreateGithubAuthRequest(ctx, req)
+	err = a.Uncached.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
