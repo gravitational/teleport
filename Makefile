@@ -1034,6 +1034,11 @@ update-helm-charts:
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-auto-trustedcluster/values.yaml
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-daemonset/values.yaml
 
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
+
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
