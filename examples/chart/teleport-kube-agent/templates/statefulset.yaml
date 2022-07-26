@@ -178,7 +178,7 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
-{{- if and .Values.storage.enabled (include "teleport.kube.agent.isUpgrade" .) }}
+{{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
 {{- else }}
@@ -195,14 +195,14 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
-{{- if not (and .Values.storage.enabled (include "teleport.kube.agent.isUpgrade" .) ) }}
+{{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}
 {{- end}}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
-{{- if and .Values.storage.enabled  (include "teleport.kube.agent.isUpgrade" .) }}
+{{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"

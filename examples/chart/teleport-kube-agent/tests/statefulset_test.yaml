@@ -373,7 +373,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: shouldn't add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
+  - it: should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
     values:
       - ../.lint/stateful.yaml
     set:
@@ -383,7 +383,7 @@ tests:
     release:
       isupgrade: false
     asserts:
-      - isNull:
+      - isNotNull:
           path: spec.volumeClaimTemplates
       - matchSnapshot: {}
 
@@ -467,7 +467,7 @@ tests:
       - ../.lint/stateful.yaml
     set:
       storage: 
-        enable: false
+        enabled: false
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -501,7 +501,7 @@ tests:
     set:
       unitTestUpgrade: false
       storage: 
-        enable: false
+        enabled: false
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
