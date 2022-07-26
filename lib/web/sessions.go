@@ -345,7 +345,7 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert, c.unsafeCachedAuthClient)
+	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -353,7 +353,11 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.NewAccessChecker(accessInfo, clusterName.GetClusterName()), nil
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), c.unsafeCachedAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accessChecker, nil
 }
 
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
