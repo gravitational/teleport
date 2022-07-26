@@ -18,28 +18,37 @@ package utils
 
 import (
 	"os"
+	"runtime"
+	"testing"
+
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/gravitational/trace"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type CertsSuite struct{}
+func TestRejectsInvalidPEMData(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&CertsSuite{})
-
-func (s *CertsSuite) TestRejectsInvalidPEMData(c *check.C) {
 	_, err := ReadCertificateChain([]byte("no data"))
-	c.Assert(trace.Unwrap(err), check.FitsTypeOf, &trace.NotFoundError{})
+	require.IsType(t, trace.Unwrap(err), &trace.NotFoundError{})
 }
 
-func (s *CertsSuite) TestRejectsSelfSignedCertificate(c *check.C) {
+func TestRejectsSelfSignedCertificate(t *testing.T) {
+	t.Parallel()
+
 	certificateChainBytes, err := os.ReadFile("../../fixtures/certs/ca.pem")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	certificateChain, err := ReadCertificateChain(certificateChainBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	err = VerifyCertificateChain(certificateChain)
-	c.Assert(err, check.ErrorMatches, "x509: certificate signed by unknown authority")
+	switch runtime.GOOS {
+	case constants.DarwinOS:
+		require.ErrorContains(t, err, "certificate is not standards compliant")
+	default:
+		require.ErrorContains(t, err, "x509: certificate signed by unknown authority")
+	}
 }

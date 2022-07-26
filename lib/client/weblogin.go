@@ -330,7 +330,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "cancelled by user")
+		return nil, trace.Wrap(ctx.Err(), "canceled by user")
 	}
 }
 

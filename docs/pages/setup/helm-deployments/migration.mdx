@@ -19,24 +19,7 @@ to use the newer `teleport-cluster` Helm chart instead.
 
 You can also view this guide as a user of another Teleport edition:
 
-<TileSet>
-<Tile
-href="./gcp.mdx/?scope=oss"
-title="Open Source"
-icon="stack"
->
-</Tile>
-<Tile
-href="./gcp.mdx/?scope=enterprise"
-title="Enterprise"
-icon="building"
->
-</Tile>
-</TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 ## Prerequisites
 
@@ -270,5 +253,3 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 ```code
 $ helm --namespace teleport-cluster uninstall teleport
 ```
-
-</ScopedBlock>

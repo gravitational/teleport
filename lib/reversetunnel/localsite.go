@@ -40,15 +40,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 )
 
-func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessPoint, err := srv.newAccessPoint(client, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,15 +53,15 @@ func newlocalSite(srv *server, domainName string, authServers []string, client a
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, client)
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s := &localSite{
 		srv:              srv,
-		client:           client,
-		accessPoint:      accessPoint,
+		client:           srv.localAuthClient,
+		accessPoint:      srv.LocalAccessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
 		authServers:      authServers,
@@ -78,7 +74,7 @@ func newlocalSite(srv *server, domainName string, authServers []string, client a
 			},
 		}),
 		offlineThreshold: srv.offlineThreshold,
-		peerClient:       peerClient,
+		peerClient:       srv.PeerClient,
 	}
 
 	// Start periodic functions for the local cluster in the background.
@@ -400,11 +396,18 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		directErr error
 	)
 
+	dialStart := s.srv.Clock.Now()
+
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
 	conn, tunnelErr = s.dialTunnel(dreq)
 	if tunnelErr == nil {
-		return conn, true, nil
+		dt := tunnel
+		if params.FromPeerProxy {
+			dt = peerTunnel
+		}
+
+		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
@@ -414,7 +417,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
 		)
 		if peerErr == nil {
-			return conn, true, nil
+			return newMetricConn(conn, peer, dialStart, s.srv.Clock), true, nil
 		}
 		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
@@ -446,7 +449,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	}
 
 	// Return a direct dialed connection.
-	return conn, false, nil
+	return newMetricConn(conn, direct, dialStart, s.srv.Clock), false, nil
 }
 
 func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
@@ -634,6 +637,15 @@ func (s *localSite) sshTunnelStats() error {
 			return false
 		}
 
+		ids := server.GetProxyIDs()
+
+		// In proxy peering mode, a node is expected to be connected to the
+		// current proxy if the proxy id is present. A node is expected to be
+		// connected to all proxies if no proxy ids are present.
+		if s.peerClient != nil && len(ids) != 0 && !slices.Contains(ids, s.srv.ID) {
+			return false
+		}
+
 		// Check if the tunnel actually exists.
 		_, err := s.getRemoteConn(&sshutils.DialReq{
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
@@ -646,8 +658,7 @@ func (s *localSite) sshTunnelStats() error {
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))
 
-	// Don't log if proxy peering is enabled as there will likely always be missing tunnels.
-	if len(missing) > 0 && s.peerClient == nil {
+	if len(missing) > 0 {
 		// Don't show all the missing nodes, thousands could be missing, just show
 		// the first 10.
 		n := len(missing)
@@ -675,5 +686,5 @@ var (
 		[]string{teleport.TagType},
 	)
 
-	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, reverseSSHTunnels}
+	localClusterCollectors = []prometheus.Collector{missingSSHTunnels, reverseSSHTunnels, connLatency}
 )

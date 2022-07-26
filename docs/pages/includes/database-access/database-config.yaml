@@ -13,7 +13,8 @@ db_service:
     # 'rds' - discovers and registers AWS RDS and Aurora databases.
     # 'redshift' - discovers and registers AWS Redshift databases.
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-  - types: ["rds", "redshift", "elasticache"]
+    # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+  - types: ["rds", "redshift", "elasticache", "memorydb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # AWS resource tags to match when registering databases.
@@ -74,9 +75,13 @@ db_service:
       elasticache:
         # ElastiCache replication group identifier.
         replication_group_id: "elasticache-replication-group-1"
+      # MemoryDB-specific configuration.
+      memorydb:
+        # MemoryDB cluster name.
+        cluster_name: "memorydb-cluster-1"
 
       # Optional AWS Secrets Manager configuration for managing ElastiCache
-      # users.
+      # or MemoryDB users.
       #
       # IMPORTANT: please make sure databases sharing the same Teleport-managed
       # users have the same secret_store configuration. The configuration

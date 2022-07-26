@@ -13,18 +13,7 @@ level overview of how Teleport can be used to help your company to become SOC2 c
 
   This guide requires Teleport Cloud or Teleport Enterprise.
 
-  View this guide as the user of another Teleport edition:
-
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./soc2.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./soc2.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Achieving SOC2 Compliance with Teleport
 SOC2 or Service Organization Controls were developed by the American Institute of CPAs (AICPA). They are based on five trust service areas: security, availability, processing integrity, confidentiality and privacy. 
@@ -53,7 +42,7 @@ Teleport helps users elevate their permissions during incidents, RBAC helps limi
 - Approve or deny permission requests with ChatOps workflow via Slack or other supported platforms.
 - Extend and customize permission elevation workflow with a simple API and extendable plugin system.
 
-## What Specific Criteria does Teleport Help Statisfy? 
+## What Specific Criteria does Teleport Help Satisfy? 
 
 Below is a table of principles and common points of focus listed by [AICPA’s official “trust Service Criteria” Document](https://www.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria.pdf) and how Teleport helps satisfy them.
 
@@ -86,12 +75,10 @@ Each principle has many “Points of Focus” which will apply differently to di
 | CC7.2 - Designs Detection Measures | Detection measures are designed to identify anomalies that could result from actual or attempted (1) compromise of physical barriers; (2) unauthorized actions of authorized personnel; (3) use of compromised identification and authentication credentials; (4) unauthorized access from outside the system boundaries; (5) compromise of authorized external parties; and (6) implementation or connection of unauthorized hardware and software. | [Use Enhanced Session Recording to catch malicious program execution, capture TCP connections and log programs accessing files on the system the should not be accessing.](../server-access/guides/bpf-session-recording.mdx) | 
 | CC7.3 - Communicates and Reviews Detected Security Events | Detected security events are communicated to and reviewed by the individuals responsible for the management of the security program and actions are taken, if necessary. | [Use Session recording to replay and review suspicious sessions](../architecture/nodes.mdx#ssh-session-recording). | 
 | CC7.3 - Develops and Implements Procedures to Analyze Security Incidents | Procedures are in place to analyze security incidents and determine system impact. | [Analyze detailed logs and replay recorded sessions to determine impact. See exactly what files were accessed during an incident.](../server-access/guides/bpf-session-recording.mdx) | 
-| CC7.4 - Contains Security Incidents | Procedures are in place to contain security incidents that actively threaten entity objectives. | [Use Teleport to quickly revoke access and contain an active incident](../access-controls/guides/locking.mdx)   | [Use Shared Sessions so Multiple On-Call Engineers can collaborate and fight fires together.](../server-access/guides/tsh.mdx#sharing-sessions) |  |  |  |
+| CC7.4 - Contains Security Incidents | Procedures are in place to contain security incidents that actively threaten entity objectives. | [Use Teleport to quickly revoke access and contain an active incident](../access-controls/guides/locking.mdx)   | [Use Shared Sessions so Multiple On-Call Engineers can collaborate and fight fires together.](../use-teleport/tsh.mdx#sharing-sessions) |  |  |  |
 | CC7.4 - Ends Threats Posed by Security Incidents | Procedures are in place to mitigate the effects of ongoing security incidents. | [Use Teleport to quickly revoke access and contain an active incident](../access-controls/guides/locking.mdx)   | 
 | CC7.4 - Obtains Understanding of Nature of Incident and Determines Containment Strategy | An understanding of the nature (for example, the method by which the incident occurred and the affected system resources) and severity of the security incident is obtained to determine the appropriate containment strategy, including (1) a determination of the appropriate response time frame, and (2) the determination and execution of the containment approach. | [Use Teleport’s Session Recording and Replay along with logs to understand what actions led to an incident.](../setup/reference/audit.mdx#recorded-sessions) | 
 | CC7.4 - Evaluates the Effectiveness of Incident Response | The design of incident-response activities is evaluated for effectiveness on a periodic basis. | [Use audit logs and session recordings to find pain points in your incident response plan and improve effectiveness](../server-access/guides/bpf-session-recording.mdx). | 
 | CC7.4 - Periodically Evaluates Incidents | Periodically, management reviews incidents related to security, availability, processing integrity, confidentiality, and privacy and identifies the need for system changes based on incident patterns and root causes. | [Use Session recording and audit logs to find patterns that lead to incidents.](../server-access/guides/bpf-session-recording.mdx)  | 
 | CC7.5 - Determines Root Cause of the Event | The root cause of the event is determined. | [Use Session recording and audit logs to find root cause.](../server-access/guides/bpf-session-recording.mdx) | 
 | CC7.5 - Improves Response and Recovery Procedures | Lessons learned are analyzed and the incident-response plan and recovery procedures are improved. | [Replay Session recordings at your &#39;after action review&#39; or postmortem meetings](../server-access/guides/bpf-session-recording.mdx) | 
-
-</ScopedBlock>

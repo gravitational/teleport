@@ -7,28 +7,7 @@ layout: tocless-doc
 These guides show you how to set up a full self-hosted Teleport deployment on
 the platform of your choice.
 
-<ScopedBlock scope="cloud">
 <TileSet>
-    <Tile 
-    icon="wrench"
-    title="Open Source Teleport"
-    href="./deployments.mdx/?scope=oss"
-  >
-    View our deployment guides as an Open Source Teleport user.
-    </Tile>
-    <Tile 
-    icon="wrench"
-    title="Teleport Enterprise"
-    href="./deployments.mdx/?scope=enterprise"
-  >
-    View our deployment guides as a Teleport Enterprise user.
-    </Tile>
-  </TileSet>
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-<TileSet>
-  <ScopedBlock scope="oss">
   <Tile
   title="DigitalOcean"
   href="./deployments/digitalocean/"
@@ -37,7 +16,6 @@ the platform of your choice.
     Use our DigitalOcean 1-Click App to quickly spin up Teleport on a droplet.
     
   </Tile>
-  </ScopedBlock>
   <Tile href="./deployments/aws-terraform.mdx" title="AWS Terraform">
 
     Deploy HA Teleport with Terraform Provider on AWS.
@@ -54,4 +32,3 @@ the platform of your choice.
 
   </Tile>
 </TileSet>
-</ScopedBlock>

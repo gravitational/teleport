@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,6 +73,8 @@ type Key struct {
 	Priv []byte `json:"Priv,omitempty"`
 	// Pub is a public key
 	Pub []byte `json:"Pub,omitempty"`
+	// PPK is a PuTTY PPK-formatted keypair
+	PPK []byte `json:"PPK,omitempty"`
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
 	// TLSCert is a PEM encoded client TLS x509 certificate.
@@ -101,9 +104,15 @@ func NewKey() (key *Key, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ppkFile, err := ppk.ConvertToPPK(priv, pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Key{
 		Priv:         priv,
 		Pub:          pub,
+		PPK:          ppkFile,
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
 	}, nil
@@ -143,6 +152,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	dbTLSCerts := make(map[string][]byte)
+	appCerts := make(map[string][]byte)
 
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
@@ -160,7 +170,11 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 			dbTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
 		}
 
-		// TODO: add k8s, app, etc certs as well.
+		// Similarly, if this identity has any app certs, copy them in.
+		if parsedIdent.RouteToApp.Name != "" {
+			appCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+		}
+
 	}
 
 	// Validate TLS CA certs (if present).
@@ -186,12 +200,13 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		Priv:       ident.PrivateKey,
-		Pub:        ssh.MarshalAuthorizedKey(signer.PublicKey()),
-		Cert:       ident.Certs.SSH,
-		TLSCert:    ident.Certs.TLS,
-		TrustedCA:  trustedCA,
-		DBTLSCerts: dbTLSCerts,
+		Priv:        ident.PrivateKey,
+		Pub:         ssh.MarshalAuthorizedKey(signer.PublicKey()),
+		Cert:        ident.Certs.SSH,
+		TLSCert:     ident.Certs.TLS,
+		TrustedCA:   trustedCA,
+		DBTLSCerts:  dbTLSCerts,
+		AppTLSCerts: appCerts,
 	}, nil
 }
 

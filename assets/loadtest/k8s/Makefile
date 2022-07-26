@@ -3,12 +3,13 @@ CERT_MANAGER_VERSION ?= v1.7.1
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:9.0.0
+TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:10.0.0
 NAMESPACE ?= loadtest
+NODE ?=
 
 # performs initialization needed for cluster
 # 1) generates etcd certs
-# 2) creates loadtest namespace
+# 2) creates namespace
 # 3) installs cert-manager
 # 4) creates and applies secrets
 .PHONY: setup
@@ -94,6 +95,7 @@ generate-certificates:
 else
 .PHONY: generate-certificates
 generate-certificates:
+	kubectl apply -f tls.yaml
 endif
 
 # installs teleport auth, proxy, one IoT node and one non-IoT node
@@ -118,12 +120,19 @@ delete-monitor:
 # installs an etcd cluster
 .PHONY: install-etcd
 install-etcd:
-	kubectl apply -f etcd.yaml
+	kubectl create configmap etcd-config -n $(NAMESPACE) \
+		--from-file=etcd.sh=./etcd.sh \
+		--dry-run=client -o yaml | kubectl apply -f -
+
+
+	@make expand-yaml FILENAME=etcd NAMESPACE=$(NAMESPACE)
+	kubectl apply -f etcd-gen.yaml
 
 # deletes etcd deployment, services, and configmaps
 .PHONY: delete-etcd
 delete-etcd:
-	kubectl delete -f etcd.yaml --ignore-not-found
+	kubectl delete -f etcd-gen.yaml --ignore-not-found
+	kubectl delete configmap etcd-config -n $(NAMESPACE) --ignore-not-found
 
 
 # install auth and applies required teleport resources for loadtests
@@ -355,10 +364,10 @@ install-soaktest:
 # deploys a job to run the soak tests
 .PHONY: run-soak-tests
 run-soak-tests:
-	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -c teleport -it \
+	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -it \
 		-- tctl auth sign --overwrite --user=soaktest-runner --out=/data/soaktest-auth --ttl=8760h --config /etc/teleport/teleport.yaml
 
-	kubectl cp -c teleport loadtest/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
+	kubectl cp $(NAMESPACE)/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
 
 	kubectl wait --for=condition=available --timeout=600s deploy/node -n $(NAMESPACE)
 	kubectl wait --for=condition=available --timeout=600s deploy/iot-node -n $(NAMESPACE)
@@ -411,7 +420,7 @@ run-tc-scaling-test:
 	@sleep 120
 	@make setup-tc
 
-	@sleep 1200
+	@sleep 300
 
 	@make delete-tc
 
@@ -423,32 +432,42 @@ run-tc-scaling-test:
 	@sleep 120
 	@make setup-tc
 	
-	@sleep 1200
+	@sleep 300
 	
 	@make delete-tc
 
 # collect goroutine and heap go profiles from the auth deployment
 .PHONY: collect-profiles
-collect-profiles:
-	kubectl port-forward service/auth 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
+collect-profiles: collect-auth collect-proxy collect-node
 
-	@echo "waiting for auth to be available..."
-
-	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-
-	@make fetch-profiles LOCATION=auth-$(shell date +%s)
-
-	kill -s kill $$(pgrep -f 3434:3434)
-
+.PHONY: collect-proxy
+collect-proxy:
 	kubectl port-forward service/proxy 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
-
 	@echo "waiting for proxy to be available..."
-
 	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-
 	@make fetch-profiles LOCATION=proxy-$(shell date +%s)
-
 	kill -s kill $$(pgrep -f 3434:3434)
+
+.PHONY: collect-auth
+collect-auth:
+	kubectl port-forward service/auth 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
+	@echo "waiting for auth to be available..."
+	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
+	@make fetch-profiles LOCATION=auth-$(shell date +%s)
+	kill -s kill $$(pgrep -f 3434:3434)
+
+ifeq ($(NODE),)
+.PHONY: collect-node
+collect-node:
+else
+.PHONY: collect-node
+collect-node:
+	kubectl port-forward pod/$(NODE) 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
+	@echo "waiting for $(NODE) to be available..."
+	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
+	@make fetch-profiles LOCATION=$(NODE)-$(shell date +%s)
+	kill -s kill $$(pgrep -f 3434:3434)
+endif
 
 # downloads the remote profiles
 .PHONY: fetch-profiles
@@ -456,6 +475,7 @@ fetch-profiles:
 	mkdir -p $(shell pwd)/profiles/$(LOCATION)/
 	curl -o $(shell pwd)/profiles/$(LOCATION)/goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine
 	curl -o $(shell pwd)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/heap
+	curl -o $(shell pwd)/profiles/$(LOCATION)/trace.profile http://127.0.0.1:3434/debug/pprof/trace
 
 # expands any placeholders in the provided yaml file with the value in the matching environment variable. the
 # output file will be named the same with a -gen suffix, i.e input = test then output will be test-gen.yaml

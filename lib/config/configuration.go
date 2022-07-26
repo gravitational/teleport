@@ -618,13 +618,16 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode:                fc.Auth.SessionRecording,
-		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override session recording configuration if either field is
+	// specified in file configuration.
+	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+			Mode:                fc.Auth.SessionRecording,
+			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := applyKeyStoreConfig(fc, cfg); err != nil {
@@ -1042,6 +1045,16 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, matcher := range fc.SSH.AWSMatchers {
+		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+			services.AWSMatcher{
+				Types:       matcher.Types,
+				Regions:     matcher.Regions,
+				Tags:        matcher.Tags,
+				SSMDocument: matcher.SSMDocument,
+			})
 	}
 
 	return nil

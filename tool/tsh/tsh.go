@@ -116,6 +116,8 @@ type CLIConf struct {
 	RequestedResourceIDs []string
 	// RequestID is an access request ID
 	RequestID string
+	// RequestIDs is a list of access request IDs
+	RequestIDs []string
 	// ReviewReason indicates the reason for an access review.
 	ReviewReason string
 	// ReviewableRequests indicates that only requests which can be reviewed should
@@ -277,7 +279,7 @@ type CLIConf struct {
 	// Deprecated in favor of `AddKeysToAgent`.
 	UseLocalSSHAgent bool
 
-	// AddKeysToAgent specifies the behaviour of how certs are handled.
+	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
@@ -570,6 +572,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
 	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
+	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
@@ -577,6 +583,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
+	proxyAWS.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -737,6 +744,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+
+	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
+	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
@@ -942,6 +952,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onRequestReview(&cf)
 	case reqSearch.FullCommand():
 		err = onRequestSearch(&cf)
+	case reqDrop.FullCommand():
+		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case aws.FullCommand():
@@ -1233,22 +1245,11 @@ func onLogin(cf *CLIConf) error {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
-
-			return nil
+		//   OR
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
+			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1261,6 +1262,24 @@ func onLogin(cf *CLIConf) error {
 			printProfiles(cf.Debug, active, others, env, cf.Verbose)
 
 			return nil
+
+		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return trace.Wrap(onStatus(cf))
+
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
@@ -1300,8 +1319,10 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
-		// otherwise just passthrough to standard login
+
+		// otherwise just pass through to standard login
 		default:
+
 		}
 	}
 
@@ -1319,6 +1340,9 @@ func onLogin(cf *CLIConf) error {
 
 	key, err := tc.Login(cf.Context)
 	if err != nil {
+		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
+			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
+		}
 		return trace.Wrap(err)
 	}
 	tc.AllowStdinHijack = false
@@ -1731,8 +1755,14 @@ func listNodesAllClusters(cf *CLIConf) error {
 		}
 		fmt.Println(out)
 	default:
-
+		return trace.BadParameter("unsupported format %q", format)
 	}
+
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(listings) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+	}
+
 	return nil
 }
 
@@ -1898,6 +1928,11 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 		return trace.BadParameter("unsupported format %q", format)
 	}
 
+	// Sometimes a user won't see any nodes because they're missing principals.
+	if len(nodes) == 0 {
+		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+	}
+
 	return nil
 }
 
@@ -2048,17 +2083,17 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
+func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(clusterFlag, databases, active, roleSet, verbose)
+		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabases(databases, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(w, out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2158,7 +2193,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	return row
 }
 
-func showDatabasesAsText(clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
 	var rows [][]string
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
@@ -2175,7 +2210,7 @@ func showDatabasesAsText(clusterFlag string, databases []types.Database, active 
 
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
 func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
@@ -2652,17 +2687,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// split login & host
 	hostLogin := cf.NodeLogin
+	hostUser := cf.UserHost
 	var labels map[string]string
-	if cf.UserHost != "" {
-		parts := strings.Split(cf.UserHost, "@")
+	if hostUser != "" {
+		parts := strings.Split(hostUser, "@")
 		partsLength := len(parts)
 		if partsLength > 1 {
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
-			cf.UserHost = parts[partsLength-1]
+			hostUser = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
-			labels, err = client.ParseLabelSpec(cf.UserHost)
+		if strings.Contains(hostUser, "=") {
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2675,7 +2711,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			partsLength := len(parts)
 			if partsLength > 1 {
 				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				cf.UserHost = parts[partsLength-1]
+				hostUser = parts[partsLength-1]
 				break
 			}
 		}
@@ -2692,7 +2728,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = cf.UserHost
+	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}
@@ -3058,7 +3094,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 
-			// On error, fall back to the legacy behaviour
+			// On error, fall back to the legacy behavior
 			if err != nil {
 				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
 				return c.ParseProxyHost(cf.Proxy)
@@ -3234,6 +3270,9 @@ func onStatus(cf *CLIConf) error {
 	// Return error if not logged in, no active profile, or expired.
 	profile, profiles, err := client.Status(cf.HomePath, cf.Proxy)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("Not logged in.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -3575,13 +3614,13 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 	}
 	fmt.Fprint(os.Stderr, msg)
 
-	err := reissueWithRequests(cf, tc, req.GetName())
+	err := reissueWithRequests(cf, tc, []string{req.GetName()}, nil /*dropRequests*/)
 	return trace.Wrap(err)
 }
 
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
-func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
+func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []string, dropRequests []string) error {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3590,12 +3629,15 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
-		AccessRequests: reqIDs,
-		RouteToCluster: cf.SiteName,
+		AccessRequests:     newRequests,
+		DropAccessRequests: dropRequests,
+		RouteToCluster:     cf.SiteName,
 	}
-	// if the certificate already had active requests, add them to our inputs parameters.
-	if len(profile.ActiveRequests.AccessRequests) > 0 {
-		params.AccessRequests = append(params.AccessRequests, profile.ActiveRequests.AccessRequests...)
+	// If the certificate already had active requests, add them to our inputs parameters.
+	for _, reqID := range profile.ActiveRequests.AccessRequests {
+		if !apiutils.SliceContainsStr(dropRequests, reqID) {
+			params.AccessRequests = append(params.AccessRequests, reqID)
+		}
 	}
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster

@@ -90,7 +90,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -299,7 +299,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -853,25 +853,27 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v9
-      PREVIOUS_VERSION_ONE_ROOT: v8
-      PREVIOUS_VERSION_TWO_ROOT: v7
+      CURRENT_VERSION_ROOT: v10
+      PREVIOUS_VERSION_ONE_ROOT: v9
+      PREVIOUS_VERSION_TWO_ROOT: v8
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (9)
+      # CURRENT_VERSION (10)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (8)
+      # PREVIOUS_VERSION_ONE (9)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (7)
+      # PREVIOUS_VERSION_TWO (8)
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
+
       # wait for Docker to be ready
       - sleep 3
 
@@ -953,13 +955,16 @@ steps:
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build/push Teleport Lab Docker image
@@ -1201,20 +1206,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1223,7 +1231,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1357,20 +1365,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1379,7 +1390,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1464,7 +1475,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1511,20 +1522,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1533,7 +1547,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1619,7 +1633,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1665,20 +1679,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1687,7 +1704,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1711,7 +1728,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -1841,20 +1858,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1863,7 +1883,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1892,7 +1912,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2019,20 +2039,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2041,7 +2064,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2070,7 +2093,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2191,20 +2214,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2213,7 +2239,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2237,7 +2263,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2355,20 +2381,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit DEB (FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2377,7 +2406,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2509,20 +2538,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2531,7 +2563,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2555,7 +2587,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2685,20 +2717,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit RPM" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2707,7 +2742,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2736,7 +2771,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2857,20 +2892,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit DEB" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2879,7 +2917,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3084,20 +3122,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3106,7 +3147,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3289,20 +3330,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel .pkg installer"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3311,7 +3355,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3475,20 +3519,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel .pkg installer (tsh client only)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer (tsh client only)" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3497,7 +3544,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3627,20 +3674,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit)" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3649,7 +3699,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3781,20 +3831,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit)" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3803,7 +3856,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3827,7 +3880,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -3948,20 +4001,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit) DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) DEB" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3970,7 +4026,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3994,7 +4050,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4115,20 +4171,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit) DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) DEB" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4137,7 +4196,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4161,7 +4220,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4291,20 +4350,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit) RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) RPM" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4313,7 +4375,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4342,7 +4404,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:461
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4472,20 +4534,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit) RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) RPM" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4494,7 +4559,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4634,20 +4699,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Windows 64-bit (tsh client only)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Windows 64-bit (tsh client only)" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4656,7 +4724,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4743,12 +4811,13 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make bash
       - chown -R $UID:$GID /go
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
+      - make publish-operator-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -5306,11 +5375,13 @@ steps:
       - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
       # retag images to production naming
       - echo "---> Tagging images for $${VERSION}"
       - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
       # reauthenticate with production credentials
       - docker logout quay.io
       - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
@@ -5319,6 +5390,7 @@ steps:
       - docker push quay.io/gravitational/teleport:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -5614,6 +5686,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 36cb56689a9f2dc75b3adeb626cb64db2d728dd2c1060bc86d34401ad28e6e8f
+hmac: 56fd923bee59e817331602c52b0fc28174664556ee50864b6c1147fd144d1243
 
 ...

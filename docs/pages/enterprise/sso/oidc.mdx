@@ -11,26 +11,6 @@ administrators to define policies like:
 
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
-- ... and many others.
-
-<ScopedBlock
-  scope={["oss"]}
->
-
-  This guide requires Teleport Cloud or Teleport Enterprise.
-
-  View this guide as the user of another Teleport edition:
-
-  <TileSet>
-  <Tile icon="cloud" title="Teleport Cloud" href="./oidc.mdx/?scope=cloud">
-  </Tile>
-  <Tile icon="building" title="Teleport Enterprise" href="./oidc.mdx/?scope=enterprise">
-  </Tile>
-  </TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ## Prerequisites
 
@@ -260,4 +240,3 @@ identity provider if you are not automatically redirected.
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-</ScopedBlock>
