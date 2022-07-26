@@ -1179,6 +1179,10 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
+		if trace.IsNotFound(err) {
+			log.Debug(err)
+			return trace.NotFound("Recoding for session %s not found.", cf.SessionID)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
