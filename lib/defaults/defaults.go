@@ -774,6 +774,7 @@ const (
 // Default values for tsh and tctl commands.
 const (
 	TshTctlSessionListLimit = "50"
+	TshTctlSessionDayLimit  = 365
 )
 
 // DefaultFormats is the default set of formats to use for commands that have the --format flag.

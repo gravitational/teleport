@@ -78,6 +78,11 @@ func (c *SessionsCommand) ListSessions(tc auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Max number of days is limited to prevent too many requests being sent if dynamo is used as a backend.
+	if days := toUTC.Sub(fromUTC).Hours() / 24; days > defaults.TshTctlSessionDayLimit {
+		return trace.Errorf("date range for session listing too large: %v days specified: limit %v days",
+			days, defaults.TshTctlSessionDayLimit)
+	}
 	sessions, err := common.GetPaginatedSessions(context.Background(), fromUTC, toUTC,
 		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxSessionsToShow, tc)
 	if err != nil {
