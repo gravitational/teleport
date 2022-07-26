@@ -135,8 +135,8 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	nameParam := p.ByName("name")
-	connectionDiagnostic, err := clt.GetConnectionDiagnostic(r.Context(), nameParam)
+	connectionID := p.ByName("connectionid")
+	connectionDiagnostic, err := clt.GetConnectionDiagnostic(r.Context(), connectionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

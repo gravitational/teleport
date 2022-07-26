@@ -449,7 +449,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 
 	// GET a Connection Diagnostics by its name
-	h.GET("/webapi/sites/:site/diagnostics/connections/:name", h.WithClusterAuth(h.getConnectionDiagnostic))
+	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
