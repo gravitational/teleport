@@ -62,7 +62,7 @@ func (b *Bot) initializeConfig() {
 	// Initialize tbot config
 	b.cfg = &config.BotConfig{
 		Onboarding: &config.OnboardingConfig{
-			TokenValue: "",         // Field should be populated later, before running
+			Token:      "",         // Field should be populated later, before running
 			CAPins:     []string{}, // Field should be populated later, before running
 			JoinMethod: types.JoinMethodToken,
 		},
@@ -168,7 +168,7 @@ func (b *Bot) Start(ctx context.Context) error {
 	}
 	log.Infof("Token generated %s", token)
 
-	b.cfg.Onboarding.TokenValue = token
+	b.cfg.Onboarding.Token = token
 
 	// Getting the cluster CA Pins to be able to join regardless of the cert SANs.
 	localCAResponse, err := b.rootClient.GetClusterCACert(ctx)

@@ -42,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration"
-	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	//+kubebuilder:scaffold:imports
@@ -52,11 +51,11 @@ func fastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
-func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) auth.ClientI {
+func clientForTeleport(t *testing.T, teleportServer *integration.TeleInstance, userName string) auth.ClientI {
 	identityFilePath := integration.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	id, err := identityfile.ReadFile(identityFilePath)
 	require.NoError(t, err)
-	addr, err := utils.ParseAddr(teleportServer.Auth)
+	addr, err := utils.ParseAddr(teleportServer.GetAuthAddr())
 	require.NoError(t, err)
 	tlsConfig, err := id.TLSConfig()
 	require.NoError(t, err)
@@ -76,8 +75,8 @@ func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userN
 	return c
 }
 
-func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
+func defaultTeleportServiceConfig(t *testing.T) (*integration.TeleInstance, string) {
+	teleportServer := integration.NewInstance(integration.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    integration.Loopback,
