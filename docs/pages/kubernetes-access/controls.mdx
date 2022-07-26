@@ -57,7 +57,7 @@ Enterprise Edition:
     spec:
       acs: https://tele.example.com/v1/webapi/saml/acs
       attributes_to_roles:
-      # Any user who has SAML `groups` atrribute with value `okta-admin`
+      # Any user who has SAML `groups` attribute with value `okta-admin`
       # will be given the Teleport `kube-access` role.
       - {name: "groups", value: "okta-admin", roles: ["kube-access"]}
       entity_descriptor: |
