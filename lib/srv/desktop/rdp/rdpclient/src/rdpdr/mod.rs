@@ -66,7 +66,7 @@ pub struct Client {
     /// See the documentation of FileCacheObject
     /// for more detail on how this is used.
     file_cache: FileCache,
-    next_file_id: u32, // used to generate file id's
+    next_file_id: u32, // used to generate file ids
 
     // Functions for sending tdp messages to the browser client.
     tdp_sd_acknowledge: SharedDirectoryAcknowledgeSender,
