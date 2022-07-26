@@ -1015,9 +1015,9 @@ func (c *Client) CreateWebSession(ctx context.Context, user string) (types.WebSe
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
-func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+func (c *Client) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "web", "authenticate"),
 		req,
 	)
@@ -1029,9 +1029,9 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "ssh", "authenticate"),
 		req,
 	)
@@ -2007,10 +2007,10 @@ type ClientI interface {
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
-	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
+	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// short lived certificates as a result
-	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	// short-lived certificates as a result
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.
