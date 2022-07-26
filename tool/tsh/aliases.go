@@ -37,7 +37,7 @@ type aliasRunner struct {
 	// setEnv is a function to set env variable, for example os.Setenv.
 	setEnv func(key, value string) error
 
-	// aliases is a list of alias definitions, keyed by alias name.
+	// aliases is a list of alias definitions, keyed by alias name; typically loaded from config file.
 	aliases map[string]string
 
 	// runTshMain is a function to run tsh; for example Run().
