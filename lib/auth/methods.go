@@ -21,6 +21,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -29,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // AuthenticateUserRequest is a request to authenticate interactive user
@@ -294,10 +295,9 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // if authentication is successful. In case the existing session ID is used to authenticate,
 // returns the existing session instead of creating a new one
-func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	username := req.Username // Empty if passwordless.
 
-	ctx := context.TODO()
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -430,10 +430,9 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	username := req.Username // Empty if passwordless.
 
-	ctx := context.TODO()
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -460,11 +459,11 @@ func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, s)
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 
 	// Return the host CA for this cluster only.
 	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
