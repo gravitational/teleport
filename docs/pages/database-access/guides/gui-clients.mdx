@@ -79,10 +79,7 @@ You won't need to configure any credentials when connecting to this tunnel.
 Here is an example on how to start the proxy:
 
 ```bash
-# First, login into the database.
-$ tsh db login <database-name>
-
-# Then, start the local proxy.
+# Start the local proxy.
 $ tsh proxy db --tunnel <database-name>
 Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
 ```
@@ -317,9 +314,9 @@ After opening Redis Insight click `ADD REDIS DATABASE`.
 
 ![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
 
-Log in to your Redis instance with a Redis user first by using:
+Start a local proxy to your Redis instance with a Redis user first by using:
 
-`tsh db login --db-user=alice redis-db-name`.
+`tsh proxy db --db-user=alice redis-db-name`.
 
 Click `Add Database Manually`. Use `127.0.0.1` as the `Host`. Use the port printed by
 the `tsh` command you ran in [Get connection information](#get-connection-information).
