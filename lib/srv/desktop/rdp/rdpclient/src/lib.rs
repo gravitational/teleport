@@ -754,9 +754,9 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
 
-    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
     let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -796,9 +796,9 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
 
-    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
     let res = SharedDirectoryInfoResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -833,11 +833,10 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
 
-    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
-    #[allow(clippy::redundant_clone)]
-    let res: SharedDirectoryCreateResponse = res.clone();
+    let res: SharedDirectoryCreateResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -871,11 +870,10 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
 
-    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
-    #[allow(clippy::redundant_clone)]
-    let res: SharedDirectoryDeleteResponse = res.clone();
+    let res: SharedDirectoryDeleteResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -913,9 +911,9 @@ pub unsafe extern "C" fn handle_tdp_sd_list_response(
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
 
-    // Clone here to ensure nothing the CGO object is passed to can hang on to it or any of its pointers.
     let res = SharedDirectoryListResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -1105,7 +1103,8 @@ impl From<CGOMousePointerEvent> for PointerEvent {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         PointerEvent {
             x: p.x,
             y: p.y,
@@ -1172,7 +1171,8 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         KeyboardEvent {
             code: k.code,
             down: k.down,
@@ -1245,7 +1245,8 @@ unsafe fn from_go_string(s: *const c_char) -> String {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
@@ -1256,7 +1257,8 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
 }
 
@@ -1285,7 +1287,8 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         unsafe {
             SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
@@ -1354,7 +1357,8 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         SharedDirectoryInfoResponse {
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
@@ -1401,7 +1405,8 @@ impl From<CGOFileSystemObject> for FileSystemObject {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         unsafe {
             FileSystemObject {
                 last_modified: cgo_fso.last_modified,
@@ -1554,7 +1559,8 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
         // # Safety
         //
         // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // All passed data that needs to persist after this function MUST be copied into Rust-owned memory.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
         unsafe {
             let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
             let mut fso_list = vec![];
