@@ -16,7 +16,6 @@ package common
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -24,7 +23,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -38,8 +36,8 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
@@ -372,11 +370,9 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		return trace.Wrap(err)
 	}
 
-	err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-		"files": strings.Join(filesWritten, ", "),
-	})
-
-	return trace.Wrap(err)
+	return trace.Wrap(
+		srv.WriteHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+	)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
@@ -469,153 +465,19 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if a.outputFormat != identityfile.FormatSnowflake && len(principals) == 1 && principals[0] == "" {
-		return trace.BadParameter("at least one hostname must be specified via --host flag")
+
+	genMTLSReq := srv.GenerateMTLSFilesRequest{
+		ClusterAPI:          clusterAPI,
+		Principals:          principals,
+		OutputFormat:        a.outputFormat,
+		OutputCanOverwrite:  a.signOverwrite,
+		OutputLocation:      a.output,
+		TTL:                 a.genTTL,
+		HelperMessageWriter: os.Stdout,
 	}
-	// For CockroachDB node certificates, CommonName must be "node":
-	//
-	// https://www.cockroachlabs.com/docs/v21.1/cockroach-cert#node-key-and-certificates
-	if a.outputFormat == identityfile.FormatCockroach {
-		principals = append([]string{"node"}, principals...)
-	}
-	subject := pkix.Name{CommonName: principals[0]}
-	if a.outputFormat == identityfile.FormatMongo {
-		// Include Organization attribute in MongoDB certificates as well.
-		//
-		// When using X.509 member authentication, MongoDB requires O or OU to
-		// be non-empty so this will make the certs we generate compatible:
-		//
-		// https://docs.mongodb.com/manual/core/security-internal-authentication/#x.509
-		//
-		// The actual O value doesn't matter as long as it matches on all
-		// MongoDB cluster members so set it to the Teleport cluster name
-		// to avoid hardcoding anything.
-		clusterName, err := clusterAPI.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		subject.Organization = []string{
-			clusterName.GetClusterName(),
-		}
-	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	resp, err := clusterAPI.GenerateDatabaseCert(ctx,
-		&proto.DatabaseCertRequest{
-			CSR: csr,
-			// Important to include SANs since CommonName has been deprecated
-			// since Go 1.15:
-			//   https://golang.org/doc/go1.15#commonname
-			ServerNames: principals,
-			// Include legacy ServerName for compatibility.
-			ServerName:    principals[0],
-			TTL:           proto.Duration(a.genTTL),
-			RequesterName: proto.DatabaseCertRequest_TCTL,
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	key.TLSCert = resp.Cert
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
-		OutputPath:           a.output,
-		Key:                  key,
-		Format:               a.outputFormat,
-		OverwriteDestination: a.signOverwrite,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	switch a.outputFormat {
-	case identityfile.FormatDatabase:
-		err = dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatMongo:
-		err = mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatCockroach:
-		err = cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatRedis:
-		err = redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatSnowflake:
-		err = snowflakeAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files": strings.Join(filesWritten, ", "),
-		})
-	}
+	_, err := srv.GenerateMTLSFiles(ctx, genMTLSReq)
 	return trace.Wrap(err)
 }
-
-var (
-	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
-	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
-To enable mutual TLS on your PostgreSQL server, add the following to its
-postgresql.conf configuration file:
-
-ssl = on
-ssl_cert_file = '/path/to/{{.output}}.crt'
-ssl_key_file = '/path/to/{{.output}}.key'
-ssl_ca_file = '/path/to/{{.output}}.cas'
-
-To enable mutual TLS on your MySQL server, add the following to its
-mysql.cnf configuration file:
-
-[mysqld]
-require_secure_transport=ON
-ssl-cert=/path/to/{{.output}}.crt
-ssl-key=/path/to/{{.output}}.key
-ssl-ca=/path/to/{{.output}}.cas
-`))
-	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
-	mongoAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
-To enable mutual TLS on your MongoDB server, add the following to its
-mongod.yaml configuration file:
-
-net:
-  tls:
-    mode: requireTLS
-    certificateKeyFile: /path/to/{{.output}}.crt
-    CAFile: /path/to/{{.output}}.cas
-`))
-	cockroachAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
-To enable mutual TLS on your CockroachDB server, point it to the certs
-directory using --certs-dir flag:
-
-cockroach start \
-  --certs-dir={{.output}} \
-  # other flags...
-`))
-
-	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
-To enable mutual TLS on your Redis server, add the following to your redis.conf:
-
-tls-ca-cert-file /path/to/{{.output}}.cas
-tls-cert-file /path/to/{{.output}}.crt
-tls-key-file /path/to/{{.output}}.key
-tls-protocols "TLSv1.2 TLSv1.3"
-`))
-
-	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
-Please add the generated key to the Snowflake users as described here:
-https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
-`))
-)
 
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.

@@ -21,6 +21,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
 )
 
 type InMemoryFileInfo struct {
@@ -118,9 +120,9 @@ func (m InMemoryConfigWriter) Stat(name string) (fs.FileInfo, error) {
 	return f, nil
 }
 
-// Read returns the file contents.
+// ReadFile returns the file contents.
 // Returns fs.ErrNotExists if the file is not present
-func (m InMemoryConfigWriter) Read(name string) ([]byte, error) {
+func (m InMemoryConfigWriter) ReadFile(name string) ([]byte, error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
 
@@ -130,4 +132,9 @@ func (m InMemoryConfigWriter) Read(name string) ([]byte, error) {
 	}
 
 	return f.content, nil
+}
+
+// Open is not implemented but exists here to satisfy the io/fs.ReadFileFS interface.
+func (m InMemoryConfigWriter) Open(name string) (fs.File, error) {
+	return nil, trace.NotImplemented("Open is not implemented for InMemoryConfigWriter")
 }

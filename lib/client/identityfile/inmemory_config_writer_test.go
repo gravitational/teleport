@@ -37,7 +37,7 @@ func TestInMemory(t *testing.T) {
 	err := virtualFS.WriteFile(filename, content, fileMode)
 	require.NoError(t, err)
 
-	bs, err := virtualFS.Read(filename)
+	bs, err := virtualFS.ReadFile(filename)
 	require.NoError(t, err)
 	require.Equal(t, bs, content)
 
@@ -52,7 +52,7 @@ func TestInMemory(t *testing.T) {
 	err = virtualFS.Remove(filename)
 	require.NoError(t, err)
 
-	_, err = virtualFS.Read(filename)
+	_, err = virtualFS.ReadFile(filename)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 
 	_, err = virtualFS.Stat(filename)

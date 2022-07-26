@@ -17,26 +17,23 @@ limitations under the License.
 package web
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
-	"crypto/x509/pkix"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 /* signCertKeyPair returns the necessary files to set up mTLS for other services
@@ -55,59 +52,40 @@ Should be equivalent to running:
 This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the service.
 */
 func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite) (interface{}, error) {
-	ctx := r.Context()
-	req, err := parseSignCertKeyPair(r)
-	if err != nil {
+	req := &signCertKeyPairReq{}
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := client.NewKey()
-	if err != nil {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	subject := pkix.Name{CommonName: req.Hostname}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterAPI := h.auth.proxyClient
-	resp, err := clusterAPI.GenerateDatabaseCert(
-		ctx,
-		&proto.DatabaseCertRequest{
-			CSR: csr,
-			// Important to include SANs since CommonName has been deprecated
-			ServerNames: []string{req.Hostname},
-			// Include legacy ServerName for compatibility.
-			ServerName:    req.Hostname,
-			TTL:           proto.Duration(req.TTL),
-			RequesterName: proto.DatabaseCertRequest_TCTL,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	key.TLSCert = resp.Cert
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
 
 	virtualFS := identityfile.NewInMemoryConfigWriter()
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
-		OutputPath:           "server",
-		Key:                  key,
-		Format:               req.Format,
-		OverwriteDestination: true,
-		Writer:               virtualFS,
-	})
+	mTLSReq := srv.GenerateMTLSFilesRequest{
+		ClusterAPI:          h.auth.proxyClient,
+		Principals:          []string{req.Hostname},
+		OutputFormat:        req.Format,
+		OutputCanOverwrite:  true,
+		OutputLocation:      "server",
+		IdentityFileWriter:  virtualFS,
+		TTL:                 req.TTL,
+		HelperMessageWriter: nil,
+	}
+	filesWritten, err := srv.GenerateMTLSFiles(r.Context(), mTLSReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	archiveName := fmt.Sprintf("teleport_mTLS_%s.tar.gz", req.Hostname)
 
-	archiveBytes, err := archiveFromFiles(filesWritten, virtualFS)
+	// https://www.postgresql.org/docs/current/libpq-ssl.html
+	// On Unix systems, the permissions on the private key file must disallow any access to world or group;
+	//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
+	// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
+	fileMode := fs.FileMode(teleport.FileMaskOwnerOnly) // 0600
+	archiveBytes, err := utils.CompressTarGzArchive(filesWritten, virtualFS, fileMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,47 +100,12 @@ func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p http
 	return nil, nil
 }
 
-// archiveFromFiles builds a Tar Gzip archive in memory, reading the files from the virtual FS
-func archiveFromFiles(files []string, virtualFS identityfile.InMemoryConfigWriter) (*bytes.Buffer, error) {
-	archiveBytes := &bytes.Buffer{}
-
-	gzipWriter := gzip.NewWriter(archiveBytes)
-	defer gzipWriter.Close()
-
-	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
-
-	for _, filename := range files {
-		bs, err := virtualFS.Read(filename)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := tarWriter.WriteHeader(&tar.Header{
-			Name: filename,
-			Size: int64(len(bs)),
-
-			// https://www.postgresql.org/docs/current/libpq-ssl.html
-			// On Unix systems, the permissions on the private key file must disallow any access to world or group;
-			//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
-			// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
-			Mode: 0600,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if _, err := tarWriter.Write(bs); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return archiveBytes, nil
-}
-
 type signCertKeyPairReq struct {
-	Hostname string
-	Format   identityfile.Format
-	TTL      time.Duration
+	Hostname  string `json:"hostname,omitempty"`
+	FormatRaw string `json:"format,omitempty"`
+	TTLRaw    string `json:"ttl,omitempty"`
+	Format    identityfile.Format
+	TTL       time.Duration
 }
 
 // TODO(marco): only format db is supported
@@ -170,36 +113,27 @@ var supportedFormats = []identityfile.Format{
 	identityfile.FormatDatabase,
 }
 
-func parseSignCertKeyPair(r *http.Request) (*signCertKeyPairReq, error) {
-	reqRaw := struct {
-		Hostname string `json:"hostname,omitempty"`
-		Format   string `json:"format,omitempty"`
-		TTL      string `json:"ttl,omitempty"`
-	}{}
-	if err := httplib.ReadJSON(r, &reqRaw); err != nil {
-		return nil, trace.Wrap(err)
+func (s *signCertKeyPairReq) CheckAndSetDefaults() error {
+	if s.Hostname == "" {
+		return trace.BadParameter("missing hostname")
 	}
 
-	ret := &signCertKeyPairReq{}
-
-	ret.Hostname = reqRaw.Hostname
-
-	if reqRaw.Format == "" {
-		return nil, trace.BadParameter("missing format")
+	if s.FormatRaw == "" {
+		return trace.BadParameter("missing format")
 	}
-	ret.Format = identityfile.Format(reqRaw.Format)
-	if !slices.Contains(supportedFormats, ret.Format) {
-		return nil, trace.BadParameter("invalid format")
+	s.Format = identityfile.Format(s.FormatRaw)
+	if !slices.Contains(supportedFormats, s.Format) {
+		return trace.BadParameter("provided format '%s' is not valid, supported formats are: %q", s.Format, supportedFormats)
 	}
 
-	if reqRaw.TTL == "" {
-		reqRaw.TTL = apidefaults.CertDuration.String()
+	if s.TTLRaw == "" {
+		s.TTLRaw = apidefaults.CertDuration.String()
 	}
-	ttl, err := time.ParseDuration(reqRaw.TTL)
+	ttl, err := time.ParseDuration(s.TTLRaw)
 	if err != nil {
-		return nil, trace.BadParameter("invalid ttl (please use https://pkg.go.dev/time#ParseDuration notation)")
+		return trace.BadParameter("invalid ttl '%s', use https://pkg.go.dev/time#ParseDuration format (example: 2190h)", s.TTLRaw)
 	}
-	ret.TTL = ttl
+	s.TTL = ttl
 
-	return ret, nil
+	return nil
 }

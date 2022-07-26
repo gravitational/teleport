@@ -2722,19 +2722,9 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler) httprou
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		clusterName := p.ByName("site")
-		if clusterName == currentSiteShortcut {
-			res, err := h.GetProxyClient().GetClusterName()
-			if err != nil {
-				h.log.WithError(err).Warn("Failed to query cluster name.")
-				return nil, trace.Wrap(err)
-			}
-			clusterName = res.GetClusterName()
-		}
-
-		site, err := h.cfg.Proxy.GetSite(clusterName)
+		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
 		if err != nil {
-			h.log.WithError(err).WithField("cluster-name", clusterName).Warn("Failed to query site.")
+			h.log.WithError(err).WithField("cluster-name", h.auth.clusterName).Warn("Failed to query site.")
 			return nil, trace.Wrap(err)
 		}
 
