@@ -201,20 +201,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeStrict,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.Error,
@@ -240,20 +240,20 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessChecker: services.NewAccessChecker(&services.AccessInfo{
-						RoleSet: services.RoleSet{
-							&types.RoleV5{
-								Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-								Spec: types.RoleSpecV5{
-									Options: types.RoleOptions{
-										RecordSession: &types.RecordSession{
-											SSH: constants.SessionRecordingModeBestEffort,
-										},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
 									},
 								},
 							},
 						},
-					}, "test"),
+					}),
 				},
 			},
 			errAssertion: require.NoError,
@@ -500,7 +500,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 }
 
@@ -600,7 +600,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)

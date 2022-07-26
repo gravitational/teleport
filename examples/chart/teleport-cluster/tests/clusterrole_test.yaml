@@ -9,3 +9,12 @@ tests:
       - isKind:
           of: ClusterRole
       - matchSnapshot: {}
+  - it: adds operator permissions to ClusterRole
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+      - matchSnapshot: {}
