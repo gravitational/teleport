@@ -104,6 +104,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindApp:                     rc.createApp,
 		types.KindDatabase:                rc.createDatabase,
 		types.KindToken:                   rc.createToken,
+		types.KindSAMLConnector:           rc.createSAMLConnector,
 	}
 	rc.config = config
 
@@ -358,6 +359,30 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client aut
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector %q has been %s\n",
+		connector.GetName(), UpsertVerb(exists, rc.force))
+	return nil
+}
+
+// createSAMLConnector creates a SAML connector
+func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.GetSAMLConnector(ctx, connector.GetName(), false)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.force && exists {
+		return trace.AlreadyExists("authentication SAML connector %q already exists",
+			connector.GetName())
+	}
+	err = client.UpsertSAMLConnector(ctx, connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("authentication SAML connector %q has been %s\n",
 		connector.GetName(), UpsertVerb(exists, rc.force))
 	return nil
 }
