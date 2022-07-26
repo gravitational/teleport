@@ -56,7 +56,7 @@ connect to a database.
    for more details on how it works.
 2. The user picks the database they want to connect to from the list of available
    databases shown in `tsh db ls` command and retrieves a short-lived X.509
-   certificate for it with `tsh db login`.
+   certificate for it with `tsh db connect` or `tsh proxy db`.
 3. The user uses a standard database client (e.g. `psql`, `mysql` or one of the
    [graphical clients](./guides/gui-clients.mdx)) to connect to the Proxy, authenticating
    with the client certificate from step 2.
@@ -85,7 +85,7 @@ Let's take a detailed look at each authentication point.
 ### Database client to Proxy
 
 Database clients authenticate with the Proxy using X.509 client certificates
-obtained from the `tsh db login` command.
+obtained from the `tsh db connect` or `tsh proxy db` command.
 
 <Admonition
   type="note"
