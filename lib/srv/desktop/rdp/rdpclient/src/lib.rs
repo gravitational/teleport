@@ -1436,6 +1436,8 @@ pub enum TdpErrCode {
     AlreadyExists = 3,
 }
 
+/// SharedDirectoryWriteRequest is sent by the TDP server to the client
+/// to write to a file.
 #[derive(Debug, Clone)]
 pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
@@ -1457,6 +1459,8 @@ pub struct CGOSharedDirectoryWriteRequest {
     pub write_data: *mut u8,
 }
 
+/// SharedDirectoryReadRequest is sent by the TDP server to the client
+/// to request the contents of a file.
 #[derive(Debug)]
 pub struct SharedDirectoryReadRequest {
     completion_id: u32,
@@ -1476,6 +1480,8 @@ pub struct CGOSharedDirectoryReadRequest {
     pub length: u32,
 }
 
+/// SharedDirectoryReadResponse is sent by the TDP client to the server
+/// with the data as requested by a SharedDirectoryReadRequest.
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
@@ -1505,6 +1511,8 @@ pub struct CGOSharedDirectoryReadResponse {
     pub read_data: *mut u8,
 }
 
+/// SharedDirectoryWriteResponse is sent by the TDP client to the server
+/// to acknowledge the completion of a SharedDirectoryWriteRequest.
 #[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryWriteResponse {
