@@ -2,6 +2,9 @@ Like all Teleport users, `access-plugin` needs signed credentials in
 order to connect to your Teleport cluster. You will use the `tctl auth sign`
 command to request these credentials for your plugin. 
 
+{/* 
+TODO (ptgott): Remove "oss" once gravitational/docs#118 is fixed
+*/}
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 The format of the credentials depends on whether you have set up your network to
@@ -42,7 +45,7 @@ and updated Access Requests.
 You can generate TLS credentials with the following command:
 
 ```code
-$ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=2190h
+$ tctl auth sign --format=tls --user=access-plugin --out=auth
 ```
 
 This command should result in three PEM-encoded files: `auth.crt`,

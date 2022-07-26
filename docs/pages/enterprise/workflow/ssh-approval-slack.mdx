@@ -108,7 +108,7 @@ built-in `access` role and the `ubuntu` login. This user cannot edit your
 cluster configuration unless they request the `editor` role:
 
 ```code
-$ tctl users add myuser --roles=access,editor-requester --logins=ubuntu
+$ tctl users add myuser --roles=editor-requester 
 ```
 
 `tctl` will print an invitation URL to your terminal. Visit the URL and log in
@@ -531,8 +531,8 @@ $ sudo systemctl start teleport-slack
 ## Next steps
 
 - Read our guides to configuring [Resource Access
-    Requests](../access-requests/resource-requests.mdx) and [Role Access
-    Requests](../access-requests/role-requests.mdx) so you can get the most out
+    Requests](./resource-requests.mdx) and [Role Access
+    Requests](./role-requests.mdx) so you can get the most out
     of your Access Request plugins.
 ## Feedback
 
