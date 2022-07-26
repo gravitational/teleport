@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	auditd2 "github.com/gravitational/teleport/lib/auditd"
+	"github.com/gravitational/teleport/lib/auditd"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -289,14 +289,11 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 		h.log.Warnf("auditd event error: %v", err)
 
-		auditd, err2 := auditd2.NewAuditDClient(conn.User(), "")
-		if err2 != nil {
-			log.Warnf("auditd err: %v", err2)
-			return
+		auditdMsg := auditd.Message{
+			SystemUser: conn.User(),
 		}
-		defer auditd.Close()
 
-		if err := auditd.SendInvalidUser(); err != nil {
+		if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, auditd.Failed, auditdMsg); err != nil {
 			log.Warnf("failed to auditd log: %v", err)
 		}
 	}

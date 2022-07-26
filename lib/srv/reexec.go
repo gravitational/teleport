@@ -31,7 +31,7 @@ import (
 	"syscall"
 	"time"
 
-	auditd2 "github.com/gravitational/teleport/lib/auditd"
+	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -286,13 +286,12 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	auditd, err := auditd2.NewAuditDClient(c.Username, c.TerminalName)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to initialize auditd: %v", err)
+	auditdMsg := auditd.Message{
+		SystemUser: c.Username,
+		TTYName:    c.TerminalName,
 	}
-	defer auditd.Close()
 
-	if err := auditd.SendLogin(); err != nil {
+	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
 	}
 
@@ -395,7 +394,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	if err := auditd.SendSessionEnd(); err != nil {
+	if err := auditd.SendEvent(auditd.AUDIT_USER_END, auditd.Success, auditdMsg); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user end: %v", err)
 	}
 
