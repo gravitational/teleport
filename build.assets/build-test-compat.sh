@@ -57,7 +57,7 @@ EXIT_CODE=0
 # $1 - distro name
 # $2 - binary to run
 function run_docker {
-  docker run --rm -v"$(pwd)":/teleport "$1" "${@:2}"
+  docker run --rm -v "$(pwd)":/teleport "$1" "${@:2}"
   EXIT_CODE=$((EXIT_CODE || $?))
 }
 
