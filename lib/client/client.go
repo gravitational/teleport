@@ -1999,60 +1999,80 @@ func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 
 // listenAndForward listens on a given socket and forwards all incoming
 // commands to the remote address through the SSH tunnel.
-func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remoteAddr string) {
+func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, localAddr string, remoteAddr string) {
 	defer ln.Close()
-	defer c.Close()
 
-	for {
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+
+	log.Infof("Starting port forwarding")
+
+	for ctx.Err() == nil {
 		// Accept connections from the client.
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			log.Errorf("Port forwarding failed: %v.", err)
-			break
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Port forwarding failed.")
+			}
+			continue
 		}
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
-				log.Warnf("Failed to proxy connection: %v.", err)
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
 	}
+
+	log.WithError(ctx.Err()).Infof("Shutting down port forwarding.")
 }
 
 // dynamicListenAndForward listens for connections, performs a SOCKS5
 // handshake, and then proxies the connection to the requested address.
-func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener) {
+func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener, localAddr string) {
 	defer ln.Close()
-	defer c.Close()
 
-	for {
+	log := log.WithField("localAddr", localAddr)
+
+	log.Infof("Starting dynamic port forwarding.")
+
+	for ctx.Err() == nil {
 		// Accept connection from the client. Here the client is typically
 		// something like a web browser or other SOCKS5 aware application.
-		conn, err := ln.Accept()
+		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			log.Errorf("Dynamic port forwarding (SOCKS5) failed: %v.", err)
-			break
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Dynamic port forwarding (SOCKS5) failed.")
+			}
+			continue
 		}
 
 		// Perform the SOCKS5 handshake with the client to find out the remote
 		// address to proxy.
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
-			log.Errorf("SOCKS5 handshake failed: %v.", err)
-			break
+			log.WithError(err).Errorf("SOCKS5 handshake failed.")
+			if err = conn.Close(); err != nil {
+				log.WithError(err).Errorf("Error closing failed proxy connection.")
+			}
+			continue
 		}
 		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
-				log.Warnf("Failed to proxy connection: %v.", err)
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection.")
+				if err = conn.Close(); err != nil {
+					log.WithError(err).Errorf("Error closing failed proxy connection.")
+				}
 			}
 		}()
 	}
+
+	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
