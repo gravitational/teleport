@@ -801,22 +801,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ar := newAliasRunner(cf.TshConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
 	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
-		err = ar.markAliasSeen(aliasCommand)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		newArgs, err := expandAliasDefinition(aliasCommand, aliasDefinition, runtimeArgs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = ar.runAliasCommand(ctx, cf.executablePath, newArgs[0], newArgs[1:])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
 	}
 
 	// parse CLI commands+flags:

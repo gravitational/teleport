@@ -216,3 +216,22 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, exe
 
 	return trace.Wrap(err, "failed to run command: %v %v", execPath, strings.Join(arguments, " "))
 }
+
+func (ar *aliasRunner) runAlias(ctx context.Context, aliasCommand, aliasDefinition, executablePath string, runtimeArgs []string) error {
+	err := ar.markAliasSeen(aliasCommand)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newArgs, err := expandAliasDefinition(aliasCommand, aliasDefinition, runtimeArgs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = ar.runAliasCommand(ctx, executablePath, newArgs[0], newArgs[1:])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
