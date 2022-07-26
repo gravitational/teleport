@@ -1,5 +1,11 @@
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+
 const defaultCfg = require('@gravitational/build/webpack/webpack.prod.config');
 
 const { extend } = require('./webpack.renderer.extend');
 
-module.exports = extend(defaultCfg);
+const prodCfg = extend(defaultCfg);
+
+prodCfg.plugins.unshift(new CleanWebpackPlugin());
+
+module.exports = prodCfg;

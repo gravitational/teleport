@@ -1,6 +1,5 @@
 const path = require('path');
 
-const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const resolvepath = require('@gravitational/build/webpack/resolvepath');
 
@@ -13,7 +12,7 @@ function extend(cfg) {
   cfg.output.libraryTarget = 'umd';
   cfg.output.globalObject = 'this';
   cfg.resolve.alias['teleterm'] = path.join(__dirname, './src');
-  cfg.plugins = [new CleanWebpackPlugin(), createHtmlPlugin({ isDev })];
+  cfg.plugins = [createHtmlPlugin({ isDev })];
 
   return cfg;
 }
