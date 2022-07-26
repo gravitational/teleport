@@ -218,7 +218,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
-			c.log.Debug("No credentials provider. Skipping IAM task for database %v.", task.database.GetName())
+			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
@@ -281,7 +281,7 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
-			c.log.Debug("No credentials provider. Skipping delete old policy.")
+			c.log.Debug("No AWS credentials provider. Skipping delete old policy.")
 			return
 		}
 		c.log.WithError(err).Error("Failed to get AWS identity.")
