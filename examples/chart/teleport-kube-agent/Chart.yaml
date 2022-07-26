@@ -1,4 +1,4 @@
-.version: &version "11.0.0-dev"
+.version: &version "11.0.0-justinas.20"
 
 name: teleport-kube-agent
 apiVersion: v2
