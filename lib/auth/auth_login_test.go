@@ -19,12 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"github.com/tstranex/u2f"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -220,6 +221,7 @@ const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzd
 
 func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	svr := newTestTLSServer(t)
 	authServer := svr.Auth()
@@ -242,7 +244,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
 				// 1st step: acquire challenge
-				challenge, err := authServer.CreateAuthenticateChallenge(context.Background(), &proto.CreateAuthenticateChallengeRequest{
+				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
 						Username: username,
 						Password: []byte(password),
@@ -282,7 +284,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			}
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateSSHUser(AuthenticateSSHRequest{
+			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
 				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
@@ -290,7 +292,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			return err
 		}))
 		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateWebUser(req)
+			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
 	}
