@@ -8,7 +8,7 @@ a file called `access-plugin.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-plugin
 spec:
@@ -47,7 +47,7 @@ a file called `access-plugin-impersonator.yaml`:
 
 ```yaml
 kind: role
-version: v4
+version: v5
 metadata:
   name: access-plugin-impersonator
 spec:
@@ -68,7 +68,7 @@ $ tctl create -f access-plugin-impersonator.yaml
 Retrieve your user definition:
 
 ```code
-$ TELEPORT_USER=$(tsh status | awk -F "      " '/Logged in as/{print $2}')
+$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
 $ tctl get users/${TELEPORT_USER?} > myuser.yaml
 ```
 
