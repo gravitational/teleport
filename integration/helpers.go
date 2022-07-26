@@ -46,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -1889,4 +1891,33 @@ func (d *disabledIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
 
 func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
 	return "", nil
+}
+
+func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
+	key, err := libclient.NewKey()
+	require.NoError(t, err)
+	key.ClusterName = tc.Secrets.SiteName
+
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
+		key.Pub, username, ttl,
+		constants.CertificateFormatStandard,
+		tc.Secrets.SiteName, "",
+	)
+	require.NoError(t, err)
+
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
+
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
+	require.NoError(t, err)
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+
+	idPath := filepath.Join(t.TempDir(), "user_identity")
+	_, err = identityfile.Write(identityfile.WriteConfig{
+		OutputPath: idPath,
+		Key:        key,
+		Format:     identityfile.FormatFile,
+	})
+	require.NoError(t, err)
+	return idPath
 }
