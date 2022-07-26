@@ -53,7 +53,7 @@ func (n *netlinkMock) Execute(m netlink.Message) ([]netlink.Message, error) {
 
 	expectedMsg := expected.msg
 	require.Equal(n.t, expectedMsg.Header, m.Header)
-	require.Equal(n.t, expectedMsg.Data, m.Data)
+	require.Equal(n.t, string(expectedMsg.Data), string(m.Data))
 
 	n.expectedMessages = n.expectedMessages[1:]
 
@@ -123,7 +123,7 @@ func TestSendEvent(t *testing.T) {
 									Type:  0x458,
 									Flags: 0x5,
 								},
-								Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport res=success"),
+								Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
 							},
 						},
 					},
@@ -162,7 +162,7 @@ func TestSendEvent(t *testing.T) {
 				conn:         nil,
 				execName:     "teleport",
 				hostname:     "?",
-				user:         "root",
+				systemUser:   "root",
 				teleportUser: "alice",
 				address:      "127.0.0.1",
 				ttyName:      "teleport",
