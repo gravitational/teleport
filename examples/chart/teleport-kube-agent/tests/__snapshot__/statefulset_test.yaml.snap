@@ -128,7 +128,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: 790ebcf515a3f43b0c1dba7b809211184a6ad4481ac78b21e1275777ec4207af
+            checksum/config: b37ca9b3da292ffe343a4629c7da7dc006ec03156fc19268123a24df51dfeb78
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
