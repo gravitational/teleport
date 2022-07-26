@@ -343,20 +343,23 @@ func tagCreateReleaseAssetCommands(b buildType, packageType string, extraQualifi
 		`CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"`,
 		`which curl || apk add --no-cache curl`,
 		fmt.Sprintf(`cd "$WORKSPACE_DIR/go/artifacts"
-for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
   # Skip files that are not results of this build
   # (e.g. tarballs from which OS packages are made)
   [ -f "$file.sha256" ] || continue
 
   name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+  description="%[1]s"
+  products="$name"
   if [ "$name" = "tsh" ]; then
-    products="teleport teleport-ent";
-  else
-    products="$name"
+    products="teleport teleport-ent"
+  elif [ "$name" = "Teleport Connect" ]; then
+    description="Teleport Connect"
+    products="teleport teleport-ent"
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-  curl $CREDENTIALS --fail -o /dev/null -F description="%[1]s" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
   for product in $products; do
     status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -365,7 +368,7 @@ for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
       cat $WORKSPACE_DIR/curl_out.txt
       exit 1
     fi
-    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%%20/g')"
   done
 done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),
