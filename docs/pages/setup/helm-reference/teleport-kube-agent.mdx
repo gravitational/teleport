@@ -146,7 +146,7 @@ connecting to the cluster.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When `app` chart role is used? |
+| `list` | `[]` | When `app` chart role is used at least one of `apps` and `appResources` is required. |
 
 `apps` is a YAML list object detailing the applications that should be proxied by Teleport Application access.
 
@@ -192,6 +192,44 @@ You can specify multiple apps by adding additional list elements.
   You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
 </Admonition>
 
+## `appResources`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When `app` chart role is used at least one of `apps` and `appResources` is required. |
+
+`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by Teleport Application Access.
+
+You can specify multiple selectors by including additional list elements.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  appResources:
+  - labels:
+      "env": "prod"
+  - labels:
+      "env": "test"
+  ```
+
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set "appResources[0].labels.env=prod" \
+  --set "appResources[1].labels.env=test"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Example">
+  Once `appResources` is set, you can dynamically register application with `tsh` by following [this guide](../../application-access/guides/dynamic-registration.mdx).
+</Admonition>
+
 ## `awsDatabases`
 
 <Admonition type="tip" title="Database auto-discovery">
@@ -212,7 +250,7 @@ You can specify multiple apps by adding additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | No |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
 
 `awsDatabases` is a YAML list object detailing the filters for the AWS databases that should be discovered and proxied by Teleport Database access.
 
@@ -270,7 +308,7 @@ You can specify multiple database filters by adding additional list elements.
 
 | Type | Default value | Required? |
 | - | - | - |
-| `list` | `[]` | When `db` chart role is used |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
 
 `databases` is a YAML list object detailing the databases that should be proxied by Teleport Database access.
 
@@ -324,6 +362,49 @@ You can specify multiple databases by adding additional list elements.
 
 <Admonition type="tip" title="Supported values">
   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference/configuration.mdx).
+</Admonition>
+
+## `dbResources`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `list` | `[]` | When the `db` chart role is used at least one of `databases`, `awsDatabases`, `dbResources` is required. |
+
+`dbResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+
+You can specify multiple selectors by adding elements to the list.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  dbResources:
+  - labels:
+      "env": "prod"
+      "engine": "postgres"
+  - labels:
+      "env": "test"
+      "engine": "mysql"
+  ```
+
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $
+  --set "dbResources[0].labels.env=prod" \
+  --set "dbResources[0].labels.engine=postgres" \
+  --set "dbResources[1].labels.env=test" \
+  --set "dbResources[0].labels.engine=mysql"
+  ```
+
+  <Admonition type="note">
+    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
+  </Admonition>
+
+  </TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Example">
+  Once `dbResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
 ## `teleportVersionOverride`
