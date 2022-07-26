@@ -1415,7 +1415,7 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 		return nil, trace.Wrap(err)
 	}
 
-	upgradeRoundTripper := streamspdy.NewRoundTripper(tlsConfig, true, false)
+	upgradeRoundTripper := streamspdy.NewRoundTripper(tlsConfig)
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}

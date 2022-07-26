@@ -20,6 +20,9 @@ does not generate a config for clusterrole.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -52,6 +55,9 @@ does not generate a config for pdb.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -82,6 +88,9 @@ matches snapshot and tests for annotations.yaml:
           kube_cluster_name: test-kube-cluster
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -119,6 +128,9 @@ matches snapshot and tests for extra-labels.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -154,44 +166,8 @@ matches snapshot for affinity.yaml:
         app_service:
           enabled: false
 
-        auth_service:
+        db_service:
           enabled: false
-        ssh_service:
-          enabled: false
-        proxy_service:
-          enabled: false
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-matches snapshot for all-v5.yaml:
-  1: |
-    apiVersion: v1
-    data:
-      teleport.yaml: |
-        teleport:
-          auth_token: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: true
-          kube_cluster_name: test-kube-cluster-name
-          labels:
-            cluster: testing
-
-        app_service:
-          enabled: true
-          apps:
-            - labels:
-                environment: test
-              name: grafana
-              uri: http://localhost:3000
 
         auth_service:
           enabled: false
@@ -232,6 +208,15 @@ matches snapshot for all-v6.yaml:
               name: grafana
               uri: http://localhost:3000
 
+        db_service:
+          enabled: true
+          databases:
+          - labels:
+              database: staging
+            name: aurora
+            protocol: postgres
+            uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
+
         auth_service:
           enabled: false
         ssh_service:
@@ -266,6 +251,22 @@ matches snapshot for aws-databases.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: true
+          aws:
+          - regions:
+            - us-east-1
+            tags:
+              '*': '*'
+            types:
+            - rds
+          - regions:
+            - us-west-2
+            tags:
+              env: development
+            types:
+            - rds
+
         auth_service:
           enabled: false
         ssh_service:
@@ -296,6 +297,9 @@ matches snapshot for backwards-compatibility.yaml:
           kube_cluster_name: test-kube-cluster-name
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -329,6 +333,89 @@ matches snapshot for db.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: true
+          databases:
+          - labels:
+              database: staging
+            name: aurora
+            protocol: postgres
+            uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for dynamic-app.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        teleport:
+          auth_token: "/etc/teleport-secrets/auth-token"
+          auth_servers: ["proxy.example.com:3080"]
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: false
+
+        app_service:
+          enabled: true
+          resources:
+            - labels:
+                '*': '*'
+
+        db_service:
+          enabled: false
+
+        auth_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for dynamic-db.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |
+        teleport:
+          auth_token: "/etc/teleport-secrets/auth-token"
+          auth_servers: ["proxy.example.com:3080"]
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+
+        kubernetes_service:
+          enabled: false
+
+        app_service:
+          enabled: false
+
+        db_service:
+          enabled: true
+          resources:
+          - labels:
+              '*': '*'
+
         auth_service:
           enabled: false
         ssh_service:
@@ -359,6 +446,9 @@ matches snapshot for imagepullsecrets.yaml:
           kube_cluster_name: test-kube-cluster
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -393,6 +483,9 @@ matches snapshot for initcontainers.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -423,6 +516,9 @@ matches snapshot for log-basic.yaml:
           kube_cluster_name: test-kube-cluster-name
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -457,6 +553,9 @@ matches snapshot for log-extra.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -487,6 +586,9 @@ matches snapshot for log-legacy.yaml:
           kube_cluster_name: test-kube-cluster-name
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -521,6 +623,9 @@ matches snapshot for node-selector.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -551,6 +656,9 @@ matches snapshot for pdb.yaml:
           kube_cluster_name: test-kube-cluster-name
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -585,6 +693,9 @@ matches snapshot for resources.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -615,6 +726,9 @@ matches snapshot for stateful.yaml:
           kube_cluster_name: test-kube-cluster-name
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
@@ -649,6 +763,9 @@ matches snapshot for tolerations.yaml:
         app_service:
           enabled: false
 
+        db_service:
+          enabled: false
+
         auth_service:
           enabled: false
         ssh_service:
@@ -679,6 +796,9 @@ matches snapshot for volumes.yaml:
           kube_cluster_name: test-kube-cluster
 
         app_service:
+          enabled: false
+
+        db_service:
           enabled: false
 
         auth_service:
