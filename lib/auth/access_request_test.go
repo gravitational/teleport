@@ -37,29 +37,44 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			ResourceAccessRequests: true,
-		},
-	})
-	ctx := context.Background()
+type accessRequestTestPack struct {
+	tlsServer   *TestTLSServer
+	clusterName string
+	roles       map[string]types.RoleSpecV5
+	users       map[string][]string
+	privKey     []byte
+	pubKey      []byte
+}
 
+func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
-	server, err := testAuthServer.NewTestTLSServer()
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
-	clusterName, err := server.Auth().GetClusterName()
-	require.NoError(t, err)
-
-	roleSpecs := map[string]types.RoleSpecV5{
-		// admins is the role to be requested
+	roles := map[string]types.RoleSpecV5{
+		// superadmins have access to all nodes
+		"superadmins": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				NodeLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		// admins have access to nodes in prod and staging
 		"admins": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
@@ -80,7 +95,7 @@ func TestAccessRequest(t *testing.T) {
 			},
 		},
 		// responders can request the admins role but only with a
-		// search-based request limited to specific resources
+		// resource request limited to specific resources
 		"responders": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
@@ -88,37 +103,37 @@ func TestAccessRequest(t *testing.T) {
 				},
 			},
 		},
+		// requesters can request everything possible
+		"requesters": types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"admins", "superadmins"},
+					SearchAsRoles: []string{"admins", "superadmins"},
+				},
+			},
+		},
 		"empty": types.RoleSpecV5{},
 	}
-	for roleName, roleSpec := range roleSpecs {
+	for roleName, roleSpec := range roles {
 		role, err := types.NewRole(roleName, roleSpec)
 		require.NoError(t, err)
 
-		err = server.Auth().UpsertRole(ctx, role)
+		err = tlsServer.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 	}
 
-	userDesc := map[string]struct {
-		roles []string
-	}{
-		"admin": {
-			roles: []string{"admins"},
-		},
-		"responder": {
-			roles: []string{"responders"},
-		},
-		"operator": {
-			roles: []string{"operators"},
-		},
-		"nobody": {
-			roles: []string{"empty"},
-		},
+	users := map[string][]string{
+		"admin":     []string{"admins"},
+		"responder": []string{"responders"},
+		"operator":  []string{"operators"},
+		"requester": []string{"requesters"},
+		"nobody":    []string{"empty"},
 	}
-	for name, desc := range userDesc {
+	for name, roles := range users {
 		user, err := types.NewUser(name)
 		require.NoError(t, err)
-		user.SetRoles(desc.roles)
-		err = server.Auth().UpsertUser(user)
+		user.SetRoles(roles)
+		err = tlsServer.Auth().UpsertUser(user)
 		require.NoError(t, err)
 	}
 
@@ -140,12 +155,42 @@ func TestAccessRequest(t *testing.T) {
 	for nodeName, desc := range nodes {
 		node, err := types.NewServerWithLabels(nodeName, types.KindNode, types.ServerSpecV2{}, desc.labels)
 		require.NoError(t, err)
-		_, err = server.Auth().UpsertNode(context.Background(), node)
+		_, err = tlsServer.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
 
 	privKey, pubKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
+
+	return &accessRequestTestPack{
+		tlsServer:   tlsServer,
+		clusterName: clusterName.GetClusterName(),
+		roles:       roles,
+		users:       users,
+		privKey:     privKey,
+		pubKey:      pubKey,
+	}
+}
+
+func TestAccessRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ResourceAccessRequests: true,
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	testPack := newAccessRequestTestPack(ctx, t)
+	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
+	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
+}
+
+func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	testCases := []struct {
 		desc                   string
@@ -190,7 +235,7 @@ func TestAccessRequest(t *testing.T) {
 			expectReviewError:      trace.AccessDenied(`user "operator" cannot submit reviews`),
 		},
 		{
-			desc:             "search-based request for staging",
+			desc:             "resource request for staging",
 			requester:        "responder",
 			reviewer:         "admin",
 			requestResources: []string{"staging"},
@@ -198,7 +243,7 @@ func TestAccessRequest(t *testing.T) {
 			expectNodes:      []string{"staging"},
 		},
 		{
-			desc:             "search-based request for prod",
+			desc:             "resource request for prod",
 			requester:        "responder",
 			reviewer:         "admin",
 			requestResources: []string{"prod"},
@@ -206,7 +251,7 @@ func TestAccessRequest(t *testing.T) {
 			expectNodes:      []string{"prod"},
 		},
 		{
-			desc:             "search-based request for both",
+			desc:             "resource request for both",
 			requester:        "responder",
 			reviewer:         "admin",
 			requestResources: []string{"prod", "staging"},
@@ -221,16 +266,18 @@ func TestAccessRequest(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
 			requester := TestUser(tc.requester)
-			requesterClient, err := server.NewClient(requester)
+			requesterClient, err := testPack.tlsServer.NewClient(requester)
 			require.NoError(t, err)
 
 			// generateCerts executes a GenerateUserCerts request, optionally applying
 			// one or more access-requests to the certificate.
 			generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
 				return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					PublicKey:      pubKey,
+					PublicKey:      testPack.pubKey,
 					Username:       tc.requester,
 					Expires:        time.Now().Add(time.Hour).UTC(),
 					Format:         constants.CertificateFormatStandard,
@@ -243,7 +290,7 @@ func TestAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			// should have no logins, requests, or resources in ssh cert
-			checkCerts(t, certs, userDesc[tc.requester].roles, nil, nil, nil)
+			checkCerts(t, certs, testPack.users[tc.requester], nil, nil, nil)
 
 			// should not be able to list any nodes
 			nodes, err := requesterClient.GetNodes(ctx, defaults.Namespace)
@@ -261,7 +308,7 @@ func TestAccessRequest(t *testing.T) {
 			requestResourceIDs := []types.ResourceID{}
 			for _, nodeName := range tc.requestResources {
 				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-					ClusterName: clusterName.GetClusterName(),
+					ClusterName: testPack.clusterName,
 					Kind:        types.KindNode,
 					Name:        nodeName,
 				})
@@ -281,7 +328,7 @@ func TestAccessRequest(t *testing.T) {
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q is awaiting approval", req.GetName()))
 
 			reviewer := TestUser(tc.reviewer)
-			reviewerClient, err := server.NewClient(reviewer)
+			reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
 			require.NoError(t, err)
 
 			// approve the request
@@ -295,6 +342,7 @@ func TestAccessRequest(t *testing.T) {
 			if tc.expectReviewError != nil {
 				return
 			}
+			require.NoError(t, reviewerClient.Close())
 			require.Equal(t, types.RequestState_APPROVED, req.GetState())
 
 			// log in now that request has been approved
@@ -311,9 +359,9 @@ func TestAccessRequest(t *testing.T) {
 				[]string{req.GetName()},
 				requestResourceIDs)
 
-			elevatedCert, err := tls.X509KeyPair(certs.TLS, privKey)
+			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
 			require.NoError(t, err)
-			elevatedClient := server.NewClientWithCert(elevatedCert)
+			elevatedClient := testPack.tlsServer.NewClientWithCert(elevatedCert)
 
 			// should be able to list the expected nodes
 			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
@@ -327,7 +375,7 @@ func TestAccessRequest(t *testing.T) {
 
 			// renew elevated certs
 			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey: pubKey,
+				PublicKey: testPack.pubKey,
 				Username:  tc.requester,
 				Expires:   time.Now().Add(time.Hour).UTC(),
 				// no new access requests
@@ -345,7 +393,7 @@ func TestAccessRequest(t *testing.T) {
 				requestResourceIDs)
 
 			// attempt to apply request in DENIED state (should fail)
-			require.NoError(t, server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			require.NoError(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_DENIED,
 			}))
@@ -353,26 +401,235 @@ func TestAccessRequest(t *testing.T) {
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
 
 			// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-			require.Error(t, server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_PENDING,
 			}))
 
 			// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-			require.Error(t, server.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_APPROVED,
 			}))
 
 			// ensure that identities with requests in the DENIED state can't reissue new certs.
 			_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey: pubKey,
+				PublicKey: testPack.pubKey,
 				Username:  tc.requester,
 				Expires:   time.Now().Add(time.Hour).UTC(),
 				// no new access requests
 				AccessRequests: nil,
 			})
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
+		})
+	}
+}
+
+func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "requester"
+
+	prodResourceIDs := []types.ResourceID{{
+		ClusterName: testPack.clusterName,
+		Kind:        types.KindNode,
+		Name:        "prod",
+	}}
+	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, prodResourceIDs)
+	require.NoError(t, err)
+
+	stagingResourceIDs := []types.ResourceID{{
+		ClusterName: testPack.clusterName,
+		Kind:        types.KindNode,
+		Name:        "staging",
+	}}
+	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, stagingResourceIDs)
+	require.NoError(t, err)
+
+	adminRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+
+	superAdminRequest, err := services.NewAccessRequest(username, "superadmins")
+	require.NoError(t, err)
+
+	bothRolesRequest, err := services.NewAccessRequest(username, "admins", "superadmins")
+	require.NoError(t, err)
+
+	for _, request := range []types.AccessRequest{
+		prodResourceRequest,
+		stagingResourceRequest,
+		adminRequest,
+		superAdminRequest,
+		bothRolesRequest,
+	} {
+		request.SetState(types.RequestState_APPROVED)
+		request.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, request))
+	}
+
+	requester := TestUser(username)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+
+	type newClientFunc func(*testing.T, *Client, *proto.Certs) (*Client, *proto.Certs)
+	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
+		return func(t *testing.T, clt *Client, _ *proto.Certs) (*Client, *proto.Certs) {
+			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey:          testPack.pubKey,
+				Username:           username,
+				Expires:            time.Now().Add(time.Hour).UTC(),
+				AccessRequests:     newRequests,
+				DropAccessRequests: dropRequests,
+			})
+			require.NoError(t, err)
+			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
+			require.NoError(t, err)
+			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
+		}
+	}
+	applyAccessRequests := func(newRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(newRequests, nil)
+	}
+	dropAccessRequests := func(dropRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(nil, dropRequests)
+	}
+	failToApplyAccessRequests := func(reqs ...string) newClientFunc {
+		return func(t *testing.T, clt *Client, certs *proto.Certs) (*Client, *proto.Certs) {
+			// assert that this request fails
+			_, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey:      testPack.pubKey,
+				Username:       username,
+				Expires:        time.Now().Add(time.Hour).UTC(),
+				AccessRequests: reqs,
+			})
+			assert.Error(t, err)
+			// return original client and certs unchanged
+			return clt, certs
+		}
+	}
+
+	for _, tc := range []struct {
+		desc                 string
+		steps                []newClientFunc
+		expectRoles          []string
+		expectResources      []types.ResourceID
+		expectAccessRequests []string
+		expectLogins         []string
+	}{
+		{
+			desc: "multi role requests",
+			steps: []newClientFunc{
+				applyAccessRequests(adminRequest.GetName()),
+				applyAccessRequests(superAdminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins", "superadmins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "multi resource requests",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName()),
+				failToApplyAccessRequests(stagingResourceRequest.GetName()),
+				failToApplyAccessRequests(prodResourceRequest.GetName(), stagingResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectResources:      prodResourceIDs,
+			expectAccessRequests: []string{prodResourceRequest.GetName()},
+		},
+		{
+			desc: "role then resource",
+			steps: []newClientFunc{
+				applyAccessRequests(adminRequest.GetName()),
+				applyAccessRequests(prodResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectResources:      prodResourceIDs,
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName()},
+		},
+		{
+			desc: "resource then role",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName()),
+				applyAccessRequests(adminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectResources:      prodResourceIDs,
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName()},
+		},
+		{
+			desc: "combined",
+			steps: []newClientFunc{
+				failToApplyAccessRequests(stagingResourceRequest.GetName(), prodResourceRequest.GetName()),
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName()),
+				failToApplyAccessRequests(stagingResourceRequest.GetName(), superAdminRequest.GetName()),
+				applyAccessRequests(superAdminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins", "superadmins"},
+			expectLogins:         []string{"root"},
+			expectResources:      prodResourceIDs,
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop resource request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins", "superadmins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop role request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(superAdminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectResources:      prodResourceIDs,
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName()},
+		},
+		{
+			desc: "drop all",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests("*"),
+			},
+			expectRoles: []string{"requesters"},
+		},
+		{
+			desc: "switch resource requests",
+			steps: []newClientFunc{
+				applyAccessRequests(adminRequest.GetName()),
+				applyAccessRequests(prodResourceRequest.GetName()),
+				failToApplyAccessRequests(stagingResourceRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+				applyAccessRequests(stagingResourceRequest.GetName()),
+				failToApplyAccessRequests(prodResourceRequest.GetName()),
+				dropAccessRequests(stagingResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName()},
+		},
+	} {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			client := requesterClient
+			var certs *proto.Certs
+			for _, step := range tc.steps {
+				client, certs = step(t, client, certs)
+			}
+			checkCerts(t, certs, tc.expectRoles, tc.expectLogins, tc.expectAccessRequests, tc.expectResources)
 		})
 	}
 }
@@ -402,8 +659,8 @@ func checkCerts(t *testing.T,
 	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
 	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
 	require.NoError(t, err)
-	require.ElementsMatch(t, roles, sshCertRoles)
-	require.ElementsMatch(t, roles, tlsIdentity.Groups)
+	assert.ElementsMatch(t, roles, sshCertRoles)
+	assert.ElementsMatch(t, roles, tlsIdentity.Groups)
 
 	// Make sure both certs have the expected logins/principals.
 	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
@@ -414,7 +671,7 @@ func checkCerts(t *testing.T,
 				validCertLogins = append(validCertLogins, certLogin)
 			}
 		}
-		require.ElementsMatch(t, logins, validCertLogins)
+		assert.ElementsMatch(t, logins, validCertLogins)
 	}
 
 	// Make sure both certs have the expected access requests, if any.
@@ -423,12 +680,12 @@ func checkCerts(t *testing.T,
 	if len(rawSSHCertAccessRequests) > 0 {
 		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
 	}
-	require.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
-	require.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
+	assert.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
 	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
 	require.NoError(t, err)
-	require.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
-	require.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
+	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
 }

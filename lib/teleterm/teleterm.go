@@ -28,8 +28,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Start starts daemon service
-func Start(ctx context.Context, cfg Config) error {
+// Serve starts daemon service
+func Serve(ctx context.Context, cfg Config) error {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -42,9 +42,11 @@ func Start(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	gatewayCreator := clusters.NewGatewayCreator(storage)
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:            storage,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Storage:        storage,
+		GatewayCreator: gatewayCreator,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,6 +55,7 @@ func Start(ctx context.Context, cfg Config) error {
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr: cfg.Addr,
 		Daemon:   daemonService,
+		CertsDir: cfg.CertsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,8 +80,6 @@ func Start(ctx context.Context, cfg Config) error {
 		daemonService.Stop()
 		apiServer.Stop()
 	}()
-
-	log.Infof("tsh daemon is listening on %v.", cfg.Addr)
 
 	errAPI := <-serverAPIWait
 
