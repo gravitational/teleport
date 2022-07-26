@@ -180,7 +180,7 @@ should add PersistentVolumeClaim as volume when in standalone mode and persisten
         claimName: RELEASE-NAME
 should add an operator side-car when operator is enabled:
   1: |
-    image: quay.io/gravitational/teleport-operator:11.0.0-dev
+    image: quay.io/gravitational/teleport-operator:10.0.2
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
