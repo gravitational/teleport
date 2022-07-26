@@ -1356,7 +1356,6 @@ impl Client {
 /// | -------- | ------------- | ---------------------------------------------------------|
 /// | 3        | IRP_MJ_CLOSE  | The FCO is deleted from the cache                        |
 /// | -------- | ------------- | ---------------------------------------------------------|
-#[allow(dead_code)]
 #[derive(Debug)]
 struct FileCacheObject {
     path: String,
@@ -1891,7 +1890,6 @@ enum ClientNameRequestUnicodeFlag {
 /// 2.2.2.4 Client Name Request (DR_CORE_CLIENT_NAME_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/902497f1-3b1c-4aee-95f8-1668f9b7b7d2
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ClientNameRequest {
     unicode_flag: ClientNameRequestUnicodeFlag,
     computer_name: CString,
@@ -1931,7 +1929,6 @@ impl ClientNameRequest {
 /// 2.2.1.4 Device I/O Request (DR_DEVICE_IOREQUEST)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct DeviceIoRequest {
     pub device_id: u32,
     file_id: u32,
@@ -2084,7 +2081,6 @@ pub struct DeviceCreateRequest {
     pub path: String,
 }
 
-#[allow(dead_code)]
 impl DeviceCreateRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let invalid_flags = || invalid_data_error("invalid flags in Device Create Request");
@@ -2127,7 +2123,6 @@ impl DeviceCreateRequest {
 /// A message with this header describes a response to a Device Create Request (section 2.2.1.4.1).
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
 #[derive(Debug)]
-#[allow(dead_code)]
 struct DeviceCreateResponse {
     device_io_reply: DeviceIoResponse,
     file_id: u32,
@@ -2197,7 +2192,6 @@ impl DeviceCreateResponse {
 /// 2.2.3.3.8 Server Drive Query Information Request (DR_DRIVE_QUERY_INFORMATION_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/e43dcd68-2980-40a9-9238-344b6cf94946
 #[derive(Debug)]
-#[allow(dead_code)]
 struct ServerDriveQueryInformationRequest {
     /// A DR_DEVICE_IOREQUEST (section 2.2.1.4) header. The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_QUERY_INFORMATION.
     device_io_request: DeviceIoRequest,
@@ -2225,7 +2219,6 @@ struct ServerDriveQueryInformationRequest {
     // section 2.4. The "File information class" table defines all the possible values for the FileInformationClass field.
 }
 
-#[allow(dead_code)]
 impl ServerDriveQueryInformationRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         if let Some(file_info_class_lvl) =
@@ -2259,7 +2252,6 @@ enum FileInformationClass {
     FileAllocationInformation(FileAllocationInformation),
 }
 
-#[allow(dead_code)]
 impl FileInformationClass {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         match self {
@@ -2482,7 +2474,6 @@ struct FileBothDirectoryInformation {
     file_name: String,
 }
 
-#[allow(dead_code)]
 impl FileBothDirectoryInformation {
     /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
     /// Note that file_name's size should be calculated as if it were a Unicode string.
@@ -2914,7 +2905,6 @@ struct FileFsAttributeInformation {
     file_system_name: String,
 }
 
-#[allow(dead_code)]
 impl FileFsAttributeInformation {
     const BASE_SIZE: u32 = (2 * U32_SIZE) + FILE_ATTR_SIZE;
 
@@ -3033,14 +3023,12 @@ impl FileFsDeviceInformation {
 /// 2.2.3.4.8 Client Drive Query Information Response (DR_DRIVE_QUERY_INFORMATION_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/37ef4fb1-6a95-4200-9fbf-515464f034a4
 #[derive(Debug)]
-#[allow(dead_code)]
 struct ClientDriveQueryInformationResponse {
     device_io_response: DeviceIoResponse,
     length: Option<u32>,
     buffer: Option<FileInformationClass>,
 }
 
-#[allow(dead_code)]
 impl ClientDriveQueryInformationResponse {
     /// Constructs a ClientDriveQueryInformationResponse from a ServerDriveQueryInformationRequest and an NTSTATUS.
     fn new(
@@ -3153,13 +3141,11 @@ impl ClientDriveQueryInformationResponse {
 /// 2.2.1.4.2 Device Close Request (DR_CLOSE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3ec6627f-9e0f-4941-a828-3fc6ed63d9e7
 #[derive(Debug)]
-#[allow(dead_code)]
 struct DeviceCloseRequest {
     device_io_request: DeviceIoRequest,
     // Padding (32 bytes):  An array of 32 bytes. Reserved. This field can be set to any value, and MUST be ignored.
 }
 
-#[allow(dead_code)]
 impl DeviceCloseRequest {
     fn decode(device_io_request: DeviceIoRequest) -> Self {
         Self { device_io_request }
@@ -3169,14 +3155,12 @@ impl DeviceCloseRequest {
 /// 2.2.1.5.2 Device Close Response (DR_CLOSE_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/0dae7031-cfd8-4f14-908c-ec06e14997b5
 #[derive(Debug)]
-#[allow(dead_code)]
 struct DeviceCloseResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_CLOSE.
     device_io_response: DeviceIoResponse,
     /// This field can be set to any value and MUST be ignored.
     padding: u32,
 }
-#[allow(dead_code)]
 impl DeviceCloseResponse {
     fn new(device_close_request: DeviceCloseRequest, io_status: NTSTATUS) -> Self {
         Self {
@@ -3232,7 +3216,6 @@ impl ServerDriveNotifyChangeDirectoryRequest {
 /// 2.2.1.4.3 Device Read Request (DR_READ_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/3192516d-36a6-47c5-987a-55c214aa0441
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct DeviceReadRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_READ.
     pub device_io_request: DeviceIoRequest,
@@ -3243,7 +3226,6 @@ pub struct DeviceReadRequest {
     // Padding (20 bytes):  An array of 20 bytes. Reserved. This field can be set to any value and MUST be ignored.
 }
 
-#[allow(dead_code)]
 impl DeviceReadRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
@@ -3257,7 +3239,6 @@ impl DeviceReadRequest {
 /// 2.2.1.5.3 Device Read Response (DR_READ_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
 #[derive(Debug)]
-#[allow(dead_code)]
 struct DeviceReadResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
     device_io_reply: DeviceIoResponse,
@@ -3267,7 +3248,6 @@ struct DeviceReadResponse {
     read_data: Vec<u8>,
 }
 
-#[allow(dead_code)]
 impl DeviceReadResponse {
     fn new(
         device_read_request: &DeviceReadRequest,
@@ -3364,7 +3344,6 @@ impl DeviceWriteResponse {
 /// 2.2.3.4.9 Client Drive Set Information Response (DR_DRIVE_SET_INFORMATION_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/16b893d5-5d8b-49d1-8dcb-ee21e7612970
 #[derive(Debug)]
-#[allow(dead_code)]
 struct ClientDriveSetInformationResponse {
     device_io_reply: DeviceIoResponse,
     /// This field MUST be equal to the Length field in the Server Drive Set Information Request (section 2.2.3.3.9).
@@ -3395,7 +3374,6 @@ impl ClientDriveSetInformationResponse {
 /// 2.2.3.3.9 Server Drive Set Information Request (DR_DRIVE_SET_INFORMATION_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/b5d3104b-0e42-4cf8-9059-e9fe86615e5c
 #[derive(Debug)]
-#[allow(dead_code)]
 struct ServerDriveSetInformationRequest {
     /// The MajorFunction field in the DR_DEVICE_IOREQUEST header MUST be set to IRP_MJ_SET_INFORMATION.
     device_io_request: DeviceIoRequest,
@@ -3517,7 +3495,6 @@ impl ServerDriveQueryDirectoryRequest {
 /// 2.2.3.4.10 Client Drive Query Directory Response (DR_DRIVE_QUERY_DIRECTORY_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/9c929407-a833-4893-8f20-90c984756140
 #[derive(Debug)]
-#[allow(dead_code)]
 struct ClientDriveQueryDirectoryResponse {
     /// The CompletionId field of the DR_DEVICE_IOCOMPLETION header MUST match a Device I/O Request (section 2.2.1.4) that
     /// has the MajorFunction field set to IRP_MJ_DIRECTORY_CONTROL and the MinorFunction field set to IRP_MN_QUERY_DIRECTORY.

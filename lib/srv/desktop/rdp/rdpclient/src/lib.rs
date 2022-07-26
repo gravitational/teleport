@@ -1338,7 +1338,6 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 /// SharedDirectoryInfoResponse is sent by the TDP client to the server
 /// in response to a `Shared Directory Info Request`.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
     err_code: TdpErrCode,
@@ -1370,7 +1369,6 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
 #[derive(Debug, Clone)]
 /// FileSystemObject is a TDP structure containing the metadata
 /// of a file or directory.
-#[allow(dead_code)]
 pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
@@ -1546,7 +1544,6 @@ pub struct SharedDirectoryCreateResponse {
 
 /// SharedDirectoryListResponse is sent by the TDP client to the server
 /// in response to a SharedDirectoryInfoRequest.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct SharedDirectoryListResponse {
     completion_id: u32,
