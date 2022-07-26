@@ -237,38 +237,38 @@ impl Client {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("received RDP: {:?}", req);
 
-        if self.active_device_ids.contains(&req.device_id) {
-            if req.device_id != self.get_scard_device_id()? {
-                // This was for a directory we're sharing over TDP
-                let mut err_code = TdpErrCode::Nil;
-                if req.result_code != NTSTATUS_OK {
-                    err_code = TdpErrCode::Failed;
-                    debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})", &req.result_code);
-                } else {
-                    debug!("ServerDeviceAnnounceResponse for shared directory succeeded")
-                }
-
-                (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
-                    err_code,
-                    directory_id: req.device_id,
-                })?;
-            } else {
-                // This was for the smart card
-                if req.result_code != NTSTATUS_OK {
-                    // End the session, we cannot continue without
-                    // the smart card being redirected.
-                    return Err(rejected_by_server_error(&format!(
-                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
-                        &req.result_code
-                    )));
-                }
-                debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
-            }
-        } else {
+        if !self.active_device_ids.contains(&req.device_id) {
             return Err(invalid_data_error(&format!(
                 "got ServerDeviceAnnounceResponse for unknown device_id {}",
                 &req.device_id
             )));
+        }
+
+        if req.device_id != self.get_scard_device_id()? {
+            // This was for a directory we're sharing over TDP
+            let mut err_code = TdpErrCode::Nil;
+            if req.result_code != NTSTATUS_OK {
+                err_code = TdpErrCode::Failed;
+                debug!("ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})", &req.result_code);
+            } else {
+                debug!("ServerDeviceAnnounceResponse for shared directory succeeded")
+            }
+
+            (self.tdp_sd_acknowledge)(SharedDirectoryAcknowledge {
+                err_code,
+                directory_id: req.device_id,
+            })?;
+        } else {
+            // This was for the smart card
+            if req.result_code != NTSTATUS_OK {
+                // End the session, we cannot continue without
+                // the smart card being redirected.
+                return Err(rejected_by_server_error(&format!(
+                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
+                        &req.result_code
+                    )));
+            }
+            debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
         }
         Ok(vec![])
     }
@@ -566,13 +566,12 @@ impl Client {
         // Remove the file from our cache
         if let Some(file) = self.file_cache.remove(rdp_req.device_io_request.file_id) {
             if file.delete_pending {
-                self.tdp_sd_delete(rdp_req, file)
-            } else {
-                self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS)
+                return self.tdp_sd_delete(rdp_req, file);
             }
-        } else {
-            self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
+            return self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_SUCCESS);
         }
+
+        self.prep_device_close_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
     }
 
     /// The IRP_MJ_DIRECTORY_CONTROL function we support is when it's sent with minor function IRP_MN_QUERY_DIRECTORY,
@@ -604,65 +603,65 @@ impl Client {
                         return Err(invalid_data_error("received an IRP_MN_QUERY_DIRECTORY request for a file rather than a directory"));
                     }
 
-                    // On the initial query, we need to get the list of files in this directory from
-                    // the client by sending a TDP SharedDirectoryListRequest.
-                    if rdp_req.initial_query != 0 {
-                        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
-                        // TODO(isaiah): I'm observing that sometimes rdp_req.path will not be precisely equal to dir.path. For example, we will
-                        // get a ServerDriveQueryDirectoryRequest where path == "\\*", whereas the corresponding entry in the file_cache will have
-                        // path == "\\". I'm not quite sure what to do with this yet, so just leaving this as a note to self.
-                        let path = dir.path.clone();
-
-                        // Ask the client for the list of files in this directory.
-                        (self.tdp_sd_list_request)(SharedDirectoryListRequest {
-                            completion_id: rdp_req.device_io_request.completion_id,
-                            directory_id: rdp_req.device_io_request.device_id,
-                            path,
-                        })?;
-
-                        // When we get the response for that list of files...
-                        self.pending_sd_list_resp_handlers.insert(
-                            rdp_req.device_io_request.completion_id,
-                            Box::new(
-                                move |cli: &mut Self,
-                                      res: SharedDirectoryListResponse|
-                                      -> RdpResult<Vec<Vec<u8>>> {
-                                    if res.err_code == TdpErrCode::Nil {
-                                        // If SharedDirectoryListRequest succeeded, move the
-                                        // list of FileSystemObjects that correspond to this directory's
-                                        // contents to its entry in the file cache.
-                                        if let Some(dir) = cli.file_cache.get_mut(file_id) {
-                                            dir.contents = res.fso_list;
-                                        } else {
-                                            return cli
-                                                .prep_file_cache_fail_drive_query_dir_response(
-                                                    &rdp_req,
-                                                );
-                                        }
-
-                                        // And send back the "." directory over RDP
-                                        cli.prep_next_drive_query_dir_response(&rdp_req)
-                                    } else {
-                                        // TODO(isaiah): For now any error will kill the session.
-                                        // In the future, we might want to make this send back
-                                        // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
-                                        Err(try_error(&format!("SharedDirectoryListRequest failed with err_code = {:?}", res.err_code)))
-                                    }
-                                },
-                            ),
-                        );
-
-                        // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
-                        // closure gets called.
-                        Ok(vec![])
-                    } else {
+                    if rdp_req.initial_query == 0 {
                         // This isn't the initial query, ergo we already have this dir's contents filled in.
                         // Just send the next item.
-                        self.prep_next_drive_query_dir_response(&rdp_req)
+                        return self.prep_next_drive_query_dir_response(&rdp_req);
                     }
-                } else {
-                    self.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
+
+                    // On the initial query, we need to get the list of files in this directory from
+                    // the client by sending a TDP SharedDirectoryListRequest.
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
+                    // TODO(isaiah): I'm observing that sometimes rdp_req.path will not be precisely equal to dir.path. For example, we will
+                    // get a ServerDriveQueryDirectoryRequest where path == "\\*", whereas the corresponding entry in the file_cache will have
+                    // path == "\\". I'm not quite sure what to do with this yet, so just leaving this as a note to self.
+                    let path = dir.path.clone();
+
+                    // Ask the client for the list of files in this directory.
+                    (self.tdp_sd_list_request)(SharedDirectoryListRequest {
+                        completion_id: rdp_req.device_io_request.completion_id,
+                        directory_id: rdp_req.device_io_request.device_id,
+                        path,
+                    })?;
+
+                    // When we get the response for that list of files...
+                    self.pending_sd_list_resp_handlers.insert(
+                        rdp_req.device_io_request.completion_id,
+                        Box::new(
+                            move |cli: &mut Self,
+                                  res: SharedDirectoryListResponse|
+                                  -> RdpResult<Vec<Vec<u8>>> {
+                                if res.err_code != TdpErrCode::Nil {
+                                    // TODO(isaiah): For now any error will kill the session.
+                                    // In the future, we might want to make this send back
+                                    // an NTSTATUS::STATUS_UNSUCCESSFUL instead.
+                                    return Err(try_error(&format!(
+                                        "SharedDirectoryListRequest failed with err_code = {:?}",
+                                        res.err_code
+                                    )));
+                                }
+
+                                // If SharedDirectoryListRequest succeeded, move the
+                                // list of FileSystemObjects that correspond to this directory's
+                                // contents to its entry in the file cache.
+                                if let Some(dir) = cli.file_cache.get_mut(file_id) {
+                                    dir.contents = res.fso_list;
+                                    // And send back the "." directory over RDP
+                                    return cli.prep_next_drive_query_dir_response(&rdp_req);
+                                }
+
+                                cli.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
+                            },
+                        ),
+                    );
+
+                    // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
+                    // closure gets called.
+                    return Ok(vec![]);
                 }
+
+                // File not found in cache, return a failure
+                self.prep_file_cache_fail_drive_query_dir_response(&rdp_req)
             }
             MinorFunction::IRP_MN_NOTIFY_CHANGE_DIRECTORY => {
                 debug!("received RDP: {:?}", device_io_request);
@@ -701,21 +700,21 @@ impl Client {
                     let buffer = Some(FileSystemInformationClass::FileFsVolumeInformation(
                         FileFsVolumeInformation::new(dir.fso.last_modified as i64),
                     ));
-                    self.prep_query_vol_info_response(
+                    return self.prep_query_vol_info_response(
                         &rdp_req.device_io_request,
                         NTSTATUS::STATUS_SUCCESS,
                         buffer,
-                    )
+                    );
                 }
                 FileSystemInformationClassLevel::FileFsAttributeInformation => {
                     let buffer = Some(FileSystemInformationClass::FileFsAttributeInformation(
                         FileFsAttributeInformation::new(),
                     ));
-                    self.prep_query_vol_info_response(
+                    return self.prep_query_vol_info_response(
                         &rdp_req.device_io_request,
                         NTSTATUS::STATUS_SUCCESS,
                         buffer,
-                    )
+                    );
                 }
                 FileSystemInformationClassLevel::FileFsSizeInformation
                 | FileSystemInformationClassLevel::FileFsFullSizeInformation
@@ -727,19 +726,20 @@ impl Client {
                 }
                 _ => {
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L574-L577
-                    self.prep_query_vol_info_response(
+                    return self.prep_query_vol_info_response(
                         &rdp_req.device_io_request,
                         NTSTATUS::STATUS_UNSUCCESSFUL,
                         None,
-                    )
+                    );
                 }
             }
-        } else {
-            Err(invalid_data_error(&format!(
-                "failed to retrieve an item from the file cache with FileId = {}",
-                rdp_req.device_io_request.file_id
-            )))
         }
+
+        // File not found in cache
+        Err(invalid_data_error(&format!(
+            "failed to retrieve an item from the file cache with FileId = {}",
+            rdp_req.device_io_request.file_id
+        )))
     }
 
     fn process_irp_read(
@@ -824,13 +824,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     pub fn handle_tdp_sd_create_response<S: Read + Write>(
@@ -848,13 +848,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     pub fn handle_tdp_sd_delete_response<S: Read + Write>(
@@ -872,13 +872,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     pub fn handle_tdp_sd_list_response<S: Read + Write>(
@@ -896,13 +896,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     pub fn handle_tdp_sd_read_response<S: Read + Write>(
@@ -920,13 +920,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     pub fn handle_tdp_sd_write_response<S: Read + Write>(
@@ -944,13 +944,13 @@ impl Client {
             for resp in rdp_responses {
                 mcs.write(chan, resp)?;
             }
-            Ok(())
-        } else {
-            return Err(try_error(&format!(
-                "received invalid completion id: {}",
-                res.completion_id
-            )));
+            return Ok(());
         }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
     }
 
     fn prep_device_create_response(
@@ -1025,53 +1025,55 @@ impl Client {
             // within dir.
             if let Some(fso) = dir.next() {
                 match req.file_info_class_lvl {
-                // TODO(isaiah): we should support all the file_info_class_lvl's that FreeRDP does:
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
-                FileInformationClassLevel::FileBothDirectoryInformation => {
-                    let buffer = Some(FileInformationClass::FileBothDirectoryInformation(
-                        FileBothDirectoryInformation::from(fso)?
-                    ));
-                    self.prep_drive_query_dir_response(
-                        &req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer
-                    )
-                },
-                FileInformationClassLevel::FileFullDirectoryInformation => {
-                    let buffer = Some(FileInformationClass::FileFullDirectoryInformation(
-                        FileFullDirectoryInformation::from(fso)?
-                    ));
-                    self.prep_drive_query_dir_response(
-                        &req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer
-                    )
-                }
-                FileInformationClassLevel::FileDirectoryInformation |
-                FileInformationClassLevel::FileNamesInformation => {
-                    Err(not_implemented_error(&format!(
-                        "support for ServerDriveQueryDirectoryRequest with file_info_class_lvl = {:?} is not implemented",
-                        req.file_info_class_lvl
-                    )))
-                },
-                _ => {
-                    Err(invalid_data_error("received invalid FileInformationClassLevel in ServerDriveQueryDirectoryRequest"))
+                    // TODO(isaiah): we should support all the file_info_class_lvl's that FreeRDP does:
+                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+                    FileInformationClassLevel::FileBothDirectoryInformation => {
+                        let buffer = Some(FileInformationClass::FileBothDirectoryInformation(
+                            FileBothDirectoryInformation::from(fso)?,
+                        ));
+                        return self.prep_drive_query_dir_response(
+                            &req.device_io_request,
+                            NTSTATUS::STATUS_SUCCESS,
+                            buffer,
+                        );
+                    }
+                    FileInformationClassLevel::FileFullDirectoryInformation => {
+                        let buffer = Some(FileInformationClass::FileFullDirectoryInformation(
+                            FileFullDirectoryInformation::from(fso)?,
+                        ));
+                        return self.prep_drive_query_dir_response(
+                            &req.device_io_request,
+                            NTSTATUS::STATUS_SUCCESS,
+                            buffer,
+                        );
+                    }
+                    FileInformationClassLevel::FileDirectoryInformation
+                    | FileInformationClassLevel::FileNamesInformation => {
+                        return Err(not_implemented_error(&format!(
+                            "support for ServerDriveQueryDirectoryRequest with file_info_class_lvl = {:?} is not implemented",
+                            req.file_info_class_lvl
+                        )));
+                    }
+                    _ => {
+                        return Err(invalid_data_error("received invalid FileInformationClassLevel in ServerDriveQueryDirectoryRequest"));
+                    }
                 }
             }
-            } else {
-                // Once our iterator is exhausted, send back a NTSTATUS::STATUS_NO_MORE_FILES to alert RDP that we've listed all the
-                // contents of this directory.
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/generic.c#L1193
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L114
-                self.prep_drive_query_dir_response(
-                    &req.device_io_request,
-                    NTSTATUS::STATUS_NO_MORE_FILES,
-                    None,
-                )
-            }
-        } else {
-            self.prep_file_cache_fail_drive_query_dir_response(req)
+
+            // If we reach here it means our iterator is exhausted,
+            // so we send back a NTSTATUS::STATUS_NO_MORE_FILES to
+            // alert RDP that we've listed all the contents of this directory.
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/winpr/libwinpr/file/generic.c#L1193
+            // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L114
+            return self.prep_drive_query_dir_response(
+                &req.device_io_request,
+                NTSTATUS::STATUS_NO_MORE_FILES,
+                None,
+            );
         }
+
+        // File not found in cache
+        self.prep_file_cache_fail_drive_query_dir_response(req)
     }
 
     fn prep_file_cache_fail_drive_query_dir_response(
@@ -1152,14 +1154,18 @@ impl Client {
                 move |cli: &mut Self,
                       res: SharedDirectoryCreateResponse|
                       -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == TdpErrCode::Nil {
-                        let file_id = cli.generate_file_id();
-                        cli.file_cache
-                            .insert(file_id, FileCacheObject::new(rdp_req.path.clone(), fso));
-                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
-                    } else {
-                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
+                    if res.err_code != TdpErrCode::Nil {
+                        return cli.prep_device_create_response(
+                            &rdp_req,
+                            NTSTATUS::STATUS_UNSUCCESSFUL,
+                            0,
+                        );
                     }
+
+                    let file_id = cli.generate_file_id();
+                    cli.file_cache
+                        .insert(file_id, FileCacheObject::new(rdp_req.path.clone(), fso));
+                    cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
         );
@@ -1184,10 +1190,13 @@ impl Client {
             rdp_req.device_io_request.completion_id,
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
-                    if res.err_code == TdpErrCode::Nil {
-                        cli.tdp_sd_create(rdp_req, FileType::File, fso)
-                    } else {
-                        cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
+                    match res.err_code {
+                        TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File, fso),
+                        _ => cli.prep_device_create_response(
+                            &rdp_req,
+                            NTSTATUS::STATUS_UNSUCCESSFUL,
+                            0,
+                        ),
                     }
                 },
             ),
@@ -1255,10 +1264,11 @@ impl Client {
                 ),
             );
 
-            Ok(vec![])
-        } else {
-            self.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![])
+            return Ok(vec![]);
         }
+
+        // File not found in cache
+        self.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![])
     }
 
     fn tdp_sd_write(&mut self, rdp_req: DeviceWriteRequest) -> RdpResult<Vec<Vec<u8>>> {
@@ -1295,10 +1305,11 @@ impl Client {
                 ),
             );
 
-            Ok(vec![])
-        } else {
-            self.prep_write_response(rdp_req.device_io_request, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
+            return Ok(vec![]);
         }
+
+        // File not found in cache
+        self.prep_write_response(rdp_req.device_io_request, NTSTATUS::STATUS_UNSUCCESSFUL, 0)
     }
 
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
@@ -2224,15 +2235,15 @@ impl ServerDriveQueryInformationRequest {
         if let Some(file_info_class_lvl) =
             FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
         {
-            Ok(Self {
+            return Ok(Self {
                 device_io_request,
                 file_info_class_lvl,
-            })
-        } else {
-            Err(invalid_data_error(
-                "received invalid FileInformationClass in ServerDriveQueryInformationRequest",
-            ))
+            });
         }
+
+        Err(invalid_data_error(
+            "received invalid FileInformationClass in ServerDriveQueryInformationRequest",
+        ))
     }
 }
 
