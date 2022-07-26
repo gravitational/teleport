@@ -34,7 +34,23 @@ const mainProcess = MainProcess.create({
   fileStorage,
 });
 
-app.commandLine.appendSwitch('ignore-certificate-errors', 'true');
+app.on(
+  'certificate-error',
+  (event, webContents, url, error, certificate, callback) => {
+    // allow certs errors for localhost:8080
+    if (
+      settings.dev &&
+      new URL(url).host === 'localhost:8080' &&
+      error === 'net::ERR_CERT_AUTHORITY_INVALID'
+    ) {
+      event.preventDefault();
+      callback(true);
+    } else {
+      callback(false);
+      console.error(error);
+    }
+  }
+);
 
 app.on('will-quit', () => {
   fileStorage.putAllSync();

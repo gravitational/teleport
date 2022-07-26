@@ -1,4 +1,4 @@
-import { Metadata, credentials } from '@grpc/grpc-js';
+import { ChannelCredentials, Metadata } from '@grpc/grpc-js';
 import { Struct } from 'google-protobuf/google/protobuf/struct_pb';
 
 import {
@@ -11,9 +11,11 @@ import { PtyHostClient } from '../types';
 
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 
-export function createPtyHostClient(address: string): PtyHostClient {
-  const client = new GrpcClient(address, credentials.createInsecure());
-
+export function createPtyHostClient(
+  address: string,
+  credentials: ChannelCredentials
+): PtyHostClient {
+  const client = new GrpcClient(address, credentials);
   return {
     createPtyProcess(ptyOptions) {
       const request = new PtyCreate()

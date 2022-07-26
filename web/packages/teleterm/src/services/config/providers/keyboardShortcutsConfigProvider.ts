@@ -50,7 +50,7 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'toggle-identity': 'Command-I',
       };
 
-      const linuxShortcuts: KeyboardShortcutsConfig = {
+      const windowsAndLinuxShortcuts: KeyboardShortcutsConfig = {
         'tab-1': 'Alt-1',
         'tab-2': 'Alt-2',
         'tab-3': 'Alt-3',
@@ -71,8 +71,9 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
       };
 
       switch (platform) {
+        case 'win32':
         case 'linux':
-          return linuxShortcuts;
+          return windowsAndLinuxShortcuts;
         case 'darwin':
           return macShortcuts;
       }

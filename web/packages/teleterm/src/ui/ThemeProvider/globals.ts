@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { createGlobalStyle } from 'styled-components';
+import { createGlobalStyle, css } from 'styled-components';
+import { getPlatform } from 'design/theme/utils';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -37,9 +38,27 @@ const GlobalStyle = createGlobalStyle`
   // remove dotted Firefox outline
   button, a {
     outline: 0;
+
     ::-moz-focus-inner {
       border: 0;
     }
+  }
+
+  ${() => getPlatform().isWin && customScrollbar}
+`;
+
+const customScrollbar = css`
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #757575;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: rgba(0, 0, 0, 0.5);
   }
 `;
 

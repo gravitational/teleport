@@ -8,26 +8,33 @@ export type RuntimeSettings = {
   userDataDir: string;
   // Points to a directory that should be prepended to PATH. Only present in the packaged version.
   binDir: string | undefined;
+  certsDir: string;
   defaultShell: string;
   platform: Platform;
   tshd: {
     insecure: boolean;
-    networkAddr: string;
+    requestedNetworkAddress: string;
     binaryPath: string;
     homeDir: string;
     flags: string[];
   };
   sharedProcess: {
-    networkAddr: string;
+    requestedNetworkAddress: string;
   };
 };
 
 export type MainProcessClient = {
   getRuntimeSettings(): RuntimeSettings;
+  getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
   configService: ConfigService;
   fileStorage: FileStorage;
+};
+
+export type ChildProcessAddresses = {
+  tsh: string;
+  shared: string;
 };
 
 export type Platform = NodeJS.Platform;
