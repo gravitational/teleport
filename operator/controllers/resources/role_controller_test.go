@@ -18,19 +18,19 @@ package resources
 
 import (
 	"context"
+	"reflect"
+	"sort"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/auth"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
-	"github.com/gravitational/trace"
 )
 
 func TestRoleCreation(t *testing.T) {
@@ -167,8 +167,10 @@ func TestRoleUpdate(t *testing.T) {
 		tRole, err := tClient.GetRole(ctx, roleName)
 		require.NoError(t, err)
 
-		// TeleportRole was updated with new roles
-		return assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z"})
+		// TeleportRole updated with new logins
+		logins := tRole.GetLogins(types.Allow)
+		sort.Strings(logins)
+		return reflect.DeepEqual(logins, []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
@@ -188,8 +190,10 @@ func TestRoleUpdate(t *testing.T) {
 		tRole, err := tClient.GetRole(ctx, roleName)
 		require.NoError(t, err)
 
-		// TeleportRole updated with new roles
-		return assert.ElementsMatch(t, tRole.GetLogins(types.Allow), []string{"x", "z", "admin", "root"})
+		// TeleportRole updated with new logins
+		logins := tRole.GetLogins(types.Allow)
+		sort.Strings(logins)
+		return reflect.DeepEqual(logins, []string{"admin", "root", "x", "z"})
 	})
 }
 
@@ -240,6 +244,7 @@ func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *r
 	err := kc.Create(ctx, role)
 	require.NoError(t, err)
 }
+
 func TestAddTeleportResourceOriginRole(t *testing.T) {
 	r := RoleReconciler{}
 	tests := []struct {
