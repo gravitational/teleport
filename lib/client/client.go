@@ -2016,8 +2016,8 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 
 		// Proxy the connection to the remote address.
 		go func() {
-			var err error
-			if err = proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
 				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
