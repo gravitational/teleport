@@ -308,16 +308,12 @@ func (s *Server) isAuditedAtProxy() bool {
 type ServerOption func(s *Server) error
 
 func (s *Server) close() {
-	s.Lock()
-	defer s.Unlock()
-
 	s.cancel()
 	s.reg.Close()
 	if s.heartbeat != nil {
 		if err := s.heartbeat.Close(); err != nil {
 			s.Warningf("Failed to close heartbeat: %v", err)
 		}
-		s.heartbeat = nil
 	}
 	if s.dynamicLabels != nil {
 		s.dynamicLabels.Close()
@@ -325,7 +321,6 @@ func (s *Server) close() {
 
 	if s.users != nil {
 		s.users.Shutdown()
-		s.users = nil
 	}
 }
 
@@ -368,9 +363,6 @@ func (s *Server) Serve(l net.Listener) error {
 }
 
 func (s *Server) startPeriodicOperations() {
-	s.Lock()
-	defer s.Unlock()
-
 	// If the server has dynamic labels defined, start a loop that will
 	// asynchronously keep them updated.
 	if s.dynamicLabels != nil {
@@ -1592,7 +1584,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ch, req, serverContext)
+			return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 		case sshutils.WindowChangeRequest:
 			return s.termHandlers.HandleWinChange(ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
@@ -1625,11 +1617,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 	switch req.Type {
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, serverContext)
+		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ch, req, serverContext)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, serverContext)
+		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
