@@ -143,6 +143,14 @@
             "type": "string",
             "default": ""
         },
+        "caPin": {
+            "$id": "#/properties/caPin",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "insecureSkipProxyTLSVerify": {
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
