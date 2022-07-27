@@ -1025,6 +1025,9 @@ message SFTP {
 
     // Action is what kind of file operation
     SFTPAction Action = 11 [ (gogoproto.jsontag) = "action" ];
+
+    // Error is the optional error that may have occurred
+    string Error = 12 [ (gogoproto.jsontag) = "error,omitempty" ];
 }
 
 // Subsystem is emitted when a user requests a new subsystem.
@@ -1396,6 +1399,33 @@ message AppSessionStart {
 
     // App is a common application resource metadata.
     AppMetadata App = 8
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// AppSessionEnd is emitted when an application session ends.
+message AppSessionEnd {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 6
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
@@ -2026,6 +2056,7 @@ message OneOf {
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
         events.SFTP SFTP = 91;
         events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
+        events.AppSessionEnd AppSessionEnd = 93;
     }
 }
 

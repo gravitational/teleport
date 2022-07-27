@@ -317,24 +317,39 @@ func (m *RedshiftMockUnauth) DescribeClustersWithContext(ctx aws.Context, input 
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-// IAMMockUnauth is a mock IAM client that returns access denied to each call.
-type IAMMockUnauth struct {
+// IAMErrorMock is a mock IAM client that returns the provided Error to all
+// APIs. If Error is not provided, all APIs returns trace.AccessDenied by
+// default.
+type IAMErrorMock struct {
 	iamiface.IAMAPI
+	Error error
 }
 
-func (m *IAMMockUnauth) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+func (m *IAMErrorMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+func (m *IAMErrorMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+func (m *IAMErrorMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 

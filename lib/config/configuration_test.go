@@ -2478,3 +2478,67 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestApplyConfigSessionRecording checks if the session recording origin is
+// set correct and if file configuration is read and applied correctly.
+func TestApplyConfigSessionRecording(t *testing.T) {
+	tests := []struct {
+		desc                   string
+		inSessionRecording     string
+		inProxyChecksHostKeys  string
+		outOrigin              string
+		outSessionRecording    string
+		outProxyChecksHostKeys bool
+	}{
+		{
+			desc:                   "both-empty",
+			inSessionRecording:     "",
+			inProxyChecksHostKeys:  "",
+			outOrigin:              "defaults",
+			outSessionRecording:    "node",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "proxy-checks-empty",
+			inSessionRecording:     "session_recording: proxy-sync",
+			inProxyChecksHostKeys:  "",
+			outOrigin:              "config-file",
+			outSessionRecording:    "proxy-sync",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "session-recording-empty",
+			inSessionRecording:     "",
+			inProxyChecksHostKeys:  "proxy_checks_host_keys: true",
+			outOrigin:              "config-file",
+			outSessionRecording:    "node",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "both-set",
+			inSessionRecording:     "session_recording: node-sync",
+			inProxyChecksHostKeys:  "proxy_checks_host_keys: false",
+			outOrigin:              "config-file",
+			outSessionRecording:    "node-sync",
+			outProxyChecksHostKeys: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			fileconfig := fmt.Sprintf(configSessionRecording,
+				tt.inSessionRecording,
+				tt.inProxyChecksHostKeys)
+			conf, err := ReadConfig(bytes.NewBufferString(fileconfig))
+			require.NoError(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.outOrigin, cfg.Auth.SessionRecordingConfig.Origin())
+			require.Equal(t, tt.outSessionRecording, cfg.Auth.SessionRecordingConfig.GetMode())
+			require.Equal(t, tt.outProxyChecksHostKeys, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys())
+		})
+	}
+}
