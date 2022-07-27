@@ -18,7 +18,7 @@ sets Deployment annotations when specified:
       template:
         metadata:
           annotations:
-            checksum/config: d4b68af041b4bf4aa8cb4ea527c775607b7062d3565b5b3220a0b5bbe16afa23
+            checksum/config: 511656bfc4345260ef1ddc4319c2a30ff1e004c72c518c82020a76e088a10cd8
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -86,7 +86,7 @@ sets Deployment labels when specified:
     template:
       metadata:
         annotations:
-          checksum/config: 790ebcf515a3f43b0c1dba7b809211184a6ad4481ac78b21e1275777ec4207af
+          checksum/config: b37ca9b3da292ffe343a4629c7da7dc006ec03156fc19268123a24df51dfeb78
         labels:
           app: RELEASE-NAME
           app.kubernetes.io/name: teleport-kube-agent

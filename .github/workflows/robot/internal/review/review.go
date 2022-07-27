@@ -333,7 +333,7 @@ func checkN(reviewers []string, reviews []github.Review) int {
 
 	var n int
 	for _, reviewer := range reviewers {
-		if state, ok := r[reviewer]; ok && state == approved {
+		if state, ok := r[reviewer]; ok && state == Approved {
 			n++
 		}
 	}
@@ -347,7 +347,7 @@ func reviewsByAuthor(reviews []github.Review) map[string]string {
 		// Always pick up the last submitted review from each reviewer.
 		if state, ok := m[review.Author]; ok {
 			// If the reviewer left comments after approval, skip this review.
-			if review.State == commented && state == approved {
+			if review.State == Commented && state == Approved {
 				continue
 			}
 		}
@@ -358,10 +358,10 @@ func reviewsByAuthor(reviews []github.Review) map[string]string {
 }
 
 const (
-	// commented is a code review where the reviewer has left comments only.
-	commented = "COMMENTED"
-	// approved is a code review where the reviewer has approved changes.
-	approved = "APPROVED"
-	// changesRequested is a code review where the reviewer has requested changes.
-	changesRequested = "CHANGES_REQUESTED"
+	// Commented is a code review where the reviewer has left comments only.
+	Commented = "COMMENTED"
+	// Approved is a code review where the reviewer has approved changes.
+	Approved = "APPROVED"
+	// ChangesRequested is a code review where the reviewer has requested changes.
+	ChangesRequested = "CHANGES_REQUESTED"
 )

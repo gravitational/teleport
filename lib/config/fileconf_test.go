@@ -33,7 +33,7 @@ import (
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
-// mutated programatically by test cases and then re-serialised to test the
+// mutated programatically by test cases and then re-serialized to test the
 // config file loader
 const minimalConfigFile string = `
 teleport:
@@ -50,9 +50,9 @@ ssh_service:
 // representation of a parsed YAML file.
 type cfgMap map[interface{}]interface{}
 
-// editConfig takes the minimal YAML configuration file, de-serialises it into a
+// editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
-// passes that dictionary to the caller-supplied mutator and then re-serialises
+// passes that dictionary to the caller-supplied mutator and then re-serializes
 // it ready to be injected into the config loader.
 func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	var cfg cfgMap

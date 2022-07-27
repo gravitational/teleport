@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
@@ -62,4 +63,18 @@ func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	time.Sleep(250 * time.Millisecond)
 
 	return receivedEvents, nil
+}
+
+func EnableDesktopService(config *service.Config) {
+	// This config won't actually work, because there is no LDAP server,
+	// but it's enough to force desktop service to run.
+	config.WindowsDesktop.Enabled = true
+	config.WindowsDesktop.ListenAddr = *utils.MustParseAddr("127.0.0.1:0")
+	config.WindowsDesktop.Discovery.BaseDN = ""
+	config.WindowsDesktop.LDAP = service.LDAPConfig{
+		Domain:             "example.com",
+		Addr:               "127.0.0.1:636",
+		Username:           "test",
+		InsecureSkipVerify: true,
+	}
 }

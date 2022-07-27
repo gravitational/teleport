@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -215,6 +216,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+// HandleConnection handles connections from plain TCP applications.
+func (h *APIHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+	return h.appHandler.HandleConnection(ctx, conn)
 }
 
 func (h *APIHandler) Close() error {
@@ -835,12 +841,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := h.cfg.ProxyClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
+		LicenseWarnings:  pr.LicenseWarnings,
 	}, nil
 }
 
@@ -1206,6 +1218,9 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
+		if errors.Is(err, auth.ErrGithubNoTeams) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
 
 		return client.LoginFailedBadCallbackRedirectURL
 	}
@@ -1307,6 +1322,10 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 					return redURL.String()
 				}
 			}
+		}
+
+		if errors.Is(err, auth.ErrOIDCNoRoles) {
+			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
 		return client.LoginFailedBadCallbackRedirectURL
@@ -1553,20 +1572,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass, clientMeta)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn:
-		webSession, err = h.auth.AuthWithOTP(
-			req.User, req.Pass, req.SecondFactorToken, clientMeta,
-		)
+		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
 	case constants.SecondFactorOptional:
 		if req.SecondFactorToken == "" {
-			webSession, err = h.auth.AuthWithoutOTP(
-				req.User, req.Pass, clientMeta,
-			)
+			webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
 		} else {
-			webSession, err = h.auth.AuthWithOTP(
-				req.User, req.Pass, req.SecondFactorToken, clientMeta,
-			)
+			webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
 		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
@@ -1591,7 +1604,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -1618,7 +1631,7 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 // {"message": "ok"}
 //
 func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	err := h.logout(w, ctx)
+	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1626,8 +1639,8 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 	return OK(), nil
 }
 
-func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
-	if err := ctx.Invalidate(); err != nil {
+func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, scx *SessionContext) error {
+	if err := scx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	ClearSession(w)
@@ -1722,7 +1735,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1870,7 +1883,7 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
-	cert, err := h.auth.AuthenticateSSHUser(*req, clientMeta)
+	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1894,7 +1907,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
-	session, err := h.auth.AuthenticateWebUser(req, clientMeta)
+	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
@@ -1905,7 +1918,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(user, session.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -2569,13 +2582,13 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(*req, clientMeta)
+		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
 		if req.HOTPToken != "" {
 			req.OTPToken = req.HOTPToken
 		}
-		cert, err = h.auth.GetCertificateWithOTP(*req, clientMeta)
+		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}

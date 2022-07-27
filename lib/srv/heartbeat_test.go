@@ -33,6 +33,8 @@ import (
 
 // TestHeartbeatKeepAlive tests keep alive cycle used for nodes and apps.
 func TestHeartbeatKeepAlive(t *testing.T) {
+	t.Parallel()
+
 	var tests = []struct {
 		name       string
 		mode       HeartbeatMode
@@ -211,6 +213,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers
 func TestHeartbeatAnnounce(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		mode HeartbeatMode
 		kind string
@@ -407,7 +410,7 @@ func (f *fakeAnnouncer) KeepAlives() chan<- types.KeepAlive {
 	return f.keepAlivesC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (f *fakeAnnouncer) Done() <-chan struct{} {
 	return f.ctx.Done()
 }
