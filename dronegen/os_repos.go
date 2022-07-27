@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"path"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func promoteBuildOsRepoPipelines() []pipeline {
@@ -294,17 +296,18 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 }
 
 func setStepResourceLimits(steps []step) {
-	for _, step := range steps {
-		if step.Environment == nil {
-			step.Environment = make(map[string]value)
+	for i := range steps {
+		step := &steps[i]
+		if step.Resources == nil {
+			step.Resources = &containerResources{}
 		}
 
-		step.Environment["DRONE_RESOURCE_REQUEST_CPU"] = value{
-			raw: "100",
+		if step.Resources.Requests == nil {
+			step.Resources.Requests = &resourceSet{}
 		}
-		step.Environment["DRONE_RESOURCE_REQUEST_MEMORY"] = value{
-			raw: "10MiB",
-		}
+
+		step.Resources.Requests.Cpu = (*resourceQuantity)(resource.NewMilliQuantity(100, resource.DecimalSI))
+		step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
 	}
 }
 
