@@ -168,6 +168,28 @@ By enforcing an allow-list (to only common battle-tested asymmetric algorithms) 
 
 Configuring an allow-list also allows us to remove algorithms if a vulnerability is discovered in a specific one.
 
+#### JWT Exfiltration
+
+This broadly falls into two categories:
+
+The first involves a malicious actor intercepting the JWT sent by the node during the join process. Whilst TLS prevents this in most cases, a malicious actor with sufficient access to the environment would be able to insert their own CA into the root store and use this to man-in-the-middle the connection.
+
+The second involves a malicious actor with direct access to executing code within the workload environment. Here they can follow the same steps the node would take in obtaining the JWT.
+
+In both cases, the malicious actor can then use this JWT to gain Teleport credentials and access to customer infrastructure.
+
+Mitigations:
+
+Firstly, we should ensure in documentation that we stress that an attacker with access to the workload environment will be able to access resources that the workload would have access to. The principle of least privilege should be encouraged, with workloads given access to only the resources they require.
+
+In most cases, it appears the providers issue these workload identity JWTs with relatively short lives of between 5 and 10 minutes (GHA and GCP respectively). This does limit a malicious actors ability to continually use these credentials if they lose access to the environment in which they are generated, but, if the attacker exchanges these for a long-lived set of Teleport credentials then this point is relatively moot. We can further limit their access by reducing the TTLs of certificates we offer in exchange for OIDC JWTs, and preventing renewals: requiring a fresh JWT from the environment each time they want to generate certificates. This would be a significant change to the current model whereby Teleport nodes receive long lived certificates (10/infinity years), and present complications in how we currently handle CA rotations. This does feel like the most effective mitigation, as it requires the malicious actor maintain access to the compromised workload environment for roughly as long as they want to access infrastructure.
+
+Another option we have would be to ensure that a JWT could only be used once by caching them and sharing this cache across auth servers. This specifically assists with preventing an attacker who has intercepted a JWT from transparently using it to generate certificates, as this would then either cause the node's attempt to join to fail or theirs. It feels like in most cases this is unlikely to be noticed by users, as the node would simply retry.
+
+One suggested mitigation has been to introduce some kind of challenge process, and require that the nodes request the generation of a JWT including a challenge string. On some providers (GCP, GHA) we would be able to leverage the `aud` claim for this as the provider allows the workload to request a JWT that has been generated with a certain `aud` set. However, not all providers allow this. This mitigation works in two ways. Firstly, it prevents a token from being used to generate certificates more than once, this is similar to the mitigation involving caching used JWTs, and by no means prevents a malicious actor gaining access but does force them to give up the transparency of doing so. Secondly, it increases the complexity of an attack for a malicious actor stealing a JWT directly from the environment. They would need to first perform the first stage of the join to determine the challenge string to generate the JWT with. It does not prevent an attacker with access to the environment from gaining access.
+
+It is of note that neither GCP or Vault's implementation of OIDC trust federation implement additional mitigations. They rely on the user to ensure that their workload environment is secure. This does feel like an acceptable posture to take. Ultimately, most mitigations seem ineffective if the environment that the user has configured to trust is compromised. The mitigation which seems most effective in limiting access is the first choice: forcing shorter TTLs onto certificate produced by OIDC token joining and requiring that a fresh JWT is used to gain credentials when those expire, rather than renewing. However, this seems like a significant change in the current operating model of Teleport and feels like this could be pushed as a future improvement.
+
 ## References and Resources
 
 OIDC Specifications:
