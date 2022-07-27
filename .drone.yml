@@ -5421,15 +5421,12 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:271
+# Generated at dronegen/os_repos.go:273
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: publish-apt-new-repos
-environment:
-  DRONE_RESOURCE_REQUEST_CPU: "50"
-  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -5524,15 +5521,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:271
+# Generated at dronegen/os_repos.go:273
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: migrate-yum-new-repos
-environment:
-  DRONE_RESOURCE_REQUEST_CPU: "50"
-  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -5570,6 +5564,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v8.3.10"
   image: golang:1.18.4-bullseye
   commands:
@@ -5595,6 +5591,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5620,6 +5618,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v8.3.11"
   image: golang:1.18.4-bullseye
   commands:
@@ -5645,6 +5645,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5670,6 +5672,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v8.3.12"
   image: golang:1.18.4-bullseye
   commands:
@@ -5695,6 +5699,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5720,6 +5726,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v8.3.14"
   image: golang:1.18.4-bullseye
   commands:
@@ -5745,6 +5753,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5770,6 +5780,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v8.3.15"
   image: golang:1.18.4-bullseye
   commands:
@@ -5795,6 +5807,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5820,6 +5834,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.0.0"
   image: golang:1.18.4-bullseye
   commands:
@@ -5845,6 +5861,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5870,6 +5888,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.0.1"
   image: golang:1.18.4-bullseye
   commands:
@@ -5895,6 +5915,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5920,6 +5942,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.0.2"
   image: golang:1.18.4-bullseye
   commands:
@@ -5945,6 +5969,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -5970,6 +5996,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.0.3"
   image: golang:1.18.4-bullseye
   commands:
@@ -5995,6 +6023,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6020,6 +6050,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.0.4"
   image: golang:1.18.4-bullseye
   commands:
@@ -6045,6 +6077,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6070,6 +6104,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.1.0"
   image: golang:1.18.4-bullseye
   commands:
@@ -6095,6 +6131,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6120,6 +6158,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.1.1"
   image: golang:1.18.4-bullseye
   commands:
@@ -6145,6 +6185,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6170,6 +6212,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.1.2"
   image: golang:1.18.4-bullseye
   commands:
@@ -6195,6 +6239,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6220,6 +6266,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.1.3"
   image: golang:1.18.4-bullseye
   commands:
@@ -6245,6 +6293,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6270,6 +6320,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.2.0"
   image: golang:1.18.4-bullseye
   commands:
@@ -6295,6 +6347,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6320,6 +6374,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.2.1"
   image: golang:1.18.4-bullseye
   commands:
@@ -6345,6 +6401,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6370,6 +6428,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.2.2"
   image: golang:1.18.4-bullseye
   commands:
@@ -6395,6 +6455,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6420,6 +6482,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.2.3"
   image: golang:1.18.4-bullseye
   commands:
@@ -6445,6 +6509,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6470,6 +6536,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.2.4"
   image: golang:1.18.4-bullseye
   commands:
@@ -6495,6 +6563,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6520,6 +6590,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.0"
   image: golang:1.18.4-bullseye
   commands:
@@ -6545,6 +6617,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6570,6 +6644,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.2"
   image: golang:1.18.4-bullseye
   commands:
@@ -6595,6 +6671,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6620,6 +6698,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.4"
   image: golang:1.18.4-bullseye
   commands:
@@ -6645,6 +6725,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6670,6 +6752,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.5"
   image: golang:1.18.4-bullseye
   commands:
@@ -6695,6 +6779,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6720,6 +6806,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.6"
   image: golang:1.18.4-bullseye
   commands:
@@ -6745,6 +6833,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6770,6 +6860,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.7"
   image: golang:1.18.4-bullseye
   commands:
@@ -6795,6 +6887,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6820,6 +6914,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.9"
   image: golang:1.18.4-bullseye
   commands:
@@ -6845,6 +6941,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6870,6 +6968,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.10"
   image: golang:1.18.4-bullseye
   commands:
@@ -6895,6 +6995,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6920,6 +7022,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v9.3.12"
   image: golang:1.18.4-bullseye
   commands:
@@ -6945,6 +7049,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -6970,6 +7076,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v10.0.0"
   image: golang:1.18.4-bullseye
   commands:
@@ -6995,6 +7103,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -7020,6 +7130,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v10.0.1"
   image: golang:1.18.4-bullseye
   commands:
@@ -7045,6 +7157,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -7070,6 +7184,8 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
 - name: Publish rpms to YUM repos for "v10.0.2"
   image: golang:1.18.4-bullseye
   commands:
@@ -7095,6 +7211,8 @@ steps:
     BUCKET_CACHE_PATH: /mnt/bucket
     CACHE_DIR: /mnt/createrepo_cache
     DEBIAN_FRONTEND: noninteractive
+    DRONE_RESOURCE_REQUEST_CPU: "100"
+    DRONE_RESOURCE_REQUEST_MEMORY: 10MiB
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
@@ -7117,15 +7235,12 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:271
+# Generated at dronegen/os_repos.go:273
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: publish-yum-new-repos
-environment:
-  DRONE_RESOURCE_REQUEST_CPU: "50"
-  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -7777,6 +7892,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e537efb3b22712a42b9b4e8be40c0e507a48ff773ff45168c9e59c2b5c80bc89
+hmac: 2bbd0a1232ff7733377eef8bf2b5a0e486d95171d4d7023a28fe255378be6a9d
 
 ...

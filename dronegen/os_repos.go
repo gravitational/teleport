@@ -238,6 +238,8 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion)...)
 	}
 
+	setStepResourceLimits(p.Steps)
+
 	return p
 }
 
@@ -269,14 +271,6 @@ func buildNeverTriggerPipeline(pipelineName string) pipeline {
 // * Steps for checkout
 func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutPath, commit string) pipeline {
 	p := newKubePipeline(pipelineName)
-	p.Environment = map[string]value{
-		"DRONE_RESOURCE_REQUEST_CPU": {
-			raw: "50",
-		},
-		"DRONE_RESOURCE_REQUEST_MEMORY": {
-			raw: "50MiB",
-		},
-	}
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
 		{
@@ -294,8 +288,24 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 			Commands: toolCheckoutCommands(checkoutPath, commit),
 		},
 	}
+	setStepResourceLimits(p.Steps)
 
 	return p
+}
+
+func setStepResourceLimits(steps []step) {
+	for _, step := range steps {
+		if step.Environment == nil {
+			step.Environment = make(map[string]value)
+		}
+
+		step.Environment["DRONE_RESOURCE_REQUEST_CPU"] = value{
+			raw: "100",
+		}
+		step.Environment["DRONE_RESOURCE_REQUEST_MEMORY"] = value{
+			raw: "10MiB",
+		}
+	}
 }
 
 // Note that tags are also valid here as a tag refers to a specific commit
