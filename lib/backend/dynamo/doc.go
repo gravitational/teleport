@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*
-Package dynamodbDynamoDBBackend implements DynamoDB storage backend
+Package dynamo implements DynamoDB storage backend
 for Teleport auth service, similar to etcd backend.
 
 dynamo package implements the DynamoDB storage back-end for the

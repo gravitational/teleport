@@ -197,8 +197,8 @@ func (i *TeleInstance) AsTrustedCluster(token string, roleMap types.RoleMap) typ
 		Spec: types.TrustedClusterSpecV2{
 			Token:                token,
 			Enabled:              true,
-			ProxyAddress:         i.GetWebAddr(),
-			ReverseTunnelAddress: i.GetReverseTunnelAddr(),
+			ProxyAddress:         i.Web,
+			ReverseTunnelAddress: i.ReverseTunnel,
 			RoleMap:              roleMap,
 		},
 	}
@@ -246,7 +246,8 @@ type TeleInstance struct {
 
 	// Log specifies the instance logger
 	Log utils.Logger
-	InstancePorts
+	InstanceListeners
+	Fds []service.FileDescriptor
 }
 
 // InstanceConfig is an instance configuration
@@ -264,25 +265,24 @@ type InstanceConfig struct {
 	// Log specifies the logger
 	Log utils.Logger
 	// Ports is a collection of instance ports.
-	Ports *InstancePorts
+	Listeners *InstanceListeners
+
+	Fds []service.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
 //
 // The caller is responsible for calling StopAll on the returned instance to
 // clean up spawned processes.
-func NewInstance(cfg InstanceConfig) *TeleInstance {
+func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	var err error
 	if cfg.NodeName == "" {
 		cfg.NodeName, err = os.Hostname()
 		fatalIf(err)
 	}
 
-	if cfg.Ports == nil {
-		cfg.Ports = StandardPortSetup()
-	}
-	if cfg.Ports.Host == "" {
-		cfg.Ports.Host = cfg.NodeName
+	if cfg.Listeners == nil {
+		cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
 	}
 
 	// generate instance secrets (keys):
@@ -332,10 +332,11 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	i := &TeleInstance{
-		Hostname:      cfg.NodeName,
-		UploadEventsC: make(chan events.UploadEvent, 100),
-		Log:           cfg.Log,
-		InstancePorts: *cfg.Ports,
+		Hostname:          cfg.NodeName,
+		UploadEventsC:     make(chan events.UploadEvent, 100),
+		Log:               cfg.Log,
+		InstanceListeners: *cfg.Listeners,
+		Fds:               cfg.Fds,
 	}
 
 	secrets := InstanceSecrets{
@@ -345,7 +346,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		Cert:       cert,
 		TLSCACert:  tlsCACert,
 		TLSCert:    tlsCert,
-		TunnelAddr: net.JoinHostPort(cfg.NodeName, i.GetPortReverseTunnel()),
+		TunnelAddr: i.ReverseTunnel,
 		Users:      make(map[string]*User),
 	}
 
@@ -450,7 +451,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		}
 	}
 	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
-	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, i.GetPortSSH())
+	tconf.SSH.Addr.Addr = i.SSH
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -461,7 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
-	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortAuth())
+	tconf.Auth.ListenAddr.Addr = i.Auth
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -483,8 +484,8 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		},
 	}
 
-	if i.isSinglePortSetup {
-		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
+	if i.IsSinglePortSetup {
+		tconf.Proxy.WebAddr.Addr = i.Web
 		// Reset other addresses to ensure that teleport instance will expose only web port listener.
 		tconf.Proxy.ReverseTunnelListenAddr = utils.NetAddr{}
 		tconf.Proxy.MySQLAddr = utils.NetAddr{}
@@ -495,16 +496,16 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			return nil, trace.Wrap(err)
 		}
 		tconf.Proxy.ReverseTunnelListenAddr = *tunAddr
-		tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortProxy())
-		tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortWeb())
-		tconf.Proxy.MySQLAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMySQL())
-		if i.Postgres != nil {
+		tconf.Proxy.SSHAddr.Addr = i.SSHProxy
+		tconf.Proxy.WebAddr.Addr = i.Web
+		tconf.Proxy.MySQLAddr.Addr = i.MySQL
+		if i.Postgres != "" {
 			// Postgres proxy port was configured on a separate listener.
-			tconf.Proxy.PostgresAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortPostgres())
+			tconf.Proxy.PostgresAddr.Addr = i.Postgres
 		}
-		if i.Mongo != nil {
+		if i.Mongo != "" {
 			// Mongo proxy port was configured on a separate listener.
-			tconf.Proxy.MongoAddr.Addr = net.JoinHostPort(i.Hostname, i.GetPortMongo())
+			tconf.Proxy.MongoAddr.Addr = i.Mongo
 		}
 	}
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
@@ -518,6 +519,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.FileDescriptors = i.Fds
 
 	i.Config = tconf
 	return tconf, nil
@@ -590,12 +592,20 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 
 // StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, i.GetPortAuth())
+	_, port, err := net.SplitHostPort(i.Auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return i.startNode(tconf, port)
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
 func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
-	return i.startNode(tconf, i.GetPortWeb())
+	_, port, err := net.SplitHostPort(i.Web)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return i.startNode(tconf, port)
 }
 
 // startNode starts a node and connects it to the cluster.
@@ -664,7 +674,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+			Addr:        i.Web,
 		},
 	}
 	conf.Token = "token"
@@ -716,7 +726,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 			cfg.AuthServers = []utils.NetAddr{
 				{
 					AddrNetwork: "tcp",
-					Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+					Addr:        i.Web,
 				},
 			}
 			cfg.Token = "token"
@@ -780,7 +790,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+			Addr:        i.Web,
 		},
 	}
 	conf.Token = "token"
@@ -832,7 +842,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	return process, client, nil
 }
 
-func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
+func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName string) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -843,7 +853,7 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+			Addr:        i.Web,
 		},
 	}
 	conf.Token = "token"
@@ -855,7 +865,7 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 	conf.Databases.Enabled = false
 
 	conf.Kube.KubeconfigPath = filepath.Join(dataDir, "kube_config")
-	if err := EnableKube(conf, clusterName); err != nil {
+	if err := EnableKube(t, conf, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conf.Kube.ListenAddr = nil
@@ -883,17 +893,16 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
-func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
+func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, webProxyPort, sshProxyPort int) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
+
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 
 	tconf.Log = i.Log
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	authServer := utils.MustParseAddr(i.Auth)
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.HostUUID = name
@@ -907,13 +916,16 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Auth.Enabled = false
 
 	tconf.Proxy.Enabled = true
-	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxySSHPort))
-	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", proxyWebPort))
+	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
+	sshProxyPort = Port(t, tconf.Proxy.SSHAddr.Addr)
+	tconf.Proxy.WebAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxyWeb, &tconf.FileDescriptors)
+	webProxyPort = Port(t, tconf.Proxy.WebAddr.Addr)
 	tconf.Proxy.DisableReverseTunnel = true
 	tconf.Proxy.DisableWebService = true
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", sshPort))
+	tconf.SSH.Addr.Addr = NewListenerOn(t, i.Hostname, service.ListenerNodeSSH, &tconf.FileDescriptors)
+	sshPort = Port(t, tconf.SSH.Addr.Addr)
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -929,9 +941,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	i.Nodes = append(i.Nodes, process)
 
 	// Build a list of expected events to wait for before unblocking based off
@@ -943,13 +953,12 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	log.Debugf("Teleport node and proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-	return nil
+
+	return
 }
 
 // ProxyConfig is a set of configuration parameters for Proxy
@@ -981,7 +990,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf := service.MakeDefaultConfig()
 	tconf.Console = nil
 	tconf.Log = i.Log
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	authServer := utils.MustParseAddr(i.Auth)
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
@@ -1217,8 +1226,8 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	var sshProxyAddr string
 
 	if cfg.Proxy == nil {
-		webProxyAddr = i.GetWebAddr()
-		sshProxyAddr = i.GetProxyAddr()
+		webProxyAddr = i.Web
+		sshProxyAddr = i.SSHProxy
 	} else {
 		webProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.WebPort))
 		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
@@ -1242,7 +1251,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		WebProxyAddr:          webProxyAddr,
 		SSHProxyAddr:          sshProxyAddr,
 		Interactive:           cfg.Interactive,
-		TLSRoutingEnabled:     i.isSinglePortSetup,
+		TLSRoutingEnabled:     i.IsSinglePortSetup,
 		Tracer:                tracing.NoopProvider().Tracer("test"),
 		EnableEscapeSequences: cfg.EnableEscapeSequences,
 	}
