@@ -31,9 +31,10 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/kingpin"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -283,6 +284,9 @@ func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params
 // some defaults common for all Teleport CLI tools
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
+
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
 
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
