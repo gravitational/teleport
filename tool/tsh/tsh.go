@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -67,13 +68,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/kingpin"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -116,6 +118,8 @@ type CLIConf struct {
 	RequestedResourceIDs []string
 	// RequestID is an access request ID
 	RequestID string
+	// RequestIDs is a list of access request IDs
+	RequestIDs []string
 	// ReviewReason indicates the reason for an access review.
 	ReviewReason string
 	// ReviewableRequests indicates that only requests which can be reviewed should
@@ -174,6 +178,8 @@ type CLIConf struct {
 	KubernetesCluster string
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
+	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
+	DaemonCertsDir string
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -420,6 +426,7 @@ const (
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
+	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -445,19 +452,34 @@ type cliOption func(*CLIConf) error
 // defaultFormats is the default set of formats to use for commands that have the --format flag.
 var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
+// initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
+func initLogger(cf *CLIConf) {
+	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
+	cf.Debug = cf.Debug || isDebug
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+	} else {
+		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+	}
+}
+
 // Run executes TSH client. same as main() but easier to test
 func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
 		TracingProvider: tracing.NoopProvider(),
 	}
-	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+
+	// run early to enable debug logging if env var is set.
+	// this makes it possible to debug early startup functionality, particularly command aliases.
+	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile string
 
 	// configure CLI argument parser:
-	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(false)
+	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
+
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
 	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
@@ -485,6 +507,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("auth", "Specify the name of authentication connector to use.").Envar(authEnvVar).StringVar(&cf.AuthConnector)
 	app.Flag("namespace", "Namespace of the cluster").Default(apidefaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
+	// we don't want to add `.Envar(debugEnvVar)` here:
+	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
+	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
@@ -530,6 +555,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
 	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
+	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
 	// AWS.
 	aws := app.Command("aws", "Access AWS API.")
@@ -743,6 +769,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
 
+	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
+	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
+
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -760,13 +789,60 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		bench.Hidden()
 	}
 
+	var err error
+
+	cf.executablePath, err = os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// configs
+	setEnvFlags(&cf, os.Getenv)
+
+	confOptions, err := loadAllConfigs(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cf.TshConfig = *confOptions
+
+	// aliases
+	ar := newAliasRunner(cf.TshConfig.Aliases)
+	aliasCommand, runtimeArgs := findAliasCommand(args)
+	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
+		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
+	}
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
+	if errors.Is(err, kingpin.ErrExpectedCommand) {
+		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
+			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
+			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
+		}
+	}
+
+	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
+	// shouldTerminate will be checked after app.Parse() call.
+	var shouldTerminate *int
+	app.Terminate(func(exitCode int) {
+		// make non-zero exit code sticky
+		if exitCode == 0 && shouldTerminate != nil {
+			return
+		}
+		shouldTerminate = &exitCode
+	})
+
 	if err != nil {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+
+	// handle: help command, --help flag, version command, ...
+	if shouldTerminate != nil {
+		os.Exit(*shouldTerminate)
+	}
+
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
 
@@ -778,10 +854,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
-	// While in debug mode, send logs to stdout.
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
-	}
+	// Enable debug logging if requested by --debug.
+	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
+	initLogger(&cf)
 
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
@@ -812,22 +887,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	cf.Context = ctx
 	defer span.End()
 
-	cf.executablePath, err = os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
-
-	setEnvFlags(&cf, os.Getenv)
-
-	confOptions, err := loadAllConfigs(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cf.TshConfig = *confOptions
 
 	if cpuProfile != "" {
 		log.Debugf("writing CPU profile to %v", cpuProfile)
@@ -947,6 +1009,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onRequestReview(&cf)
 	case reqSearch.FullCommand():
 		err = onRequestSearch(&cf)
+	case reqDrop.FullCommand():
+		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
 	case aws.FullCommand():
@@ -1238,22 +1302,11 @@ func onLogin(cf *CLIConf) error {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
-		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
-				return trace.Wrap(err)
-			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
-
-			return nil
+		//   OR
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
-		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
+		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
+			host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1266,6 +1319,24 @@ func onLogin(cf *CLIConf) error {
 			printProfiles(cf.Debug, active, others, env, cf.Verbose)
 
 			return nil
+
+		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
+		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
+			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
+			_, err := tc.PingAndShowMOTD(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := updateKubeConfig(cf, tc, ""); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return trace.Wrap(onStatus(cf))
+
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
@@ -1305,8 +1376,10 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
-		// otherwise just passthrough to standard login
+
+		// otherwise just pass through to standard login
 		default:
+
 		}
 	}
 
@@ -1439,7 +1512,20 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	return trace.Wrap(onStatus(cf))
+	if err := onStatus(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Display any license compliance warnings
+	resp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, warning := range resp.LicenseWarnings {
+		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
+	}
+
+	return nil
 }
 
 // setupNoninteractiveClient sets up existing client to use
@@ -2041,11 +2127,13 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 			break
 		}
 	}
+
 	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
 	} else {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
 	}
+
 	return row
 }
 
@@ -2059,10 +2147,10 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	// lines per node.
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -2671,17 +2759,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// split login & host
 	hostLogin := cf.NodeLogin
+	hostUser := cf.UserHost
 	var labels map[string]string
-	if cf.UserHost != "" {
-		parts := strings.Split(cf.UserHost, "@")
+	if hostUser != "" {
+		parts := strings.Split(hostUser, "@")
 		partsLength := len(parts)
 		if partsLength > 1 {
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
-			cf.UserHost = parts[partsLength-1]
+			hostUser = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
-			labels, err = client.ParseLabelSpec(cf.UserHost)
+		if strings.Contains(hostUser, "=") {
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2694,7 +2783,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			partsLength := len(parts)
 			if partsLength > 1 {
 				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				cf.UserHost = parts[partsLength-1]
+				hostUser = parts[partsLength-1]
 				break
 			}
 		}
@@ -2711,7 +2800,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = cf.UserHost
+	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}
@@ -3597,13 +3686,13 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 	}
 	fmt.Fprint(os.Stderr, msg)
 
-	err := reissueWithRequests(cf, tc, req.GetName())
+	err := reissueWithRequests(cf, tc, []string{req.GetName()}, nil /*dropRequests*/)
 	return trace.Wrap(err)
 }
 
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
-func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...string) error {
+func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []string, dropRequests []string) error {
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3612,12 +3701,15 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
-		AccessRequests: reqIDs,
-		RouteToCluster: cf.SiteName,
+		AccessRequests:     newRequests,
+		DropAccessRequests: dropRequests,
+		RouteToCluster:     cf.SiteName,
 	}
-	// if the certificate already had active requests, add them to our inputs parameters.
-	if len(profile.ActiveRequests.AccessRequests) > 0 {
-		params.AccessRequests = append(params.AccessRequests, profile.ActiveRequests.AccessRequests...)
+	// If the certificate already had active requests, add them to our inputs parameters.
+	for _, reqID := range profile.ActiveRequests.AccessRequests {
+		if !apiutils.SliceContainsStr(dropRequests, reqID) {
+			params.AccessRequests = append(params.AccessRequests, reqID)
+		}
 	}
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster
@@ -3752,10 +3844,10 @@ func printAppsWithClusters(apps []appListing, active []tlsca.RouteToApp, verbose
 	// lines per node.
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "URI", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+			[]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }

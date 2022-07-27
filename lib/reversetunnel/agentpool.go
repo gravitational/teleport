@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -543,7 +544,7 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 }
 
 // transport creates a new transport instance.
-func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn ssh.Conn) *transport {
+func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
 	return &transport{
 		closeContext:        ctx,
 		component:           p.Component,
