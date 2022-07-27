@@ -21,12 +21,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLocalSiteOverlap(t *testing.T) {
@@ -37,13 +38,11 @@ func TestLocalSiteOverlap(t *testing.T) {
 	ctxCancel()
 
 	srv := &server{
-		ctx: ctx,
-		newAccessPoint: func(clt auth.ClientI, _ []string) (auth.RemoteProxyAccessPoint, error) {
-			return clt, nil
-		},
+		ctx:             ctx,
+		localAuthClient: &mockLocalSiteClient{},
 	}
 
-	site, err := newlocalSite(srv, "clustername", nil /* authServers */, &mockLocalSiteClient{})
+	site, err := newlocalSite(srv, "clustername", nil)
 	require.NoError(t, err)
 
 	nodeID := uuid.NewString()
