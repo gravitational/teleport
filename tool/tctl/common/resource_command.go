@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -969,6 +970,10 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
+					if trace.IsBadParameter(err) {
+						log.Warnf("failed to get certificate authority: %v; skipping", err)
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
 				allAuthorities = append(allAuthorities, authorities...)

@@ -70,3 +70,8 @@ func IsConnectionRefused(err error) bool {
 	}
 	return false
 }
+
+// IsExpiredCredentialError checks if an error corresponds to expired credentials.
+func IsExpiredCredentialError(err error) bool {
+	return IsHandshakeFailedError(err) || IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
+}

@@ -51,12 +51,6 @@ type MultiLog struct {
 	*MultiEmitter
 }
 
-// WaitForDelivery waits for resources to be released and outstanding requests to
-// complete after calling Close method
-func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
-	return nil
-}
-
 // Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
@@ -122,9 +116,9 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
+		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}

@@ -39,9 +39,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrGithubNoTeams results from a github user not beloging to any teams.
+var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
+
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
-func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*services.GithubAuthRequest, error) {
-	ctx := context.TODO()
+func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(req services.GithubAuthRequest) (*servi
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Identity.CreateGithubAuthRequest(req)
+	err = a.Identity.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +119,7 @@ type GithubAuthResponse struct {
 	// TLSCert is PEM encoded TLS client certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is the original auth request
-	Req services.GithubAuthRequest `json:"req"`
+	Req types.GithubAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
@@ -188,7 +190,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q ur
 	return auth, nil
 }
 
-func (a *Server) getGithubConnectorAndClient(ctx context.Context, request services.GithubAuthRequest) (types.GithubConnector, *oauth2.Client, error) {
+func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, *oauth2.Client, error) {
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -308,14 +310,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
 	}
 	diagCtx.info.GithubTeamsToLogins = connector.GetTeamsToLogins()
-	logger.Debugf("Connector %q teams to logins: %v", connector.GetName(), connector.GetTeamsToLogins())
-
-	if len(connector.GetTeamsToLogins()) == 0 {
-		logger.Warnf("Github connector %q has empty teams_to_logins mapping, cannot populate claims.",
-			connector.GetName())
-		return nil, trace.BadParameter(
-			"connector %q has empty teams_to_logins mapping", connector.GetName())
-	}
+	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
+	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
@@ -353,7 +349,6 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	diagCtx.info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
-		Logins:        params.logins,
 		KubeGroups:    params.kubeGroups,
 		KubeUsers:     params.kubeUsers,
 		Roles:         params.roles,
@@ -384,7 +379,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -436,9 +431,6 @@ type createUserParams struct {
 	// username is the Teleport user name .
 	username string
 
-	// logins is the list of *nix logins.
-	logins []string
-
 	// kubeGroups is the list of Kubernetes groups this user belongs to.
 	kubeGroups []string
 
@@ -455,25 +447,22 @@ type createUserParams struct {
 	sessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *services.GithubAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      claims.Username,
 	}
 
 	// Calculate logins, kubegroups, roles, and traits.
-	p.logins, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
-	if len(p.logins) == 0 {
-		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
-			claims.Username, connector.GetName())
+	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
+	if len(p.roles) == 0 {
+		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
-	p.roles = p.logins
 	p.traits = map[string][]string{
-		teleport.TraitLogins:     {p.username},
-		teleport.TraitKubeGroups: p.kubeGroups,
-		teleport.TraitKubeUsers:  p.kubeUsers,
-		teleport.TraitTeams:      claims.Teams,
+		constants.TraitLogins:     {p.username},
+		constants.TraitKubeGroups: p.kubeGroups,
+		constants.TraitKubeUsers:  p.kubeUsers,
+		teleport.TraitTeams:       claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -489,8 +478,8 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 
 func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryRun bool) (types.User, error) {
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
-		"Generating dynamic GitHub identity %v/%v with logins: %v. Dry run: %v.",
-		p.connectorName, p.username, p.logins, dryRun)
+		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
+		p.connectorName, p.username, p.roles, dryRun)
 
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 

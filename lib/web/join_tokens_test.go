@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/trace"
@@ -33,7 +32,7 @@ import (
 
 func TestCreateNodeJoinToken(t *testing.T) {
 	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req auth.GenerateTokenRequest) (string, error) {
+	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 		return "some-token-id", nil
 	}
 
@@ -620,12 +619,12 @@ func TestIsSameRuleSet(t *testing.T) {
 }
 
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
+	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 }
 
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req auth.GenerateTokenRequest) (string, error) {
+func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if m.mockGenerateToken != nil {
 		return m.mockGenerateToken(ctx, req)
 	}

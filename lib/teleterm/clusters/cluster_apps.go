@@ -37,9 +37,13 @@ type App struct {
 
 // GetApps returns apps
 func (c *Cluster) GetApps(ctx context.Context) ([]App, error) {
-	// Get a list of all applications.
-	apps, err := c.clusterClient.ListApps(ctx, &proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+	var apps []types.Application
+	var err error
+	err = addMetadataToRetryableError(ctx, func() error {
+		apps, err = c.clusterClient.ListApps(ctx, &proto.ListResourcesRequest{
+			Namespace: defaults.Namespace,
+		})
+		return err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

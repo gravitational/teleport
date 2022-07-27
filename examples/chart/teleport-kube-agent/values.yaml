@@ -22,18 +22,27 @@ kubeClusterName: ""
 # Values that must be provided if Application access is enabled.
 ################################################################
 
+# At least one of 'apps', 'appResources' must be provided
+# when application access is enabled. See the README for more details.
+
 # Details of at least one app to be proxied. Example:
 # apps:
 #  - name: grafana
 #    uri: http://localhost:3000
 apps: []
 
+# Dynamic application configuration mode. Example:
+# appResources:
+#  - labels:
+#      "*": "*"
+appResources: []
+
 ################################################################
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# At least one of 'databases' or 'awsDatabases' must be provided when database access
-# is enabled. See the README for more details.
+# At least one of 'databases', 'awsDatabases' or 'databaseResources' must be provided
+# when database access is enabled. See the README for more details.
 
 # Database auto-discovery mode (AWS only)
 # Details of at least one awsDatabase discovery pattern to be discovered
@@ -55,12 +64,27 @@ awsDatabases: []
 #      env: "prod"
 databases: []
 
+# Dynamic database configuration mode. Example:
+# databaseResources:
+#  - labels:
+#      "*": "*"
+databaseResources: []
+
 ################################################################
 # Values that you may need to change.
 ################################################################
 
 # Version of teleport image, if different from appVersion in Chart.yaml.
 teleportVersionOverride: ""
+
+# Optional CA pins of the auth server. This enables a more secure way of
+# adding new nodes to a cluster. See "Adding Nodes to the Cluster"
+# (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
+# Each list element can be the pin itself (recommended), or a path to a file
+# containing the pin. For the latter it is your responsibility to mount
+# the file, using extraVolumes.
+caPin: []
+
 # When set to true, the agent will skip the verification of proxy TLS
 # certificate.
 insecureSkipProxyTLSVerify: false
@@ -78,9 +102,7 @@ podSecurityPolicy:
 # Labels is a map of key values pairs about this cluster
 labels: {}
 
-# Settings for high availability. These are not used in "standalone" mode.
-# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
-# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+# Settings for high availability.
 highAvailability:
   # Set to >1 for a high availability mode where multiple Teleport agent pods will be deployed.
   replicaCount: 1

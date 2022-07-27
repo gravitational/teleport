@@ -46,6 +46,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	case types.DatabaseTypeRDS,
 		types.DatabaseTypeRedshift,
 		types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
 	default:
@@ -121,7 +122,10 @@ func (s *Server) getCACertPath(database types.Database) (string, error) {
 	// older than 1.18. In addition, system cert path can be overridden by
 	// environment variables on many OSes. Therefore, Amazon root CA is
 	// downloaded here to be safe.
-	case types.DatabaseTypeElastiCache:
+	//
+	// AWS MemoryDB uses same CA as ElastiCache.
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL)), nil
 
 	// Each Cloud SQL instance has its own CA.
@@ -156,7 +160,8 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
-	case types.DatabaseTypeElastiCache:
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB:
 		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)

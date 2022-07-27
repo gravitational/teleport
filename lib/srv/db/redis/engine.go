@@ -23,6 +23,9 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -31,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func init() {
@@ -185,9 +187,16 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 
 	// Set default mode. Default mode can be overridden by URI parameters.
 	defaultMode := Standalone
-	if sessionCtx.Database.IsElastiCache() &&
-		sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-		defaultMode = Cluster
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
+			defaultMode = Cluster
+		}
+
+	case types.DatabaseTypeMemoryDB:
+		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
+			defaultMode = Cluster
+		}
 	}
 
 	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
@@ -307,8 +316,18 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		// Teleport errors should be returned to the client.
 		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		if sessionCtx.Database.IsElastiCache() && !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
-			return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
+		switch sessionCtx.Database.GetType() {
+		// Special message for ElastiCache servers without TLS enabled.
+		case types.DatabaseTypeElastiCache:
+			if !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
+				return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
+			}
+
+		// Special message for MemoryDB servers without TLS enabled.
+		case types.DatabaseTypeMemoryDB:
+			if !sessionCtx.Database.GetAWS().MemoryDB.TLSEnabled {
+				return nil, trace.ConnectionProblem(err, "Connection timeout on MemoryDB database. Please verify if in-transit encryption is enabled on the server.")
+			}
 		}
 
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.

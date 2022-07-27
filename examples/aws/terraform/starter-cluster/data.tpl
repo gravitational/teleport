@@ -13,6 +13,9 @@ TELEPORT_LICENSE_PATH=${license_path}
 TELEPORT_LOCKS_TABLE_NAME=${locks_table_name}
 TELEPORT_PROXY_SERVER_LB=${domain_name}
 TELEPORT_S3_BUCKET=${s3_bucket}
+TELEPORT_ENABLE_MONGODB=${enable_mongodb_listener}
+TELEPORT_ENABLE_MYSQL=${enable_mysql_listener}
+TELEPORT_ENABLE_POSTGRES=${enable_postgres_listener}
 USE_LETSENCRYPT=${use_letsencrypt}
 USE_ACM=${use_acm}
 EOF

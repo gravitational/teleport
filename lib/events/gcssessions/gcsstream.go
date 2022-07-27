@@ -289,6 +289,11 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 	}
 }
 
+// ReserveUploadPart reserves an upload part.
+func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	return nil
+}
+
 const (
 	// uploadsKey is a key that holds all upload-related objects
 	uploadsKey = "uploads"

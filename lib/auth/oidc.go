@@ -43,9 +43,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ErrOIDCNoRoles results from not mapping any roles from OIDC claims.
+var ErrOIDCNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
-func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request services.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
 	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
@@ -175,7 +178,7 @@ func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
 }
 
 // startSync starts a goroutine to sync the client with its provider
-// config until the given ctx is closed or the sync is cancelled.
+// config until the given ctx is closed or the sync is canceled.
 func (c *oidcClient) startSync(ctx context.Context) {
 	// SyncProviderConfig doesn't take a context for cancellation, instead it
 	// returns a channel that has to be closed to stop the sync. To ensure that the
@@ -255,9 +258,9 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	connector, client, err := a.getOIDCConnectorAndClient(ctx, req)
@@ -295,7 +298,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = a.Identity.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -366,8 +369,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
 
 	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
-	if hasEmailVerifiedClaim && emailVerified == "false" {
-		return unverifiedErr
+	if hasEmailVerifiedClaim {
+		if emailVerified == "false" {
+			return unverifiedErr
+		}
+		if emailVerified == "true" {
+			return nil
+		}
+
+		return trace.BadParameter("unable to parse oidc claim: %q, must be either 'true' or 'false', got '%s'", claimName, emailVerified)
 	}
 
 	data, ok := claims[claimName]
@@ -489,7 +499,6 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	diagCtx.info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
-		Logins:        params.logins,
 		KubeGroups:    params.kubeGroups,
 		KubeUsers:     params.kubeUsers,
 		Roles:         params.roles,
@@ -579,13 +588,13 @@ type OIDCAuthResponse struct {
 	// TLSCert is PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is original oidc auth request
-	Req services.OIDCAuthRequest `json:"req"`
+	Req types.OIDCAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
-func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -613,7 +622,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+		return nil, trace.Wrap(ErrOIDCNoRoles)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.

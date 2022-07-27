@@ -21,6 +21,7 @@ package touchid
 // #cgo LDFLAGS: -framework CoreFoundation -framework Foundation -framework LocalAuthentication -framework Security
 // #include <stdlib.h>
 // #include "authenticate.h"
+// #include "context.h"
 // #include "credential_info.h"
 // #include "credentials.h"
 // #include "diag.h"
@@ -29,8 +30,10 @@ import "C"
 
 import (
 	"encoding/base64"
-	"errors"
+	"fmt"
+	"runtime/cgo"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -48,6 +51,10 @@ const (
 	// rpID are domain names, so it's safe to assume they won't have spaces in them.
 	// https://www.w3.org/TR/webauthn-2/#relying-party-identifier
 	labelSeparator = " "
+
+	// promptReason is the LAContext / Touch ID prompt.
+	// The final prompt is: "$binary is trying to authenticate user".
+	promptReason = "authenticate user"
 )
 
 type parsedLabel struct {
@@ -98,6 +105,66 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 	}, nil
 }
 
+//export runGoFuncHandle
+func runGoFuncHandle(handle C.uintptr_t) {
+	val := cgo.Handle(handle).Value()
+	fn, ok := val.(func())
+	if !ok {
+		log.Warnf("Touch ID: received unexpected function handle: %T", val)
+		return
+	}
+	fn()
+}
+
+// touchIDContext wraps C.AuthContext into an authContext shell.
+type touchIDContext struct {
+	ctx *C.AuthContext
+}
+
+func (c *touchIDContext) Guard(fn func()) error {
+	reasonC := C.CString(promptReason)
+	defer C.free(unsafe.Pointer(reasonC))
+
+	// Passing Go function pointers directly to CGO is not doable, so we pass a
+	// handle and have an exported Go function run it.
+	// See https://github.com/golang/go/wiki/cgo#function-variables.
+	handle := cgo.NewHandle(fn)
+	defer handle.Delete()
+
+	var errMsgC *C.char
+	defer C.free(unsafe.Pointer(errMsgC))
+
+	res := C.AuthContextGuard(c.ctx, reasonC, C.uintptr_t(handle), &errMsgC)
+	if res != 0 {
+		errMsg := C.GoString(errMsgC)
+		return errorFromStatus("guard", int(res), errMsg)
+	}
+
+	return nil
+}
+
+func (c *touchIDContext) Close() {
+	if c.ctx == nil {
+		return
+	}
+	C.AuthContextClose(c.ctx)
+	c.ctx = nil
+}
+
+// getNativeContext returns the C.AuthContext within ctx, or nil.
+func getNativeContext(ctx AuthContext) *C.AuthContext {
+	if tctx, ok := ctx.(*touchIDContext); ok {
+		return tctx.ctx
+	}
+	return nil
+}
+
+func (touchIDImpl) NewAuthContext() AuthContext {
+	return &touchIDContext{
+		ctx: &C.AuthContext{},
+	}
+}
+
 func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
 	credentialID := uuid.NewString()
 	userHandleB64 := base64.RawURLEncoding.EncodeToString(userHandle)
@@ -120,7 +187,7 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 
 	if res := C.Register(req, &pubKeyC, &errMsgC); res != 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("register", int(res), errMsg)
 	}
 
 	pubKeyB64 := C.GoString(pubKeyC)
@@ -135,7 +202,9 @@ func (touchIDImpl) Register(rpID, user string, userHandle []byte) (*CredentialIn
 	}, nil
 }
 
-func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, error) {
+func (touchIDImpl) Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error) {
+	authCtx := getNativeContext(actx)
+
 	var req C.AuthenticateRequest
 	req.app_label = C.CString(credentialID)
 	req.digest = (*C.char)(C.CBytes(digest))
@@ -151,9 +220,9 @@ func (touchIDImpl) Authenticate(credentialID string, digest []byte) ([]byte, err
 		C.free(unsafe.Pointer(errMsgC))
 	}()
 
-	if res := C.Authenticate(req, &sigOutC, &errMsgC); res != 0 {
+	if res := C.Authenticate(authCtx, req, &sigOutC, &errMsgC); res != 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("authenticate", int(res), errMsg)
 	}
 
 	sigB64 := C.GoString(sigOutC)
@@ -172,14 +241,13 @@ func (touchIDImpl) FindCredentials(rpID, user string) ([]CredentialInfo, error) 
 		return C.FindCredentials(filterC, infosC)
 	})
 	if res < 0 {
-		return nil, trace.BadParameter("failed to find credentials: status %d", res)
+		return nil, errorFromStatus("finding credentials", res, "" /* msg */)
 	}
 	return infos, nil
 }
 
 func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
-	// User prompt becomes: ""$binary" is trying to list credentials".
-	reasonC := C.CString("list credentials")
+	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
 	var errMsgC *C.char
@@ -195,7 +263,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	})
 	if res < 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errors.New(errMsg)
+		return nil, errorFromStatus("listing credentials", int(res), errMsg)
 	}
 
 	return infos, nil
@@ -214,7 +282,7 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 	size := unsafe.Sizeof(C.CredentialInfo{})
 	infos := make([]CredentialInfo, 0, res)
 	for i := 0; i < int(res); i++ {
-		var label, appLabel, appTag, pubKeyB64 string
+		var label, appLabel, appTag, pubKeyB64, creationDate string
 		{
 			infoC := (*C.CredentialInfo)(unsafe.Add(start, uintptr(i)*size))
 
@@ -223,12 +291,14 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 			appLabel = C.GoString(infoC.app_label)
 			appTag = C.GoString(infoC.app_tag)
 			pubKeyB64 = C.GoString(infoC.pub_key_b64)
+			creationDate = C.GoString(infoC.creation_date)
 
 			// ... then free it before proceeding.
 			C.free(unsafe.Pointer(infoC.label))
 			C.free(unsafe.Pointer(infoC.app_label))
 			C.free(unsafe.Pointer(infoC.app_tag))
 			C.free(unsafe.Pointer(infoC.pub_key_b64))
+			C.free(unsafe.Pointer(infoC.creation_date))
 		}
 
 		// credential ID / UUID
@@ -256,11 +326,21 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 			// deallocate the structs within.
 		}
 
+		// iso8601Format is pretty close to, but not exactly the same as, RFC3339.
+		const iso8601Format = "2006-01-02T15:04:05Z0700"
+		createTime, err := time.Parse(iso8601Format, creationDate)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to parse creation time %q for credential %q", creationDate, credentialID)
+		}
+
 		infos = append(infos, CredentialInfo{
-			UserHandle:   userHandle,
 			CredentialID: credentialID,
 			RPID:         parsedLabel.rpID,
-			User:         parsedLabel.user,
+			User: UserInfo{
+				UserHandle: userHandle,
+				Name:       parsedLabel.user,
+			},
+			CreateTime:   createTime,
 			publicKeyRaw: pubKeyRaw,
 		})
 	}
@@ -271,8 +351,7 @@ func readCredentialInfos(find func(**C.CredentialInfo) C.int) ([]CredentialInfo,
 const errSecItemNotFound = -25300
 
 func (touchIDImpl) DeleteCredential(credentialID string) error {
-	// User prompt becomes: ""$binary" is trying to delete credential".
-	reasonC := C.CString("delete credential")
+	reasonC := C.CString(promptReason)
 	defer C.free(unsafe.Pointer(reasonC))
 
 	idC := C.CString(credentialID)
@@ -281,13 +360,34 @@ func (touchIDImpl) DeleteCredential(credentialID string) error {
 	var errC *C.char
 	defer C.free(unsafe.Pointer(errC))
 
-	switch C.DeleteCredential(reasonC, idC, &errC) {
+	switch res := C.DeleteCredential(reasonC, idC, &errC); res {
 	case 0: // aka success
 		return nil
 	case errSecItemNotFound:
 		return ErrCredentialNotFound
 	default:
 		errMsg := C.GoString(errC)
-		return errors.New(errMsg)
+		return errorFromStatus("delete credential", int(res), errMsg)
 	}
+}
+
+func (touchIDImpl) DeleteNonInteractive(credentialID string) error {
+	idC := C.CString(credentialID)
+	defer C.free(unsafe.Pointer(idC))
+
+	switch res := C.DeleteNonInteractive(idC); res {
+	case 0: // aka success
+		return nil
+	case errSecItemNotFound:
+		return ErrCredentialNotFound
+	default:
+		return errorFromStatus("non-interactive delete", int(res), "" /* msg */)
+	}
+}
+
+func errorFromStatus(prefix string, status int, msg string) error {
+	if msg != "" {
+		return fmt.Errorf("%v: %v", prefix, msg)
+	}
+	return fmt.Errorf("%v: status %d", prefix, status)
 }

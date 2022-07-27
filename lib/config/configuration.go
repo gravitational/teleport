@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -537,7 +538,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.SSHAddr = *addr
+		cfg.Auth.ListenAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -617,13 +618,16 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode:                fc.Auth.SessionRecording,
-		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override session recording configuration if either field is
+	// specified in file configuration.
+	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+			Mode:                fc.Auth.SessionRecording,
+			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := applyKeyStoreConfig(fc, cfg); err != nil {
@@ -991,6 +995,12 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
+		cfg.SSH.DisableCreateHostUser = true
+		if runtime.GOOS != constants.LinuxOS {
+			log.Debugln("Disabling host user creation as this feature is only available on Linux")
+		}
+	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 
@@ -1035,6 +1045,16 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	for _, matcher := range fc.SSH.AWSMatchers {
+		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+			services.AWSMatcher{
+				Types:       matcher.Types,
+				Regions:     matcher.Regions,
+				Tags:        matcher.Tags,
+				SSMDocument: matcher.SSMDocument,
+			})
 	}
 
 	return nil
@@ -1153,6 +1173,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ElastiCache: service.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: database.AWS.MemoryDB.ClusterName,
+				},
 				SecretStore: service.DatabaseAWSSecretStore{
 					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
 					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
@@ -1269,6 +1292,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 				Headers:  headers,
 			}
 		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
+			}
+		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1368,6 +1396,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}
+
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	cfg.WindowsDesktop.Discovery = fc.WindowsDesktop.Discovery
 
 	var err error
@@ -1945,7 +1980,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2052,8 +2087,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.SSHAddr,
-		&cfg.Auth.SSHAddr,
+		&cfg.Auth.ListenAddr,
+		&cfg.Auth.ListenAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
@@ -2107,12 +2142,15 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		if cfg.Token != "" {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		cfg.Token = fc.JoinParams.TokenName
+		_, err := cfg.ApplyToken(fc.JoinParams.TokenName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM:
+		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
 	return nil

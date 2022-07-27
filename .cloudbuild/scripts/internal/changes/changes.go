@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package changes implements a script to analyse the changes between
+// Package changes implements a script to analyze the changes between
 // a commit and a given branch. It is designed for use when comparing
 // the tip of a PR against the merge target
 package changes
@@ -29,10 +29,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Changes describes the kind of changes found in the analysed workspace.
+// Changes describes the kind of changes found in the analyzed workspace.
 type Changes struct {
-	Docs bool
-	Code bool
+	Docs       bool
+	Code       bool
+	Enterprise bool
 }
 
 // Analyze examines the workspace for specific changes using its git history,
@@ -57,15 +58,18 @@ func Analyze(workspaceDir string, targetBranch string, commitSHA string) (Change
 		case path == "":
 			continue
 
+		case path == "e":
+			report.Enterprise = true
+
 		case isDocChange(path):
-			report.Docs = report.Docs || true
+			report.Docs = true
 
 		default:
-			report.Code = report.Code || true
+			report.Code = true
 		}
 
-		if report.Docs && report.Code {
-			// There's no sense in exhaustively listing all of the changes if
+		if report.Docs && report.Code && report.Enterprise {
+			// There's no sense in exhaustively listing all the changes if
 			// the answer won't change, so bail early.
 			break
 		}

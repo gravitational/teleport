@@ -57,6 +57,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 				clusterName: q.Get("cluster"),
 				publicAddr:  q.Get("addr"),
 				awsRole:     q.Get("awsrole"),
+				path:        q.Get("path"),
 				stateToken:  stateToken,
 			}
 			return h.redirectToLauncher(w, r, urlParams)

@@ -165,6 +165,14 @@ type Server interface {
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
+
+	// GetCreateHostUser returns whether the node should create
+	// temporary teleport users or not
+	GetCreateHostUser() bool
+
+	// GetHostUser returns the HostUsers instance being used to manage
+	// host user provisioning
+	GetHostUsers() HostUsers
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -179,7 +187,7 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 

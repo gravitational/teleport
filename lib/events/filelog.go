@@ -362,7 +362,7 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	return event.GetID(), nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", fromUTC, toUTC, order, limit, cond)
 	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
 	if cond != nil {
@@ -393,10 +393,6 @@ func (l *FileLog) Close() error {
 		l.file = nil
 	}
 	return err
-}
-
-func (l *FileLog) WaitForDelivery(context.Context) error {
-	return nil
 }
 
 func (l *FileLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {

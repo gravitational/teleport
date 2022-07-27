@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -41,6 +42,31 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
+)
+
+// FileFD is a file descriptor passed down from a parent process when
+// Teleport is re-executing itself.
+type FileFD = uintptr
+
+const (
+	// CommandFile is used to pass the command and arguments that the
+	// child process should execute from the parent process.
+	CommandFile FileFD = 3 + iota
+	// ContinueFile is used to communicate to the child process that
+	// it can continue after the parent process assigns a cgroup to the
+	// child process.
+	ContinueFile
+	// X11File is used to communicate to the parent process that the child
+	// process has set up X11 forwarding.
+	X11File
+	// PTYFile is a PTY the parent process passes to the child process.
+	PTYFile
+	// TTYFile is a TTY the parent process passes to the child process.
+	TTYFile
+
+	// FirstExtraFile is the first file descriptor that will be valid when
+	// extra files are passed to child processes without a terminal.
+	FirstExtraFile FileFD = X11File + 1
 )
 
 // ExecCommand contains the payload to "teleport exec" which will be used to
@@ -93,6 +119,11 @@ type ExecCommand struct {
 
 	// X11Config contains an xauth entry to be added to the command user's xauthority.
 	X11Config X11Config `json:"x11_config"`
+
+	// ExtraFilesLen is the number of extra files that are inherited from
+	// the parent process. These files start at file descriptor 3 of the
+	// child process, and are only valid for processes without a terminal.
+	ExtraFilesLen int `json:"extra_files_len"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -140,11 +171,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stdout
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	contfd := os.NewFile(uintptr(4), "/proc/self/fd/4")
+	contfd := os.NewFile(ContinueFile, "/proc/self/fd/4")
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
@@ -169,8 +200,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(uintptr(6), "/proc/self/fd/6")
-		tty = os.NewFile(uintptr(7), "/proc/self/fd/7")
+		pty = os.NewFile(PTYFile, "/proc/self/fd/6")
+		tty = os.NewFile(TTYFile, "/proc/self/fd/7")
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -237,12 +268,38 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	defer func() {
+		for _, f := range cmd.ExtraFiles {
+			if err := f.Close(); err != nil {
+				log.WithError(err).Warn("Error closing extra file.")
+			}
+		}
+	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
 	err = waitForContinue(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// If we're planning on changing credentials, we should first park an
+	// innocuous process with the same UID and then check the user database
+	// again, to avoid it getting deleted under our nose.
+	parkerCtx, parkerCancel := context.WithCancel(context.Background())
+	defer parkerCancel()
+	if cmd.SysProcAttr.Credential != nil {
+		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		localUserCheck, err := user.Lookup(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
+		}
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -260,25 +317,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		// Update localUser's xauth database for X11 forwarding.
+		// Update localUser's xauth database for X11 forwarding. We set
+		// cmd.SysProcAttr.Setsid, cmd.Env, and cmd.Dir so that the xauth command
+		// acts as if called within the following shell/exec, so that the
+		// xauthority files is put into the correct place ($HOME/.Xauthority)
+		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
-
-		// Copy the re-exec command's io and user environment fields.
-		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
-			cmd.Stdout = params.Stdout
-			cmd.Stdin = params.Stdin
-			cmd.Stderr = params.Stderr
-			cmd.SysProcAttr = params.SysProcAttr
-			cmd.Env = params.Env
-			cmd.Dir = params.Dir
-		}
-		cpyCmdFields(removeCmd.Cmd, cmd)
-		cpyCmdFields(addCmd.Cmd, cmd)
-
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.Env = cmd.Env
+		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
+
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.Env = cmd.Env
+		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -287,7 +342,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
 
 		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(uintptr(5), "/proc/self/fd/5")
+		x11rdyfd := os.NewFile(X11File, "/proc/self/fd/5")
 		if x11rdyfd == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 		}
@@ -310,6 +365,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+
+	parkerCancel()
 
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
@@ -336,7 +393,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stderr
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(uintptr(3), "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
@@ -423,6 +480,13 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
+// runPark does nothing, forever.
+func runPark() (errw io.Writer, code int, err error) {
+	for {
+		time.Sleep(time.Hour)
+	}
+}
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -438,6 +502,8 @@ func RunAndExit(commandType string) {
 		w, code, err = RunForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
+	case teleport.ParkSubCommand:
+		w, code, err = runPark()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -453,7 +519,8 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand,
+			teleport.ParkSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}
@@ -543,6 +610,21 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}
+
+		// If a terminal was not requested, and extra files were specified
+		// to be passed to the child, open them so that they can be passed
+		// to the grandchild.
+		if c.ExtraFilesLen > 0 {
+			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
+			for i := 0; i < c.ExtraFilesLen; i++ {
+				fd := FirstExtraFile + uintptr(i)
+				f := os.NewFile(fd, strconv.Itoa(int(fd)))
+				if f == nil {
+					return nil, trace.NotFound("extra file %d not found", fd)
+				}
+				cmd.ExtraFiles[i] = f
+			}
+		}
 	}
 
 	// Set the command's cwd to the user's $HOME, or "/" if
@@ -596,7 +678,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
+func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
 	// Create a os.Pipe and start copying over the payload to execute. While the
 	// pipe buffer is quite large (64k) some users have run into the pipe
 	// blocking writes on much smaller buffers (7k) leading to Teleport being
@@ -614,6 +696,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !cmdmsg.Terminal {
+		cmdmsg.ExtraFilesLen = len(extraFiles)
+	}
+
 	cmdbytes, err := json.Marshal(cmdmsg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -648,6 +734,10 @@ func ConfigureCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			ctx.contr,
 			ctx.x11rdyw,
 		},
+	}
+	// Add extra files if applicable.
+	if len(extraFiles) > 0 {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -719,6 +809,32 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
+}
+
+// Spawns a process with the given credentials, outliving the context.
+func newParker(ctx context.Context, credential syscall.Credential) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &credential,
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	if err := cmd.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// the process will get killed when the context ends but we still need to
+	// Wait on it
+	go cmd.Wait()
+
+	return nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the

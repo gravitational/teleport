@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
@@ -40,6 +41,9 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -55,10 +59,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -71,7 +76,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -233,7 +238,21 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
+
+	serviceReadyEvents := []string{
+		service.ProxyWebServerReady,
+		service.NodeSSHReady,
+	}
+	if cfg.Databases.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
+	}
+	waitForEvents(t, process, serviceReadyEvents...)
+
+	if cfg.Databases.Enabled {
+		for _, database := range cfg.Databases.Databases {
+			waitForDatabase(t, process, database)
+		}
+	}
 	return process
 }
 

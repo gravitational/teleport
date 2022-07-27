@@ -61,8 +61,14 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsTCP returns true if this app represents a TCP endpoint.
+	IsTCP() bool
+	// GetProtocol returns the application protocol.
+	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS External ID configured for this app.
+	GetAWSExternalID() string
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -234,9 +240,30 @@ func (a *AppV3) IsAWSConsole() bool {
 	return strings.HasPrefix(a.Spec.URI, constants.AWSConsoleURL)
 }
 
+// IsTCP returns true if this app represents a TCP endpoint.
+func (a *AppV3) IsTCP() bool {
+	return strings.HasPrefix(a.Spec.URI, "tcp://")
+}
+
+// GetProtocol returns the application protocol.
+func (a *AppV3) GetProtocol() string {
+	if a.IsTCP() {
+		return "TCP"
+	}
+	return "HTTP"
+}
+
 // GetAWSAccountID returns value of label containing AWS account ID on this app.
 func (a *AppV3) GetAWSAccountID() string {
 	return a.Metadata.Labels[constants.AWSAccountIDLabel]
+}
+
+// GetAWSExternalID returns the AWS External ID configured for this app.
+func (a *AppV3) GetAWSExternalID() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.ExternalID
 }
 
 // String returns the app string representation.
@@ -301,14 +328,17 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DeduplicateApps deduplicates apps by name.
+// DeduplicateApps deduplicates apps by combination of app name and public address.
+// Apps can have the same name but also could have different addresses.
 func DeduplicateApps(apps []Application) (result []Application) {
-	seen := make(map[string]struct{})
+	type key struct{ name, addr string }
+	seen := make(map[key]struct{})
 	for _, app := range apps {
-		if _, ok := seen[app.GetName()]; ok {
+		key := key{app.GetName(), app.GetPublicAddr()}
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[app.GetName()] = struct{}{}
+		seen[key] = struct{}{}
 		result = append(result, app)
 	}
 	return result

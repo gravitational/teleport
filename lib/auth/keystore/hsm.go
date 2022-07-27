@@ -391,7 +391,9 @@ func (c *hsmKeyStore) DeleteUnusedKeys(usedKeys [][]byte) error {
 			continue
 		}
 		if err := signer.Delete(); err != nil {
-			return trace.Wrap(err)
+			// Key deletion is best-effort, log a warning on errors. Errors have
+			// been observed when FindKeyPairs returns duplicate keys.
+			c.log.Warnf("failed deleting unused key from HSM: %v", err)
 		}
 	}
 	return nil

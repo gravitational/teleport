@@ -40,6 +40,9 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
+// ErrSAMLNoRoles results from not mapping any roles from SAML claims.
+var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
 	if err := a.Identity.UpsertSAMLConnector(ctx, connector); err != nil {
@@ -82,8 +85,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	ctx := context.TODO()
+func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	connector, provider, err := a.getSAMLConnectorAndProvider(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -116,14 +118,14 @@ func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.Identity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
+	err = a.Identity.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
 }
 
-func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req services.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -187,7 +189,7 @@ func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServicePr
 	return serviceProvider, nil
 }
 
-func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAMLConnector, assertionInfo saml2.AssertionInfo, request *types.SAMLAuthRequest) (*createUserParams, error) {
 	p := createUserParams{
 		connectorName: connector.GetName(),
 		username:      assertionInfo.NameID,
@@ -213,7 +215,7 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
 		}
-		return nil, trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
+		return nil, trace.Wrap(ErrSAMLNoRoles)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -354,7 +356,7 @@ type SAMLAuthResponse struct {
 	// TLSCert is a PEM encoded TLS certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// Req is an original SAML auth request
-	Req services.SAMLAuthRequest `json:"req"`
+	Req types.SAMLAuthRequest `json:"req"`
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
@@ -483,7 +485,6 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	diagCtx.info.CreateUserParams = &types.CreateUserParams{
 		ConnectorName: params.connectorName,
 		Username:      params.username,
-		Logins:        params.logins,
 		KubeGroups:    params.kubeGroups,
 		KubeUsers:     params.kubeUsers,
 		Roles:         params.roles,

@@ -1,0 +1,69 @@
+FROM centos:7 AS centos-devtoolset
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+        # required by libbpf, Clang
+        centos-release-scl \
+        # required by Clang/LLVM
+        cmake3 \
+        # required by libbpf and Clang
+        devtoolset-11-gcc* \
+        # required by libbpf
+        devtoolset-11-make \
+        # required by libbpf
+        elfutils-libelf-devel \
+        # required by libbpf
+        elfutils-libelf-devel-static \
+        git \
+        # required by libbpf, Clang
+        scl-utils \
+        # required by libbpf
+        zlib-devel \
+        # required by libbpf
+        zlib-static && \
+    yum clean all
+
+# Use just created devtool image with newer GCC and Cmake
+FROM centos-devtoolset as clang10
+
+# Compile Clang 10.0.1 from source. It is needed to create BPF files.
+# Centos 7 doesn't provide it as a package unfortunately.
+# LLVM_INCLUDE_BENCHMARKS must be off, otherwise compilation fails,
+# CLANG_BUILD_TOOLS must be on, it builds clang binary,
+# LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
+# the rest is disabled to speedup the compilation.
+RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-project.git && \
+    cd llvm-project/ && \
+    mkdir build && cd build/ && \
+    scl enable devtoolset-11 'bash -c "cmake3 \
+    -DCLANG_BUILD_TOOLS=ON \
+    -DCLANG_ENABLE_ARCMT=OFF \
+    -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/llvm \
+    -DLLVM_BUILD_TOOLS=ON \
+    -DLLVM_BUILD_UTILS=OFF \
+    -DLLVM_ENABLE_BINDINGS=OFF \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_INCLUDE_BENCHMARKS=OFF \
+    -DLLVM_INCLUDE_GO_TESTS=OFF \
+    -DLLVM_INCLUDE_TESTS=OFF \
+    -DLLVM_TOOL_LLI_BUILD=OFF \
+    -G \"Unix Makefiles\" ../llvm && \
+    make -j6 &&  \
+    make install"' && \
+    cd ../.. && \
+    rm -rf llvm-project
+
+FROM centos:7 AS assetbox
+
+# Copy Clang into the final image.
+COPY --from=clang10 /opt/llvm /opt/llvm/
+ENV PATH=/opt/llvm/bin:${PATH}
+
+# Create the archive and copy it to the host.
+RUN tar -czvf centos7-assets.tar.gz /opt

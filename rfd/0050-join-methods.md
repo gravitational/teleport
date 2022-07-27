@@ -35,32 +35,33 @@ PKI.
 ### Current Join Endpoints
 
 #### Auth `POST /tokens/register`
-Join methods: token, EC2
-Server trust: CA pins
+
+**Join methods:** token, EC2  
+**Server trust:** CA pins
+
 This is the main token register endpoint on the Auth server. Accepts tokens or
 EC2 Identity Documents to authenticate the client.
 
-#### Auth `POST /tokens/register/auth`
-Join Methods: token
-Server trust: CA pins
-Looks like this is a legacy endpoint the just deletes the given token. Only
-works for tokens with the `Auth` role. I can't find anything that calls this, so
-it can probably be scheduled for deletion.
-
 #### Auth `rpc GenerateHostCerts(HostCertsRequest) returns (Certs)`
-Client trust: mTLS
-Server trust: mTLS
+
+**Client trust:** mTLS  
+**Server trust:** mTLS
+
 This is an mTLS authenticated gRPC endpoint for cert renewal. The node must
 first join the cluster using another endpoint to get its first client
 certificate used for the mTLS connection.
 
 #### Proxy `POST /webapi/host/credentials`
-Join methods: token, EC2
-Server trust: PKI
-This is the proxy endpoint for registering IoT nodes that don't have a direct connection to the auth server, it basically forwards to
-the Auth `/tokens/register` endpoint.
+
+**Join methods:** token, EC2  
+**Server trust:** PKI
+
+This is the proxy endpoint for registering IoT nodes that don't have a direct
+connection to the auth server, it basically forwards to the Auth
+`/tokens/register` endpoint.
 
 ### IAM Join Method
+
 The IAM join method (introduced in RFD 41) requires gRPC methods rather than
 HTTP because the design requires streams to implement a challenge/response
 protocol. To summarize, after the client initiates the rpc the Auth server sends
@@ -74,13 +75,17 @@ client will be able to call the gRPC method with either a Proxy or Auth address
 and it will "just work" transparently.
 
 #### Auth `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
-Join methods: IAM
-Server trust: CA pins
+
+**Join methods:** IAM  
+**Server trust:** CA pins
+
 This is the Auth endpoint that will complete the IAM join request.
 
 #### Proxy `rpc RegisterUsingIAM(stream RegisterUsingIAMRequest) returns (stream RegisterUsingIAMResponse)`
-Join methods: IAM
-Server trust: PKI
+
+**Join methods:** IAM  
+**Server trust:** PKI
+
 Normally, authenticated gRPC calls from IoT nodes are tunnelled through the
 proxy over SSH. This will not work for unauthenticated clients which don't yet
 have an SSH certificate.
@@ -101,6 +106,7 @@ and a special ALPN ProtocolName of `teleport-proxy-grpc` that will be passed by
 the client.
 
 ### Certificate Bot
+
 The Certificate Bot needs to get an initial renewable user certificate for the
 cluster. It will either provide a token or use the new EC2 or IAM methods to get
 the initial certificate. This is very similar to a node joining a cluster,

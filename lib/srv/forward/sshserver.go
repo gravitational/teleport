@@ -406,6 +406,18 @@ func (s Server) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
+// GetCreateHostUser determines whether users should be created on the
+// host automatically
+func (s *Server) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUser returns the HostUsers instance being used to manage
+// host user provisioning, unimplemented for the forwarder server.
+func (s *Server) GetHostUsers() srv.HostUsers {
+	return nil
+}
+
 // GetRestrictedSessionManager returns a NOP manager since for a
 // forwarding server it makes no sense (it has to run on the actual
 // node).
@@ -906,7 +918,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ch, req, scx)
 		case sshutils.ShellRequest:
-			return s.termHandlers.HandleShell(ch, req, scx)
+			return s.termHandlers.HandleShell(ctx, ch, req, scx)
 		case sshutils.WindowChangeRequest:
 			return s.termHandlers.HandleWinChange(ch, req, scx)
 		case teleport.ForceTerminateRequest:
@@ -916,6 +928,15 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, scx)
+		case sshutils.AgentForwardRequest:
+			// to maintain interoperability with OpenSSH, agent forwarding requests
+			// should never fail, all errors should be logged and we should continue
+			// processing requests.
+			err := s.handleAgentForward(ch, req, scx)
+			if err != nil {
+				s.log.Debug(err)
+			}
+			return nil
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -925,11 +946,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return s.handleTracingRequest(req, scx)
 	case sshutils.ExecRequest:
-		return s.termHandlers.HandleExec(ch, req, scx)
+		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ch, req, scx)
 	case sshutils.ShellRequest:
-		return s.termHandlers.HandleShell(ch, req, scx)
+		return s.termHandlers.HandleShell(ctx, ch, req, scx)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ch, req, scx)
 	case teleport.ForceTerminateRequest:

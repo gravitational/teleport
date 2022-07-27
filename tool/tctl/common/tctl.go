@@ -18,7 +18,9 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -137,7 +139,7 @@ func Run(commands []CLICommand) {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print cluster version")
+	ver := app.Command("version", "Print the version of your tctl binary")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -282,6 +284,15 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
+					"Please make sure that Teleport is up and running prior to using tctl.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+			} else if errors.Is(err, fs.ErrPermission) {
+				return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
+					"Ensure that you are running as a user with appropriate permissions.",
+					filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+			}
 			return nil, trace.Wrap(err)
 		}
 		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})

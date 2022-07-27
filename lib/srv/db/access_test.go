@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -926,61 +927,6 @@ func TestPostgresInjectionUser(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestCompatibilityWithOldAgents verifies that older database agents where
-// each database was represented as a DatabaseServer are supported.
-//
-// DELETE IN 9.0.
-func TestCompatibilityWithOldAgents(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t)
-	go testCtx.startProxy()
-
-	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
-		Name:       "postgres",
-		AuthClient: testCtx.authClient,
-	})
-	require.NoError(t, err)
-	go postgresServer.Serve()
-	t.Cleanup(func() { postgresServer.Close() })
-
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "postgres",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      net.JoinHostPort("localhost", postgresServer.Port()),
-	})
-	require.NoError(t, err)
-	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: []types.Database{database},
-		GetServerInfoFn: func(database types.Database) func() (types.Resource, error) {
-			return func() (types.Resource, error) {
-				return types.NewDatabaseServerV3(types.Metadata{
-					Name: database.GetName(),
-				}, types.DatabaseServerSpecV3{
-					Protocol: database.GetProtocol(),
-					URI:      database.GetURI(),
-					HostID:   testCtx.hostID,
-					Hostname: constants.APIDomain,
-				})
-			}
-		},
-	})
-	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
-			go databaseServer.HandleConnection(conn)
-		}
-	}()
-
-	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"postgres"}, []string{"postgres"})
-
-	// Make sure we can connect successfully.
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
-	require.NoError(t, err)
-
-	err = psql.Close(ctx)
-	require.NoError(t, err)
-}
-
 func TestRedisGetSet(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
@@ -1051,7 +997,7 @@ func TestRedisPubSub(t *testing.T) {
 			require.NoError(t, err)
 
 			var fooSub *goredis.PubSub
-			// Create a synchronisation channel between publisher and subscriber
+			// Create a synchronization channel between publisher and subscriber
 			syncChan := make(chan bool)
 
 			go func() {
@@ -1205,7 +1151,7 @@ func TestRedisTransaction(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	// use just 2 concurrent connections as we want to test our proxy/protocol behaviour not Redis concurrency.
+	// use just 2 concurrent connections as we want to test our proxy/protocol behavior not Redis concurrency.
 	const concurrentConnections = 2
 
 	// Create a channel for potential transaction errors, as testify require package cannot be used from a goroutine.
@@ -1955,11 +1901,14 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		OnReconcile: p.OnReconcile,
 		LockWatcher: lockWatcher,
 		CloudClients: &common.TestCloudClients{
-			STS:      &cloud.STSMock{},
-			RDS:      &cloud.RDSMock{},
-			Redshift: &cloud.RedshiftMock{},
-			IAM:      &cloud.IAMMock{},
-			GCPSQL:   p.GCPSQL,
+			STS:            &cloud.STSMock{},
+			RDS:            &cloud.RDSMock{},
+			Redshift:       &cloud.RedshiftMock{},
+			ElastiCache:    &cloud.ElastiCacheMock{},
+			MemoryDB:       &cloud.MemoryDBMock{},
+			SecretsManager: secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:            &cloud.IAMMock{},
+			GCPSQL:         p.GCPSQL,
 		},
 	})
 	require.NoError(t, err)

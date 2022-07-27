@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -36,7 +37,7 @@ type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialogue shown to user,
+	// Prompt is the optional dialog shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -76,8 +77,6 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
-	// SSHLogins defines access to servers.
-	SSHLogins []string `json:"sshLogins"`
 	// WindowsLogins defines access to logins on windows desktop servers.
 	WindowsLogins []string `json:"windowsLogins"`
 	// AccessRequests defines access to access requests.
@@ -88,6 +87,8 @@ type userACL struct {
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
+	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
+	DirectorySharing bool `json:"directorySharing"`
 }
 
 type authType string
@@ -111,26 +112,6 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
-}
-
-func getLogins(roleSet services.RoleSet) []string {
-	allowed := []string{}
-	denied := []string{}
-	for _, role := range roleSet {
-		denied = append(denied, role.GetLogins(types.Deny)...)
-		allowed = append(allowed, role.GetLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	userLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
-			userLogins = append(userLogins, login)
-		}
-	}
-
-	return userLogins
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -221,11 +202,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
-	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
+	directorySharing := userRoles.DesktopDirectorySharing()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -239,7 +220,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ActiveSessions:          activeSessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
-		SSHLogins:               logins,
 		WindowsLogins:           windowsLogins,
 		Users:                   userAccess,
 		Tokens:                  tokenAccess,
@@ -247,6 +227,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Billing:                 billingAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
+		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
+		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
 	}
 
 	// local user

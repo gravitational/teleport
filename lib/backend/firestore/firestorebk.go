@@ -769,6 +769,8 @@ type IndexTuple struct {
 	FirstField       string
 	SecondField      string
 	SecondFieldOrder adminpb.Index_IndexField_Order
+	ThirdField       string
+	ThirdFieldOrder  adminpb.Index_IndexField_Order
 }
 
 type indexTask struct {
@@ -793,6 +795,10 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 			Order: tuple.SecondFieldOrder,
 		}
 
+		thirdFieldOrder := &adminpb.Index_IndexField_Order_{
+			Order: tuple.ThirdFieldOrder,
+		}
+
 		fields := []*adminpb.Index_IndexField{
 			{
 				FieldPath: tuple.FirstField,
@@ -803,6 +809,14 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 				ValueMode: secondFieldOrder,
 			},
 		}
+
+		if tuple.ThirdField != "" {
+			fields = append(fields, &adminpb.Index_IndexField{
+				FieldPath: tuple.ThirdField,
+				ValueMode: thirdFieldOrder,
+			})
+		}
+
 		l.Infof("%v", fields)
 		operation, err := adminSvc.CreateIndex(ctx, &adminpb.CreateIndexRequest{
 			Parent: indexParent,

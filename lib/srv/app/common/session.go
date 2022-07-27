@@ -41,14 +41,14 @@ type SessionContext struct {
 func WithSessionContext(r *http.Request, sessionCtx *SessionContext) *http.Request {
 	return r.WithContext(context.WithValue(
 		r.Context(),
-		contextKeySessionContext,
+		contextSessionKey,
 		sessionCtx,
 	))
 }
 
 // GetSessionContext retrieves the session context from a request.
 func GetSessionContext(r *http.Request) (*SessionContext, error) {
-	sessionCtxValue := r.Context().Value(contextKeySessionContext)
+	sessionCtxValue := r.Context().Value(contextSessionKey)
 	sessionCtx, ok := sessionCtxValue.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("failed to get session context")
@@ -59,6 +59,6 @@ func GetSessionContext(r *http.Request) (*SessionContext, error) {
 type contextKey string
 
 const (
-	// contextKeySessionContext is the context key for the session context.
-	contextKeySessionContext contextKey = "app-session-context"
+	// contextSessionKey is the context key for the session context.
+	contextSessionKey contextKey = "app-session-context"
 )

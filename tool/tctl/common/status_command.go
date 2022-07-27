@@ -55,6 +55,11 @@ func (c *StatusCommand) TryRun(ctx context.Context, cmd string, client auth.Clie
 	return true, trace.Wrap(err)
 }
 
+type caFetchError struct {
+	caType  types.CertAuthType
+	message string
+}
+
 // Status is called to execute "status" CLI command.
 func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 	pingRsp, err := client.Ping(ctx)
@@ -64,14 +69,23 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
-	var authorities []types.CertAuthority
+	var (
+		authorities     []types.CertAuthority
+		authFetchErrors []caFetchError
+	)
 
 	for _, caType := range types.CertAuthTypes {
 		ca, err := client.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
-			return trace.Wrap(err)
+			// Collect all errors, so they can be displayed to the user.
+			fetchError := caFetchError{
+				caType:  caType,
+				message: err.Error(),
+			}
+			authFetchErrors = append(authFetchErrors, fetchError)
+		} else {
+			authorities = append(authorities, ca...)
 		}
-		authorities = append(authorities, ca...)
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
@@ -118,6 +132,10 @@ func (c *StatusCommand) Status(ctx context.Context, client auth.ClientI) error {
 				table.AddRow([]string{info, rotation.String()})
 			}
 
+		}
+		for _, ca := range authFetchErrors {
+			info := fmt.Sprintf("%v CA ", string(ca.caType))
+			table.AddRow([]string{info, ca.message})
 		}
 		for _, caPin := range caPins {
 			table.AddRow([]string{"CA pin", caPin})

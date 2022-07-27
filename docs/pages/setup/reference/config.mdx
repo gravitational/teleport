@@ -45,7 +45,8 @@ By default, it is stored in `/etc/teleport.yaml`.
   enable you to roll back to the previous configuration if you need to.
 
 - Teleport Cloud manages the Auth Service and Proxy Service for you. Your
-  Teleport Nodes should include the following configuration options to avoid
+  Teleport resource services (e.g., the Application Service and Database
+  Service) should include the following configuration options to avoid
   unintended effects:
 
   ```yaml
@@ -109,12 +110,12 @@ teleport:
         token_name:  "token-name"
 
     # Optional CA pin of the auth server. This enables a more secure way of
-    # adding new nodes to a cluster. See "Adding Nodes to the Cluster"
-    # (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
+    # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
+    # (https://goteleport.com/docs/setup/admin/adding-nodes).
     ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
-    # When running in multi-homed or NATed environments Teleport nodes need
-    # to know which IP it will be reachable at by other nodes.
+    # When running in multi-homed or NATed environments Teleport Nodes need
+    # to know which IP it will be reachable at by other Nodes.
     #
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
@@ -163,14 +164,14 @@ teleport:
           extra_fields: [level, timestamp, component, caller]
 
     # Configuration for the storage back-end used for the cluster state and the
-    # audit log. Several back-end types are supported. See the "High
-    # Availability" section of the Admin Manual
-    # (https://goteleport.com/docs/admin-guide/#high-availability) to learn how
-    # to configure DynamoDB, S3, etcd, and other highly available back-ends.
+    # audit log. Several back-end types are supported.
+    # See the "Storage backends" (https://goteleport.com/docs/setup/reference/backends)
+    # section of the documentation to learn how to configure
+    # DynamoDB, S3, etcd, and other highly available back-ends.
     storage:
-        # By default teleport uses the `data_dir` directory on a local
-        # filesystem
-        type: dir
+        # By default teleport uses a SQLite database in the `data_dir`
+        # directory on a local filesystem
+        type: sqlite
 
         # List of locations where the audit log events will be stored. By
         # default, they are stored in `/var/lib/teleport/log`.
@@ -182,12 +183,27 @@ teleport:
         audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions
-        # in an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using
-        # Amazon S3" for more information
-        # (https://goteleport.com/docs/admin-guide/#using-amazon-s3).
+        # in an AWS S3 bucket or use GCP Storage with 'gs://'.
+        # See the S3 section on "Storage backends" for more information
+        # (https://goteleport.com/docs/setup/reference/backends/#s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
-        # DynamoDB Specific Section:
+        # SQLite-specific section:
+
+        # The default path is the `backend` directory in the `data_dir`
+        path: /var/lib/teleport/backend/
+        # SQLite's `synchronous` pragma, can be set to `"OFF"` for improved
+        # write performance in exchange for reliability against system crashes
+        # (see https://www.sqlite.org/pragma.html#pragma_synchronous).
+        sync: FULL
+        # SQLite's `journal_mode` pragma, by default it doesn't change the mode from
+        # the SQLite default (DELETE unless the database file is using WAL mode).
+        # For improved performance without sacrificing reliability it's possible to
+        # set `journal` to `WAL` and `sync` to `NORMAL`, but only when using a filesystem
+        # that supports locks (see https://www.sqlite.org/pragma.html#pragma_journal_mode).
+        #journal: DELETE
+        
+        # DynamoDB-specific section:
 
         # continuous_backups is used to enable continuous backups.
         continuous_backups: [true|false]
@@ -268,7 +284,7 @@ auth_service:
     authentication:
         # default authentication type. possible values are 'local' and 'github'
         # for OSS, plus 'oidc' and 'saml' for Enterprise.
-        # Only local authentication (Teleport's own user DB) & Github is
+        # Only local authentication (Teleport's own user DB) & GitHub is
         # supported in the open source version
         type: local
 
@@ -277,13 +293,24 @@ auth_service:
         # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
-        # second_factor can be 'off', 'on', 'optional', 'otp', 'webauthn' or
-        # 'u2f'.
-        # - 'on' requires otp and either webauthn (preferred) or u2f.
-        # - 'optional' allows otp and either webauthn (preferred) or u2f.
-        # - 'otp', 'webauthn' and 'u2f' require their corresponding second
-        #   factor type.
+        # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
+        # - 'on' requires either otp or webauthn second factor.
+        # - 'optional' allows otp and webauthn second factor.
+        # - 'otp' and 'webauthn' require the corresponding second factor.
         second_factor: otp
+
+        # Sets whether passwordless authorization is allowed.
+        # Passwordless requires WebAuthn.
+        # Defaults to "true".
+        #passwordless: true
+
+        # Sets the authenticator connector for SSO (Enterprise) or the default
+        # connector for "local" authentication.
+        # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
+        # See Passwordless for local
+        # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
+        # Defaults to "local".
+        #connector_name: local
 
         # this section is used if second_factor is set to 'on', 'optional' or
         # 'webauthn'.
@@ -333,47 +360,12 @@ auth_service:
           # second factor modes 'on' and 'optional'.
           disabled: false
 
-        # this section is used if second_factor is set to 'u2f'
+        # the U2F section is kept for legacy purposes and to support existing
+        # U2F registrations.
         u2f:
-            # public address of the Teleport proxy, _including_ the `https://`
-            # prefix. If you use a port number other than 443, include it as
-            # well.
-            #
-            # Examples:
-            # - "https://example.com" (uses default port 443)
-            # - "https://example.com:3080" (uses non-default port 3080)
-            #
-            # IMPORTANT: app_id must never change in the lifetime of the
-            # cluster, because it's recorded in the registration data on the
-            # U2F device. If the app_id changes, all existing U2F key
-            # registrations will become invalid and all users who use U2F as
-            # the second factor will need to re-register.
+            # app ID used by U2F registrations.
+            # Keep it in your config to avoid having to re-register U2F devices.
             app_id: https://localhost:3080
-
-            # list of allowed addresses of the Teleport proxy checked during
-            # authentication attempts. This list is used to prevent malicious
-            # websites and proxies from requesting U2F challenges on behalf of
-            # the legitimate proxy.
-            facets:
-            # app_id should always also be listed as a facet
-            - https://localhost:3080
-            - https://localhost
-            # localhost allows non-https facets as well
-            - localhost:3080
-            - localhost
-
-            # optional list of certificate authorities (as local file paths or
-            # in-line PEM certificate string) for U2F [device
-            # attestation](https://fidoalliance.org/specs/fido-u2f-v1.0-nfc-bt-amendment-20150514/fido-u2f-overview.html#verifying-that-a-u2f-device-is-genuine)
-            # verification. This field allows you to restrict which U2F device
-            # vendors you trust. Devices from other vendors will be rejected
-            # during registration. By default, any vendor is allowed.
-            device_attestation_cas:
-            - /path/to/u2f_ca.pem
-            - |
-              -----BEGIN CERTIFICATE-----
-              ...
-              -----END CERTIFICATE-----
 
         # Locking mode determines how to apply lock views locally available to
         # a Teleport component; can be strict or best_effort.
@@ -381,7 +373,7 @@ auth_service:
         # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
         locking_mode: best_effort
 
-    # IP and the port to bind to. Other Teleport nodes will be connecting to
+    # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates
     listen_addr: 0.0.0.0:3025
@@ -504,16 +496,16 @@ ssh_service:
     # bypassing a Teleport proxy.
     public_addr: node.example.com:3022
 
-    # See explanation of labels in "Labeling Nodes and Applications" section
-    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
+    # See the explanation of labels in the "Labels" page
+    # (https://goteleport.com/docs/setup/admin/labels).
     labels:
         role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used
     # as node labels.
-    # See "Labeling Nodes" section for more information and more examples
-    # (https://goteleport.com/docs/admin-guide/#labeling-nodes-and-applications).
+    # See the "Labels" page for more information and more examples
+    # (https://goteleport.com/docs/setup/admin/labels).
     commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch
@@ -524,6 +516,10 @@ ssh_service:
     # By default it's set to false can be set true here or through the
     # command-line flag.
     permit_user_env: false
+
+    # Disables automatic creation of host users on this SSH node.
+    # Set to false by default.
+    disable_create_host_users: true
 
     # Enhanced Session Recording
     # see https://goteleport.com/docs/features/enhanced-session-recording/
@@ -564,7 +560,7 @@ ssh_service:
     # "tsh ssh -X".
     #
     # X11 forwarding will only work if the server has the "xauth" binary
-    # installed and the Teleport node can open Unix sockets.
+    # installed and the Teleport Node can open Unix sockets.
     # e.g. "$TEMP/.X11-unix/X[display_number]."
     x11:
       # no by default

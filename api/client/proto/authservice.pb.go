@@ -9,8 +9,6 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
-	empty "github.com/golang/protobuf/ptypes/empty"
-	_ "github.com/golang/protobuf/ptypes/timestamp"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
 	types "github.com/gravitational/teleport/api/types"
 	events "github.com/gravitational/teleport/api/types/events"
@@ -20,6 +18,8 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	_ "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -859,10 +859,20 @@ type HostCertsRequest struct {
 	// clients request certs assuming one state and auth servers issue another.
 	Rotation *types.Rotation `protobuf:"bytes,9,opt,name=Rotation,proto3" json:"rotation,omitempty"`
 	// NoCache is argument that only local callers can supply to bypass cache
-	NoCache              bool     `protobuf:"varint,10,opt,name=NoCache,proto3" json:"-"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	NoCache bool `protobuf:"varint,10,opt,name=NoCache,proto3" json:"-"`
+	// SystemRoles is a list of system roles held by the host. Most host certs are
+	// single-role and only specify the Role field. The SystemRoles field is only
+	// currently used on Instance certs, which need to express all roles held by
+	// the instance.
+	SystemRoles []github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,11,rep,name=SystemRoles,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"system_roles,omitempty"`
+	// UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
+	// older instances to requisition a multi-role cert by individually proving which
+	// system roles are held.
+	// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+	UnstableSystemRoleAssertionID string   `protobuf:"bytes,12,opt,name=UnstableSystemRoleAssertionID,proto3" json:"system_role_assertion_id,omitempty"`
+	XXX_NoUnkeyedLiteral          struct{} `json:"-"`
+	XXX_unrecognized              []byte   `json:"-"`
+	XXX_sizecache                 int32    `json:"-"`
 }
 
 func (m *HostCertsRequest) Reset()         { *m = HostCertsRequest{} }
@@ -968,6 +978,20 @@ func (m *HostCertsRequest) GetNoCache() bool {
 	return false
 }
 
+func (m *HostCertsRequest) GetSystemRoles() []github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.SystemRoles
+	}
+	return nil
+}
+
+func (m *HostCertsRequest) GetUnstableSystemRoleAssertionID() string {
+	if m != nil {
+		return m.UnstableSystemRoleAssertionID
+	}
+	return ""
+}
+
 // UserCertRequest specifies certificate-generation parameters
 // for a user.
 type UserCertsRequest struct {
@@ -1011,9 +1035,15 @@ type UserCertsRequest struct {
 	// RouteToWindowsDesktop specifies the target windows desktop name to encode into
 	// certificate so windows desktop client requests are routed appropriately.
 	RouteToWindowsDesktop RouteToWindowsDesktop `protobuf:"bytes,13,opt,name=RouteToWindowsDesktop,proto3" json:"route_to_windows_desktop,omitempty"`
-	XXX_NoUnkeyedLiteral  struct{}              `json:"-"`
-	XXX_unrecognized      []byte                `json:"-"`
-	XXX_sizecache         int32                 `json:"-"`
+	// UseRoleRequests is used to ensure a certificate request is intended to
+	// use role impersonation, even if the list of role requests is empty.
+	UseRoleRequests bool `protobuf:"varint,14,opt,name=UseRoleRequests,proto3" json:"use_role_requests,omitempty"`
+	// DropAccessRequests is an optional list of request IDs indicating requests
+	// whose escalated privileges should be removed from the certificate.
+	DropAccessRequests   []string `protobuf:"bytes,15,rep,name=DropAccessRequests,proto3" json:"drop_access_requests,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *UserCertsRequest) Reset()         { *m = UserCertsRequest{} }
@@ -1138,6 +1168,20 @@ func (m *UserCertsRequest) GetRouteToWindowsDesktop() RouteToWindowsDesktop {
 		return m.RouteToWindowsDesktop
 	}
 	return RouteToWindowsDesktop{}
+}
+
+func (m *UserCertsRequest) GetUseRoleRequests() bool {
+	if m != nil {
+		return m.UseRoleRequests
+	}
+	return false
+}
+
+func (m *UserCertsRequest) GetDropAccessRequests() []string {
+	if m != nil {
+		return m.DropAccessRequests
+	}
+	return nil
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2328,10 +2372,14 @@ type Features struct {
 	// Desktop enables desktop access product
 	Desktop bool `protobuf:"varint,10,opt,name=Desktop,proto3" json:"desktop"`
 	// ModeratedSessions enables moderated sessions product
-	ModeratedSessions    bool     `protobuf:"varint,11,opt,name=ModeratedSessions,proto3" json:"moderated_sessions"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ModeratedSessions bool `protobuf:"varint,11,opt,name=ModeratedSessions,proto3" json:"moderated_sessions"`
+	// MachineID enables MachineID product
+	MachineID bool `protobuf:"varint,12,opt,name=MachineID,proto3" json:"machine_id"`
+	// ResourceAccessRequests enables resource access requests product
+	ResourceAccessRequests bool     `protobuf:"varint,13,opt,name=ResourceAccessRequests,proto3" json:"resource_access_requests"`
+	XXX_NoUnkeyedLiteral   struct{} `json:"-"`
+	XXX_unrecognized       []byte   `json:"-"`
+	XXX_sizecache          int32    `json:"-"`
 }
 
 func (m *Features) Reset()         { *m = Features{} }
@@ -2440,6 +2488,20 @@ func (m *Features) GetDesktop() bool {
 func (m *Features) GetModeratedSessions() bool {
 	if m != nil {
 		return m.ModeratedSessions
+	}
+	return false
+}
+
+func (m *Features) GetMachineID() bool {
+	if m != nil {
+		return m.MachineID
+	}
+	return false
+}
+
+func (m *Features) GetResourceAccessRequests() bool {
+	if m != nil {
+		return m.ResourceAccessRequests
 	}
 	return false
 }
@@ -9698,6 +9760,14 @@ func (*PaginatedResource) XXX_OneofWrappers() []interface{} {
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
+//
+// NOTE: There are two paths this request can take:
+//  1. ListResources: the more efficient path that retrieves resources by subset
+//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//  2. listResourcesWithSort: the less efficient path that retrieves all resources
+//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//  is requested. Matches are de-duplicated.
 type ListResourcesRequest struct {
 	// ResourceType is the resource that is going to be retrieved.
 	// This only needs to be set explicitly for the `ListResources` rpc.
@@ -10658,6 +10728,7 @@ func (*PresenceMFAChallengeSend) XXX_OneofWrappers() []interface{} {
 	}
 }
 
+// GetDomainNameResponse is a response from GetDomainName.
 type GetDomainNameResponse struct {
 	// DomainName is the local auth domain of the current auth server.
 	DomainName           string   `protobuf:"bytes,1,opt,name=DomainName,proto3" json:"domain_name"`
@@ -10706,7 +10777,7 @@ func (m *GetDomainNameResponse) GetDomainName() string {
 	return ""
 }
 
-// GetClusterCACertResponse is a response from GetClusterCACert
+// GetClusterCACertResponse is a response from GetClusterCACert.
 type GetClusterCACertResponse struct {
 	// TLSCA is a PEM-encoded TLS certificate authority.
 	TLSCA                []byte   `protobuf:"bytes,1,opt,name=TLSCA,proto3" json:"tls_ca"`
@@ -10753,6 +10824,1139 @@ func (m *GetClusterCACertResponse) GetTLSCA() []byte {
 		return m.TLSCA
 	}
 	return nil
+}
+
+// GenerateTokenRequest is a request to generate auth token.
+type GenerateTokenRequest struct {
+	// Token sets the token value. If not set, it will be auto generated.
+	Token string `protobuf:"bytes,1,opt,name=Token,proto3" json:"token"`
+	// Roles is a list of roles this token authenticates as.
+	Roles []github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,2,rep,name=Roles,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"roles"`
+	// TTL specifies how long the generated token will be valid for.
+	// Defaults to 30 minutes if not set.
+	TTL Duration `protobuf:"varint,3,opt,name=TTL,proto3,casttype=Duration" json:"ttl"`
+	// Labels is a label-based matcher if non-empty.
+	Labels               map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"labels" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *GenerateTokenRequest) Reset()         { *m = GenerateTokenRequest{} }
+func (m *GenerateTokenRequest) String() string { return proto.CompactTextString(m) }
+func (*GenerateTokenRequest) ProtoMessage()    {}
+func (*GenerateTokenRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{157}
+}
+func (m *GenerateTokenRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GenerateTokenRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GenerateTokenRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GenerateTokenRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GenerateTokenRequest.Merge(m, src)
+}
+func (m *GenerateTokenRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GenerateTokenRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GenerateTokenRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GenerateTokenRequest proto.InternalMessageInfo
+
+func (m *GenerateTokenRequest) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+func (m *GenerateTokenRequest) GetRoles() []github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.Roles
+	}
+	return nil
+}
+
+func (m *GenerateTokenRequest) GetTTL() Duration {
+	if m != nil {
+		return m.TTL
+	}
+	return 0
+}
+
+func (m *GenerateTokenRequest) GetLabels() map[string]string {
+	if m != nil {
+		return m.Labels
+	}
+	return nil
+}
+
+// GenerateTokenResponse contains a generated auth token.
+type GenerateTokenResponse struct {
+	// Token is the generated auth token.
+	Token                string   `protobuf:"bytes,1,opt,name=Token,proto3" json:"token"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GenerateTokenResponse) Reset()         { *m = GenerateTokenResponse{} }
+func (m *GenerateTokenResponse) String() string { return proto.CompactTextString(m) }
+func (*GenerateTokenResponse) ProtoMessage()    {}
+func (*GenerateTokenResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{158}
+}
+func (m *GenerateTokenResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GenerateTokenResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GenerateTokenResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GenerateTokenResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GenerateTokenResponse.Merge(m, src)
+}
+func (m *GenerateTokenResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GenerateTokenResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GenerateTokenResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GenerateTokenResponse proto.InternalMessageInfo
+
+func (m *GenerateTokenResponse) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+// GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
+type GetOIDCAuthRequestRequest struct {
+	// StateToken is an oidc auth request state token.
+	StateToken           string   `protobuf:"bytes,1,opt,name=StateToken,proto3" json:"state_token"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetOIDCAuthRequestRequest) Reset()         { *m = GetOIDCAuthRequestRequest{} }
+func (m *GetOIDCAuthRequestRequest) String() string { return proto.CompactTextString(m) }
+func (*GetOIDCAuthRequestRequest) ProtoMessage()    {}
+func (*GetOIDCAuthRequestRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{159}
+}
+func (m *GetOIDCAuthRequestRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetOIDCAuthRequestRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetOIDCAuthRequestRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetOIDCAuthRequestRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOIDCAuthRequestRequest.Merge(m, src)
+}
+func (m *GetOIDCAuthRequestRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetOIDCAuthRequestRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOIDCAuthRequestRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOIDCAuthRequestRequest proto.InternalMessageInfo
+
+func (m *GetOIDCAuthRequestRequest) GetStateToken() string {
+	if m != nil {
+		return m.StateToken
+	}
+	return ""
+}
+
+// GetSAMLAuthRequestRequest is a request for GetSAMLAuthRequest.
+type GetSAMLAuthRequestRequest struct {
+	// ID is a saml auth request unique id.
+	ID                   string   `protobuf:"bytes,1,opt,name=ID,proto3" json:"id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetSAMLAuthRequestRequest) Reset()         { *m = GetSAMLAuthRequestRequest{} }
+func (m *GetSAMLAuthRequestRequest) String() string { return proto.CompactTextString(m) }
+func (*GetSAMLAuthRequestRequest) ProtoMessage()    {}
+func (*GetSAMLAuthRequestRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{160}
+}
+func (m *GetSAMLAuthRequestRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetSAMLAuthRequestRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetSAMLAuthRequestRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetSAMLAuthRequestRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetSAMLAuthRequestRequest.Merge(m, src)
+}
+func (m *GetSAMLAuthRequestRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetSAMLAuthRequestRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetSAMLAuthRequestRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetSAMLAuthRequestRequest proto.InternalMessageInfo
+
+func (m *GetSAMLAuthRequestRequest) GetID() string {
+	if m != nil {
+		return m.ID
+	}
+	return ""
+}
+
+// GetGithubAuthRequestRequest is a request for GetGithubAuthRequest.
+type GetGithubAuthRequestRequest struct {
+	// StateToken is a github auth request state token.
+	StateToken           string   `protobuf:"bytes,1,opt,name=StateToken,proto3" json:"state_token"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetGithubAuthRequestRequest) Reset()         { *m = GetGithubAuthRequestRequest{} }
+func (m *GetGithubAuthRequestRequest) String() string { return proto.CompactTextString(m) }
+func (*GetGithubAuthRequestRequest) ProtoMessage()    {}
+func (*GetGithubAuthRequestRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{161}
+}
+func (m *GetGithubAuthRequestRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetGithubAuthRequestRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetGithubAuthRequestRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetGithubAuthRequestRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetGithubAuthRequestRequest.Merge(m, src)
+}
+func (m *GetGithubAuthRequestRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetGithubAuthRequestRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetGithubAuthRequestRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetGithubAuthRequestRequest proto.InternalMessageInfo
+
+func (m *GetGithubAuthRequestRequest) GetStateToken() string {
+	if m != nil {
+		return m.StateToken
+	}
+	return ""
+}
+
+// GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
+type GetSSODiagnosticInfoRequest struct {
+	// AuthRequestKind is the SSO Auth Request kind (oidc, saml, or github).
+	AuthRequestKind string `protobuf:"bytes,1,opt,name=AuthRequestKind,proto3" json:"auth_request_kind"`
+	// AuthRequestID is the SSO Auth Request id or state token.
+	AuthRequestID        string   `protobuf:"bytes,2,opt,name=AuthRequestID,proto3" json:"auth_request_id"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetSSODiagnosticInfoRequest) Reset()         { *m = GetSSODiagnosticInfoRequest{} }
+func (m *GetSSODiagnosticInfoRequest) String() string { return proto.CompactTextString(m) }
+func (*GetSSODiagnosticInfoRequest) ProtoMessage()    {}
+func (*GetSSODiagnosticInfoRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{162}
+}
+func (m *GetSSODiagnosticInfoRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetSSODiagnosticInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetSSODiagnosticInfoRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetSSODiagnosticInfoRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetSSODiagnosticInfoRequest.Merge(m, src)
+}
+func (m *GetSSODiagnosticInfoRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetSSODiagnosticInfoRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetSSODiagnosticInfoRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetSSODiagnosticInfoRequest proto.InternalMessageInfo
+
+func (m *GetSSODiagnosticInfoRequest) GetAuthRequestKind() string {
+	if m != nil {
+		return m.AuthRequestKind
+	}
+	return ""
+}
+
+func (m *GetSSODiagnosticInfoRequest) GetAuthRequestID() string {
+	if m != nil {
+		return m.AuthRequestID
+	}
+	return ""
+}
+
+// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
+// to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+type UnstableSystemRoleAssertion struct {
+	ServerID             string                                                 `protobuf:"bytes,1,opt,name=ServerID,proto3" json:"server_id,omitempty"`
+	AssertionID          string                                                 `protobuf:"bytes,2,opt,name=AssertionID,proto3" json:"assertion_id,omitempty"`
+	SystemRole           github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,3,opt,name=SystemRole,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"system_role,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                               `json:"-"`
+	XXX_unrecognized     []byte                                                 `json:"-"`
+	XXX_sizecache        int32                                                  `json:"-"`
+}
+
+func (m *UnstableSystemRoleAssertion) Reset()         { *m = UnstableSystemRoleAssertion{} }
+func (m *UnstableSystemRoleAssertion) String() string { return proto.CompactTextString(m) }
+func (*UnstableSystemRoleAssertion) ProtoMessage()    {}
+func (*UnstableSystemRoleAssertion) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{163}
+}
+func (m *UnstableSystemRoleAssertion) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UnstableSystemRoleAssertion) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UnstableSystemRoleAssertion.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UnstableSystemRoleAssertion) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnstableSystemRoleAssertion.Merge(m, src)
+}
+func (m *UnstableSystemRoleAssertion) XXX_Size() int {
+	return m.Size()
+}
+func (m *UnstableSystemRoleAssertion) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnstableSystemRoleAssertion.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnstableSystemRoleAssertion proto.InternalMessageInfo
+
+func (m *UnstableSystemRoleAssertion) GetServerID() string {
+	if m != nil {
+		return m.ServerID
+	}
+	return ""
+}
+
+func (m *UnstableSystemRoleAssertion) GetAssertionID() string {
+	if m != nil {
+		return m.AssertionID
+	}
+	return ""
+}
+
+func (m *UnstableSystemRoleAssertion) GetSystemRole() github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.SystemRole
+	}
+	return ""
+}
+
+// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
+// role assertions provided by a given instance.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+type UnstableSystemRoleAssertionSet struct {
+	ServerID             string                                                   `protobuf:"bytes,1,opt,name=ServerID,proto3" json:"server_id,omitempty"`
+	AssertionID          string                                                   `protobuf:"bytes,2,opt,name=AssertionID,proto3" json:"assertion_id,omitempty"`
+	SystemRoles          []github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,3,rep,name=SystemRoles,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"system_roles,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                                 `json:"-"`
+	XXX_unrecognized     []byte                                                   `json:"-"`
+	XXX_sizecache        int32                                                    `json:"-"`
+}
+
+func (m *UnstableSystemRoleAssertionSet) Reset()         { *m = UnstableSystemRoleAssertionSet{} }
+func (m *UnstableSystemRoleAssertionSet) String() string { return proto.CompactTextString(m) }
+func (*UnstableSystemRoleAssertionSet) ProtoMessage()    {}
+func (*UnstableSystemRoleAssertionSet) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{164}
+}
+func (m *UnstableSystemRoleAssertionSet) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UnstableSystemRoleAssertionSet) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UnstableSystemRoleAssertionSet.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UnstableSystemRoleAssertionSet) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UnstableSystemRoleAssertionSet.Merge(m, src)
+}
+func (m *UnstableSystemRoleAssertionSet) XXX_Size() int {
+	return m.Size()
+}
+func (m *UnstableSystemRoleAssertionSet) XXX_DiscardUnknown() {
+	xxx_messageInfo_UnstableSystemRoleAssertionSet.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UnstableSystemRoleAssertionSet proto.InternalMessageInfo
+
+func (m *UnstableSystemRoleAssertionSet) GetServerID() string {
+	if m != nil {
+		return m.ServerID
+	}
+	return ""
+}
+
+func (m *UnstableSystemRoleAssertionSet) GetAssertionID() string {
+	if m != nil {
+		return m.AssertionID
+	}
+	return ""
+}
+
+func (m *UnstableSystemRoleAssertionSet) GetSystemRoles() []github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.SystemRoles
+	}
+	return nil
+}
+
+// UpstreamInventoryOneOf is the upstream message for the inventory control stream,
+// sent from teleport instances to the auth server.
+type UpstreamInventoryOneOf struct {
+	// Types that are valid to be assigned to Msg:
+	//	*UpstreamInventoryOneOf_Hello
+	//	*UpstreamInventoryOneOf_Heartbeat
+	//	*UpstreamInventoryOneOf_Pong
+	Msg                  isUpstreamInventoryOneOf_Msg `protobuf_oneof:"Msg"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
+}
+
+func (m *UpstreamInventoryOneOf) Reset()         { *m = UpstreamInventoryOneOf{} }
+func (m *UpstreamInventoryOneOf) String() string { return proto.CompactTextString(m) }
+func (*UpstreamInventoryOneOf) ProtoMessage()    {}
+func (*UpstreamInventoryOneOf) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{165}
+}
+func (m *UpstreamInventoryOneOf) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpstreamInventoryOneOf) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpstreamInventoryOneOf.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpstreamInventoryOneOf) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpstreamInventoryOneOf.Merge(m, src)
+}
+func (m *UpstreamInventoryOneOf) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpstreamInventoryOneOf) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpstreamInventoryOneOf.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpstreamInventoryOneOf proto.InternalMessageInfo
+
+type isUpstreamInventoryOneOf_Msg interface {
+	isUpstreamInventoryOneOf_Msg()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type UpstreamInventoryOneOf_Hello struct {
+	Hello *UpstreamInventoryHello `protobuf:"bytes,1,opt,name=Hello,proto3,oneof" json:"Hello,omitempty"`
+}
+type UpstreamInventoryOneOf_Heartbeat struct {
+	Heartbeat *InventoryHeartbeat `protobuf:"bytes,2,opt,name=Heartbeat,proto3,oneof" json:"Heartbeat,omitempty"`
+}
+type UpstreamInventoryOneOf_Pong struct {
+	Pong *UpstreamInventoryPong `protobuf:"bytes,3,opt,name=Pong,proto3,oneof" json:"Pong,omitempty"`
+}
+
+func (*UpstreamInventoryOneOf_Hello) isUpstreamInventoryOneOf_Msg()     {}
+func (*UpstreamInventoryOneOf_Heartbeat) isUpstreamInventoryOneOf_Msg() {}
+func (*UpstreamInventoryOneOf_Pong) isUpstreamInventoryOneOf_Msg()      {}
+
+func (m *UpstreamInventoryOneOf) GetMsg() isUpstreamInventoryOneOf_Msg {
+	if m != nil {
+		return m.Msg
+	}
+	return nil
+}
+
+func (m *UpstreamInventoryOneOf) GetHello() *UpstreamInventoryHello {
+	if x, ok := m.GetMsg().(*UpstreamInventoryOneOf_Hello); ok {
+		return x.Hello
+	}
+	return nil
+}
+
+func (m *UpstreamInventoryOneOf) GetHeartbeat() *InventoryHeartbeat {
+	if x, ok := m.GetMsg().(*UpstreamInventoryOneOf_Heartbeat); ok {
+		return x.Heartbeat
+	}
+	return nil
+}
+
+func (m *UpstreamInventoryOneOf) GetPong() *UpstreamInventoryPong {
+	if x, ok := m.GetMsg().(*UpstreamInventoryOneOf_Pong); ok {
+		return x.Pong
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*UpstreamInventoryOneOf) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*UpstreamInventoryOneOf_Hello)(nil),
+		(*UpstreamInventoryOneOf_Heartbeat)(nil),
+		(*UpstreamInventoryOneOf_Pong)(nil),
+	}
+}
+
+// DownstreamInventoryOneOf is the downstream message for the inventory control stream,
+// sent from auth servers to teleport instances.
+type DownstreamInventoryOneOf struct {
+	// Types that are valid to be assigned to Msg:
+	//	*DownstreamInventoryOneOf_Hello
+	//	*DownstreamInventoryOneOf_Ping
+	Msg                  isDownstreamInventoryOneOf_Msg `protobuf_oneof:"Msg"`
+	XXX_NoUnkeyedLiteral struct{}                       `json:"-"`
+	XXX_unrecognized     []byte                         `json:"-"`
+	XXX_sizecache        int32                          `json:"-"`
+}
+
+func (m *DownstreamInventoryOneOf) Reset()         { *m = DownstreamInventoryOneOf{} }
+func (m *DownstreamInventoryOneOf) String() string { return proto.CompactTextString(m) }
+func (*DownstreamInventoryOneOf) ProtoMessage()    {}
+func (*DownstreamInventoryOneOf) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{166}
+}
+func (m *DownstreamInventoryOneOf) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DownstreamInventoryOneOf) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DownstreamInventoryOneOf.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DownstreamInventoryOneOf) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DownstreamInventoryOneOf.Merge(m, src)
+}
+func (m *DownstreamInventoryOneOf) XXX_Size() int {
+	return m.Size()
+}
+func (m *DownstreamInventoryOneOf) XXX_DiscardUnknown() {
+	xxx_messageInfo_DownstreamInventoryOneOf.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DownstreamInventoryOneOf proto.InternalMessageInfo
+
+type isDownstreamInventoryOneOf_Msg interface {
+	isDownstreamInventoryOneOf_Msg()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type DownstreamInventoryOneOf_Hello struct {
+	Hello *DownstreamInventoryHello `protobuf:"bytes,1,opt,name=Hello,proto3,oneof" json:"Hello,omitempty"`
+}
+type DownstreamInventoryOneOf_Ping struct {
+	Ping *DownstreamInventoryPing `protobuf:"bytes,2,opt,name=Ping,proto3,oneof" json:"Ping,omitempty"`
+}
+
+func (*DownstreamInventoryOneOf_Hello) isDownstreamInventoryOneOf_Msg() {}
+func (*DownstreamInventoryOneOf_Ping) isDownstreamInventoryOneOf_Msg()  {}
+
+func (m *DownstreamInventoryOneOf) GetMsg() isDownstreamInventoryOneOf_Msg {
+	if m != nil {
+		return m.Msg
+	}
+	return nil
+}
+
+func (m *DownstreamInventoryOneOf) GetHello() *DownstreamInventoryHello {
+	if x, ok := m.GetMsg().(*DownstreamInventoryOneOf_Hello); ok {
+		return x.Hello
+	}
+	return nil
+}
+
+func (m *DownstreamInventoryOneOf) GetPing() *DownstreamInventoryPing {
+	if x, ok := m.GetMsg().(*DownstreamInventoryOneOf_Ping); ok {
+		return x.Ping
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*DownstreamInventoryOneOf) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*DownstreamInventoryOneOf_Hello)(nil),
+		(*DownstreamInventoryOneOf_Ping)(nil),
+	}
+}
+
+// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
+// purposes.
+type DownstreamInventoryPing struct {
+	ID                   uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DownstreamInventoryPing) Reset()         { *m = DownstreamInventoryPing{} }
+func (m *DownstreamInventoryPing) String() string { return proto.CompactTextString(m) }
+func (*DownstreamInventoryPing) ProtoMessage()    {}
+func (*DownstreamInventoryPing) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{167}
+}
+func (m *DownstreamInventoryPing) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DownstreamInventoryPing) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DownstreamInventoryPing.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DownstreamInventoryPing) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DownstreamInventoryPing.Merge(m, src)
+}
+func (m *DownstreamInventoryPing) XXX_Size() int {
+	return m.Size()
+}
+func (m *DownstreamInventoryPing) XXX_DiscardUnknown() {
+	xxx_messageInfo_DownstreamInventoryPing.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DownstreamInventoryPing proto.InternalMessageInfo
+
+func (m *DownstreamInventoryPing) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
+
+// UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
+// ping (used for testing/debug purposes).
+type UpstreamInventoryPong struct {
+	ID                   uint64   `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpstreamInventoryPong) Reset()         { *m = UpstreamInventoryPong{} }
+func (m *UpstreamInventoryPong) String() string { return proto.CompactTextString(m) }
+func (*UpstreamInventoryPong) ProtoMessage()    {}
+func (*UpstreamInventoryPong) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{168}
+}
+func (m *UpstreamInventoryPong) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpstreamInventoryPong) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpstreamInventoryPong.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpstreamInventoryPong) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpstreamInventoryPong.Merge(m, src)
+}
+func (m *UpstreamInventoryPong) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpstreamInventoryPong) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpstreamInventoryPong.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpstreamInventoryPong proto.InternalMessageInfo
+
+func (m *UpstreamInventoryPong) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
+
+// UpstreamInventoryHello is the hello message sent up the inventory control stream.
+type UpstreamInventoryHello struct {
+	// Version advertises the teleport version of the instance.
+	Version string `protobuf:"bytes,1,opt,name=Version,proto3" json:"Version,omitempty"`
+	// ServerID advertises the server ID of the instance.
+	ServerID string `protobuf:"bytes,2,opt,name=ServerID,proto3" json:"ServerID,omitempty"`
+	// Services advertises the currently live services of the instance. note: this is
+	// distinct from the SystemRoles associated with a certificate in that a service may
+	// hold a system role that is not currently in use if it was granted that role by
+	// its auth token. i.e. Services is the subset of SystemRoles that are currently
+	// active.
+	Services             []github_com_gravitational_teleport_api_types.SystemRole `protobuf:"bytes,3,rep,name=Services,proto3,casttype=github.com/gravitational/teleport/api/types.SystemRole" json:"Services,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                                 `json:"-"`
+	XXX_unrecognized     []byte                                                   `json:"-"`
+	XXX_sizecache        int32                                                    `json:"-"`
+}
+
+func (m *UpstreamInventoryHello) Reset()         { *m = UpstreamInventoryHello{} }
+func (m *UpstreamInventoryHello) String() string { return proto.CompactTextString(m) }
+func (*UpstreamInventoryHello) ProtoMessage()    {}
+func (*UpstreamInventoryHello) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{169}
+}
+func (m *UpstreamInventoryHello) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpstreamInventoryHello) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpstreamInventoryHello.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpstreamInventoryHello) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpstreamInventoryHello.Merge(m, src)
+}
+func (m *UpstreamInventoryHello) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpstreamInventoryHello) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpstreamInventoryHello.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpstreamInventoryHello proto.InternalMessageInfo
+
+func (m *UpstreamInventoryHello) GetVersion() string {
+	if m != nil {
+		return m.Version
+	}
+	return ""
+}
+
+func (m *UpstreamInventoryHello) GetServerID() string {
+	if m != nil {
+		return m.ServerID
+	}
+	return ""
+}
+
+func (m *UpstreamInventoryHello) GetServices() []github_com_gravitational_teleport_api_types.SystemRole {
+	if m != nil {
+		return m.Services
+	}
+	return nil
+}
+
+// DownstreamInventoryHello is the hello message sent down the inventory control stream.
+type DownstreamInventoryHello struct {
+	// Version advertises the version of the auth server.
+	Version string `protobuf:"bytes,1,opt,name=Version,proto3" json:"Version,omitempty"`
+	// ServerID advertises the server ID of the auth server.
+	ServerID             string   `protobuf:"bytes,2,opt,name=ServerID,proto3" json:"ServerID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DownstreamInventoryHello) Reset()         { *m = DownstreamInventoryHello{} }
+func (m *DownstreamInventoryHello) String() string { return proto.CompactTextString(m) }
+func (*DownstreamInventoryHello) ProtoMessage()    {}
+func (*DownstreamInventoryHello) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{170}
+}
+func (m *DownstreamInventoryHello) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DownstreamInventoryHello) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DownstreamInventoryHello.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DownstreamInventoryHello) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DownstreamInventoryHello.Merge(m, src)
+}
+func (m *DownstreamInventoryHello) XXX_Size() int {
+	return m.Size()
+}
+func (m *DownstreamInventoryHello) XXX_DiscardUnknown() {
+	xxx_messageInfo_DownstreamInventoryHello.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DownstreamInventoryHello proto.InternalMessageInfo
+
+func (m *DownstreamInventoryHello) GetVersion() string {
+	if m != nil {
+		return m.Version
+	}
+	return ""
+}
+
+func (m *DownstreamInventoryHello) GetServerID() string {
+	if m != nil {
+		return m.ServerID
+	}
+	return ""
+}
+
+// InventoryHeartbeat announces information about instance state.
+type InventoryHeartbeat struct {
+	// SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
+	// in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
+	// we should be able to cut down on network usage fairly significantly by moving static values
+	// to the hello message and only heartbeating dynamic values here).
+	SSHServer            *types.ServerV2 `protobuf:"bytes,1,opt,name=SSHServer,proto3" json:"SSHServer,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
+}
+
+func (m *InventoryHeartbeat) Reset()         { *m = InventoryHeartbeat{} }
+func (m *InventoryHeartbeat) String() string { return proto.CompactTextString(m) }
+func (*InventoryHeartbeat) ProtoMessage()    {}
+func (*InventoryHeartbeat) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{171}
+}
+func (m *InventoryHeartbeat) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InventoryHeartbeat) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InventoryHeartbeat.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InventoryHeartbeat) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InventoryHeartbeat.Merge(m, src)
+}
+func (m *InventoryHeartbeat) XXX_Size() int {
+	return m.Size()
+}
+func (m *InventoryHeartbeat) XXX_DiscardUnknown() {
+	xxx_messageInfo_InventoryHeartbeat.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InventoryHeartbeat proto.InternalMessageInfo
+
+func (m *InventoryHeartbeat) GetSSHServer() *types.ServerV2 {
+	if m != nil {
+		return m.SSHServer
+	}
+	return nil
+}
+
+// InventoryStatusRequest requests inventory status info.
+type InventoryStatusRequest struct {
+	// Connected requests summary of the inventory control streams registered with
+	// the auth server that handles the request.
+	Connected            bool     `protobuf:"varint,1,opt,name=Connected,proto3" json:"Connected,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *InventoryStatusRequest) Reset()         { *m = InventoryStatusRequest{} }
+func (m *InventoryStatusRequest) String() string { return proto.CompactTextString(m) }
+func (*InventoryStatusRequest) ProtoMessage()    {}
+func (*InventoryStatusRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{172}
+}
+func (m *InventoryStatusRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InventoryStatusRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InventoryStatusRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InventoryStatusRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InventoryStatusRequest.Merge(m, src)
+}
+func (m *InventoryStatusRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *InventoryStatusRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_InventoryStatusRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InventoryStatusRequest proto.InternalMessageInfo
+
+func (m *InventoryStatusRequest) GetConnected() bool {
+	if m != nil {
+		return m.Connected
+	}
+	return false
+}
+
+// InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
+type InventoryStatusSummary struct {
+	// Connected is a summary of the instances connected to the current auth server.  Only set if
+	// the Connected flag in the status request is true.
+	Connected            []UpstreamInventoryHello `protobuf:"bytes,1,rep,name=Connected,proto3" json:"Connected"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
+}
+
+func (m *InventoryStatusSummary) Reset()         { *m = InventoryStatusSummary{} }
+func (m *InventoryStatusSummary) String() string { return proto.CompactTextString(m) }
+func (*InventoryStatusSummary) ProtoMessage()    {}
+func (*InventoryStatusSummary) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{173}
+}
+func (m *InventoryStatusSummary) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InventoryStatusSummary) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InventoryStatusSummary.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InventoryStatusSummary) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InventoryStatusSummary.Merge(m, src)
+}
+func (m *InventoryStatusSummary) XXX_Size() int {
+	return m.Size()
+}
+func (m *InventoryStatusSummary) XXX_DiscardUnknown() {
+	xxx_messageInfo_InventoryStatusSummary.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InventoryStatusSummary proto.InternalMessageInfo
+
+func (m *InventoryStatusSummary) GetConnected() []UpstreamInventoryHello {
+	if m != nil {
+		return m.Connected
+	}
+	return nil
+}
+
+// InventoryPingRequest is used to request that the specified server be sent an inventory ping
+// if it has a control stream registered.
+type InventoryPingRequest struct {
+	ServerID             string   `protobuf:"bytes,1,opt,name=ServerID,proto3" json:"ServerID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *InventoryPingRequest) Reset()         { *m = InventoryPingRequest{} }
+func (m *InventoryPingRequest) String() string { return proto.CompactTextString(m) }
+func (*InventoryPingRequest) ProtoMessage()    {}
+func (*InventoryPingRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{174}
+}
+func (m *InventoryPingRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InventoryPingRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InventoryPingRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InventoryPingRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InventoryPingRequest.Merge(m, src)
+}
+func (m *InventoryPingRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *InventoryPingRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_InventoryPingRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InventoryPingRequest proto.InternalMessageInfo
+
+func (m *InventoryPingRequest) GetServerID() string {
+	if m != nil {
+		return m.ServerID
+	}
+	return ""
+}
+
+// InventoryPingResponse returns the result of an inventory ping initiated via an
+// inventory ping request.
+type InventoryPingResponse struct {
+	Duration             time.Duration `protobuf:"varint,1,opt,name=Duration,proto3,casttype=time.Duration" json:"Duration,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *InventoryPingResponse) Reset()         { *m = InventoryPingResponse{} }
+func (m *InventoryPingResponse) String() string { return proto.CompactTextString(m) }
+func (*InventoryPingResponse) ProtoMessage()    {}
+func (*InventoryPingResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce8bd90b12161215, []int{175}
+}
+func (m *InventoryPingResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *InventoryPingResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_InventoryPingResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *InventoryPingResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InventoryPingResponse.Merge(m, src)
+}
+func (m *InventoryPingResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *InventoryPingResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_InventoryPingResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InventoryPingResponse proto.InternalMessageInfo
+
+func (m *InventoryPingResponse) GetDuration() time.Duration {
+	if m != nil {
+		return m.Duration
+	}
+	return 0
 }
 
 func init() {
@@ -10921,636 +12125,713 @@ func init() {
 	proto.RegisterType((*PresenceMFAChallengeSend)(nil), "proto.PresenceMFAChallengeSend")
 	proto.RegisterType((*GetDomainNameResponse)(nil), "proto.GetDomainNameResponse")
 	proto.RegisterType((*GetClusterCACertResponse)(nil), "proto.GetClusterCACertResponse")
+	proto.RegisterType((*GenerateTokenRequest)(nil), "proto.GenerateTokenRequest")
+	proto.RegisterMapType((map[string]string)(nil), "proto.GenerateTokenRequest.LabelsEntry")
+	proto.RegisterType((*GenerateTokenResponse)(nil), "proto.GenerateTokenResponse")
+	proto.RegisterType((*GetOIDCAuthRequestRequest)(nil), "proto.GetOIDCAuthRequestRequest")
+	proto.RegisterType((*GetSAMLAuthRequestRequest)(nil), "proto.GetSAMLAuthRequestRequest")
+	proto.RegisterType((*GetGithubAuthRequestRequest)(nil), "proto.GetGithubAuthRequestRequest")
+	proto.RegisterType((*GetSSODiagnosticInfoRequest)(nil), "proto.GetSSODiagnosticInfoRequest")
+	proto.RegisterType((*UnstableSystemRoleAssertion)(nil), "proto.UnstableSystemRoleAssertion")
+	proto.RegisterType((*UnstableSystemRoleAssertionSet)(nil), "proto.UnstableSystemRoleAssertionSet")
+	proto.RegisterType((*UpstreamInventoryOneOf)(nil), "proto.UpstreamInventoryOneOf")
+	proto.RegisterType((*DownstreamInventoryOneOf)(nil), "proto.DownstreamInventoryOneOf")
+	proto.RegisterType((*DownstreamInventoryPing)(nil), "proto.DownstreamInventoryPing")
+	proto.RegisterType((*UpstreamInventoryPong)(nil), "proto.UpstreamInventoryPong")
+	proto.RegisterType((*UpstreamInventoryHello)(nil), "proto.UpstreamInventoryHello")
+	proto.RegisterType((*DownstreamInventoryHello)(nil), "proto.DownstreamInventoryHello")
+	proto.RegisterType((*InventoryHeartbeat)(nil), "proto.InventoryHeartbeat")
+	proto.RegisterType((*InventoryStatusRequest)(nil), "proto.InventoryStatusRequest")
+	proto.RegisterType((*InventoryStatusSummary)(nil), "proto.InventoryStatusSummary")
+	proto.RegisterType((*InventoryPingRequest)(nil), "proto.InventoryPingRequest")
+	proto.RegisterType((*InventoryPingResponse)(nil), "proto.InventoryPingResponse")
 }
 
 func init() { proto.RegisterFile("authservice.proto", fileDescriptor_ce8bd90b12161215) }
 
 var fileDescriptor_ce8bd90b12161215 = []byte{
-	// 9976 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x7d, 0x4b, 0x6c, 0x1c, 0x49,
-	0x96, 0x98, 0xaa, 0xf8, 0x2b, 0x3e, 0x7e, 0x54, 0x0a, 0x92, 0x62, 0xa9, 0x44, 0xb1, 0xa4, 0x54,
-	0xb7, 0x46, 0xdd, 0x3b, 0x2b, 0xa9, 0xc9, 0xfe, 0x7f, 0xa7, 0xaa, 0x48, 0x91, 0x94, 0x28, 0x8a,
-	0x9d, 0x45, 0x95, 0x7a, 0x7b, 0x7a, 0xa6, 0x3a, 0x59, 0x15, 0x22, 0xd3, 0x2c, 0x66, 0xd6, 0x64,
-	0x26, 0xa5, 0x16, 0x0c, 0x1b, 0xfe, 0xad, 0x6d, 0x18, 0x30, 0x76, 0x0d, 0x78, 0x61, 0x1b, 0x3e,
-	0x78, 0x01, 0xfb, 0x64, 0xc0, 0x3e, 0x18, 0x86, 0x7d, 0x31, 0xb0, 0x17, 0xc3, 0x1e, 0x1b, 0x30,
-	0xec, 0xcb, 0x62, 0x01, 0x1f, 0xca, 0xe3, 0x39, 0x19, 0xbc, 0x19, 0x86, 0x0d, 0x78, 0x4e, 0x46,
-	0x7c, 0x33, 0x22, 0x33, 0xa3, 0x8a, 0x94, 0xe4, 0xdd, 0x8b, 0xc4, 0x8c, 0x88, 0xf7, 0xe2, 0xc5,
-	0x8b, 0x17, 0x2f, 0x5e, 0xbc, 0x78, 0xf1, 0x0a, 0x2e, 0x39, 0x27, 0xd1, 0x61, 0x88, 0x83, 0xe7,
-	0x6e, 0x1b, 0xdf, 0xe9, 0x05, 0x7e, 0xe4, 0xa3, 0x31, 0xfa, 0x5f, 0x79, 0xfe, 0xc0, 0x3f, 0xf0,
-	0xe9, 0x9f, 0x77, 0xc9, 0x5f, 0xac, 0xb2, 0x7c, 0xf5, 0xc0, 0xf7, 0x0f, 0xba, 0xf8, 0x2e, 0xfd,
-	0xda, 0x3f, 0x79, 0x76, 0x17, 0x1f, 0xf7, 0xa2, 0x97, 0xbc, 0xb2, 0x92, 0xac, 0x8c, 0xdc, 0x63,
-	0x1c, 0x46, 0xce, 0x71, 0x8f, 0x37, 0x98, 0x6a, 0xe3, 0x20, 0x0a, 0xf9, 0xc7, 0x47, 0x07, 0x6e,
-	0x74, 0x78, 0xb2, 0x7f, 0xa7, 0xed, 0x1f, 0xdf, 0x3d, 0x08, 0x9c, 0xe7, 0x6e, 0xe4, 0x44, 0xae,
-	0xef, 0x39, 0xdd, 0xbb, 0x11, 0xee, 0xe2, 0x9e, 0x1f, 0x44, 0x77, 0x9d, 0x9e, 0x7b, 0x37, 0x7a,
-	0xd9, 0xc3, 0x21, 0xfb, 0x97, 0x03, 0xd6, 0xcf, 0x03, 0xf8, 0x02, 0xef, 0x93, 0x21, 0x7a, 0xf2,
-	0x8f, 0x57, 0x42, 0x12, 0x38, 0xbd, 0x1e, 0x0e, 0xe2, 0x3f, 0x38, 0x92, 0xaf, 0xce, 0x83, 0x04,
-	0x3f, 0xc7, 0x5e, 0x24, 0xfe, 0x63, 0x08, 0xac, 0xdf, 0x5b, 0x80, 0xb1, 0x75, 0x52, 0x80, 0x3e,
-	0x86, 0xd1, 0xbd, 0x97, 0x3d, 0x5c, 0xca, 0x5d, 0xcf, 0xdd, 0x9e, 0x5d, 0x29, 0xb2, 0xfa, 0x3b,
-	0x8f, 0x7b, 0x38, 0xa0, 0x28, 0x6b, 0xe8, 0xb4, 0x5f, 0x99, 0x25, 0x88, 0x7e, 0xec, 0x1f, 0xbb,
-	0x11, 0xe5, 0xba, 0x4d, 0x21, 0xd0, 0x53, 0x98, 0xb5, 0x71, 0xe8, 0x9f, 0x04, 0x6d, 0xbc, 0x89,
-	0x9d, 0x0e, 0x0e, 0x4a, 0xf9, 0xeb, 0xb9, 0xdb, 0x53, 0x2b, 0x0b, 0x77, 0x18, 0xd3, 0xf4, 0xca,
-	0xda, 0xe5, 0xd3, 0x7e, 0x05, 0x05, 0xbc, 0x2c, 0x46, 0xb6, 0x79, 0xc1, 0x4e, 0xa0, 0x41, 0xdf,
-	0xc1, 0x4c, 0x1d, 0x07, 0x51, 0xf5, 0x24, 0x3a, 0xf4, 0x03, 0x37, 0x7a, 0x59, 0x1a, 0xa1, 0x78,
-	0x2f, 0x73, 0xbc, 0x5a, 0x5d, 0x73, 0xa5, 0xb6, 0x74, 0xda, 0xaf, 0x94, 0xc8, 0x04, 0xb7, 0x1c,
-	0x51, 0xaa, 0xa1, 0xd7, 0x91, 0xa1, 0x6f, 0x60, 0xba, 0x41, 0xd8, 0xd5, 0xde, 0xf3, 0x8f, 0xb0,
-	0x17, 0x96, 0x46, 0x35, 0xa2, 0xd5, 0xaa, 0xe6, 0x4a, 0xed, 0xea, 0x69, 0xbf, 0xb2, 0x18, 0xd2,
-	0xb2, 0x56, 0x44, 0x0b, 0x35, 0xd4, 0x1a, 0x26, 0xf4, 0x3d, 0xcc, 0xee, 0x06, 0xfe, 0x73, 0x37,
-	0x74, 0x7d, 0x8f, 0x16, 0x95, 0xc6, 0x28, 0xee, 0x45, 0x8e, 0x5b, 0xaf, 0x6c, 0xae, 0xd4, 0xae,
-	0x9d, 0xf6, 0x2b, 0x57, 0x7a, 0xa2, 0x94, 0x75, 0xa0, 0x73, 0x46, 0x07, 0x41, 0x7b, 0x30, 0x55,
-	0xef, 0x9e, 0x84, 0x11, 0x0e, 0x76, 0x9c, 0x63, 0x5c, 0x1a, 0xa7, 0xe8, 0xe7, 0x05, 0x5f, 0xe2,
-	0x9a, 0xe6, 0x4a, 0xad, 0x7c, 0xda, 0xaf, 0x5c, 0x6e, 0xb3, 0xa2, 0x96, 0xe7, 0x1c, 0xeb, 0x2c,
-	0x57, 0xd1, 0xa0, 0x8f, 0x60, 0xf4, 0x49, 0x88, 0x83, 0x52, 0x81, 0xa2, 0x9b, 0xe1, 0xe8, 0x48,
-	0x51, 0x73, 0x85, 0xcd, 0xff, 0x49, 0x88, 0x03, 0x0d, 0x9e, 0x02, 0x10, 0x40, 0xdb, 0xef, 0xe2,
-	0xd2, 0xa4, 0x06, 0x48, 0x8a, 0x9a, 0x1f, 0x30, 0xc0, 0xc0, 0xef, 0xea, 0x1d, 0x53, 0x00, 0xb4,
-	0x05, 0x93, 0xa4, 0xe7, 0xb0, 0xe7, 0xb4, 0x71, 0x09, 0x28, 0x74, 0x91, 0x43, 0xcb, 0xf2, 0xda,
-	0xe2, 0x69, 0xbf, 0x32, 0xe7, 0x89, 0x4f, 0x0d, 0x4b, 0x0c, 0x8d, 0xbe, 0x82, 0xf1, 0x06, 0x0e,
-	0x9e, 0xe3, 0xa0, 0x34, 0x45, 0xf1, 0x5c, 0x14, 0x13, 0x49, 0x0b, 0x9b, 0x2b, 0xb5, 0xf9, 0xd3,
-	0x7e, 0xa5, 0x18, 0xd2, 0x2f, 0x0d, 0x07, 0x07, 0x23, 0xd2, 0x66, 0xe3, 0xe7, 0x38, 0x08, 0xf1,
-	0xde, 0x89, 0xe7, 0xe1, 0x6e, 0x69, 0x5a, 0x93, 0x36, 0xad, 0x4e, 0x48, 0x5b, 0xc0, 0x0a, 0x5b,
-	0x11, 0x2d, 0xd5, 0xa5, 0x4d, 0x03, 0x40, 0x87, 0x50, 0x64, 0x7f, 0xd5, 0x7d, 0xcf, 0xc3, 0x6d,
-	0xb2, 0xa4, 0x4a, 0x33, 0xb4, 0x83, 0x2b, 0xbc, 0x83, 0x64, 0x75, 0x73, 0xa5, 0x56, 0x39, 0xed,
-	0x57, 0xae, 0x32, 0xdc, 0xad, 0xb6, 0xac, 0xd0, 0xba, 0x49, 0x61, 0x25, 0xe3, 0xa8, 0xb6, 0xdb,
-	0x38, 0x0c, 0x6d, 0xfc, 0x8b, 0x13, 0x1c, 0x46, 0xa5, 0x59, 0x6d, 0x1c, 0x5a, 0x5d, 0x73, 0x95,
-	0x8d, 0xc3, 0xa1, 0x85, 0xad, 0x80, 0x95, 0xea, 0xe3, 0xd0, 0x00, 0xd0, 0x2e, 0x40, 0xb5, 0xd7,
-	0x6b, 0xe0, 0x90, 0x08, 0x63, 0xe9, 0x22, 0x45, 0x3d, 0xc7, 0x51, 0x3f, 0xc5, 0xfb, 0xbc, 0xa2,
-	0xb9, 0x52, 0xbb, 0x72, 0xda, 0xaf, 0x2c, 0x38, 0xbd, 0x5e, 0x2b, 0x64, 0x45, 0x1a, 0x52, 0x05,
-	0x07, 0xe3, 0xfb, 0xb1, 0x1f, 0x61, 0x2e, 0x8a, 0xa5, 0x62, 0x82, 0xef, 0x4a, 0x9d, 0xa0, 0x37,
-	0xa0, 0x85, 0x2d, 0x2e, 0xd6, 0x49, 0xbe, 0x2b, 0x00, 0x64, 0x2d, 0xae, 0x39, 0x91, 0xb3, 0xef,
-	0x84, 0x98, 0x8b, 0xc7, 0x25, 0x6d, 0x2d, 0xea, 0x95, 0xcd, 0x55, 0xb6, 0x16, 0x3b, 0xbc, 0xb4,
-	0x95, 0x21, 0x2f, 0x09, 0x7c, 0x84, 0x23, 0xf1, 0xc0, 0x4b, 0x68, 0x08, 0x47, 0x5e, 0xe0, 0xfd,
-	0x6c, 0x8e, 0xc4, 0x4d, 0xd1, 0x26, 0x14, 0x9e, 0xe2, 0x7d, 0xa6, 0x39, 0xe6, 0x28, 0xbe, 0x4b,
-	0x31, 0x3e, 0xa6, 0x33, 0x56, 0xd9, 0xaa, 0x20, 0xd8, 0xd2, 0xda, 0x42, 0x42, 0xa3, 0xdf, 0xcd,
-	0xc1, 0xa2, 0x58, 0xe1, 0x38, 0x7a, 0xe1, 0x07, 0x47, 0xae, 0x77, 0x50, 0xf7, 0xbd, 0x67, 0xee,
-	0x41, 0x69, 0x9e, 0x62, 0xbe, 0x9e, 0x50, 0x1a, 0x89, 0x56, 0xcd, 0x95, 0xda, 0x8f, 0x4e, 0xfb,
-	0x95, 0x9b, 0x52, 0x81, 0xc8, 0x7a, 0x22, 0x90, 0xcf, 0xdc, 0x03, 0xad, 0x63, 0x53, 0x5f, 0xe8,
-	0x2f, 0xe7, 0xe0, 0x32, 0x1f, 0x9d, 0x8d, 0xdb, 0x7e, 0xd0, 0x89, 0xc9, 0x58, 0xa0, 0x64, 0x54,
-	0xe4, 0x6a, 0xcd, 0x6a, 0xd4, 0x5c, 0xa9, 0xdd, 0x3a, 0xed, 0x57, 0x2c, 0xce, 0xb8, 0x56, 0x20,
-	0xaa, 0xb3, 0x88, 0x30, 0x74, 0x44, 0x24, 0x81, 0x28, 0xff, 0xdd, 0x00, 0x3f, 0xc3, 0x01, 0xf6,
-	0xda, 0xb8, 0x74, 0x59, 0x93, 0x04, 0xbd, 0x52, 0x68, 0x65, 0xb2, 0x95, 0xb4, 0x7a, 0xb2, 0x58,
-	0x97, 0x04, 0x1d, 0x04, 0xfd, 0x02, 0x10, 0x67, 0x40, 0xf5, 0xa4, 0xe3, 0x46, 0x7c, 0x80, 0x8b,
-	0xb4, 0x97, 0xab, 0x3a, 0x9f, 0x95, 0x06, 0xcd, 0x95, 0x9a, 0x75, 0xda, 0xaf, 0x2c, 0x0b, 0x16,
-	0x3b, 0xa4, 0x2a, 0x6b, 0x60, 0x19, 0xc8, 0x89, 0xe6, 0xdd, 0xf6, 0xdb, 0x47, 0xa5, 0x92, 0xa6,
-	0x79, 0x49, 0x91, 0x50, 0xd9, 0x5d, 0xbf, 0x7d, 0xa4, 0x6b, 0x5e, 0x52, 0x8b, 0x22, 0x98, 0xe3,
-	0xb3, 0x64, 0xe3, 0x30, 0x0a, 0x5c, 0xaa, 0x3b, 0xc2, 0xd2, 0x15, 0x8a, 0x67, 0x49, 0xe8, 0xe0,
-	0x74, 0x8b, 0xe6, 0xfb, 0x8c, 0x5a, 0x2e, 0x08, 0xad, 0x40, 0xa9, 0xd3, 0xba, 0xc9, 0x42, 0x8f,
-	0xfe, 0x02, 0x2c, 0x3c, 0x75, 0xbd, 0x8e, 0xff, 0x22, 0x5c, 0xc3, 0xe1, 0x51, 0xe4, 0xf7, 0x1a,
-	0xcc, 0xf2, 0x2b, 0x95, 0x69, 0xbf, 0xcb, 0x42, 0xcc, 0xb3, 0xda, 0x34, 0x57, 0x6b, 0x6f, 0x9f,
-	0xf6, 0x2b, 0x37, 0x5e, 0xb0, 0xca, 0x56, 0x87, 0xd5, 0xb6, 0xb8, 0xf1, 0xa8, 0x75, 0x9e, 0xdd,
-	0x0b, 0x11, 0x01, 0xbd, 0xa2, 0x74, 0x55, 0x13, 0x01, 0xbd, 0x52, 0x28, 0x83, 0x44, 0x87, 0xba,
-	0x08, 0xe8, 0x20, 0x68, 0x03, 0x0a, 0x42, 0x3d, 0x94, 0x96, 0xb4, 0xa5, 0x2b, 0x8a, 0x9b, 0xab,
-	0xcc, 0x02, 0x12, 0x2a, 0x46, 0x5f, 0xb9, 0xa2, 0x15, 0xda, 0x86, 0x49, 0xaa, 0x23, 0xa9, 0xca,
-	0xba, 0x46, 0x31, 0x21, 0x21, 0xa8, 0xa2, 0xbc, 0xb9, 0x5a, 0x2b, 0x9d, 0xf6, 0x2b, 0xf3, 0x4c,
-	0xcb, 0xa6, 0x14, 0x55, 0x8c, 0x00, 0xad, 0xc2, 0x48, 0xb5, 0xd7, 0x2b, 0x2d, 0x53, 0x3c, 0xd3,
-	0x31, 0x9e, 0xe6, 0x6a, 0xed, 0xd2, 0x69, 0xbf, 0x32, 0xe3, 0xf4, 0xf4, 0x61, 0x91, 0xd6, 0x68,
-	0x1f, 0x8a, 0x0d, 0xcf, 0x7f, 0xf1, 0xac, 0xeb, 0x1c, 0x61, 0xa1, 0xde, 0x2a, 0x66, 0xf5, 0x46,
-	0x37, 0xab, 0x50, 0x00, 0x64, 0x2a, 0xb9, 0x14, 0xbe, 0x1a, 0x40, 0x41, 0x18, 0x7d, 0x0f, 0x46,
-	0x0b, 0x13, 0xc5, 0x82, 0xb5, 0x09, 0x63, 0x4f, 0x9d, 0xa8, 0x7d, 0x88, 0xbe, 0x82, 0xb1, 0x87,
-	0xae, 0xd7, 0x09, 0x4b, 0xb9, 0xeb, 0x23, 0xd4, 0x2e, 0x60, 0x16, 0x29, 0xad, 0x24, 0x15, 0xb5,
-	0xc5, 0x5f, 0xf6, 0x2b, 0x17, 0x4e, 0xfb, 0x95, 0x8b, 0x47, 0xa4, 0x99, 0x62, 0x96, 0x32, 0x38,
-	0xeb, 0x5f, 0xe6, 0x61, 0x52, 0xb6, 0x46, 0x4b, 0x30, 0x4a, 0xfe, 0xa7, 0xf6, 0xed, 0x64, 0xad,
-	0x70, 0xda, 0xaf, 0x8c, 0x12, 0x38, 0x9b, 0x96, 0xa2, 0x15, 0x98, 0xda, 0xf6, 0x9d, 0x4e, 0x03,
-	0xb7, 0x03, 0x1c, 0x85, 0xd4, 0x80, 0x2d, 0xd4, 0x8a, 0xa7, 0xfd, 0xca, 0x74, 0xd7, 0x77, 0x3a,
-	0xad, 0x90, 0x95, 0xdb, 0x6a, 0x23, 0x82, 0x91, 0x5a, 0x5f, 0x23, 0x31, 0x46, 0x62, 0xa5, 0xd8,
-	0xb4, 0x14, 0x3d, 0x80, 0xf1, 0xfb, 0x6e, 0x97, 0xec, 0x67, 0xa3, 0x94, 0xfe, 0xa5, 0x24, 0xfd,
-	0x77, 0x58, 0xf5, 0xba, 0x17, 0x05, 0x2f, 0x99, 0x71, 0xf2, 0x8c, 0x16, 0x28, 0x03, 0xe1, 0x18,
-	0xd0, 0x3d, 0x98, 0x68, 0x9c, 0xec, 0x53, 0xf2, 0xc7, 0x68, 0x67, 0x54, 0x82, 0xc2, 0x93, 0xfd,
-	0x16, 0x19, 0x82, 0x02, 0x20, 0x9a, 0x95, 0x3f, 0x81, 0x29, 0x05, 0x3d, 0x2a, 0xc2, 0xc8, 0x11,
-	0x7e, 0xc9, 0xc6, 0x6e, 0x93, 0x3f, 0xd1, 0x3c, 0x8c, 0x3d, 0x77, 0xba, 0x27, 0x98, 0x0e, 0x75,
-	0xd2, 0x66, 0x1f, 0x9f, 0xe6, 0x3f, 0xce, 0x59, 0xff, 0x79, 0x14, 0x8a, 0x9b, 0x7e, 0x18, 0x11,
-	0x6b, 0x59, 0x6e, 0xfb, 0x37, 0x61, 0x9c, 0x94, 0x6d, 0xad, 0x71, 0xfe, 0x4d, 0x9d, 0xf6, 0x2b,
-	0x13, 0x87, 0x7e, 0x18, 0xb5, 0xdc, 0x8e, 0xcd, 0xab, 0xd0, 0x3b, 0x50, 0xd8, 0xf1, 0x3b, 0x98,
-	0x32, 0x85, 0xa2, 0xad, 0xcd, 0x9c, 0xf6, 0x2b, 0x93, 0x9e, 0xdf, 0xc1, 0xd4, 0xf2, 0xb4, 0x65,
-	0x35, 0x6a, 0x72, 0x8b, 0x91, 0xf1, 0xae, 0x46, 0x78, 0x47, 0x4c, 0xc4, 0xdf, 0xf4, 0x2b, 0x1f,
-	0x9e, 0xe3, 0x48, 0x73, 0xa7, 0xf1, 0x32, 0x8c, 0xf0, 0x31, 0xc1, 0xc4, 0x0d, 0xca, 0xa7, 0x30,
-	0x5f, 0xed, 0x74, 0x5c, 0x06, 0xb1, 0x1b, 0xb8, 0x5e, 0xdb, 0xed, 0x39, 0xdd, 0x90, 0xce, 0xc1,
-	0x64, 0xed, 0xe6, 0x69, 0xbf, 0x52, 0x71, 0x64, 0x7d, 0xab, 0x27, 0x1b, 0x28, 0x3c, 0xcc, 0x44,
-	0x80, 0x56, 0xa1, 0xb0, 0xb6, 0xd3, 0xa0, 0xe6, 0x66, 0x69, 0x8c, 0x22, 0xa3, 0x1b, 0x70, 0xc7,
-	0x0b, 0xe9, 0xd0, 0x54, 0x04, 0xb2, 0x21, 0xfa, 0x10, 0xa6, 0x77, 0x4f, 0xf6, 0xbb, 0x6e, 0x7b,
-	0x6f, 0xbb, 0xf1, 0x10, 0xbf, 0xa4, 0x76, 0xfa, 0x34, 0x53, 0xcb, 0x3d, 0x5a, 0xde, 0x8a, 0xba,
-	0x61, 0xeb, 0x08, 0xbf, 0xb4, 0xb5, 0x76, 0x31, 0x5c, 0xa3, 0xb1, 0x49, 0xe0, 0x26, 0x52, 0x70,
-	0x61, 0x78, 0xa8, 0xc2, 0xb1, 0x76, 0xe8, 0x2e, 0x00, 0xb3, 0x7e, 0xaa, 0x9d, 0x0e, 0x33, 0xe3,
-	0x27, 0x6b, 0x17, 0x4f, 0xfb, 0x95, 0x29, 0x6e, 0x2f, 0x39, 0x9d, 0x4e, 0x60, 0x2b, 0x4d, 0x50,
-	0x1d, 0x0a, 0xb6, 0xcf, 0x18, 0xcc, 0x8d, 0xf7, 0x8b, 0xd2, 0x78, 0x67, 0xc5, 0xfc, 0xb8, 0xc6,
-	0xbf, 0xd4, 0x51, 0x8a, 0x16, 0xa8, 0x02, 0x13, 0x3b, 0x7e, 0xdd, 0x69, 0x1f, 0x32, 0x13, 0xbe,
-	0x50, 0x1b, 0x3b, 0xed, 0x57, 0x72, 0xbf, 0x6d, 0x8b, 0x52, 0xeb, 0x9f, 0x14, 0xa0, 0x48, 0xce,
-	0x09, 0x9a, 0x44, 0xfd, 0x18, 0x26, 0x19, 0xed, 0x0f, 0xb9, 0x60, 0x4e, 0xd7, 0x66, 0x4f, 0xfb,
-	0x15, 0xe0, 0x03, 0x24, 0x83, 0x8b, 0x1b, 0xa0, 0xdb, 0x50, 0x20, 0x18, 0xbc, 0x58, 0xb4, 0xa6,
-	0x4f, 0xfb, 0x95, 0xc2, 0x09, 0x2f, 0xb3, 0x65, 0x2d, 0x6a, 0xc0, 0xc4, 0xfa, 0x0f, 0x3d, 0x37,
-	0xc0, 0x21, 0x3f, 0x2e, 0x96, 0xef, 0x30, 0xaf, 0xc0, 0x1d, 0xe1, 0x15, 0xb8, 0xb3, 0x27, 0xbc,
-	0x02, 0xb5, 0x6b, 0x5c, 0x85, 0x5c, 0xc2, 0x0c, 0x24, 0x1e, 0xdf, 0xef, 0xff, 0xb7, 0x4a, 0xce,
-	0x16, 0x98, 0xd0, 0x8f, 0x61, 0xfc, 0xbe, 0x1f, 0x1c, 0x3b, 0x11, 0x3d, 0x25, 0x4e, 0xf2, 0xe5,
-	0x4a, 0x4b, 0xb4, 0xe5, 0x4a, 0x4b, 0xd0, 0x7d, 0x98, 0xb5, 0xfd, 0x93, 0x08, 0xef, 0xf9, 0xc2,
-	0xa4, 0x65, 0xab, 0x76, 0xf9, 0xb4, 0x5f, 0x29, 0x07, 0xa4, 0xa6, 0x15, 0xf9, 0x69, 0xe3, 0xd5,
-	0x4e, 0x40, 0xa1, 0x75, 0x98, 0xd5, 0x8c, 0xef, 0xb0, 0x34, 0x4e, 0x25, 0x8f, 0x19, 0x26, 0x9a,
-	0xc9, 0xae, 0xca, 0x5f, 0x02, 0x08, 0xed, 0xc0, 0xa5, 0x87, 0x27, 0xfb, 0x38, 0xf0, 0x70, 0x84,
-	0x43, 0x41, 0xd1, 0x04, 0xa5, 0xe8, 0xfa, 0x69, 0xbf, 0xb2, 0x74, 0x24, 0x2b, 0x33, 0x68, 0x4a,
-	0x83, 0x22, 0x0c, 0x17, 0x39, 0xa1, 0x72, 0xab, 0x2b, 0x70, 0x93, 0x9d, 0xa9, 0xb8, 0x44, 0x6d,
-	0xed, 0x26, 0xe7, 0xf2, 0x55, 0x39, 0xf6, 0xf4, 0xe6, 0x67, 0x27, 0x71, 0x92, 0x15, 0x27, 0xb5,
-	0xc9, 0x24, 0xa5, 0x96, 0x1d, 0x04, 0x85, 0x36, 0x51, 0x65, 0x51, 0xea, 0x95, 0x6d, 0x18, 0x7b,
-	0x12, 0x3a, 0x07, 0x4c, 0x12, 0x67, 0x57, 0x6e, 0x70, 0x8a, 0x92, 0xd2, 0x47, 0x7d, 0x07, 0xb4,
-	0x61, 0x6d, 0x8e, 0xec, 0x20, 0x27, 0xe4, 0x4f, 0x75, 0x07, 0xa1, 0x75, 0xe8, 0x6b, 0x00, 0x4e,
-	0x15, 0xd9, 0x3d, 0xa7, 0xf8, 0x7e, 0xae, 0x0d, 0xb2, 0xda, 0xeb, 0xd5, 0x96, 0xf9, 0xf8, 0x2e,
-	0xcb, 0xf1, 0x69, 0xfb, 0xa9, 0xad, 0x20, 0x41, 0x5f, 0xc1, 0x34, 0x55, 0x57, 0x62, 0x46, 0xa7,
-	0xe9, 0x8c, 0x52, 0xf7, 0x02, 0x51, 0x80, 0x59, 0xf3, 0xa9, 0x01, 0xa0, 0xbf, 0x08, 0x0b, 0x1c,
-	0x5d, 0xc2, 0x94, 0x99, 0xe1, 0xa6, 0x9b, 0x46, 0x9e, 0xde, 0xa6, 0xf6, 0x2e, 0xa7, 0xd4, 0x92,
-	0x94, 0x1a, 0x8d, 0x1b, 0x3b, 0xbb, 0x1b, 0xeb, 0x1b, 0x98, 0x94, 0xcc, 0x43, 0x13, 0x30, 0x52,
-	0xed, 0x76, 0x8b, 0x17, 0xc8, 0x1f, 0x8d, 0xc6, 0x66, 0x31, 0x87, 0x66, 0x01, 0x62, 0x89, 0x29,
-	0xe6, 0xd1, 0x74, 0x6c, 0x10, 0x15, 0x47, 0x68, 0xfb, 0x5e, 0xaf, 0x38, 0x8a, 0x50, 0xd2, 0x12,
-	0x2b, 0x8e, 0x59, 0x7f, 0x92, 0x4b, 0x09, 0x16, 0xd9, 0x97, 0xb9, 0xf1, 0x46, 0xe5, 0x80, 0x6d,
-	0x3e, 0x74, 0x5f, 0xe6, 0x66, 0x1f, 0xdb, 0x58, 0xd4, 0x46, 0x44, 0x57, 0xec, 0x12, 0x1e, 0xb4,
-	0xfd, 0xae, 0xaa, 0x2b, 0x7a, 0xbc, 0xcc, 0x96, 0xb5, 0x68, 0x45, 0xd1, 0x2a, 0x23, 0xf1, 0xc6,
-	0x2a, 0xb4, 0x8a, 0x2a, 0x61, 0x52, 0xbf, 0xac, 0x28, 0x16, 0xde, 0x68, 0x0c, 0x93, 0x21, 0xd1,
-	0xb2, 0x9d, 0x75, 0x62, 0x98, 0x33, 0xf4, 0x59, 0xca, 0x20, 0x65, 0x23, 0xa4, 0x42, 0x99, 0x98,
-	0x9a, 0x94, 0xad, 0x59, 0x81, 0xb1, 0x6d, 0xff, 0xc0, 0xf5, 0xf8, 0x20, 0x27, 0x4f, 0xfb, 0x95,
-	0xb1, 0x2e, 0x29, 0xb0, 0x59, 0xb9, 0xf5, 0x7f, 0x73, 0xaa, 0xfc, 0x4a, 0x7b, 0x25, 0x97, 0x69,
-	0xaf, 0xfc, 0x18, 0x26, 0xb9, 0x51, 0xb6, 0xb5, 0xc6, 0x31, 0x52, 0x7d, 0x2c, 0xce, 0x5c, 0x6e,
-	0xc7, 0x8e, 0x1b, 0x90, 0x9d, 0x86, 0x29, 0x67, 0xba, 0xd3, 0x8c, 0xc4, 0x3b, 0x0d, 0x57, 0xdf,
-	0x6c, 0xa7, 0x89, 0x9b, 0x90, 0x89, 0x54, 0x3d, 0x56, 0xa3, 0xf1, 0x44, 0xaa, 0xbe, 0x29, 0xdd,
-	0x1f, 0xf5, 0x29, 0x40, 0xf5, 0x69, 0x83, 0x48, 0x7f, 0xd5, 0xde, 0xe1, 0x3a, 0x94, 0xba, 0xb3,
-	0x9c, 0x17, 0x61, 0x8b, 0xae, 0x16, 0x27, 0x50, 0xb7, 0x24, 0xa5, 0xb5, 0xd5, 0x85, 0xd9, 0x0d,
-	0x1c, 0x91, 0x59, 0x13, 0x1b, 0xce, 0xe0, 0xe1, 0x7f, 0x0e, 0x53, 0x4f, 0xdd, 0xe8, 0x50, 0x37,
-	0x00, 0x69, 0x67, 0x2f, 0xdc, 0xe8, 0x50, 0x18, 0x80, 0x4a, 0x67, 0x6a, 0x73, 0x6b, 0x1d, 0x2e,
-	0xf2, 0xde, 0xe4, 0xfe, 0xb6, 0xa2, 0x23, 0xcc, 0xc5, 0x16, 0xa5, 0x8a, 0x50, 0x47, 0x83, 0x93,
-	0x0a, 0x1f, 0x35, 0x52, 0x5b, 0x00, 0xb3, 0x86, 0x4d, 0xde, 0x1c, 0x2a, 0x38, 0x89, 0xad, 0x21,
-	0xb9, 0x21, 0x58, 0x4f, 0x60, 0x66, 0xb7, 0x7b, 0x72, 0xe0, 0x7a, 0x44, 0x40, 0x1b, 0xf8, 0x17,
-	0x68, 0x0d, 0x20, 0x2e, 0xe0, 0x3d, 0x08, 0x1b, 0x3f, 0xae, 0x68, 0xae, 0xf2, 0x29, 0xa6, 0x25,
-	0x54, 0x87, 0xdb, 0x0a, 0x9c, 0xf5, 0xb7, 0x46, 0x00, 0xf1, 0x3e, 0x1a, 0x91, 0x13, 0xe1, 0x06,
-	0x8e, 0xc8, 0x76, 0x71, 0x19, 0xf2, 0xd2, 0x6c, 0x1c, 0x3f, 0xed, 0x57, 0xf2, 0x6e, 0xc7, 0xce,
-	0x6f, 0xad, 0xa1, 0xf7, 0x61, 0x8c, 0x36, 0xa3, 0xbc, 0x9e, 0x95, 0xfd, 0xa9, 0x18, 0x98, 0x4c,
-	0x87, 0xe4, 0x4f, 0x9b, 0x35, 0x46, 0x1f, 0xc0, 0xe4, 0x1a, 0xee, 0xe2, 0x03, 0x27, 0xf2, 0x85,
-	0xdc, 0x31, 0x43, 0x4c, 0x14, 0x2a, 0x53, 0x14, 0xb7, 0x24, 0x1b, 0xb8, 0x8d, 0x9d, 0xd0, 0xf7,
-	0xd4, 0x0d, 0x3c, 0xa0, 0x25, 0xea, 0x06, 0xce, 0xda, 0xa0, 0x3f, 0xc8, 0xc1, 0x54, 0xd5, 0xf3,
-	0xb8, 0x81, 0x13, 0x72, 0xf7, 0xed, 0xc2, 0x1d, 0xe9, 0x7d, 0xdf, 0x76, 0xf6, 0x71, 0xb7, 0x49,
-	0x4c, 0xe6, 0xb0, 0xf6, 0x1d, 0xd1, 0xa9, 0xff, 0xb5, 0x5f, 0xf9, 0xec, 0x55, 0x1c, 0xfa, 0x77,
-	0xf6, 0x02, 0xc7, 0x8d, 0x42, 0xea, 0x2b, 0x8b, 0x3b, 0x54, 0xc5, 0x4c, 0xa1, 0x03, 0xbd, 0x03,
-	0x63, 0x44, 0xbe, 0x85, 0x1d, 0x40, 0x27, 0x9b, 0xac, 0x03, 0xed, 0xf0, 0x43, 0x5b, 0x58, 0x37,
-	0x61, 0x92, 0x73, 0x72, 0x6b, 0xcd, 0x34, 0x05, 0xd6, 0x1a, 0x5c, 0xa3, 0x56, 0x1c, 0x26, 0x92,
-	0x4b, 0x3d, 0x46, 0x5c, 0x12, 0x63, 0xb3, 0x7f, 0x82, 0x16, 0x4b, 0x68, 0x3a, 0x21, 0xd4, 0xe3,
-	0x64, 0x8b, 0x1a, 0xab, 0x0e, 0x4b, 0x1b, 0x38, 0xb2, 0x71, 0x88, 0xa3, 0x5d, 0x27, 0x0c, 0x5f,
-	0xf8, 0x41, 0x87, 0x56, 0x9d, 0x0b, 0xc9, 0x5f, 0xcb, 0x41, 0xa5, 0x1e, 0x60, 0x32, 0xd3, 0x46,
-	0x44, 0x83, 0x57, 0xf0, 0x12, 0xbf, 0xc0, 0xc8, 0xc7, 0xb5, 0x84, 0xd7, 0xfc, 0x92, 0xe2, 0x6d,
-	0x18, 0xd9, 0xdb, 0xdb, 0xa6, 0x12, 0x33, 0x42, 0x19, 0x37, 0x12, 0x45, 0xdd, 0xdf, 0xf4, 0x2b,
-	0x85, 0xb5, 0x13, 0x76, 0xc1, 0x61, 0x93, 0x7a, 0xeb, 0x19, 0x2c, 0xd8, 0xd8, 0xc3, 0x2f, 0x9c,
-	0xfd, 0x2e, 0xd6, 0xcc, 0xd5, 0x0a, 0x8c, 0x31, 0x87, 0x5c, 0x6a, 0x08, 0xac, 0x5c, 0xb7, 0x67,
-	0xf3, 0x43, 0xec, 0x59, 0xeb, 0x0f, 0x73, 0x50, 0x64, 0xc3, 0xad, 0xf9, 0xd1, 0xd9, 0xc6, 0xc7,
-	0x47, 0x90, 0x1f, 0x3c, 0x02, 0x74, 0x2b, 0xe6, 0xf6, 0x48, 0xbc, 0xf9, 0x51, 0x52, 0x89, 0x0e,
-	0x17, 0x95, 0x64, 0x40, 0x4c, 0x96, 0xd8, 0xd1, 0x88, 0x0e, 0x88, 0xca, 0x92, 0x90, 0xa0, 0x7f,
-	0x96, 0x87, 0x4b, 0x0a, 0x89, 0x61, 0xcf, 0xf7, 0x42, 0x4c, 0xce, 0x78, 0x44, 0x58, 0x14, 0x3a,
-	0xe9, 0x19, 0x8f, 0x6c, 0x99, 0xad, 0xd8, 0x12, 0xa7, 0x04, 0xbf, 0x43, 0x0e, 0x17, 0xdd, 0xd4,
-	0x71, 0x90, 0x2a, 0x6e, 0xd6, 0x54, 0x54, 0x9f, 0x99, 0xe8, 0xbb, 0x50, 0xa0, 0x7f, 0x12, 0x46,
-	0x8c, 0x9a, 0x19, 0x21, 0x1b, 0x21, 0x17, 0xe0, 0x81, 0xef, 0x7a, 0x8f, 0x70, 0x74, 0xe8, 0x8b,
-	0xc3, 0xf3, 0x16, 0x51, 0x62, 0x7f, 0xce, 0x77, 0xbd, 0xd6, 0x31, 0x2d, 0x3e, 0xef, 0xa1, 0x33,
-	0x46, 0x68, 0x2b, 0xc8, 0xad, 0x7b, 0x50, 0x24, 0xfa, 0xe6, 0xec, 0x33, 0x6a, 0xcd, 0x03, 0xda,
-	0xc0, 0x51, 0xcd, 0xd7, 0x36, 0x0e, 0x6b, 0x06, 0xa6, 0x76, 0x5d, 0xef, 0x40, 0x7c, 0xfe, 0xab,
-	0x3c, 0x4c, 0xb3, 0x6f, 0x3e, 0x03, 0x89, 0x9d, 0x34, 0x77, 0x96, 0x9d, 0xf4, 0x63, 0x98, 0xe1,
-	0x2e, 0x23, 0x1c, 0x50, 0x3f, 0x0e, 0x9b, 0x0f, 0x7a, 0xa2, 0x64, 0x9e, 0xa3, 0xd6, 0x73, 0x56,
-	0x63, 0xeb, 0x0d, 0xd1, 0x36, 0xcc, 0xb2, 0x82, 0xfb, 0xd8, 0x89, 0x4e, 0xe2, 0x53, 0xd5, 0x45,
-	0x6e, 0x67, 0x8a, 0x62, 0xa6, 0x8c, 0x38, 0xae, 0x67, 0xbc, 0xd0, 0x4e, 0xc0, 0xa2, 0xaf, 0xe0,
-	0xe2, 0x6e, 0xe0, 0xff, 0xf0, 0x52, 0xb1, 0x1d, 0x98, 0x3e, 0x5e, 0x20, 0x87, 0xb0, 0x1e, 0xa9,
-	0x6a, 0xa9, 0x16, 0x44, 0xb2, 0x35, 0x91, 0xa9, 0xad, 0xb0, 0xe6, 0x07, 0xae, 0x77, 0x40, 0x67,
-	0xb3, 0xc0, 0x64, 0xca, 0x0d, 0x5b, 0xfb, 0xb4, 0xd0, 0x96, 0xd5, 0xd6, 0xff, 0x18, 0x81, 0x82,
-	0xec, 0xf8, 0x8e, 0x6a, 0x96, 0xf2, 0xcd, 0x98, 0x2e, 0xcf, 0xf8, 0xf0, 0x63, 0x2b, 0x2d, 0xd0,
-	0x15, 0xe6, 0x30, 0x63, 0x66, 0xc0, 0x04, 0x91, 0x31, 0xa7, 0xd7, 0x63, 0x6e, 0xb1, 0xcb, 0x90,
-	0x5f, 0xab, 0x51, 0x2e, 0x14, 0x98, 0x32, 0xed, 0xec, 0xdb, 0xf9, 0xb5, 0x1a, 0x99, 0xeb, 0xc7,
-	0x5b, 0x6b, 0x75, 0x3a, 0xa0, 0x02, 0x9b, 0x6b, 0xdf, 0xed, 0xb4, 0x6d, 0x5a, 0x4a, 0x6a, 0x1b,
-	0xd5, 0x47, 0xdb, 0x9c, 0x68, 0x5a, 0x1b, 0x3a, 0xc7, 0x5d, 0x9b, 0x96, 0x12, 0x3b, 0x90, 0xed,
-	0xd1, 0x75, 0xdf, 0x8b, 0x02, 0xbf, 0x1b, 0x52, 0x57, 0x41, 0x41, 0xdb, 0xce, 0xdb, 0xbc, 0xca,
-	0x4e, 0x34, 0x45, 0x4f, 0x61, 0xb1, 0xda, 0x79, 0xee, 0x78, 0x6d, 0xdc, 0x61, 0x35, 0x4f, 0xfd,
-	0xe0, 0xe8, 0x59, 0xd7, 0x7f, 0x11, 0xd2, 0x53, 0x5e, 0x81, 0x9f, 0x17, 0x79, 0x93, 0x16, 0x47,
-	0xf7, 0x42, 0x34, 0xb2, 0x4d, 0xd0, 0x44, 0x45, 0xd4, 0xbb, 0xfe, 0x49, 0x87, 0x1e, 0xef, 0x0a,
-	0x4c, 0x45, 0xb4, 0x49, 0x81, 0xcd, 0xca, 0x09, 0x97, 0x36, 0x1b, 0x8f, 0xe8, 0xe9, 0x8c, 0x73,
-	0xe9, 0x30, 0x3c, 0xb6, 0x49, 0x19, 0x7a, 0x1b, 0x26, 0x84, 0x49, 0xcb, 0x9c, 0x02, 0xd4, 0x63,
-	0x24, 0x4c, 0x59, 0x51, 0x87, 0xd6, 0xe0, 0xd2, 0x23, 0xbf, 0x83, 0x03, 0x27, 0xc2, 0x1d, 0x6e,
-	0x5d, 0x86, 0xf4, 0xa0, 0x55, 0x60, 0x66, 0xf5, 0xb1, 0xa8, 0x14, 0xfe, 0xc4, 0xd0, 0x4e, 0x03,
-	0x58, 0xef, 0xc1, 0x25, 0xb6, 0xf4, 0xce, 0x6c, 0xef, 0x59, 0xbb, 0x00, 0x0d, 0x7c, 0xec, 0xf4,
-	0x0e, 0x7d, 0x22, 0x1e, 0x35, 0xf5, 0x8b, 0x1b, 0x40, 0x48, 0x5e, 0x49, 0xf0, 0x8a, 0xe6, 0xaa,
-	0xb0, 0x88, 0x45, 0x4b, 0x5b, 0x81, 0xb2, 0xfe, 0x53, 0x1e, 0x10, 0x75, 0xcd, 0x37, 0xa2, 0x00,
-	0x3b, 0xc7, 0x82, 0x8c, 0x4f, 0x60, 0x9a, 0x69, 0x51, 0x56, 0x4c, 0xc9, 0x21, 0xd6, 0x15, 0x5b,
-	0x3e, 0x6a, 0xd5, 0xe6, 0x05, 0x5b, 0x6b, 0x4a, 0x40, 0x6d, 0x1c, 0x9e, 0x1c, 0x0b, 0xd0, 0xbc,
-	0x06, 0xaa, 0x56, 0x11, 0x50, 0xf5, 0x1b, 0x7d, 0x05, 0xb3, 0x75, 0xff, 0xb8, 0x47, 0x78, 0xc2,
-	0x81, 0x47, 0xb8, 0x0d, 0xc3, 0xfb, 0xd5, 0x2a, 0x37, 0x2f, 0xd8, 0x89, 0xe6, 0x68, 0x07, 0xe6,
-	0xee, 0x77, 0x4f, 0xc2, 0xc3, 0xaa, 0xd7, 0xa9, 0x77, 0xfd, 0x50, 0x60, 0x19, 0xe5, 0x2e, 0x15,
-	0xbe, 0xf8, 0xd3, 0x2d, 0x36, 0x2f, 0xd8, 0x59, 0x80, 0xe8, 0x6d, 0x1e, 0x67, 0xc0, 0x6d, 0xa9,
-	0x99, 0x3b, 0x3c, 0x0c, 0xe1, 0xb1, 0x87, 0x1f, 0x3f, 0xdb, 0xbc, 0x60, 0xb3, 0xda, 0xda, 0x24,
-	0x4c, 0x08, 0xc5, 0x77, 0x17, 0x2e, 0x29, 0xec, 0x24, 0xd6, 0xdf, 0x49, 0x88, 0xca, 0x50, 0x78,
-	0xd2, 0xeb, 0xfa, 0x4e, 0x47, 0x18, 0x13, 0xb6, 0xfc, 0xb6, 0x7e, 0xac, 0x73, 0x1a, 0x2d, 0xa9,
-	0x27, 0x1a, 0xd6, 0x38, 0x2e, 0xb0, 0x36, 0x75, 0xe6, 0x0e, 0x6e, 0xad, 0xf5, 0x9b, 0x4f, 0xf4,
-	0x5b, 0x4c, 0xf2, 0xda, 0x5a, 0xc8, 0x64, 0x9e, 0xf5, 0x90, 0x1a, 0x4a, 0xd5, 0x5e, 0xaf, 0xeb,
-	0xb6, 0xe9, 0xfe, 0xc2, 0xb4, 0xa3, 0xb4, 0x31, 0x7e, 0x4b, 0xbd, 0x0d, 0x57, 0x36, 0x57, 0x79,
-	0xf7, 0xad, 0xdc, 0x77, 0x5b, 0xdf, 0xc2, 0x35, 0x03, 0x32, 0xbe, 0x4f, 0x7c, 0x02, 0x13, 0xbc,
-	0x28, 0x21, 0xd0, 0xea, 0xfd, 0x01, 0x5d, 0x95, 0x21, 0x87, 0x14, 0xed, 0xad, 0x6f, 0x60, 0xf9,
-	0x49, 0x2f, 0xc4, 0x41, 0x1a, 0xbd, 0x20, 0xf5, 0x43, 0x79, 0xdb, 0x9e, 0x33, 0xde, 0x4d, 0xc0,
-	0x69, 0xbf, 0x32, 0xce, 0x70, 0x8b, 0x4b, 0x76, 0xeb, 0xf7, 0x73, 0xb0, 0xcc, 0x96, 0xaa, 0x11,
-	0xf5, 0x79, 0xb8, 0xa0, 0xf8, 0xa5, 0xf3, 0x66, 0xbf, 0xf4, 0x40, 0x47, 0xbd, 0xf5, 0x35, 0x58,
-	0x9c, 0xa2, 0x6e, 0xf7, 0x0d, 0xcd, 0xcd, 0x5f, 0xc9, 0xc1, 0x3c, 0x9b, 0x9c, 0xd7, 0xc0, 0x82,
-	0xbe, 0x80, 0xd9, 0xc6, 0x91, 0xdb, 0x6b, 0x3a, 0x5d, 0xb7, 0xc3, 0x5c, 0xb4, 0x6c, 0x3b, 0x5a,
-	0xa0, 0x3b, 0xed, 0x91, 0xdb, 0x6b, 0x3d, 0x8f, 0xab, 0x72, 0x76, 0xa2, 0xb1, 0xf5, 0x18, 0x16,
-	0x12, 0x34, 0x70, 0xc1, 0xf8, 0x30, 0x29, 0x18, 0xa9, 0x50, 0x89, 0x6c, 0xa9, 0x78, 0x04, 0x97,
-	0xa5, 0x54, 0xe8, 0x53, 0xb6, 0x9a, 0x90, 0x86, 0x14, 0xc2, 0x2c, 0x51, 0x68, 0xc3, 0x65, 0x29,
-	0x09, 0xaf, 0x21, 0x01, 0x62, 0x72, 0xf3, 0x99, 0x93, 0xbb, 0x05, 0x65, 0x75, 0x72, 0x5f, 0x67,
-	0x52, 0xff, 0x63, 0x0e, 0x16, 0x37, 0xb0, 0x47, 0xb7, 0x9e, 0x6a, 0xaf, 0xa7, 0x9d, 0x4c, 0x54,
-	0xf7, 0x74, 0x6e, 0xa0, 0x7b, 0x5a, 0x9a, 0xdd, 0xf9, 0x6c, 0xb3, 0x9b, 0xec, 0xa9, 0x4f, 0xec,
-	0x2d, 0x2e, 0xab, 0x74, 0x4f, 0x3d, 0x09, 0x5c, 0x9b, 0x94, 0xa1, 0xad, 0xd8, 0xb5, 0x3d, 0x3a,
-	0xd4, 0xb5, 0x3d, 0xc7, 0x5d, 0x7d, 0x13, 0xdc, 0xb5, 0xad, 0x39, 0xb4, 0xad, 0xcf, 0xa0, 0x94,
-	0x1e, 0x0b, 0x97, 0x8f, 0x61, 0x47, 0x1d, 0x6b, 0x2d, 0x96, 0x6e, 0x7e, 0xd3, 0x2e, 0x5d, 0xfa,
-	0x09, 0x15, 0x3a, 0xc0, 0x85, 0x64, 0x35, 0x62, 0xf9, 0xe4, 0x58, 0x78, 0xff, 0x9f, 0x12, 0xf9,
-	0x64, 0xd7, 0x8d, 0x39, 0xf3, 0x75, 0x23, 0x97, 0x51, 0x06, 0x2a, 0x00, 0xac, 0xa7, 0x70, 0x59,
-	0x43, 0x1a, 0x4b, 0xfd, 0x17, 0x50, 0x90, 0x06, 0x86, 0xee, 0xe1, 0xd0, 0xd0, 0xd2, 0x79, 0x93,
-	0xb6, 0x86, 0x04, 0xb1, 0x7e, 0x46, 0x75, 0x77, 0xf2, 0xfe, 0xf2, 0x8d, 0xa1, 0xff, 0x55, 0x0e,
-	0x16, 0xd9, 0xe6, 0x95, 0x66, 0xeb, 0xd9, 0x85, 0xeb, 0x4f, 0xc5, 0x2b, 0x77, 0x2f, 0xc3, 0x2b,
-	0x47, 0x41, 0x54, 0xaf, 0x9c, 0xea, 0x8b, 0x7b, 0x30, 0x5a, 0xc8, 0x17, 0x47, 0xac, 0x26, 0x94,
-	0xd2, 0x23, 0x7c, 0x03, 0x53, 0xfe, 0xaf, 0x73, 0x70, 0x8d, 0xef, 0xfb, 0x89, 0xd9, 0x39, 0x3f,
-	0x03, 0x3f, 0x80, 0x69, 0x0e, 0xcb, 0x56, 0x00, 0x53, 0x2a, 0xf4, 0x8a, 0x5c, 0x08, 0x31, 0x5b,
-	0x09, 0x5a, 0x33, 0xf4, 0x81, 0x72, 0x2c, 0x65, 0x1e, 0x86, 0x2b, 0x44, 0x8d, 0xb0, 0xf3, 0xab,
-	0xf1, 0x70, 0x6a, 0x7d, 0x07, 0xcb, 0x26, 0xc2, 0xdf, 0x00, 0x5f, 0x1e, 0x40, 0x39, 0x43, 0x62,
-	0x5f, 0x6d, 0xad, 0xfe, 0x0e, 0x5c, 0xcd, 0xc4, 0xf5, 0x06, 0xc8, 0xdc, 0x80, 0x45, 0x65, 0x1b,
-	0x78, 0x0d, 0x1a, 0x1f, 0xc1, 0x35, 0x86, 0xe8, 0xcd, 0x0c, 0x79, 0x13, 0x96, 0xe2, 0x33, 0x85,
-	0xa6, 0x50, 0xce, 0x29, 0x54, 0x5c, 0xd1, 0xc5, 0xac, 0x78, 0x83, 0x8a, 0x2e, 0x6e, 0xf8, 0xc6,
-	0x34, 0xd1, 0x16, 0xcc, 0x31, 0xc4, 0xfa, 0xa6, 0xb0, 0xa2, 0x6e, 0x0a, 0x99, 0x01, 0x69, 0xe9,
-	0x7d, 0xe2, 0x11, 0xdd, 0x27, 0x44, 0x93, 0x98, 0xc2, 0x0f, 0x60, 0x9c, 0xc7, 0xdc, 0x32, 0xfa,
-	0x32, 0x90, 0x51, 0x83, 0x81, 0x05, 0xda, 0xda, 0xbc, 0xb1, 0x55, 0xa2, 0x43, 0x26, 0x87, 0x74,
-	0x7e, 0xdb, 0x23, 0x5d, 0x26, 0x5f, 0x93, 0x9d, 0x39, 0x51, 0xf3, 0x9a, 0xc6, 0xce, 0x63, 0x28,
-	0x31, 0x63, 0x47, 0xc1, 0xfa, 0x5a, 0xe6, 0xce, 0xc7, 0x50, 0x62, 0xf2, 0x94, 0x81, 0x70, 0xb0,
-	0x0d, 0xb3, 0x2c, 0x24, 0xb1, 0xda, 0xed, 0x66, 0x8d, 0xfe, 0x6f, 0xe4, 0xe0, 0xca, 0x06, 0x8e,
-	0xf4, 0xb0, 0xc4, 0x3f, 0x13, 0x93, 0xf3, 0x3b, 0xaa, 0x72, 0x52, 0x84, 0xf0, 0xa9, 0xf8, 0x32,
-	0x39, 0x15, 0xc6, 0x18, 0xcc, 0xec, 0x29, 0xf9, 0x16, 0xae, 0xb2, 0x29, 0xd1, 0xdb, 0x8b, 0x81,
-	0x7e, 0x96, 0x98, 0x15, 0x23, 0xf6, 0xac, 0xd9, 0xf9, 0xdb, 0x39, 0xb8, 0xca, 0x98, 0x9c, 0x8d,
-	0xfc, 0x4f, 0xfb, 0x50, 0xb2, 0x03, 0x15, 0x39, 0xe7, 0x6f, 0x60, 0x62, 0xad, 0x7f, 0x9e, 0x03,
-	0x24, 0xf0, 0xd4, 0x1b, 0xb6, 0xc0, 0x71, 0x05, 0x46, 0xea, 0x0d, 0x9b, 0x87, 0x5f, 0x50, 0x63,
-	0xb3, 0x1d, 0x06, 0x36, 0x29, 0x4b, 0x9a, 0x06, 0xf9, 0xb3, 0x98, 0x06, 0x5b, 0x80, 0x1a, 0xee,
-	0x81, 0xf7, 0xd4, 0x8d, 0x0e, 0x65, 0x67, 0x55, 0xee, 0x2a, 0xa3, 0xd1, 0xaf, 0xa1, 0x7b, 0xe0,
-	0xb5, 0xe8, 0xfd, 0x97, 0x8c, 0xb0, 0x6d, 0x3b, 0x76, 0x06, 0x90, 0xf5, 0x53, 0x98, 0xd3, 0xe8,
-	0xe5, 0x32, 0xb4, 0x04, 0xa3, 0x75, 0x1c, 0x44, 0x9c, 0x62, 0xca, 0xb5, 0x36, 0x0e, 0x22, 0x9b,
-	0x96, 0xa2, 0x5b, 0x30, 0x51, 0xaf, 0x52, 0xb7, 0x3d, 0x35, 0xaf, 0xa7, 0x99, 0x92, 0x6b, 0x3b,
-	0x2d, 0xfa, 0xec, 0xc3, 0x16, 0x95, 0xd6, 0xbf, 0xcb, 0x2b, 0xd8, 0x09, 0xf8, 0x70, 0x76, 0xbc,
-	0x07, 0xc0, 0xf8, 0xaf, 0x70, 0x83, 0xd8, 0x05, 0x53, 0xdc, 0xe5, 0xc9, 0xf6, 0x01, 0x5b, 0x69,
-	0x74, 0xc6, 0x2b, 0x07, 0x71, 0xc5, 0xcd, 0x80, 0x84, 0x3b, 0x5e, 0x5e, 0x71, 0x73, 0xd4, 0xa1,
-	0xad, 0x36, 0x42, 0x3f, 0x87, 0x19, 0x4e, 0x33, 0x27, 0x68, 0x8c, 0xde, 0xa1, 0xbd, 0xc5, 0xfd,
-	0x32, 0x19, 0x63, 0xbb, 0x23, 0xdb, 0xf3, 0x80, 0x7c, 0xf1, 0xc9, 0xa6, 0x51, 0x47, 0x67, 0xdd,
-	0x92, 0xb7, 0x47, 0x38, 0x40, 0x17, 0x61, 0xea, 0xc9, 0x4e, 0x63, 0x77, 0xbd, 0xbe, 0x75, 0x7f,
-	0x6b, 0x7d, 0xad, 0x78, 0x01, 0x15, 0x60, 0x74, 0xaf, 0xbe, 0xb7, 0x5d, 0xcc, 0x59, 0xdf, 0xc1,
-	0xbc, 0xde, 0xd7, 0x1b, 0x9d, 0xa6, 0x08, 0xe6, 0xe4, 0x5e, 0xfe, 0xe0, 0xe9, 0x9e, 0x72, 0xb3,
-	0x5a, 0x6d, 0xb7, 0xfd, 0x13, 0x2f, 0x4a, 0x3a, 0xc0, 0x1d, 0x56, 0xcc, 0x25, 0x53, 0x69, 0xa4,
-	0x5d, 0x5b, 0xe4, 0x07, 0x5e, 0x5b, 0x58, 0x1f, 0xc1, 0xbc, 0xde, 0xeb, 0x59, 0x8f, 0x45, 0x6f,
-	0xd1, 0x2b, 0x67, 0x25, 0x58, 0x03, 0x21, 0xd5, 0x05, 0xc9, 0x57, 0xf6, 0x47, 0x50, 0xe4, 0xad,
-	0x62, 0xcd, 0x78, 0x53, 0x1c, 0x0a, 0x99, 0x5e, 0xd4, 0x1f, 0x50, 0x88, 0xfb, 0x98, 0x1f, 0x09,
-	0x27, 0xe7, 0xb0, 0x1e, 0xfe, 0x5e, 0x0e, 0x4a, 0x8f, 0xee, 0x57, 0xab, 0x27, 0xd1, 0x21, 0xf6,
-	0x22, 0xb7, 0xed, 0x44, 0xb8, 0x7e, 0xe8, 0x74, 0xbb, 0xd8, 0x3b, 0xc0, 0xe8, 0x36, 0x8c, 0xee,
-	0x3d, 0xde, 0xdb, 0xe5, 0xbe, 0xc4, 0x79, 0x2e, 0x30, 0xa4, 0x48, 0xb6, 0xb1, 0x69, 0x0b, 0xf4,
-	0x10, 0x2e, 0x3d, 0xe5, 0x4f, 0x96, 0x64, 0x15, 0xf7, 0x22, 0x5e, 0xbb, 0x23, 0x1f, 0x33, 0xd5,
-	0x03, 0xdc, 0x21, 0xbd, 0x38, 0xdd, 0x6a, 0x48, 0x74, 0x33, 0x11, 0xeb, 0x34, 0xdc, 0x83, 0xd1,
-	0x42, 0xae, 0x98, 0xb7, 0xfe, 0x20, 0x07, 0x8b, 0x09, 0xca, 0x94, 0x8b, 0x25, 0x95, 0xb0, 0x39,
-	0x85, 0x30, 0xd1, 0x64, 0xf3, 0x02, 0xa7, 0xac, 0x4e, 0xe3, 0xe3, 0x69, 0x0f, 0x9c, 0xa0, 0xb7,
-	0x07, 0x13, 0x14, 0x23, 0x90, 0x80, 0x3c, 0xf2, 0x94, 0x96, 0x5b, 0x17, 0x61, 0x46, 0xe3, 0x80,
-	0x65, 0xc1, 0xb4, 0xda, 0x33, 0x61, 0x73, 0xdd, 0xef, 0x48, 0x36, 0x93, 0xbf, 0xad, 0xbf, 0x93,
-	0x83, 0xf9, 0x47, 0xf7, 0xab, 0x36, 0x3e, 0x70, 0xc9, 0x32, 0x89, 0x59, 0xbc, 0xa2, 0x8d, 0x64,
-	0x49, 0x1b, 0x49, 0xa2, 0xad, 0x1c, 0xd2, 0xa7, 0xa9, 0x21, 0x2d, 0x65, 0x0d, 0x89, 0x1e, 0x17,
-	0x5c, 0xdf, 0xd3, 0x46, 0xa2, 0xf8, 0x4c, 0xff, 0x7e, 0x0e, 0xe6, 0x14, 0x9a, 0x24, 0xfd, 0xef,
-	0x69, 0x24, 0x5d, 0xcd, 0x20, 0x29, 0xc5, 0xe4, 0x5a, 0x8a, 0xa2, 0xb7, 0x06, 0x51, 0x34, 0x94,
-	0xc7, 0x7f, 0x9c, 0x83, 0x85, 0x4c, 0x1e, 0xa0, 0xcb, 0x64, 0xe3, 0x6e, 0x07, 0x38, 0xe2, 0xec,
-	0xe5, 0x5f, 0xa4, 0x7c, 0x2b, 0x0c, 0x4f, 0xf8, 0x7b, 0xb2, 0x49, 0x9b, 0x7f, 0xa1, 0xb7, 0x60,
-	0x66, 0x17, 0x07, 0xae, 0xdf, 0x69, 0xe0, 0xb6, 0xef, 0x75, 0xd8, 0x8d, 0xd4, 0x8c, 0xad, 0x17,
-	0xa2, 0x25, 0x98, 0xac, 0x76, 0x0f, 0xfc, 0xc0, 0x8d, 0x0e, 0x99, 0xdb, 0x7a, 0xd2, 0x8e, 0x0b,
-	0x08, 0xee, 0x35, 0xf7, 0xc0, 0x8d, 0xd8, 0xdd, 0xfe, 0x8c, 0xcd, 0xbf, 0x50, 0x09, 0x26, 0xb8,
-	0xda, 0xa0, 0x37, 0x30, 0x93, 0xb6, 0xf8, 0x24, 0x10, 0x5f, 0xdb, 0x54, 0x08, 0x68, 0x34, 0xa6,
-	0xcd, 0xbf, 0xac, 0x77, 0x61, 0x3e, 0x8b, 0x8f, 0x99, 0x22, 0xf3, 0x97, 0xf2, 0x30, 0x57, 0xed,
-	0x74, 0x1e, 0xdd, 0xaf, 0xae, 0x61, 0xd5, 0xfe, 0x7b, 0x1f, 0x46, 0xb7, 0x3c, 0x37, 0xe2, 0x86,
-	0xcb, 0x32, 0x9f, 0x9e, 0x8c, 0x96, 0xa4, 0x15, 0x99, 0x21, 0xf2, 0x3f, 0xb2, 0x61, 0x6e, 0xfd,
-	0x07, 0x37, 0x8c, 0x5c, 0xef, 0x80, 0xce, 0x39, 0xeb, 0x98, 0xcf, 0xb1, 0x40, 0x62, 0x58, 0x6e,
-	0x9b, 0x17, 0xec, 0x2c, 0x60, 0xb4, 0x07, 0x97, 0x77, 0xf0, 0x8b, 0x0c, 0x11, 0x92, 0xc1, 0x94,
-	0x12, 0x6d, 0x86, 0xe4, 0x18, 0x60, 0x55, 0x09, 0xfd, 0xeb, 0x79, 0x1a, 0xa1, 0xab, 0x0c, 0x8c,
-	0xf7, 0xfc, 0x04, 0xe6, 0x15, 0x82, 0x62, 0x8d, 0x93, 0xe3, 0xef, 0x43, 0x32, 0x87, 0xa3, 0x2e,
-	0xa4, 0x4c, 0x70, 0xf4, 0x14, 0x16, 0x75, 0xa2, 0x62, 0xcc, 0xfa, 0x62, 0xc8, 0x6a, 0xb2, 0x79,
-	0xc1, 0x36, 0x41, 0xa3, 0x15, 0x18, 0xa9, 0xb6, 0x8f, 0x38, 0x5b, 0xb2, 0xa7, 0x8c, 0x8d, 0xac,
-	0xda, 0x3e, 0xa2, 0x11, 0xf5, 0xed, 0x23, 0x6d, 0x3d, 0xfc, 0xdb, 0x1c, 0x2c, 0x1a, 0x66, 0x18,
-	0x2d, 0x03, 0xb0, 0x42, 0x45, 0xb7, 0x2b, 0x25, 0xc4, 0x18, 0x61, 0x5f, 0x34, 0xe0, 0x61, 0x84,
-	0xee, 0xfd, 0x22, 0x2e, 0x31, 0xae, 0xb0, 0x95, 0x46, 0x68, 0x17, 0xa6, 0xd8, 0x17, 0x0b, 0x8f,
-	0x1c, 0xa5, 0x30, 0x48, 0x83, 0x61, 0xf1, 0x90, 0x34, 0xe6, 0xa9, 0x43, 0x0b, 0x5a, 0xc9, 0xb0,
-	0x48, 0x15, 0x05, 0xf7, 0xea, 0xd4, 0x93, 0xa3, 0x90, 0x83, 0x46, 0xb7, 0x61, 0x9c, 0x15, 0xf2,
-	0x39, 0x14, 0x2f, 0xfb, 0xe2, 0xc6, 0xbc, 0xde, 0xfa, 0xc3, 0x9c, 0xf0, 0x05, 0xa7, 0x96, 0xc6,
-	0x47, 0xda, 0xd2, 0xb8, 0x21, 0x09, 0xce, 0x6a, 0xac, 0xad, 0x8e, 0x1a, 0x4c, 0xbd, 0xca, 0xaa,
-	0x50, 0x81, 0x54, 0xb9, 0xfd, 0xc7, 0x39, 0xe1, 0xa7, 0x48, 0x8b, 0xee, 0x3a, 0x4c, 0xbf, 0x9a,
-	0xc8, 0x6a, 0x60, 0xe8, 0x03, 0x26, 0x51, 0xf9, 0xc1, 0x23, 0x1d, 0x28, 0x54, 0x9f, 0x0b, 0x77,
-	0xf7, 0xab, 0x88, 0x95, 0xb5, 0x94, 0x01, 0x2d, 0xbb, 0xb3, 0x4e, 0x52, 0xb5, 0x8d, 0x97, 0x5e,
-	0x5b, 0xcc, 0xd3, 0xad, 0x64, 0x90, 0x8f, 0x31, 0x82, 0x43, 0xa5, 0x21, 0x1f, 0xbb, 0x28, 0xb9,
-	0xc8, 0x51, 0x63, 0x4c, 0x25, 0xea, 0xdf, 0xe4, 0x75, 0x09, 0x7b, 0x95, 0x4e, 0xeb, 0x30, 0xb3,
-	0x83, 0x5f, 0xa4, 0xfa, 0xa5, 0xf7, 0xe2, 0x1e, 0x7e, 0xd1, 0x52, 0xfa, 0x56, 0xa4, 0x5d, 0x87,
-	0x41, 0xfb, 0x30, 0x2b, 0x74, 0xc1, 0x59, 0x55, 0x22, 0x8b, 0xf8, 0x26, 0x3d, 0x1c, 0x3f, 0x73,
-	0x5a, 0x01, 0x2f, 0x55, 0x43, 0xb5, 0x75, 0x8c, 0x6f, 0x7e, 0x95, 0x5a, 0xbb, 0x50, 0x4a, 0x73,
-	0x8f, 0xf7, 0xf6, 0xfe, 0xb0, 0x05, 0xca, 0x8e, 0xca, 0x1d, 0x7d, 0xb1, 0x6e, 0x52, 0xaf, 0x8e,
-	0x6c, 0x23, 0xcf, 0xa3, 0xf7, 0x92, 0x93, 0x41, 0x2f, 0xf0, 0xc5, 0x64, 0xa8, 0x8f, 0x54, 0xe2,
-	0xc0, 0xb1, 0x85, 0x04, 0x26, 0x4e, 0xd8, 0xbb, 0x30, 0xc1, 0x8b, 0xe4, 0xe3, 0x9f, 0xa4, 0xea,
-	0x10, 0x0d, 0xac, 0x7f, 0x90, 0x83, 0x2b, 0xc4, 0x76, 0x6f, 0xb8, 0xde, 0x41, 0x17, 0x3f, 0x09,
-	0xf5, 0xb0, 0xad, 0xdf, 0xd6, 0xd4, 0xc7, 0xa2, 0x21, 0x1c, 0xfc, 0xff, 0x97, 0xd2, 0xf8, 0x47,
-	0x39, 0x28, 0x67, 0xd1, 0xf6, 0x66, 0xf5, 0xc6, 0x1d, 0x7e, 0xd8, 0x62, 0xd4, 0x96, 0x38, 0xb8,
-	0xec, 0x53, 0x0c, 0x96, 0x0c, 0x92, 0xfc, 0xaf, 0x29, 0x8c, 0xff, 0x93, 0x83, 0xf9, 0xad, 0x90,
-	0x92, 0xff, 0x8b, 0x13, 0x37, 0xc0, 0x1d, 0xc1, 0xb8, 0x3b, 0x59, 0x8f, 0x06, 0xe8, 0xbc, 0x6e,
-	0x5e, 0xc8, 0x7a, 0x14, 0xf0, 0xbe, 0x12, 0x16, 0x9d, 0x1f, 0xf4, 0x1a, 0x40, 0x7b, 0xe5, 0x76,
-	0x0b, 0x46, 0x77, 0x88, 0x91, 0x34, 0xc2, 0xe5, 0x8f, 0x41, 0x90, 0x22, 0x1a, 0xc1, 0x4c, 0x48,
-	0x26, 0x1f, 0xe8, 0x7e, 0x2a, 0x4e, 0x7a, 0x74, 0x78, 0xb4, 0x7b, 0xfa, 0x79, 0x5e, 0xad, 0x00,
-	0xe3, 0x7b, 0x4e, 0x70, 0x80, 0x23, 0xeb, 0x5b, 0x28, 0xf3, 0xc0, 0x02, 0xe6, 0xf8, 0xa4, 0xe1,
-	0x07, 0x61, 0xec, 0x90, 0x1b, 0x14, 0x0c, 0xb0, 0x0c, 0xd0, 0x88, 0x9c, 0x20, 0xda, 0xf2, 0x3a,
-	0xf8, 0x07, 0x3a, 0xda, 0x31, 0x5b, 0x29, 0xb1, 0x3e, 0x80, 0x49, 0x39, 0x04, 0x7a, 0x42, 0x53,
-	0xec, 0x40, 0x3a, 0x9c, 0x79, 0x2d, 0x72, 0x5b, 0x84, 0x6b, 0xaf, 0xc2, 0x42, 0x62, 0x2a, 0xb8,
-	0x9c, 0x94, 0xc9, 0x84, 0xb1, 0x32, 0x16, 0xba, 0x64, 0xcb, 0x6f, 0xab, 0x0e, 0x97, 0x52, 0x33,
-	0x8d, 0x10, 0x8d, 0xc6, 0x67, 0xa7, 0x6f, 0xb2, 0x4d, 0x34, 0x1a, 0x9b, 0xa4, 0x6c, 0x6f, 0xbb,
-	0xc1, 0x22, 0x13, 0x49, 0xd9, 0xde, 0x76, 0xa3, 0x36, 0xce, 0x24, 0xc7, 0xfa, 0xa7, 0x79, 0x7a,
-	0x28, 0x4d, 0xf1, 0x20, 0xe1, 0x5f, 0x52, 0x7d, 0x5c, 0x35, 0x98, 0xa4, 0x23, 0x5e, 0x13, 0x11,
-	0xbc, 0x83, 0x6f, 0x23, 0x0b, 0xbf, 0xec, 0x57, 0x2e, 0xd0, 0x2b, 0xc8, 0x18, 0x0c, 0x7d, 0x09,
-	0x13, 0xeb, 0x5e, 0x87, 0x62, 0x18, 0x39, 0x07, 0x06, 0x01, 0x44, 0xe6, 0x81, 0x92, 0x4c, 0x0c,
-	0x1c, 0xee, 0x38, 0xb1, 0x95, 0x12, 0xca, 0x66, 0xf7, 0xd8, 0x65, 0x31, 0x27, 0x63, 0x36, 0xfb,
-	0x20, 0xdc, 0xa4, 0x24, 0x88, 0x07, 0x59, 0x93, 0xb6, 0xfc, 0x46, 0x16, 0x8c, 0x3d, 0x0e, 0x3a,
-	0xfc, 0x79, 0xcc, 0xec, 0xca, 0xb4, 0xc8, 0x82, 0x41, 0xca, 0x6c, 0x56, 0x65, 0xfd, 0x2f, 0x7a,
-	0x0f, 0x1c, 0x65, 0xca, 0x8d, 0xc6, 0x95, 0xdc, 0x6b, 0x73, 0x25, 0xff, 0x2a, 0x5c, 0x91, 0xa3,
-	0x1e, 0x31, 0x8d, 0x7a, 0xd4, 0x34, 0xea, 0x31, 0xf3, 0xa8, 0x37, 0x60, 0x9c, 0x0d, 0x15, 0xdd,
-	0x84, 0xb1, 0xad, 0x08, 0x1f, 0xc7, 0xce, 0x0a, 0x35, 0x92, 0xc7, 0x66, 0x75, 0xe4, 0x1c, 0xb5,
-	0xed, 0x84, 0x91, 0x88, 0x85, 0x9d, 0xb4, 0xc5, 0xa7, 0xf5, 0x3d, 0x0d, 0x95, 0xdf, 0xf6, 0xdb,
-	0x47, 0x8a, 0x27, 0x73, 0x82, 0xad, 0xca, 0xe4, 0x85, 0x00, 0x69, 0xc5, 0x6a, 0x6c, 0xd1, 0x02,
-	0x5d, 0x87, 0xa9, 0x2d, 0xef, 0xbe, 0x1f, 0xb4, 0xf1, 0x63, 0xaf, 0xcb, 0xb0, 0x17, 0x6c, 0xb5,
-	0x88, 0x7b, 0x58, 0x78, 0x0f, 0xb1, 0x87, 0x85, 0x16, 0x24, 0x3c, 0x2c, 0xec, 0xa1, 0xb4, 0xcd,
-	0xea, 0xb8, 0x03, 0x87, 0xfc, 0x3d, 0xc8, 0xbd, 0x22, 0xfd, 0x30, 0xc3, 0x1a, 0xee, 0xc3, 0x15,
-	0x1b, 0xf7, 0xba, 0x0e, 0x31, 0xa3, 0x8e, 0x7d, 0xd6, 0x5e, 0x8e, 0xf9, 0x7a, 0x46, 0x14, 0xa7,
-	0xee, 0x4c, 0x95, 0x24, 0xe7, 0x07, 0x90, 0x7c, 0x0c, 0x37, 0x36, 0x70, 0x94, 0xf9, 0xda, 0x39,
-	0x1e, 0xfc, 0x26, 0x14, 0xf8, 0x6b, 0x19, 0x31, 0xfe, 0x61, 0x0f, 0xad, 0xf9, 0xe5, 0x10, 0xc7,
-	0x23, 0xff, 0xb2, 0xbe, 0x82, 0x8a, 0xa9, 0xbb, 0xb3, 0x85, 0xdd, 0xb9, 0x70, 0xdd, 0x8c, 0x40,
-	0x6e, 0x8b, 0x13, 0xbc, 0x43, 0x79, 0x20, 0x1e, 0x4c, 0xad, 0xbc, 0x2e, 0xa0, 0x86, 0x01, 0xff,
-	0xc3, 0xaa, 0x89, 0xb8, 0x9e, 0xd7, 0x20, 0xb7, 0x45, 0x2f, 0x34, 0x74, 0x04, 0x31, 0x5f, 0xab,
-	0x50, 0x10, 0x65, 0x89, 0x1b, 0x8d, 0xd4, 0x43, 0x72, 0xca, 0xd0, 0x8e, 0x40, 0x20, 0xc1, 0xac,
-	0xef, 0xc5, 0xb5, 0x83, 0x0e, 0x71, 0xb6, 0x88, 0xf0, 0xb3, 0xdc, 0x33, 0x58, 0x3e, 0x5c, 0xd1,
-	0x71, 0xab, 0x0e, 0xef, 0xa2, 0xe2, 0xf0, 0x66, 0x7e, 0x6e, 0x22, 0x97, 0xf6, 0xf6, 0xba, 0xd7,
-	0xe9, 0xf9, 0xae, 0x17, 0xf1, 0xc5, 0xab, 0x16, 0xa1, 0x65, 0xd5, 0xad, 0x3d, 0x9d, 0x0e, 0xa1,
-	0xbf, 0x07, 0xe5, 0xac, 0x0e, 0x15, 0xb7, 0x88, 0xf4, 0x0c, 0x33, 0x83, 0xc4, 0x3a, 0x84, 0x79,
-	0x2d, 0x35, 0x4f, 0x9c, 0x6b, 0x24, 0x4e, 0x49, 0x34, 0x59, 0xfb, 0xfc, 0x37, 0xfd, 0xca, 0xc7,
-	0xe7, 0x89, 0xd3, 0x16, 0x38, 0xf7, 0xe4, 0x2b, 0x00, 0x6b, 0x11, 0x46, 0xea, 0xf6, 0x36, 0x1d,
-	0xb6, 0xbd, 0x2d, 0x87, 0x6d, 0x6f, 0x5b, 0x7f, 0x94, 0x87, 0x4a, 0xfd, 0xd0, 0xf1, 0x0e, 0xd8,
-	0x75, 0x6f, 0x6c, 0x77, 0x29, 0xf7, 0xc7, 0x67, 0x3d, 0x6d, 0xac, 0xc0, 0xd4, 0x0e, 0x7e, 0x21,
-	0x5e, 0x30, 0xf0, 0xb7, 0x00, 0xd4, 0x3f, 0x4d, 0x4e, 0x02, 0x3d, 0x5e, 0x6e, 0xab, 0x8d, 0xd0,
-	0x9f, 0x7f, 0x75, 0xbf, 0x0b, 0x4b, 0xd0, 0x11, 0x1f, 0x32, 0x58, 0x6d, 0xd6, 0x69, 0xc3, 0xd0,
-	0x45, 0xfa, 0x78, 0x34, 0x7a, 0xfe, 0xe3, 0x91, 0xf5, 0x2f, 0x72, 0x70, 0xdd, 0xcc, 0x41, 0xde,
-	0xd3, 0x9a, 0x96, 0x2b, 0x65, 0xc0, 0xa5, 0x37, 0x3d, 0x12, 0x2a, 0xb9, 0x52, 0x92, 0xf9, 0x51,
-	0x6c, 0xdc, 0xf6, 0x9f, 0xe3, 0xe0, 0x65, 0xc2, 0x8f, 0x2d, 0x8a, 0xeb, 0x7e, 0x07, 0x87, 0x22,
-	0xd3, 0x14, 0x2b, 0xd2, 0x9e, 0x2e, 0xf3, 0x32, 0xeb, 0x3f, 0xe4, 0xe0, 0x2a, 0xdd, 0x06, 0xb9,
-	0x97, 0x4f, 0x54, 0xbc, 0x52, 0xe4, 0x88, 0xda, 0x39, 0x9f, 0x75, 0x1a, 0x39, 0x22, 0x28, 0x68,
-	0xb5, 0xfd, 0x0e, 0xb6, 0xb5, 0x66, 0x68, 0x0b, 0xa6, 0xf8, 0xb7, 0xe2, 0xca, 0x59, 0x50, 0x32,
-	0x2f, 0x51, 0xa1, 0x62, 0x67, 0x3e, 0x2a, 0x42, 0x1c, 0x59, 0x8b, 0x3e, 0x6d, 0x51, 0x61, 0xad,
-	0x5f, 0xe7, 0x61, 0xa9, 0x89, 0x03, 0xf7, 0xd9, 0x4b, 0xc3, 0x60, 0x1e, 0xc3, 0xbc, 0x28, 0xa2,
-	0x63, 0xd6, 0x85, 0x99, 0x3d, 0x41, 0x15, 0xa4, 0x86, 0xa4, 0x41, 0x4b, 0xca, 0x76, 0x26, 0xe0,
-	0x39, 0x1e, 0x65, 0xbf, 0x0f, 0x05, 0xb9, 0x1e, 0x46, 0x28, 0x67, 0xe8, 0xdc, 0x88, 0xb5, 0xa0,
-	0xe7, 0xc0, 0x90, 0x8b, 0xe2, 0xaf, 0x9a, 0xaf, 0x0b, 0xb8, 0xfd, 0x3f, 0xe4, 0x68, 0xc6, 0x96,
-	0x06, 0x59, 0x16, 0x8e, 0x52, 0x9b, 0xb1, 0x34, 0x36, 0x2f, 0xd8, 0xa6, 0x9e, 0x6a, 0x53, 0x30,
-	0x59, 0xa5, 0x97, 0x19, 0xc4, 0xdc, 0xfe, 0xdf, 0x79, 0x58, 0x16, 0xc1, 0xbe, 0x06, 0x36, 0x7f,
-	0x03, 0x8b, 0xa2, 0xa8, 0xda, 0xeb, 0x05, 0xfe, 0x73, 0xdc, 0xd1, 0x39, 0xcd, 0x9e, 0x81, 0x0b,
-	0x4e, 0x3b, 0xbc, 0x4d, 0xcc, 0x6c, 0x13, 0xf8, 0x9b, 0x71, 0x63, 0x7c, 0xa9, 0x6b, 0x27, 0x36,
-	0x1b, 0xd4, 0x9d, 0xa0, 0x6a, 0x27, 0x3d, 0x49, 0x98, 0xaa, 0xa9, 0x3a, 0x29, 0x37, 0xc8, 0xe8,
-	0xeb, 0xba, 0x41, 0xc8, 0x41, 0x4d, 0xc7, 0x59, 0x9b, 0x85, 0xe9, 0x1d, 0xfc, 0x22, 0xe6, 0xfb,
-	0xef, 0xe6, 0x60, 0x46, 0x5b, 0xdc, 0xe8, 0x1d, 0x18, 0xa3, 0x7f, 0xd0, 0x9d, 0x97, 0xbf, 0x85,
-	0x23, 0x0b, 0x4c, 0x7b, 0x0b, 0xc7, 0x9a, 0x6e, 0xc1, 0x04, 0x8b, 0xb3, 0xea, 0x9c, 0xc1, 0xa2,
-	0x96, 0x71, 0x93, 0x6d, 0x06, 0xc2, 0x8c, 0x6b, 0x0e, 0x6f, 0x3d, 0x84, 0x1b, 0x3c, 0x88, 0x4d,
-	0x9f, 0x7c, 0xda, 0xd1, 0x39, 0x37, 0x0a, 0xcb, 0x81, 0xe5, 0x0d, 0x9c, 0x54, 0x3d, 0x5a, 0x5c,
-	0xe9, 0x57, 0x70, 0x51, 0x2b, 0x97, 0x18, 0xe9, 0x7b, 0x19, 0x29, 0x43, 0x12, 0x75, 0xb2, 0xb5,
-	0x75, 0x3d, 0xab, 0x0b, 0x95, 0x58, 0x0b, 0xc3, 0x45, 0x7a, 0x6e, 0x94, 0x37, 0x3a, 0xe1, 0x39,
-	0xb4, 0xde, 0x6d, 0x65, 0x5d, 0x33, 0x8d, 0xc7, 0x9e, 0x5a, 0x8b, 0x3d, 0x4e, 0xd6, 0x5a, 0x33,
-	0x30, 0x55, 0xf7, 0xbd, 0x08, 0xff, 0x40, 0x1f, 0x3b, 0x59, 0xb3, 0x30, 0x2d, 0xaa, 0xba, 0x38,
-	0x0c, 0xad, 0x7f, 0x38, 0x02, 0x16, 0x67, 0x6c, 0x96, 0xcf, 0x43, 0xf0, 0x63, 0x3f, 0x45, 0x2c,
-	0xdf, 0x44, 0x2e, 0xab, 0x9e, 0x9d, 0xb8, 0x96, 0x49, 0x1e, 0xbd, 0xe5, 0x6d, 0xc7, 0xa5, 0x9a,
-	0xe4, 0xa5, 0x46, 0xff, 0x53, 0x83, 0x9a, 0x64, 0x8b, 0x8d, 0xa6, 0x20, 0x32, 0xa8, 0x49, 0x0d,
-	0x6f, 0xb6, 0xca, 0xb4, 0x35, 0x36, 0xf0, 0xcd, 0x1d, 0xc9, 0x47, 0x19, 0xb2, 0x86, 0xa7, 0xed,
-	0x63, 0x05, 0xad, 0x54, 0xda, 0x3d, 0x15, 0x09, 0x7a, 0xa2, 0xf3, 0x92, 0xaf, 0x47, 0x71, 0x83,
-	0xaa, 0x56, 0x31, 0xac, 0x3d, 0xa5, 0x44, 0xcf, 0x62, 0xa8, 0xb5, 0x55, 0xfc, 0x58, 0x7f, 0x37,
-	0x07, 0x57, 0xd9, 0xec, 0xec, 0x06, 0xee, 0x73, 0xb7, 0x8b, 0x0f, 0xb0, 0x26, 0xa6, 0x27, 0xd9,
-	0x37, 0x51, 0xb9, 0x33, 0xe9, 0x68, 0x9a, 0x94, 0x05, 0x73, 0x70, 0x93, 0xa3, 0x34, 0x0b, 0xbf,
-	0xd5, 0xcf, 0x89, 0x00, 0xca, 0xd4, 0xf5, 0xcc, 0x79, 0x6d, 0xb6, 0x9a, 0x76, 0xa3, 0x92, 0x37,
-	0xdc, 0xa8, 0x68, 0x9e, 0xea, 0x68, 0xc8, 0x15, 0xcb, 0xc8, 0xeb, 0x3b, 0x6f, 0x7f, 0x35, 0x02,
-	0x97, 0x76, 0x9d, 0x03, 0xd7, 0x23, 0xba, 0x47, 0xe4, 0x49, 0x42, 0xd5, 0x54, 0x4a, 0xbb, 0xc1,
-	0x01, 0x4f, 0x19, 0x39, 0xeb, 0x56, 0xd4, 0xec, 0x52, 0x79, 0xd3, 0x0b, 0x0e, 0x3d, 0x87, 0xd4,
-	0x27, 0x9a, 0xaf, 0x2e, 0x15, 0xf3, 0x46, 0xa3, 0x4a, 0x3c, 0xbf, 0x93, 0x48, 0xf3, 0x48, 0xfd,
-	0x5d, 0x8f, 0x61, 0x4a, 0x09, 0x5c, 0xe3, 0x02, 0x9a, 0xc2, 0x40, 0xd9, 0x72, 0x74, 0xb2, 0x8f,
-	0x33, 0x53, 0x7a, 0xa9, 0x18, 0x32, 0x12, 0x79, 0x8d, 0xbd, 0xe1, 0x44, 0x5e, 0xdf, 0x32, 0x92,
-	0x85, 0xe7, 0x73, 0x9c, 0xef, 0x1b, 0x0c, 0x7d, 0xca, 0xfd, 0xd9, 0x5c, 0x55, 0xa8, 0xcf, 0xca,
-	0x4a, 0xa8, 0x22, 0xab, 0x01, 0x14, 0x44, 0xfe, 0x53, 0xeb, 0x7f, 0x8e, 0xc3, 0xfc, 0xb6, 0x1b,
-	0x46, 0x62, 0x76, 0xc3, 0x58, 0xf5, 0x4f, 0x8b, 0x32, 0xe5, 0x10, 0xc4, 0xad, 0x34, 0x56, 0xde,
-	0x4a, 0xa4, 0x63, 0xd5, 0x00, 0xd0, 0x07, 0xaa, 0xff, 0x2e, 0xaf, 0x24, 0x50, 0x49, 0x67, 0xd2,
-	0x54, 0x1d, 0x7b, 0xef, 0x68, 0xee, 0x23, 0xb6, 0xaf, 0x76, 0x49, 0x81, 0xba, 0xaf, 0x32, 0x9f,
-	0xd2, 0x6a, 0xd2, 0xa7, 0xc4, 0x3a, 0x60, 0x4a, 0xf1, 0x08, 0x6b, 0x26, 0xb7, 0x74, 0x36, 0x3d,
-	0x81, 0x71, 0xfa, 0x7a, 0x9e, 0xa5, 0x51, 0x9a, 0x5a, 0xf9, 0x11, 0x5f, 0x20, 0x59, 0x4c, 0x60,
-	0xef, 0xec, 0x43, 0x25, 0x45, 0x56, 0x97, 0x16, 0xa8, 0x4f, 0xf6, 0x59, 0x13, 0xb4, 0x07, 0x73,
-	0xbb, 0x01, 0xee, 0x50, 0xd5, 0xb2, 0xfe, 0x43, 0x2f, 0xe0, 0x47, 0x0c, 0xea, 0xe0, 0x63, 0x19,
-	0xeb, 0x7a, 0xa2, 0xba, 0x85, 0x65, 0xbd, 0xaa, 0x61, 0x32, 0xc0, 0xd1, 0x3a, 0xcc, 0x36, 0xb0,
-	0x13, 0xb4, 0x0f, 0x1f, 0xe2, 0x97, 0x44, 0x31, 0x86, 0xa5, 0x89, 0x38, 0x03, 0x4f, 0x48, 0x6b,
-	0xc8, 0x40, 0x69, 0x95, 0x7a, 0xad, 0xa3, 0x03, 0xa1, 0x9f, 0xc0, 0x78, 0xc3, 0x0f, 0xa2, 0xda,
-	0xcb, 0x44, 0x6a, 0x55, 0x56, 0x58, 0xbb, 0x22, 0xb2, 0x10, 0x85, 0x7e, 0x10, 0xb5, 0xf6, 0x55,
-	0xbe, 0x71, 0x38, 0x74, 0x9f, 0x58, 0x5d, 0xc4, 0x12, 0x8c, 0x9c, 0x6e, 0x9d, 0x86, 0x27, 0xb0,
-	0x47, 0x97, 0xdc, 0xb2, 0xa2, 0xe6, 0x63, 0xe4, 0x74, 0x5b, 0x74, 0x9f, 0xd7, 0x2f, 0x98, 0x54,
-	0x28, 0xf4, 0x12, 0xe6, 0x75, 0x41, 0xe7, 0x39, 0xca, 0x40, 0x4b, 0x52, 0x98, 0xd5, 0xa4, 0x76,
-	0x9b, 0x53, 0x79, 0x3d, 0x99, 0x80, 0x2f, 0x95, 0xb6, 0x2c, 0xb3, 0x0b, 0xf4, 0x88, 0x26, 0x81,
-	0x62, 0x9c, 0xa9, 0x86, 0x2c, 0xde, 0x89, 0xbd, 0xf4, 0xbc, 0x71, 0xda, 0xaf, 0x5c, 0x3b, 0xa1,
-	0xd9, 0x36, 0x29, 0x47, 0x1d, 0xf6, 0x8e, 0x40, 0xe5, 0x68, 0x0a, 0xb4, 0xfc, 0x09, 0x4c, 0x29,
-	0xd2, 0x71, 0xae, 0x0c, 0x67, 0x7f, 0x9c, 0x83, 0x85, 0x84, 0xb8, 0xf1, 0xf3, 0xe9, 0x63, 0x98,
-	0x94, 0x85, 0xdc, 0xa5, 0x53, 0x92, 0xfb, 0x68, 0x42, 0x0f, 0x33, 0x61, 0x17, 0x6b, 0x51, 0x25,
-	0x36, 0xc6, 0x81, 0xee, 0xc1, 0xc4, 0x0e, 0xfe, 0x21, 0xf6, 0x83, 0xb2, 0x73, 0x8f, 0x47, 0x36,
-	0x75, 0x7d, 0x81, 0x88, 0x66, 0xe8, 0x13, 0x00, 0x65, 0x96, 0xd9, 0x22, 0xa4, 0xb1, 0x93, 0xd9,
-	0x13, 0xac, 0x34, 0xb6, 0xfe, 0x68, 0x42, 0x6c, 0xd3, 0xe2, 0x75, 0x42, 0xe0, 0xb4, 0x8f, 0xe2,
-	0x20, 0xd6, 0x0f, 0xd2, 0x11, 0xa3, 0x67, 0xd1, 0x08, 0xb7, 0xb4, 0xc4, 0x0a, 0xe6, 0x3c, 0xd0,
-	0x71, 0x8e, 0x8d, 0x91, 0x33, 0xe4, 0xd8, 0xb8, 0x0b, 0x13, 0x5b, 0xde, 0x73, 0x97, 0x18, 0xe5,
-	0x2c, 0xe4, 0x91, 0x9a, 0xb4, 0x2e, 0x2b, 0x52, 0x19, 0xc3, 0x5b, 0xa1, 0x4f, 0xa0, 0xb0, 0xe9,
-	0x87, 0x91, 0x27, 0xc2, 0x1d, 0xf9, 0x2a, 0x8c, 0xa8, 0x5f, 0xb8, 0x75, 0xc8, 0xab, 0x54, 0x9d,
-	0x23, 0x9a, 0xa3, 0x0f, 0x61, 0xa2, 0xda, 0xe9, 0x90, 0x45, 0xcd, 0x15, 0x02, 0x4d, 0x22, 0xcb,
-	0x21, 0x1d, 0x56, 0xa3, 0x76, 0xc9, 0x1b, 0xa3, 0xcf, 0x75, 0x27, 0xed, 0x44, 0x9c, 0x81, 0x26,
-	0x3b, 0xa1, 0xb2, 0xee, 0xc0, 0x7d, 0x47, 0xdc, 0xf2, 0x14, 0xe2, 0x9c, 0x3e, 0x34, 0x3f, 0x8f,
-	0xa6, 0x49, 0xe9, 0x25, 0xd1, 0x16, 0x4c, 0x6e, 0x79, 0x6e, 0xe4, 0xd2, 0xac, 0x26, 0x93, 0xda,
-	0x7e, 0xbc, 0xeb, 0x04, 0x91, 0xdb, 0x76, 0x7b, 0x8e, 0x17, 0xb1, 0xd9, 0x72, 0x45, 0x43, 0x75,
-	0xb6, 0x24, 0xb4, 0x9a, 0xff, 0x0c, 0xde, 0x58, 0xfe, 0xb3, 0xcc, 0x14, 0x62, 0x53, 0xaf, 0x9e,
-	0x42, 0x6c, 0x95, 0xcd, 0x25, 0xb5, 0x81, 0xa7, 0x63, 0x41, 0xa4, 0xbe, 0x4b, 0xdd, 0xd8, 0xb5,
-	0x65, 0x43, 0x74, 0x9d, 0x66, 0x31, 0x99, 0x89, 0xc3, 0x3d, 0xb5, 0x5b, 0xe5, 0xfc, 0xd6, 0x1a,
-	0x6a, 0xc1, 0x34, 0x69, 0xbd, 0xeb, 0x77, 0xdd, 0xb6, 0x8b, 0xc3, 0xd2, 0xac, 0xe6, 0xec, 0xd6,
-	0x17, 0x05, 0x6d, 0xf4, 0xb2, 0x81, 0x23, 0xb6, 0xa7, 0xd2, 0xae, 0x7b, 0x1c, 0x50, 0xdd, 0x53,
-	0x55, 0x84, 0xe8, 0xe7, 0x64, 0x3f, 0x50, 0xb1, 0xf0, 0x0c, 0xc8, 0x8b, 0x99, 0x5d, 0x34, 0xdf,
-	0x13, 0x1b, 0x05, 0x7f, 0x3a, 0xc4, 0x8a, 0xf5, 0x8d, 0x42, 0x05, 0xb0, 0x6c, 0x28, 0xc5, 0x57,
-	0x4b, 0x89, 0xd5, 0xfb, 0x61, 0xfa, 0xf9, 0x0a, 0xcd, 0xfe, 0x19, 0x3f, 0x5f, 0x51, 0x05, 0x22,
-	0x7e, 0xc8, 0xf2, 0x04, 0xae, 0xda, 0xf8, 0xd8, 0x7f, 0x8e, 0xdf, 0x2c, 0xda, 0x9f, 0xc2, 0x15,
-	0x1d, 0xe1, 0x93, 0x5e, 0x87, 0xbe, 0xbd, 0x66, 0x77, 0x58, 0x99, 0xb9, 0x7d, 0x38, 0x00, 0xcb,
-	0xed, 0xc3, 0x12, 0x46, 0x90, 0x3f, 0xd5, 0xf5, 0x40, 0xeb, 0x2c, 0x1f, 0x96, 0x74, 0xe4, 0xd5,
-	0x4e, 0x47, 0x59, 0x08, 0xc4, 0xa0, 0x54, 0x3e, 0x13, 0x16, 0xac, 0xba, 0x62, 0xa8, 0xe6, 0xec,
-	0xc5, 0x05, 0xea, 0x5a, 0x55, 0xda, 0x59, 0x18, 0x2a, 0x49, 0xf6, 0x10, 0x96, 0xa9, 0x7d, 0xd6,
-	0x60, 0x46, 0xf9, 0x94, 0x07, 0x42, 0xaa, 0x4a, 0x94, 0x1e, 0x74, 0x86, 0xe9, 0x20, 0x56, 0x1b,
-	0xca, 0x59, 0x4c, 0xa3, 0xcb, 0xec, 0x25, 0x5a, 0x8f, 0x97, 0xee, 0xf0, 0xbb, 0xc3, 0x8b, 0xc6,
-	0xb7, 0x9d, 0xbf, 0x37, 0x0a, 0x57, 0xf9, 0x64, 0xbc, 0xc9, 0x19, 0x47, 0xdf, 0xc3, 0x94, 0x32,
-	0xc7, 0x9c, 0xe9, 0xd7, 0x45, 0xb8, 0x81, 0x49, 0x16, 0x98, 0xbe, 0x3c, 0xa1, 0x05, 0xad, 0xc4,
-	0x74, 0x13, 0xc3, 0x58, 0x15, 0x9b, 0x2e, 0xcc, 0xea, 0x13, 0xcd, 0x0f, 0x1b, 0x37, 0x33, 0x3b,
-	0xd1, 0x9b, 0x8a, 0x2c, 0x17, 0x9d, 0x56, 0xe6, 0x74, 0xd3, 0x74, 0xcd, 0xba, 0x10, 0xfd, 0x00,
-	0x97, 0x52, 0xb3, 0xcc, 0xcf, 0x26, 0xb7, 0x32, 0x3b, 0x4c, 0xb5, 0x66, 0xca, 0x2f, 0xa0, 0xc5,
-	0xc6, 0x6e, 0xd3, 0x9d, 0xa0, 0x0e, 0x4c, 0xab, 0x13, 0xcf, 0x0f, 0x2f, 0x37, 0x06, 0xb0, 0x92,
-	0x35, 0x64, 0xaa, 0x8a, 0xf3, 0x92, 0xce, 0xbd, 0xfe, 0x0b, 0x07, 0x1a, 0xd6, 0x5a, 0x01, 0xc6,
-	0xd9, 0x37, 0x51, 0x01, 0xbb, 0x01, 0x0e, 0xb1, 0xd7, 0xc6, 0x6a, 0xe4, 0xc8, 0xeb, 0xaa, 0x80,
-	0x7f, 0x9f, 0x83, 0x52, 0x16, 0xde, 0x06, 0xf6, 0x3a, 0x68, 0x17, 0x8a, 0xc9, 0x8e, 0xb8, 0x54,
-	0x5b, 0xc2, 0xa2, 0x32, 0x93, 0xb4, 0x79, 0xc1, 0x4e, 0x41, 0x93, 0x4d, 0x48, 0x29, 0x3b, 0x67,
-	0x88, 0x4e, 0x1a, 0x54, 0x75, 0x70, 0x6c, 0xd2, 0x48, 0xa4, 0x35, 0xff, 0xd8, 0x71, 0x3d, 0xb2,
-	0x77, 0x4b, 0x83, 0xf0, 0x2e, 0x40, 0x5c, 0xca, 0x79, 0xc3, 0x9c, 0x00, 0xb4, 0x54, 0x84, 0xab,
-	0xc9, 0x26, 0xd6, 0xe7, 0x54, 0x83, 0xf3, 0x7d, 0x8e, 0x3d, 0x64, 0x90, 0xc8, 0xae, 0xc3, 0xd8,
-	0xde, 0x76, 0xa3, 0x5e, 0xe5, 0xcf, 0x22, 0xd8, 0x1b, 0xb7, 0x6e, 0xd8, 0x6a, 0x3b, 0x36, 0xab,
-	0x78, 0xf7, 0x5d, 0x98, 0x94, 0xbf, 0xb8, 0x81, 0x0a, 0x30, 0xba, 0xb5, 0xb3, 0xb5, 0xc7, 0xb2,
-	0x2b, 0xee, 0x3e, 0xd9, 0x2b, 0xe6, 0x10, 0xc0, 0xf8, 0xda, 0xfa, 0xf6, 0xfa, 0xde, 0x7a, 0x31,
-	0xff, 0x6e, 0x4b, 0x75, 0x59, 0xa0, 0xab, 0xb0, 0xb8, 0xb6, 0xde, 0xdc, 0xaa, 0xaf, 0xb7, 0xf6,
-	0x7e, 0x67, 0x77, 0xbd, 0xa5, 0x3f, 0xd8, 0x98, 0x87, 0xa2, 0x5a, 0xb9, 0xf7, 0x78, 0x6f, 0xb7,
-	0x98, 0x43, 0x25, 0x98, 0x57, 0x4b, 0x9f, 0xae, 0xd7, 0xaa, 0x4f, 0xf6, 0x36, 0x77, 0x8a, 0x23,
-	0xd6, 0x68, 0x21, 0x5f, 0xcc, 0xbf, 0xfb, 0xbd, 0xe6, 0xcf, 0x40, 0x4b, 0x50, 0xe2, 0xcd, 0x9f,
-	0x34, 0xaa, 0x1b, 0xe6, 0x2e, 0x58, 0xed, 0xa3, 0xfb, 0xd5, 0x62, 0x0e, 0x5d, 0x83, 0x2b, 0x5a,
-	0xe9, 0x6e, 0xb5, 0xd1, 0x78, 0xfa, 0xd8, 0x5e, 0xdb, 0x5e, 0x6f, 0x34, 0x8a, 0xf9, 0x77, 0x6f,
-	0xf1, 0xc0, 0x03, 0x34, 0x0b, 0xb0, 0xb6, 0xde, 0xa8, 0xaf, 0xef, 0xac, 0x6d, 0xed, 0x6c, 0x14,
-	0x2f, 0xa0, 0x19, 0x98, 0xac, 0xca, 0xcf, 0xdc, 0xca, 0x9f, 0x60, 0x98, 0x22, 0xf3, 0x2a, 0x8e,
-	0xff, 0x2d, 0x58, 0x7c, 0xe4, 0xb8, 0x5e, 0xe4, 0xb8, 0x1e, 0x97, 0x46, 0x21, 0x4b, 0xa8, 0x32,
-	0x40, 0xb8, 0x88, 0x5c, 0x96, 0x87, 0x85, 0x57, 0xdd, 0xce, 0xdd, 0xcb, 0xa1, 0x06, 0xcc, 0x67,
-	0x19, 0xd2, 0xc8, 0xd2, 0xd3, 0xb6, 0x64, 0xa9, 0xd7, 0xb2, 0xc9, 0x16, 0x40, 0x8f, 0xe0, 0x52,
-	0x6a, 0x73, 0x97, 0xf4, 0x9a, 0xb6, 0xfd, 0x41, 0xe8, 0x4a, 0xd4, 0xb5, 0x1b, 0xb9, 0xc9, 0xad,
-	0x3d, 0x44, 0x97, 0x53, 0x1b, 0xc7, 0x3a, 0x59, 0xbc, 0x46, 0x64, 0xf7, 0x72, 0xc8, 0x86, 0xf9,
-	0x2c, 0x33, 0x41, 0x0e, 0x79, 0x80, 0x0d, 0x51, 0x36, 0x74, 0x47, 0x70, 0x66, 0x6d, 0x44, 0x12,
-	0xe7, 0x80, 0x5d, 0xca, 0x88, 0xf3, 0x73, 0x62, 0x82, 0x79, 0x9d, 0x87, 0x18, 0xf7, 0xaa, 0x5d,
-	0xf7, 0x39, 0x0e, 0x91, 0x08, 0x0e, 0x94, 0x45, 0x26, 0xd8, 0xdb, 0x39, 0xf4, 0x5b, 0x30, 0x45,
-	0x13, 0x70, 0xf3, 0x58, 0x96, 0x69, 0x35, 0x29, 0x77, 0x59, 0x7c, 0xd1, 0xca, 0x7b, 0x39, 0xf4,
-	0x05, 0x4c, 0x6c, 0xe0, 0x88, 0x7a, 0xb0, 0x6e, 0x24, 0x7e, 0xcb, 0x66, 0xcb, 0x93, 0xe7, 0x23,
-	0x41, 0x70, 0xd2, 0x9f, 0x45, 0x74, 0x07, 0x7b, 0xaf, 0x48, 0x31, 0x24, 0xab, 0xcb, 0x29, 0xb2,
-	0xd1, 0x06, 0x59, 0xd1, 0x5d, 0x1c, 0xe1, 0xb3, 0x76, 0x69, 0xe2, 0xd1, 0x36, 0xcc, 0xca, 0xd7,
-	0x83, 0x3b, 0xf4, 0x0a, 0xc4, 0x4a, 0x20, 0x0b, 0xcf, 0x81, 0xed, 0x53, 0x22, 0xb7, 0x2c, 0x57,
-	0x84, 0x0c, 0x9c, 0x44, 0xa6, 0x50, 0x4a, 0xc9, 0x44, 0xd6, 0x4c, 0x81, 0x95, 0x39, 0xc5, 0x25,
-	0x6c, 0x32, 0xcb, 0x78, 0x02, 0x16, 0x43, 0x59, 0xed, 0x57, 0x0f, 0xa2, 0x44, 0xd7, 0x15, 0x02,
-	0x32, 0x63, 0x3f, 0xcb, 0x37, 0x06, 0xb4, 0x60, 0x1a, 0x99, 0xae, 0xf5, 0x07, 0x30, 0xa3, 0x85,
-	0xdd, 0x21, 0xf1, 0x22, 0x20, 0x2b, 0x2e, 0xb2, 0xbc, 0x94, 0x5d, 0xc9, 0x35, 0xfc, 0x7d, 0xba,
-	0xc4, 0x13, 0x39, 0x3c, 0xcb, 0x59, 0xb9, 0x3a, 0x99, 0x53, 0xa4, 0x2c, 0xf2, 0x31, 0x25, 0x40,
-	0xd6, 0x61, 0x4e, 0x5e, 0x33, 0x29, 0x3f, 0xbe, 0x62, 0xc8, 0xfa, 0x69, 0x9c, 0xb9, 0xaf, 0x60,
-	0x8e, 0xcb, 0x81, 0x86, 0xa6, 0x28, 0x97, 0x34, 0x4f, 0x10, 0x69, 0x44, 0xf0, 0x00, 0x16, 0x1a,
-	0x89, 0xf1, 0x30, 0x4b, 0xed, 0x8a, 0x8e, 0x42, 0xc9, 0xf7, 0x69, 0xc4, 0xf5, 0x10, 0x50, 0xe3,
-	0x64, 0xff, 0xd8, 0x95, 0xe8, 0x9e, 0xbb, 0xf8, 0x05, 0xba, 0x96, 0x18, 0x12, 0x29, 0xa4, 0xcd,
-	0xa8, 0x4e, 0x28, 0x1b, 0x46, 0x8c, 0xf6, 0x58, 0xf2, 0x10, 0x96, 0x08, 0xcd, 0xe9, 0x39, 0xfb,
-	0x6e, 0xd7, 0x8d, 0xc8, 0x09, 0xed, 0xba, 0x06, 0xa0, 0x56, 0x89, 0x19, 0xbc, 0x62, 0x6c, 0x81,
-	0xbe, 0x84, 0x99, 0x0d, 0x1c, 0xc5, 0x29, 0x4d, 0xd1, 0x62, 0x2a, 0x09, 0x2a, 0x9f, 0x37, 0x11,
-	0x70, 0xa0, 0xe7, 0x51, 0xdd, 0x82, 0x22, 0x53, 0x69, 0x0a, 0x8a, 0x6b, 0x29, 0x14, 0xbc, 0x89,
-	0x13, 0x38, 0xc7, 0xa1, 0x91, 0x5b, 0x77, 0x61, 0x74, 0xd7, 0xf5, 0x0e, 0x90, 0xb8, 0x3f, 0x50,
-	0x52, 0x02, 0x96, 0xe7, 0xb4, 0x32, 0x2e, 0x7a, 0xfb, 0x50, 0x61, 0xb9, 0x3c, 0xd3, 0xf9, 0x33,
-	0xc5, 0x0f, 0x16, 0xbc, 0x25, 0xa3, 0x65, 0x07, 0xe4, 0xfc, 0x94, 0xfc, 0x49, 0xd6, 0x37, 0x57,
-	0xd1, 0x2e, 0xe5, 0x7a, 0xba, 0x03, 0x74, 0x33, 0xde, 0xc5, 0x8c, 0xe9, 0x3b, 0xcb, 0x28, 0x89,
-	0xb8, 0xb9, 0x8a, 0x64, 0x52, 0x90, 0x0c, 0xa4, 0xb7, 0xb4, 0xcd, 0xf6, 0x7c, 0x78, 0xbf, 0x84,
-	0x49, 0x99, 0xbb, 0x52, 0xea, 0x9b, 0x64, 0xc2, 0xcd, 0x72, 0x29, 0x5d, 0xc1, 0xb9, 0xf9, 0x39,
-	0x4b, 0x33, 0xab, 0xc3, 0x27, 0xd3, 0x3b, 0x1a, 0x27, 0xef, 0x13, 0x98, 0x52, 0x12, 0x3b, 0xca,
-	0xc5, 0x92, 0x4e, 0xf6, 0x58, 0xd6, 0x7f, 0x64, 0xeb, 0x5e, 0x0e, 0xdd, 0xa5, 0x7b, 0x0e, 0xf5,
-	0x77, 0x2c, 0xc4, 0x60, 0x4a, 0x5e, 0xbb, 0x04, 0x08, 0xfa, 0x88, 0x06, 0x2d, 0xd6, 0x4f, 0x82,
-	0x00, 0x7b, 0x0c, 0xce, 0xb4, 0xf9, 0x27, 0x00, 0x57, 0xa1, 0x20, 0x72, 0x16, 0xa3, 0xcb, 0x7a,
-	0x57, 0x66, 0xf2, 0x56, 0x01, 0x18, 0xb3, 0x68, 0x4f, 0x7a, 0xb5, 0x91, 0x1d, 0xab, 0x64, 0x23,
-	0xec, 0x9c, 0x13, 0xe8, 0x4b, 0xb1, 0x19, 0x52, 0xa0, 0x92, 0x36, 0x05, 0x2a, 0x3b, 0x4c, 0xf0,
-	0x5b, 0x50, 0xac, 0xb6, 0xa9, 0x7a, 0x96, 0x39, 0xfa, 0xd0, 0xb2, 0x5c, 0xfa, 0x7a, 0x85, 0xc0,
-	0xb5, 0x90, 0x4c, 0xf9, 0xb7, 0x8d, 0x1d, 0x1a, 0x3f, 0xb9, 0x28, 0x37, 0xe9, 0x44, 0x55, 0x36,
-	0x84, 0x91, 0xa8, 0x75, 0x98, 0xaf, 0x3b, 0x5e, 0x1b, 0x77, 0x5f, 0x0f, 0xcd, 0xa7, 0x54, 0x4f,
-	0x29, 0xf9, 0x0b, 0x2f, 0x27, 0xe1, 0xb9, 0x9a, 0xba, 0x24, 0x8f, 0x94, 0xb2, 0x69, 0x15, 0x2e,
-	0xf2, 0x34, 0x29, 0x92, 0x2d, 0x26, 0x68, 0x53, 0xf7, 0x1f, 0xc1, 0xec, 0x3a, 0xd1, 0xe3, 0x27,
-	0x1d, 0x97, 0xc5, 0x8c, 0x23, 0x3d, 0x08, 0xd8, 0x08, 0xb8, 0x29, 0x32, 0xca, 0x2a, 0x89, 0xfd,
-	0xe4, 0xea, 0x48, 0xe7, 0x4e, 0x2c, 0xcf, 0x0b, 0xb4, 0x6a, 0x0e, 0x40, 0xba, 0x69, 0x1f, 0x88,
-	0xe4, 0x51, 0x89, 0x74, 0x6d, 0xaa, 0x26, 0x32, 0x26, 0x73, 0x2b, 0xbf, 0x35, 0xb8, 0x11, 0xbf,
-	0x5e, 0x1e, 0xf9, 0x9b, 0x79, 0x62, 0x16, 0x2f, 0x1a, 0x52, 0xe1, 0xa1, 0xb7, 0xa5, 0x15, 0x3b,
-	0x28, 0x55, 0x5e, 0x86, 0x9d, 0xf7, 0x8d, 0x92, 0xf2, 0xc6, 0x80, 0x73, 0x70, 0x8e, 0x3c, 0x23,
-	0x83, 0x65, 0x38, 0x69, 0x66, 0x2e, 0x3b, 0xf4, 0x8e, 0x8e, 0x7d, 0x40, 0xbe, 0x3b, 0x63, 0x0f,
-	0x8f, 0xa9, 0xe8, 0xc5, 0xa9, 0xd4, 0xa4, 0xb5, 0x94, 0x95, 0xef, 0x4e, 0x5a, 0x4b, 0x99, 0x89,
-	0xe8, 0x18, 0x83, 0x37, 0xe0, 0x62, 0x22, 0xab, 0x1c, 0xba, 0x96, 0x64, 0xec, 0x10, 0x86, 0x32,
-	0x44, 0x8f, 0x84, 0x60, 0xa7, 0x11, 0x65, 0xe7, 0x99, 0x33, 0x8d, 0x91, 0xa1, 0x7b, 0x22, 0x6d,
-	0x27, 0x35, 0x73, 0x1c, 0xba, 0x91, 0xc1, 0xc2, 0xb3, 0xb1, 0x8e, 0xa1, 0x6d, 0x40, 0x31, 0x99,
-	0x78, 0x0d, 0x2d, 0x4b, 0x2e, 0x65, 0x66, 0x97, 0x2b, 0x57, 0x8c, 0xf5, 0x7c, 0xb7, 0x7a, 0x10,
-	0x4f, 0x0a, 0xbb, 0xb7, 0x4c, 0x4e, 0x8a, 0x9a, 0x07, 0x29, 0x35, 0x29, 0x7a, 0x52, 0xa2, 0x0d,
-	0xba, 0x9f, 0x28, 0x09, 0x8f, 0x8c, 0xfb, 0xc9, 0xb5, 0x2c, 0x3c, 0xf1, 0x5d, 0x5a, 0x43, 0x64,
-	0xb8, 0x56, 0xe8, 0x5a, 0xd6, 0x36, 0xdc, 0x34, 0x69, 0x15, 0x63, 0xbd, 0x1c, 0x69, 0x31, 0x99,
-	0x2d, 0x4a, 0x22, 0x35, 0xa4, 0x91, 0x32, 0x8a, 0xf2, 0x7d, 0x98, 0xd7, 0x67, 0x71, 0xc8, 0x78,
-	0x4d, 0x78, 0xf6, 0x60, 0x21, 0x33, 0x53, 0x94, 0xd4, 0x45, 0x83, 0xf2, 0x48, 0x19, 0xb1, 0x62,
-	0xb8, 0x9c, 0x9d, 0x1c, 0x4c, 0x9a, 0x71, 0x03, 0x93, 0x9e, 0x95, 0xdf, 0x1e, 0xd2, 0x8a, 0x33,
-	0xf4, 0x3b, 0x9a, 0xee, 0x29, 0xd5, 0xc7, 0x0d, 0xc5, 0x2d, 0x61, 0xe8, 0xc0, 0x1a, 0xd4, 0x44,
-	0xca, 0xc0, 0x7c, 0x56, 0xd6, 0x3c, 0x23, 0x8b, 0x6f, 0x9a, 0x71, 0xc6, 0x82, 0xd5, 0x14, 0x8f,
-	0x85, 0x8d, 0x9c, 0x19, 0x98, 0x07, 0x6c, 0xc0, 0xa9, 0x39, 0xce, 0x15, 0x79, 0x76, 0x92, 0xcd,
-	0x47, 0xa7, 0x19, 0x2d, 0x41, 0x17, 0x12, 0x97, 0xeb, 0x89, 0x5c, 0x60, 0xa9, 0x35, 0x99, 0x91,
-	0x28, 0x8c, 0xad, 0x49, 0x25, 0xd9, 0xd7, 0x59, 0xd6, 0x64, 0x56, 0x6e, 0x30, 0xb9, 0x7c, 0x14,
-	0xba, 0x84, 0x51, 0x94, 0xac, 0x38, 0xcf, 0xf2, 0x39, 0x0b, 0x69, 0x26, 0x3c, 0x6b, 0xd4, 0x58,
-	0x96, 0x3f, 0x59, 0x79, 0x45, 0x63, 0x93, 0xa6, 0x07, 0xcb, 0xda, 0xe0, 0x74, 0x15, 0x58, 0x87,
-	0x69, 0x35, 0xd7, 0x98, 0x91, 0x8a, 0xab, 0x69, 0x1c, 0xa1, 0x72, 0x7c, 0x9f, 0x95, 0x5c, 0x60,
-	0xd4, 0x2c, 0x25, 0x99, 0xa3, 0x11, 0x64, 0x1e, 0x12, 0x52, 0x59, 0x33, 0x84, 0x24, 0xb3, 0xb1,
-	0x38, 0xc7, 0xcc, 0x66, 0xfd, 0x17, 0x4d, 0x0d, 0x3f, 0x8c, 0x6a, 0x44, 0xf3, 0x84, 0x3e, 0xb8,
-	0x52, 0x13, 0x87, 0x21, 0x45, 0x4a, 0x32, 0x12, 0x8a, 0x95, 0x97, 0x4d, 0xd5, 0xea, 0xbe, 0xfd,
-	0x35, 0x5c, 0x4a, 0x25, 0x48, 0x93, 0xde, 0x4c, 0x53, 0xea, 0xb4, 0xc1, 0x7b, 0xe3, 0x26, 0x19,
-	0x70, 0x02, 0xb0, 0xb9, 0x32, 0x1c, 0x69, 0xda, 0xc2, 0xda, 0x16, 0x6f, 0xb4, 0xb2, 0x88, 0x33,
-	0xa5, 0x61, 0x1b, 0xae, 0xe0, 0x13, 0x09, 0xd8, 0x12, 0x0a, 0x3e, 0x3b, 0x3d, 0x9b, 0x11, 0xeb,
-	0xcf, 0x69, 0xf6, 0xff, 0x44, 0x72, 0x2f, 0xe9, 0xd6, 0x32, 0x26, 0x74, 0x2b, 0xdf, 0x18, 0xd0,
-	0x42, 0x9d, 0xa0, 0x6d, 0x98, 0xcf, 0x4a, 0x97, 0xa6, 0x38, 0x5f, 0x8d, 0xb9, 0xd4, 0x32, 0x38,
-	0x6a, 0x8b, 0xd5, 0x6e, 0xc0, 0x36, 0x20, 0x79, 0x9a, 0x91, 0x03, 0xdf, 0x8a, 0x94, 0x78, 0xe9,
-	0x24, 0x67, 0xf2, 0xf0, 0x3f, 0x24, 0x0b, 0xda, 0x80, 0xa3, 0xc6, 0xc5, 0x86, 0x7b, 0xe0, 0x29,
-	0x39, 0xc4, 0xe4, 0x41, 0x23, 0x9d, 0x07, 0x4d, 0x6a, 0x96, 0xac, 0x94, 0x63, 0x8f, 0xc9, 0x1e,
-	0xc6, 0x0c, 0x2f, 0x35, 0xd7, 0x15, 0x2a, 0x9b, 0x93, 0x6d, 0x49, 0x2d, 0x93, 0x99, 0x1c, 0x4b,
-	0x41, 0xa8, 0x26, 0x9a, 0x92, 0x08, 0x33, 0x72, 0x5e, 0x49, 0x84, 0x99, 0x99, 0xa9, 0x98, 0xcf,
-	0x80, 0xfe, 0xfe, 0xa1, 0xe2, 0x33, 0x50, 0xd2, 0x44, 0x95, 0xf5, 0x8c, 0x52, 0xe8, 0x33, 0x7a,
-	0xf4, 0x67, 0xf9, 0x86, 0xcd, 0x57, 0x05, 0x1a, 0xa6, 0x58, 0x49, 0xae, 0x0a, 0xb7, 0x36, 0xed,
-	0x50, 0xc7, 0x3c, 0xfc, 0x34, 0x4f, 0x81, 0xf4, 0xd3, 0xbc, 0x4a, 0xa8, 0xd9, 0x79, 0x38, 0xad,
-	0xa6, 0x31, 0x90, 0xbc, 0xca, 0xc8, 0xa0, 0x22, 0x79, 0x95, 0x95, 0x97, 0x84, 0x1e, 0x1e, 0xf7,
-	0xc4, 0x49, 0x21, 0xc6, 0x77, 0x6d, 0x60, 0x62, 0x91, 0xf2, 0xf2, 0xe0, 0x6c, 0x1c, 0xfc, 0xce,
-	0xa8, 0x98, 0xcc, 0xb4, 0x80, 0xb2, 0xf2, 0xc2, 0x28, 0x09, 0x2c, 0xa4, 0xbd, 0x6b, 0x4c, 0xd1,
-	0xb0, 0x2b, 0x4e, 0x21, 0x3a, 0x5e, 0x43, 0x76, 0x10, 0x15, 0xf5, 0x60, 0xbb, 0x24, 0x4e, 0xba,
-	0xa0, 0x9e, 0x15, 0x52, 0x49, 0x1d, 0x54, 0xbb, 0x24, 0x23, 0x4f, 0x83, 0x2b, 0xe2, 0xcd, 0xb2,
-	0x73, 0x8d, 0xbd, 0xa3, 0x5b, 0xf3, 0x03, 0x02, 0xfb, 0x87, 0xde, 0xca, 0xa1, 0x9f, 0x89, 0xfc,
-	0xc8, 0xe9, 0x4c, 0x3c, 0x6f, 0x27, 0xfc, 0x84, 0xd9, 0xa1, 0xe0, 0xe5, 0x41, 0x89, 0x7e, 0xd0,
-	0x23, 0xfa, 0x66, 0xf8, 0xf1, 0xd6, 0x5a, 0x9d, 0xff, 0x92, 0xba, 0x1f, 0xa4, 0x2e, 0x60, 0x94,
-	0x5f, 0xea, 0x8a, 0x99, 0xcc, 0x9a, 0x68, 0x80, 0xcd, 0x55, 0xd4, 0xa0, 0xf7, 0x00, 0x5a, 0x69,
-	0xc6, 0x1d, 0x4c, 0x06, 0xc2, 0x72, 0x36, 0xc2, 0x6d, 0x37, 0x8c, 0x98, 0x3d, 0x40, 0x16, 0x9e,
-	0x4e, 0xa6, 0x81, 0x86, 0x41, 0x66, 0x05, 0x13, 0x9b, 0x6c, 0x34, 0x82, 0xba, 0x61, 0x72, 0xc4,
-	0x38, 0xd6, 0xa8, 0x3e, 0xda, 0x7e, 0x25, 0x8e, 0x69, 0x80, 0xcd, 0x15, 0xce, 0x31, 0xad, 0xf4,
-	0x7c, 0x1c, 0x4b, 0x20, 0xd4, 0x39, 0xa6, 0x93, 0x69, 0xa0, 0x61, 0x38, 0xc7, 0xb2, 0xd1, 0x9c,
-	0x95, 0x63, 0x5f, 0xd3, 0x0d, 0x7f, 0x83, 0xbe, 0x60, 0x3d, 0x17, 0xcf, 0x4a, 0xc2, 0x24, 0xd6,
-	0x41, 0x9b, 0xab, 0xe8, 0x29, 0x3d, 0xbd, 0x25, 0xca, 0xcf, 0xc6, 0xb7, 0x25, 0x13, 0x52, 0xca,
-	0xb9, 0x2d, 0x58, 0x60, 0x9c, 0x4b, 0x92, 0x6b, 0xa4, 0xc5, 0x38, 0xec, 0x0d, 0x61, 0x3d, 0x25,
-	0x51, 0x9d, 0x97, 0x7f, 0x6b, 0x54, 0x44, 0xf6, 0x02, 0x62, 0xf0, 0x76, 0xd2, 0xd6, 0xb0, 0x8e,
-	0x44, 0xdc, 0xdc, 0xe8, 0xcd, 0x9b, 0x2b, 0x68, 0x8b, 0xce, 0x82, 0x5e, 0x3c, 0xe8, 0xb8, 0x90,
-	0x8d, 0x86, 0x32, 0x69, 0x53, 0x58, 0x58, 0x09, 0x9a, 0x4c, 0x7d, 0x9b, 0x89, 0x92, 0x67, 0xa9,
-	0x33, 0x8e, 0xce, 0xc4, 0x22, 0xb6, 0xb1, 0xb3, 0xa3, 0xcb, 0x30, 0xce, 0xec, 0x06, 0xfe, 0x73,
-	0x57, 0xe6, 0x30, 0x6f, 0xae, 0xa0, 0x9f, 0xc0, 0xa4, 0x00, 0x1e, 0xce, 0x90, 0x24, 0x34, 0x65,
-	0xc8, 0x97, 0x30, 0xc5, 0x19, 0x42, 0x29, 0x30, 0xf5, 0x64, 0x24, 0xff, 0x0b, 0x98, 0xe2, 0x6c,
-	0x18, 0x38, 0x02, 0xf3, 0x01, 0x7e, 0x21, 0x8e, 0xbd, 0x51, 0x7f, 0x25, 0x7f, 0xd8, 0x60, 0xb2,
-	0x7e, 0x94, 0x1f, 0x35, 0xe9, 0xdb, 0x7f, 0x11, 0xd0, 0xcb, 0x7e, 0xcc, 0xde, 0xf5, 0x0e, 0x86,
-	0xa0, 0xbc, 0xae, 0xa3, 0x4c, 0xc2, 0x31, 0xbc, 0x0d, 0x33, 0xde, 0xa1, 0xf0, 0xc6, 0xd1, 0xef,
-	0xc0, 0x12, 0xbd, 0x23, 0x3b, 0x2f, 0xc5, 0xe6, 0x53, 0xcf, 0x95, 0x38, 0x28, 0xc5, 0xc6, 0x6d,
-	0x3f, 0xe8, 0x0c, 0x47, 0x56, 0xd1, 0x03, 0x4c, 0x12, 0x60, 0xcd, 0x15, 0x82, 0xb5, 0x61, 0xc4,
-	0x3a, 0x0c, 0x7a, 0xc0, 0x66, 0x74, 0x95, 0x8e, 0xfd, 0x9c, 0xd4, 0x0e, 0xd6, 0x34, 0xc4, 0x10,
-	0xd9, 0x0d, 0xf0, 0x33, 0x1c, 0xd0, 0xc8, 0xa2, 0x61, 0x31, 0x35, 0x7a, 0xf3, 0xe6, 0x0a, 0xc1,
-	0xd2, 0x48, 0x61, 0x31, 0xb5, 0x1e, 0xb4, 0xf9, 0xd0, 0xa1, 0x9d, 0x91, 0x1a, 0xf3, 0x1d, 0xdc,
-	0xa4, 0xcc, 0xf0, 0x83, 0x14, 0xdb, 0x5e, 0xcb, 0x5f, 0x53, 0x9e, 0x51, 0x23, 0x60, 0x42, 0x54,
-	0x65, 0x7b, 0xbc, 0x9a, 0xe9, 0x46, 0x71, 0x56, 0x67, 0xa6, 0xc0, 0x49, 0xa2, 0x60, 0x67, 0x93,
-	0x6d, 0xbf, 0x7d, 0xa4, 0x9e, 0x4d, 0x94, 0xd4, 0x29, 0x65, 0x3d, 0xb1, 0x09, 0x57, 0x61, 0x34,
-	0xbb, 0x89, 0x7a, 0x2d, 0xa9, 0x26, 0x4f, 0x51, 0xcf, 0x26, 0x7a, 0x9a, 0x17, 0x79, 0x36, 0xa1,
-	0x1d, 0xea, 0x98, 0x87, 0x9f, 0x4d, 0x28, 0x90, 0x7e, 0x36, 0x51, 0x09, 0x35, 0x2f, 0x3c, 0x94,
-	0xce, 0xf3, 0x22, 0x0f, 0xf2, 0xc6, 0x14, 0x30, 0x03, 0x6e, 0x2e, 0xe7, 0x32, 0x52, 0x53, 0x49,
-	0x9b, 0xdf, 0x9c, 0xb6, 0xaa, 0xac, 0x5f, 0xc3, 0xdd, 0xcb, 0xa1, 0x1d, 0x9a, 0x32, 0x9f, 0xab,
-	0x02, 0x1b, 0x87, 0x51, 0xe0, 0xb6, 0xa3, 0x81, 0x5e, 0x3a, 0x61, 0x16, 0x64, 0xc0, 0x34, 0xdf,
-	0x27, 0xf8, 0x1a, 0xd9, 0xf8, 0x06, 0xc2, 0x0d, 0x38, 0xd6, 0x5d, 0xe1, 0x11, 0x4f, 0xe7, 0x20,
-	0xd1, 0x2c, 0xe2, 0x13, 0xec, 0x2a, 0xc2, 0x0c, 0x5a, 0x8c, 0x1f, 0x39, 0x72, 0x43, 0xe7, 0x0e,
-	0x8c, 0x33, 0x20, 0xe3, 0x6e, 0x33, 0xad, 0xc2, 0xa0, 0xf7, 0x44, 0x60, 0x01, 0x01, 0xd1, 0xaa,
-	0x8c, 0x74, 0xbd, 0x07, 0x93, 0xcc, 0x8f, 0x77, 0x76, 0x90, 0xcf, 0x44, 0xf8, 0xc1, 0x20, 0xc2,
-	0xcc, 0x51, 0x3f, 0x33, 0xea, 0xbd, 0xc6, 0xf9, 0x19, 0xf9, 0x05, 0xf5, 0xa5, 0x0a, 0xdf, 0x85,
-	0x19, 0x7e, 0x21, 0xf1, 0xe0, 0x94, 0xb3, 0xf4, 0x63, 0xea, 0xd0, 0x95, 0x39, 0xde, 0x4c, 0xe4,
-	0x5f, 0x4a, 0x41, 0xa3, 0xcf, 0x60, 0x96, 0x31, 0x57, 0x02, 0xa7, 0x1b, 0x0d, 0xe0, 0xd9, 0x2c,
-	0x63, 0xf3, 0xab, 0x00, 0xff, 0x44, 0x78, 0x7e, 0x87, 0x92, 0x7d, 0x16, 0x9f, 0xef, 0x70, 0xd6,
-	0x99, 0xb0, 0xfc, 0x8c, 0x6e, 0xba, 0xd9, 0xf9, 0x9c, 0x8c, 0xc8, 0x6e, 0x2b, 0x3e, 0xed, 0xc1,
-	0x99, 0xa0, 0x8e, 0x68, 0xcc, 0x68, 0x66, 0x23, 0xe9, 0x71, 0x1b, 0x92, 0xe0, 0xa9, 0xfc, 0xa3,
-	0xa1, 0xed, 0xa4, 0x9f, 0x8b, 0xff, 0x5e, 0x43, 0x76, 0x7f, 0x43, 0xb2, 0x3a, 0x65, 0xf8, 0x20,
-	0x0d, 0xc9, 0x92, 0x04, 0x42, 0xfd, 0x76, 0x7b, 0xe0, 0x18, 0xcc, 0x47, 0xb4, 0xf8, 0x67, 0x17,
-	0xce, 0x39, 0x09, 0x66, 0x33, 0x0a, 0xa5, 0x53, 0x48, 0xa1, 0x41, 0x2f, 0x2d, 0x55, 0x0f, 0xaf,
-	0x29, 0xf5, 0xd4, 0x86, 0x08, 0x50, 0x4e, 0x3c, 0x5b, 0x36, 0x3d, 0x80, 0x1e, 0x70, 0x3a, 0xe3,
-	0x21, 0xba, 0x6f, 0x04, 0x51, 0x7a, 0xb6, 0xcf, 0x8f, 0x48, 0x7a, 0x9a, 0x13, 0x88, 0xac, 0x01,
-	0xd3, 0x3b, 0xdc, 0xe9, 0x55, 0x32, 0xcc, 0xeb, 0xf9, 0x27, 0xd4, 0x89, 0xc3, 0x52, 0xd3, 0x79,
-	0xae, 0xe4, 0xb6, 0x6f, 0xcc, 0xb9, 0x25, 0x67, 0x77, 0x40, 0x92, 0xac, 0x7a, 0xfc, 0xeb, 0x6c,
-	0x5a, 0x62, 0xac, 0xba, 0xbd, 0x2d, 0xdd, 0x75, 0x59, 0x19, 0xb3, 0xca, 0x20, 0x2a, 0xed, 0x6d,
-	0xb2, 0xd6, 0x4d, 0xf9, 0x98, 0xe2, 0xd0, 0xba, 0xc1, 0x29, 0xaf, 0xe4, 0x5a, 0x1f, 0x9a, 0xd8,
-	0x69, 0x07, 0xe6, 0xb3, 0xf2, 0x28, 0xc9, 0x49, 0x1b, 0x90, 0x64, 0x29, 0x33, 0x7e, 0x6f, 0x17,
-	0x16, 0x32, 0x73, 0x19, 0xc9, 0x2b, 0x97, 0x41, 0x99, 0x8e, 0x32, 0x31, 0x7e, 0x03, 0x8b, 0x86,
-	0xc4, 0x3d, 0xb1, 0x03, 0x71, 0x60, 0x62, 0x1f, 0xa3, 0x40, 0x7c, 0x07, 0x65, 0x73, 0x4e, 0x18,
-	0x74, 0x5b, 0x77, 0x82, 0x9a, 0x33, 0xb1, 0x94, 0x33, 0x93, 0x58, 0xa1, 0x3d, 0x9a, 0x6d, 0x32,
-	0x2b, 0x49, 0x8c, 0xa4, 0x7b, 0x70, 0x12, 0x19, 0x43, 0xdc, 0xe5, 0xa2, 0x21, 0x2f, 0xcc, 0x00,
-	0xac, 0x67, 0xa0, 0x76, 0x47, 0xe8, 0x25, 0x3d, 0x51, 0x48, 0xe2, 0xe1, 0x44, 0x66, 0x16, 0x91,
-	0x4c, 0x3a, 0x1f, 0xc0, 0x8c, 0xf6, 0x52, 0x5b, 0x8a, 0x7f, 0x56, 0xba, 0x00, 0xe9, 0xad, 0xce,
-	0x7e, 0xdc, 0xbd, 0x4e, 0x3d, 0xdf, 0xf1, 0x5b, 0x9d, 0x01, 0x36, 0x70, 0x7c, 0xc3, 0x96, 0x7e,
-	0x12, 0xf4, 0x90, 0x1e, 0x8a, 0xb4, 0x17, 0x3e, 0x03, 0x8e, 0xc3, 0x12, 0x53, 0xe6, 0x93, 0xa0,
-	0x5a, 0xf1, 0x97, 0xff, 0x7d, 0x39, 0xf7, 0xcb, 0x5f, 0x2f, 0xe7, 0xfe, 0xcb, 0xaf, 0x97, 0x73,
-	0xbf, 0xfa, 0xf5, 0x72, 0x6e, 0x7f, 0x9c, 0x42, 0xac, 0xfe, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff,
-	0x1e, 0x7b, 0xa0, 0xc8, 0x19, 0x99, 0x00, 0x00,
+	// 10889 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0xbd, 0x4d, 0x6c, 0x1c, 0x49,
+	0xb2, 0x18, 0xac, 0x6e, 0x92, 0x22, 0x19, 0xfc, 0x51, 0x2b, 0x45, 0x8a, 0xad, 0x16, 0xc5, 0x96,
+	0x6a, 0x7e, 0x56, 0x33, 0x6f, 0x57, 0xd2, 0x90, 0xf3, 0x3f, 0xb3, 0x33, 0xaf, 0xbb, 0x49, 0x89,
+	0x94, 0x28, 0x8a, 0x53, 0x4d, 0xb5, 0x66, 0x77, 0x67, 0xb7, 0xb7, 0xd8, 0x9d, 0x22, 0xeb, 0x63,
+	0xb3, 0xaa, 0xb7, 0xaa, 0x28, 0x8d, 0xf0, 0xc1, 0x86, 0xff, 0xd6, 0x36, 0x6c, 0x18, 0x6f, 0x0d,
+	0xf8, 0xc1, 0x7e, 0xf0, 0xc1, 0x0f, 0x30, 0xe0, 0x83, 0x01, 0xfb, 0x60, 0xf8, 0xe7, 0x62, 0xe0,
+	0xc1, 0xf0, 0xdf, 0xda, 0x80, 0x01, 0x5f, 0x1e, 0x0c, 0xf8, 0x40, 0xaf, 0xf7, 0x48, 0xf8, 0x62,
+	0x3c, 0xd8, 0x80, 0xf7, 0x64, 0x64, 0xe4, 0x4f, 0x65, 0xd6, 0x4f, 0x37, 0x29, 0xc9, 0xfb, 0x2e,
+	0x12, 0x2b, 0x33, 0x22, 0x32, 0x33, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32, 0x1a, 0x2e, 0x3a, 0x47,
+	0xd1, 0x7e, 0x48, 0x83, 0x67, 0x6e, 0x87, 0xde, 0xea, 0x07, 0x7e, 0xe4, 0x93, 0x31, 0xfc, 0xaf,
+	0x32, 0xb7, 0xe7, 0xef, 0xf9, 0xf8, 0xe7, 0x6d, 0xf6, 0x17, 0xaf, 0xac, 0x5c, 0xdd, 0xf3, 0xfd,
+	0xbd, 0x1e, 0xbd, 0x8d, 0x5f, 0xbb, 0x47, 0x4f, 0x6f, 0xd3, 0xc3, 0x7e, 0xf4, 0x42, 0x54, 0x56,
+	0x93, 0x95, 0x91, 0x7b, 0x48, 0xc3, 0xc8, 0x39, 0xec, 0x0b, 0x80, 0xa9, 0x0e, 0x0d, 0xa2, 0x50,
+	0x7c, 0x7c, 0xb4, 0xe7, 0x46, 0xfb, 0x47, 0xbb, 0xb7, 0x3a, 0xfe, 0xe1, 0xed, 0xbd, 0xc0, 0x79,
+	0xe6, 0x46, 0x4e, 0xe4, 0xfa, 0x9e, 0xd3, 0xbb, 0x1d, 0xd1, 0x1e, 0xed, 0xfb, 0x41, 0x74, 0xdb,
+	0xe9, 0xbb, 0xb7, 0xa3, 0x17, 0x7d, 0x1a, 0xf2, 0x7f, 0x05, 0x62, 0xe3, 0x2c, 0x88, 0xcf, 0xe9,
+	0x2e, 0x1b, 0xa2, 0xa7, 0xfe, 0x78, 0x29, 0x22, 0x81, 0xd3, 0xef, 0xd3, 0x20, 0xfe, 0x43, 0x10,
+	0xf9, 0xf2, 0x2c, 0x44, 0xe8, 0x33, 0xea, 0x45, 0xf2, 0x3f, 0x4e, 0xc0, 0xfa, 0xbd, 0x79, 0x18,
+	0x5b, 0x63, 0x05, 0xe4, 0x63, 0x18, 0xdd, 0x79, 0xd1, 0xa7, 0xe5, 0xc2, 0xf5, 0xc2, 0xcd, 0xd9,
+	0xe5, 0x12, 0xaf, 0xbf, 0xf5, 0xa8, 0x4f, 0x03, 0x24, 0x59, 0x27, 0x27, 0xc7, 0xd5, 0x59, 0x46,
+	0xe8, 0xbb, 0xfe, 0xa1, 0x1b, 0x21, 0xd7, 0x6d, 0xc4, 0x20, 0x4f, 0x60, 0xd6, 0xa6, 0xa1, 0x7f,
+	0x14, 0x74, 0xe8, 0x3a, 0x75, 0xba, 0x34, 0x28, 0x17, 0xaf, 0x17, 0x6e, 0x4e, 0x2d, 0xcf, 0xdf,
+	0xe2, 0x4c, 0x33, 0x2b, 0xeb, 0x97, 0x4f, 0x8e, 0xab, 0x24, 0x10, 0x65, 0x31, 0xb1, 0xf5, 0x73,
+	0x76, 0x82, 0x0c, 0xf9, 0x06, 0x66, 0x1a, 0x34, 0x88, 0x6a, 0x47, 0xd1, 0xbe, 0x1f, 0xb8, 0xd1,
+	0x8b, 0xf2, 0x08, 0xd2, 0xbd, 0x2c, 0xe8, 0x1a, 0x75, 0xad, 0xe5, 0xfa, 0xe2, 0xc9, 0x71, 0xb5,
+	0xcc, 0x26, 0xb8, 0xed, 0xc8, 0x52, 0x83, 0xbc, 0x49, 0x8c, 0x7c, 0x0d, 0xd3, 0x4d, 0xc6, 0xae,
+	0xce, 0x8e, 0x7f, 0x40, 0xbd, 0xb0, 0x3c, 0x6a, 0x74, 0x5a, 0xaf, 0x6a, 0x2d, 0xd7, 0xaf, 0x9e,
+	0x1c, 0x57, 0x17, 0x42, 0x2c, 0x6b, 0x47, 0x58, 0x68, 0x90, 0x36, 0x28, 0x91, 0x9f, 0xc2, 0xec,
+	0x76, 0xe0, 0x3f, 0x73, 0x43, 0xd7, 0xf7, 0xb0, 0xa8, 0x3c, 0x86, 0xb4, 0x17, 0x04, 0x6d, 0xb3,
+	0xb2, 0xb5, 0x5c, 0xbf, 0x76, 0x72, 0x5c, 0xbd, 0xd2, 0x97, 0xa5, 0xbc, 0x01, 0x93, 0x33, 0x26,
+	0x0a, 0xd9, 0x81, 0xa9, 0x46, 0xef, 0x28, 0x8c, 0x68, 0xb0, 0xe5, 0x1c, 0xd2, 0xf2, 0x79, 0x24,
+	0x3f, 0x27, 0xf9, 0x12, 0xd7, 0xb4, 0x96, 0xeb, 0x95, 0x93, 0xe3, 0xea, 0xe5, 0x0e, 0x2f, 0x6a,
+	0x7b, 0xce, 0xa1, 0xc9, 0x72, 0x9d, 0x0c, 0xf9, 0x08, 0x46, 0x1f, 0x87, 0x34, 0x28, 0x4f, 0x20,
+	0xb9, 0x19, 0x41, 0x8e, 0x15, 0xb5, 0x96, 0xf9, 0xfc, 0x1f, 0x85, 0x34, 0x30, 0xf0, 0x11, 0x81,
+	0x21, 0xda, 0x7e, 0x8f, 0x96, 0x27, 0x0d, 0x44, 0x56, 0xd4, 0xfa, 0x80, 0x23, 0x06, 0x7e, 0xcf,
+	0x6c, 0x18, 0x11, 0xc8, 0x06, 0x4c, 0xb2, 0x96, 0xc3, 0xbe, 0xd3, 0xa1, 0x65, 0x40, 0xec, 0x92,
+	0xc0, 0x56, 0xe5, 0xf5, 0x85, 0x93, 0xe3, 0xea, 0x25, 0x4f, 0x7e, 0x1a, 0x54, 0x62, 0x6c, 0xf2,
+	0x25, 0x9c, 0x6f, 0xd2, 0xe0, 0x19, 0x0d, 0xca, 0x53, 0x48, 0xe7, 0x82, 0x9c, 0x48, 0x2c, 0x6c,
+	0x2d, 0xd7, 0xe7, 0x4e, 0x8e, 0xab, 0xa5, 0x10, 0xbf, 0x0c, 0x1a, 0x02, 0x8d, 0x49, 0x9b, 0x4d,
+	0x9f, 0xd1, 0x20, 0xa4, 0x3b, 0x47, 0x9e, 0x47, 0x7b, 0xe5, 0x69, 0x43, 0xda, 0x8c, 0x3a, 0x29,
+	0x6d, 0x01, 0x2f, 0x6c, 0x47, 0x58, 0x6a, 0x4a, 0x9b, 0x81, 0x40, 0xf6, 0xa1, 0xc4, 0xff, 0x6a,
+	0xf8, 0x9e, 0x47, 0x3b, 0x6c, 0x49, 0x95, 0x67, 0xb0, 0x81, 0x2b, 0xa2, 0x81, 0x64, 0x75, 0x6b,
+	0xb9, 0x5e, 0x3d, 0x39, 0xae, 0x5e, 0xe5, 0xb4, 0xdb, 0x1d, 0x55, 0x61, 0x34, 0x93, 0xa2, 0xca,
+	0xc6, 0x51, 0xeb, 0x74, 0x68, 0x18, 0xda, 0xf4, 0x67, 0x47, 0x34, 0x8c, 0xca, 0xb3, 0xc6, 0x38,
+	0x8c, 0xba, 0xd6, 0x0a, 0x1f, 0x87, 0x83, 0x85, 0xed, 0x80, 0x97, 0x9a, 0xe3, 0x30, 0x10, 0xc8,
+	0x36, 0x40, 0xad, 0xdf, 0x6f, 0xd2, 0x90, 0x09, 0x63, 0xf9, 0x02, 0x92, 0xbe, 0x24, 0x48, 0x3f,
+	0xa1, 0xbb, 0xa2, 0xa2, 0xb5, 0x5c, 0xbf, 0x72, 0x72, 0x5c, 0x9d, 0x77, 0xfa, 0xfd, 0x76, 0xc8,
+	0x8b, 0x0c, 0xa2, 0x1a, 0x0d, 0xce, 0xf7, 0x43, 0x3f, 0xa2, 0x42, 0x14, 0xcb, 0xa5, 0x04, 0xdf,
+	0xb5, 0x3a, 0xd9, 0xdf, 0x00, 0x0b, 0xdb, 0x42, 0xac, 0x93, 0x7c, 0xd7, 0x10, 0xd8, 0x5a, 0x5c,
+	0x75, 0x22, 0x67, 0xd7, 0x09, 0xa9, 0x10, 0x8f, 0x8b, 0xc6, 0x5a, 0x34, 0x2b, 0x5b, 0x2b, 0x7c,
+	0x2d, 0x76, 0x45, 0x69, 0x3b, 0x43, 0x5e, 0x12, 0xf4, 0x18, 0x47, 0xe2, 0x81, 0x97, 0xc9, 0x10,
+	0x8e, 0x3c, 0xa7, 0xbb, 0xd9, 0x1c, 0x89, 0x41, 0xc9, 0x3a, 0x4c, 0x3c, 0xa1, 0xbb, 0x5c, 0x73,
+	0x5c, 0x42, 0x7a, 0x17, 0x63, 0x7a, 0x5c, 0x67, 0xac, 0xf0, 0x55, 0xc1, 0xa8, 0xa5, 0xb5, 0x85,
+	0xc2, 0x26, 0x3f, 0x2f, 0xc0, 0x82, 0x5c, 0xe1, 0x34, 0x7a, 0xee, 0x07, 0x07, 0xae, 0xb7, 0xd7,
+	0xf0, 0xbd, 0xa7, 0xee, 0x5e, 0x79, 0x0e, 0x29, 0x5f, 0x4f, 0x28, 0x8d, 0x04, 0x54, 0x6b, 0xb9,
+	0xfe, 0x9d, 0x93, 0xe3, 0xea, 0x1b, 0x4a, 0x81, 0xa8, 0x7a, 0x26, 0x90, 0x4f, 0xdd, 0x3d, 0xa3,
+	0xe1, 0xbc, 0xb6, 0xc8, 0x9f, 0x2f, 0xc0, 0x65, 0x31, 0x3a, 0x9b, 0x76, 0xfc, 0xa0, 0x1b, 0x77,
+	0x63, 0x1e, 0xbb, 0x51, 0x55, 0xab, 0x35, 0x0b, 0xa8, 0xb5, 0x5c, 0x7f, 0xfb, 0xe4, 0xb8, 0x6a,
+	0x09, 0xc6, 0xb5, 0x03, 0x59, 0x9d, 0xd5, 0x89, 0x9c, 0x86, 0x98, 0x24, 0x30, 0xe5, 0xbf, 0x1d,
+	0xd0, 0xa7, 0x34, 0xa0, 0x5e, 0x87, 0x96, 0x2f, 0x1b, 0x92, 0x60, 0x56, 0x4a, 0xad, 0xcc, 0xb6,
+	0x92, 0x76, 0x5f, 0x15, 0x9b, 0x92, 0x60, 0xa2, 0x90, 0x9f, 0x01, 0x11, 0x0c, 0xa8, 0x1d, 0x75,
+	0xdd, 0x48, 0x0c, 0x70, 0x01, 0x5b, 0xb9, 0x6a, 0xf2, 0x59, 0x03, 0x68, 0x2d, 0xd7, 0xad, 0x93,
+	0xe3, 0xea, 0x92, 0x64, 0xb1, 0xc3, 0xaa, 0xb2, 0x06, 0x96, 0x41, 0x9c, 0x69, 0xde, 0x4d, 0xbf,
+	0x73, 0x50, 0x2e, 0x1b, 0x9a, 0x97, 0x15, 0x49, 0x95, 0xdd, 0xf3, 0x3b, 0x07, 0xa6, 0xe6, 0x65,
+	0xb5, 0x24, 0x82, 0x4b, 0x62, 0x96, 0x6c, 0x1a, 0x46, 0x81, 0x8b, 0xba, 0x23, 0x2c, 0x5f, 0x41,
+	0x3a, 0x8b, 0x52, 0x07, 0xa7, 0x21, 0x5a, 0xef, 0xf3, 0xde, 0x0a, 0x41, 0x68, 0x07, 0x5a, 0x9d,
+	0xd1, 0x4c, 0x16, 0x79, 0xf2, 0x67, 0x60, 0xfe, 0x89, 0xeb, 0x75, 0xfd, 0xe7, 0xe1, 0x2a, 0x0d,
+	0x0f, 0x22, 0xbf, 0xdf, 0xe4, 0x96, 0x5f, 0xb9, 0x82, 0xed, 0x2e, 0x49, 0x31, 0xcf, 0x82, 0x69,
+	0xad, 0xd4, 0xdf, 0x3a, 0x39, 0xae, 0xde, 0x78, 0xce, 0x2b, 0xdb, 0x5d, 0x5e, 0xdb, 0x16, 0xc6,
+	0xa3, 0xd1, 0x78, 0x76, 0x2b, 0x4c, 0x04, 0xcc, 0x8a, 0xf2, 0x55, 0x43, 0x04, 0xcc, 0x4a, 0xa9,
+	0x0c, 0x12, 0x0d, 0x9a, 0x22, 0x60, 0xa2, 0x90, 0x7b, 0x30, 0x21, 0xd5, 0x43, 0x79, 0xd1, 0x58,
+	0xba, 0xb2, 0xb8, 0xb5, 0xc2, 0x2d, 0x20, 0xa9, 0x62, 0xcc, 0x95, 0x2b, 0xa1, 0xc8, 0x26, 0x4c,
+	0xa2, 0x8e, 0x44, 0x95, 0x75, 0x0d, 0x29, 0x11, 0x29, 0xa8, 0xb2, 0xbc, 0xb5, 0x52, 0x2f, 0x9f,
+	0x1c, 0x57, 0xe7, 0xb8, 0x96, 0x4d, 0x29, 0xaa, 0x98, 0x00, 0x59, 0x81, 0x91, 0x5a, 0xbf, 0x5f,
+	0x5e, 0x42, 0x3a, 0xd3, 0x31, 0x9d, 0xd6, 0x4a, 0xfd, 0xe2, 0xc9, 0x71, 0x75, 0xc6, 0xe9, 0x9b,
+	0xc3, 0x62, 0xd0, 0x64, 0x17, 0x4a, 0x4d, 0xcf, 0x7f, 0xfe, 0xb4, 0xe7, 0x1c, 0x50, 0xa9, 0xde,
+	0xaa, 0xf9, 0xea, 0x0d, 0x37, 0xab, 0x50, 0x22, 0x64, 0x2a, 0xb9, 0x14, 0xbd, 0x3a, 0xc0, 0x84,
+	0x34, 0xfa, 0xee, 0x8f, 0x4e, 0x8c, 0x97, 0x26, 0xac, 0x75, 0x18, 0x7b, 0xe2, 0x44, 0x9d, 0x7d,
+	0xf2, 0x25, 0x8c, 0x3d, 0x70, 0xbd, 0x6e, 0x58, 0x2e, 0x5c, 0x1f, 0x41, 0xbb, 0x80, 0x5b, 0xa4,
+	0x58, 0xc9, 0x2a, 0xea, 0x0b, 0xbf, 0x3c, 0xae, 0x9e, 0x3b, 0x39, 0xae, 0x5e, 0x38, 0x60, 0x60,
+	0x9a, 0x59, 0xca, 0xf1, 0xac, 0x7f, 0x5a, 0x84, 0x49, 0x05, 0x4d, 0x16, 0x61, 0x94, 0xfd, 0x8f,
+	0xf6, 0xed, 0x64, 0x7d, 0xe2, 0xe4, 0xb8, 0x3a, 0xca, 0xf0, 0x6c, 0x2c, 0x25, 0xcb, 0x30, 0xb5,
+	0xe9, 0x3b, 0xdd, 0x26, 0xed, 0x04, 0x34, 0x0a, 0xd1, 0x80, 0x9d, 0xa8, 0x97, 0x4e, 0x8e, 0xab,
+	0xd3, 0x3d, 0xdf, 0xe9, 0xb6, 0x43, 0x5e, 0x6e, 0xeb, 0x40, 0x8c, 0x22, 0x5a, 0x5f, 0x23, 0x31,
+	0x45, 0x66, 0xa5, 0xd8, 0x58, 0x4a, 0xee, 0xc3, 0xf9, 0xbb, 0x6e, 0x8f, 0xed, 0x67, 0xa3, 0xd8,
+	0xff, 0xc5, 0x64, 0xff, 0x6f, 0xf1, 0xea, 0x35, 0x2f, 0x0a, 0x5e, 0x70, 0xe3, 0xe4, 0x29, 0x16,
+	0x68, 0x03, 0x11, 0x14, 0xc8, 0x1d, 0x18, 0x6f, 0x1e, 0xed, 0x62, 0xf7, 0xc7, 0xb0, 0x31, 0x94,
+	0xa0, 0xf0, 0x68, 0xb7, 0xcd, 0x86, 0xa0, 0x21, 0x48, 0xb0, 0xca, 0x27, 0x30, 0xa5, 0x91, 0x27,
+	0x25, 0x18, 0x39, 0xa0, 0x2f, 0xf8, 0xd8, 0x6d, 0xf6, 0x27, 0x99, 0x83, 0xb1, 0x67, 0x4e, 0xef,
+	0x88, 0xe2, 0x50, 0x27, 0x6d, 0xfe, 0xf1, 0x69, 0xf1, 0xe3, 0x82, 0xf5, 0xcf, 0xce, 0x43, 0x69,
+	0xdd, 0x0f, 0x23, 0x66, 0x2d, 0xab, 0x6d, 0xff, 0x0d, 0x38, 0xcf, 0xca, 0x36, 0x56, 0x05, 0xff,
+	0xa6, 0x4e, 0x8e, 0xab, 0xe3, 0xfb, 0x7e, 0x18, 0xb5, 0xdd, 0xae, 0x2d, 0xaa, 0xc8, 0x3b, 0x30,
+	0xb1, 0xe5, 0x77, 0x29, 0x32, 0x05, 0xc9, 0xd6, 0x67, 0x4e, 0x8e, 0xab, 0x93, 0x9e, 0xdf, 0xa5,
+	0x68, 0x79, 0xda, 0xaa, 0x9a, 0xb4, 0x84, 0xc5, 0xc8, 0x79, 0x57, 0x67, 0xbc, 0x63, 0x26, 0xe2,
+	0x6f, 0x8e, 0xab, 0x1f, 0x9e, 0xe1, 0x48, 0x73, 0xab, 0xf9, 0x22, 0x8c, 0xe8, 0x21, 0xa3, 0x24,
+	0x0c, 0xca, 0x27, 0x30, 0x57, 0xeb, 0x76, 0x5d, 0x8e, 0xb1, 0x1d, 0xb8, 0x5e, 0xc7, 0xed, 0x3b,
+	0xbd, 0x10, 0xe7, 0x60, 0xb2, 0xfe, 0xc6, 0xc9, 0x71, 0xb5, 0xea, 0xa8, 0xfa, 0x76, 0x5f, 0x01,
+	0x68, 0x3c, 0xcc, 0x24, 0x40, 0x56, 0x60, 0x62, 0x75, 0xab, 0x89, 0xe6, 0x66, 0x79, 0x0c, 0x89,
+	0xe1, 0x06, 0xdc, 0xf5, 0x42, 0x1c, 0x9a, 0x4e, 0x40, 0x01, 0x92, 0x0f, 0x61, 0x7a, 0xfb, 0x68,
+	0xb7, 0xe7, 0x76, 0x76, 0x36, 0x9b, 0x0f, 0xe8, 0x0b, 0xb4, 0xd3, 0xa7, 0xb9, 0x5a, 0xee, 0x63,
+	0x79, 0x3b, 0xea, 0x85, 0xed, 0x03, 0xfa, 0xc2, 0x36, 0xe0, 0x62, 0xbc, 0x66, 0x73, 0x9d, 0xe1,
+	0x8d, 0xa7, 0xf0, 0xc2, 0x70, 0x5f, 0xc7, 0xe3, 0x70, 0xe4, 0x36, 0x00, 0xb7, 0x7e, 0x6a, 0xdd,
+	0x2e, 0x37, 0xe3, 0x27, 0xeb, 0x17, 0x4e, 0x8e, 0xab, 0x53, 0xc2, 0x5e, 0x72, 0xba, 0xdd, 0xc0,
+	0xd6, 0x40, 0x48, 0x03, 0x26, 0x6c, 0x9f, 0x33, 0x58, 0x18, 0xef, 0x17, 0x94, 0xf1, 0xce, 0x8b,
+	0xc5, 0x71, 0x4d, 0x7c, 0xe9, 0xa3, 0x94, 0x10, 0xa4, 0x0a, 0xe3, 0x5b, 0x7e, 0xc3, 0xe9, 0xec,
+	0x73, 0x13, 0x7e, 0xa2, 0x3e, 0x76, 0x72, 0x5c, 0x2d, 0x7c, 0xcf, 0x96, 0xa5, 0xe4, 0x19, 0x4c,
+	0xc5, 0x13, 0x15, 0x96, 0xa7, 0x90, 0x7d, 0x3b, 0xec, 0x5c, 0x12, 0x62, 0x71, 0x9b, 0x4d, 0xbd,
+	0xc6, 0xc1, 0x57, 0x90, 0x02, 0xbd, 0x21, 0xd2, 0x83, 0x6b, 0x8f, 0xbd, 0x30, 0x72, 0x76, 0x7b,
+	0x34, 0x2e, 0xae, 0x85, 0x21, 0x0d, 0x18, 0xad, 0x8d, 0x55, 0xb4, 0xf0, 0x27, 0x85, 0x69, 0x11,
+	0xf7, 0xa4, 0xed, 0x48, 0x90, 0xb6, 0xab, 0x2f, 0xae, 0xc1, 0xc4, 0xac, 0x7f, 0x3d, 0x09, 0x25,
+	0x76, 0x1a, 0x32, 0xd6, 0xcd, 0x77, 0x61, 0x92, 0xcf, 0xd0, 0x03, 0xb1, 0xfc, 0xa6, 0xeb, 0xb3,
+	0x27, 0xc7, 0x55, 0x10, 0xd3, 0xc8, 0xa6, 0x30, 0x06, 0x20, 0x37, 0x61, 0x82, 0x51, 0xf0, 0xe2,
+	0x05, 0x34, 0x7d, 0x72, 0x5c, 0x9d, 0x38, 0x12, 0x65, 0xb6, 0xaa, 0x25, 0x4d, 0x18, 0x5f, 0xfb,
+	0xb6, 0xef, 0x06, 0x34, 0x14, 0x87, 0xe2, 0xca, 0x2d, 0xee, 0xfb, 0xb8, 0x25, 0x7d, 0x1f, 0xb7,
+	0x76, 0xa4, 0xef, 0xa3, 0x7e, 0x4d, 0x28, 0xca, 0x8b, 0x94, 0xa3, 0xc4, 0x63, 0xfa, 0xc5, 0x7f,
+	0xab, 0x16, 0x6c, 0x49, 0x89, 0x7c, 0x17, 0xce, 0xdf, 0xf5, 0x83, 0x43, 0x27, 0xc2, 0xb3, 0xf0,
+	0xa4, 0x50, 0x4a, 0x58, 0x62, 0x28, 0x25, 0x2c, 0x21, 0x77, 0x61, 0xd6, 0xf6, 0x8f, 0x22, 0xba,
+	0xe3, 0x4b, 0xc3, 0x9d, 0xeb, 0xa6, 0xa5, 0x93, 0xe3, 0x6a, 0x25, 0x60, 0x35, 0xed, 0xc8, 0x4f,
+	0x9b, 0xe8, 0x76, 0x02, 0x8b, 0xac, 0xc1, 0xac, 0x71, 0xc4, 0x08, 0xcb, 0xe7, 0x51, 0x40, 0xb8,
+	0xf9, 0x65, 0x1c, 0x4c, 0xf4, 0x55, 0x96, 0x40, 0x22, 0x5b, 0x70, 0xf1, 0xc1, 0xd1, 0x2e, 0x0d,
+	0x3c, 0x1a, 0xd1, 0x50, 0xf6, 0x68, 0x1c, 0x7b, 0x74, 0xfd, 0xe4, 0xb8, 0xba, 0x78, 0xa0, 0x2a,
+	0x33, 0xfa, 0x94, 0x46, 0x25, 0x14, 0x2e, 0x88, 0x8e, 0xaa, 0x0d, 0x7d, 0x42, 0x1c, 0x4c, 0xb8,
+	0x22, 0x4f, 0xd4, 0xd6, 0xdf, 0x10, 0x5c, 0xbe, 0xaa, 0xc6, 0x9e, 0xde, 0xe2, 0xed, 0x24, 0x4d,
+	0xa6, 0x57, 0x94, 0xce, 0x9c, 0xc4, 0xde, 0xf2, 0xe3, 0xae, 0xd4, 0x99, 0xfa, 0x8a, 0x53, 0xda,
+	0x73, 0x13, 0xc6, 0x1e, 0x87, 0xce, 0x1e, 0x5f, 0x6f, 0xb3, 0xcb, 0x37, 0x44, 0x8f, 0x92, 0xd2,
+	0x87, 0x1e, 0x12, 0x04, 0xac, 0x5f, 0x62, 0xfb, 0xe4, 0x11, 0xfb, 0x53, 0xdf, 0x27, 0xb1, 0x8e,
+	0x7c, 0x05, 0x20, 0x7a, 0xc5, 0x6c, 0x84, 0x29, 0x61, 0xb5, 0x18, 0x83, 0xac, 0xf5, 0xfb, 0xf5,
+	0x25, 0x31, 0xbe, 0xcb, 0x6a, 0x7c, 0x86, 0xd5, 0x60, 0x6b, 0x44, 0xc8, 0x97, 0x30, 0x8d, 0xcb,
+	0x51, 0xce, 0xe8, 0x34, 0xce, 0x28, 0x3a, 0x51, 0x70, 0x85, 0x65, 0xcc, 0xa7, 0x81, 0x40, 0xfe,
+	0x2c, 0xcc, 0x0b, 0x72, 0x09, 0x83, 0x6d, 0x46, 0x18, 0xa8, 0x46, 0xf7, 0x4c, 0x98, 0xfa, 0xbb,
+	0xa2, 0xa7, 0x96, 0xea, 0x69, 0xae, 0x09, 0x67, 0x67, 0x37, 0x43, 0x36, 0xe0, 0xc2, 0xe3, 0x90,
+	0x1a, 0x63, 0x98, 0x45, 0xdd, 0x86, 0x56, 0xce, 0x51, 0x48, 0xdb, 0x79, 0xe3, 0x48, 0xe2, 0x11,
+	0x1b, 0xc8, 0x6a, 0xe0, 0xf7, 0x13, 0x32, 0x7e, 0x01, 0x39, 0x82, 0xa6, 0x74, 0x37, 0xf0, 0xfb,
+	0xed, 0x7c, 0x41, 0xcf, 0xc0, 0xb6, 0xbe, 0x86, 0x49, 0x35, 0xb7, 0x64, 0x1c, 0x46, 0x6a, 0xbd,
+	0x5e, 0xe9, 0x1c, 0xfb, 0xa3, 0xd9, 0x5c, 0x2f, 0x15, 0xc8, 0x2c, 0x40, 0x2c, 0xd0, 0xa5, 0x22,
+	0x99, 0x8e, 0xad, 0xd2, 0xd2, 0x08, 0xc2, 0xf7, 0xfb, 0xa5, 0x51, 0x42, 0x92, 0xe6, 0x70, 0x69,
+	0xcc, 0xfa, 0x2f, 0x85, 0x94, 0xdc, 0x33, 0xe3, 0x48, 0x58, 0xd0, 0x28, 0xa6, 0xdc, 0x02, 0x40,
+	0xe3, 0x48, 0xd8, 0xde, 0x7c, 0x77, 0xd7, 0x81, 0x98, 0x2a, 0xdb, 0x66, 0x53, 0xd4, 0xf1, 0x7b,
+	0xba, 0x2a, 0xeb, 0x8b, 0x32, 0x5b, 0xd5, 0x92, 0x65, 0x4d, 0xe9, 0x8d, 0xc4, 0xd6, 0x8d, 0x54,
+	0x7a, 0xfa, 0x02, 0x50, 0xea, 0x6f, 0x59, 0x33, 0xb3, 0x47, 0x63, 0x9c, 0x8c, 0x05, 0xa7, 0xe0,
+	0xac, 0xa3, 0x1c, 0x91, 0x22, 0x9f, 0xa5, 0x4e, 0x05, 0x7c, 0x84, 0xb8, 0x66, 0x12, 0x92, 0x93,
+	0x32, 0xf8, 0xab, 0x30, 0xb6, 0xe9, 0xef, 0xb9, 0x9e, 0x18, 0xe4, 0xe4, 0xc9, 0x71, 0x75, 0xac,
+	0xc7, 0x0a, 0x6c, 0x5e, 0x6e, 0xfd, 0x9f, 0x82, 0xbe, 0xbc, 0x94, 0xd1, 0x58, 0xc8, 0x34, 0x1a,
+	0xbf, 0x0b, 0x93, 0xc2, 0x32, 0xde, 0x58, 0x15, 0x14, 0x71, 0xbb, 0x90, 0x07, 0x5f, 0xb7, 0x6b,
+	0xc7, 0x00, 0x6c, 0xbb, 0xe7, 0x7b, 0x07, 0x6e, 0xf7, 0x23, 0xf1, 0x76, 0x2f, 0x76, 0x17, 0xbe,
+	0xdd, 0xc7, 0x20, 0x6c, 0x22, 0x75, 0xb7, 0xe1, 0x68, 0x3c, 0x91, 0xba, 0x83, 0xd0, 0x74, 0x0a,
+	0x7e, 0x0a, 0x50, 0x7b, 0xd2, 0xc4, 0xcd, 0xce, 0xde, 0x12, 0x2a, 0x1e, 0x7d, 0x8a, 0xce, 0xf3,
+	0x50, 0x6c, 0x97, 0x81, 0x6e, 0x17, 0x68, 0xd0, 0x56, 0x0f, 0x66, 0xef, 0xd1, 0x88, 0xcd, 0x9a,
+	0xdc, 0x0f, 0x07, 0x0f, 0xff, 0x73, 0x98, 0x7a, 0xe2, 0x46, 0xfb, 0xa6, 0x15, 0x8e, 0x8d, 0x3d,
+	0x77, 0xa3, 0x7d, 0x69, 0x85, 0x6b, 0x8d, 0xe9, 0xe0, 0xd6, 0x1a, 0x5c, 0x10, 0xad, 0xa9, 0xed,
+	0x77, 0xd9, 0x24, 0x58, 0x88, 0xcd, 0x7a, 0x9d, 0xa0, 0x49, 0x86, 0x26, 0xf7, 0x23, 0xd2, 0x4c,
+	0xed, 0x50, 0xfc, 0x48, 0x92, 0xe7, 0x52, 0x43, 0xc1, 0x49, 0x2c, 0xe8, 0xe4, 0x7e, 0x65, 0x3d,
+	0x86, 0x99, 0xed, 0xde, 0xd1, 0x9e, 0xeb, 0x31, 0x01, 0x6d, 0xd2, 0x9f, 0x91, 0x55, 0x80, 0xb8,
+	0x40, 0xb4, 0x20, 0x0f, 0x5a, 0x71, 0x45, 0x6b, 0x45, 0x4c, 0x31, 0x96, 0xe0, 0x16, 0x63, 0x6b,
+	0x78, 0xd6, 0x5f, 0x1b, 0x01, 0x22, 0xda, 0x68, 0x46, 0x4e, 0x44, 0x9b, 0x34, 0x62, 0xbb, 0xd9,
+	0x65, 0x28, 0x2a, 0xdb, 0xfd, 0xfc, 0xc9, 0x71, 0xb5, 0xe8, 0x76, 0xed, 0xe2, 0xc6, 0x2a, 0x79,
+	0x1f, 0xc6, 0x10, 0x0c, 0x79, 0x3d, 0xab, 0xda, 0xd3, 0x29, 0x70, 0x99, 0x0e, 0xd9, 0x9f, 0x36,
+	0x07, 0x26, 0x1f, 0xc0, 0xe4, 0x2a, 0xed, 0xd1, 0x3d, 0x27, 0xf2, 0xa5, 0xdc, 0x71, 0x6b, 0x58,
+	0x16, 0x6a, 0x53, 0x14, 0x43, 0x32, 0xfb, 0xc2, 0xa6, 0x4e, 0xe8, 0x7b, 0xba, 0x7d, 0x11, 0x60,
+	0x89, 0x6e, 0x5f, 0x70, 0x18, 0xf2, 0xfb, 0x05, 0x98, 0xaa, 0x79, 0x9e, 0xb0, 0x32, 0x43, 0xe1,
+	0x43, 0x9f, 0xbf, 0xa5, 0xae, 0x40, 0x36, 0x9d, 0x5d, 0xda, 0x6b, 0xb1, 0x73, 0x4b, 0x58, 0xff,
+	0x86, 0xa9, 0xfc, 0xff, 0x7a, 0x5c, 0xfd, 0xec, 0x65, 0x6e, 0x55, 0x6e, 0xed, 0x04, 0x8e, 0x1b,
+	0x85, 0xe8, 0xb0, 0x8c, 0x1b, 0xd4, 0xc5, 0x4c, 0xeb, 0x07, 0x79, 0x07, 0xc6, 0xb8, 0x1d, 0xcb,
+	0xcd, 0x14, 0x9c, 0xec, 0x84, 0x01, 0x6b, 0x73, 0x08, 0xeb, 0x0d, 0x98, 0x14, 0x9c, 0xdc, 0x58,
+	0xcd, 0x9b, 0x02, 0x6b, 0x15, 0xae, 0xa1, 0x29, 0x4d, 0x99, 0xe4, 0xa2, 0xdb, 0x4e, 0x48, 0x62,
+	0x7c, 0xf6, 0x1a, 0xc7, 0x62, 0x85, 0x8d, 0x13, 0x82, 0x6e, 0x3f, 0x5b, 0xd6, 0x58, 0x0d, 0x58,
+	0xbc, 0x47, 0x23, 0x9b, 0x86, 0x34, 0xda, 0x76, 0xc2, 0xf0, 0xb9, 0x1f, 0x74, 0xb1, 0xea, 0x4c,
+	0x44, 0xfe, 0x52, 0x01, 0xaa, 0x8d, 0x80, 0xb2, 0x99, 0xce, 0x25, 0x34, 0x78, 0x05, 0x2f, 0x8a,
+	0x5b, 0xa4, 0x62, 0x5c, 0xcb, 0x78, 0x2d, 0x6e, 0x8a, 0xde, 0x82, 0x91, 0x9d, 0x9d, 0x4d, 0x94,
+	0x98, 0x11, 0x64, 0xdc, 0x48, 0x14, 0xf5, 0x7e, 0x73, 0x5c, 0x9d, 0x58, 0x3d, 0xe2, 0xb7, 0x4c,
+	0x36, 0xab, 0xb7, 0x9e, 0xc2, 0xbc, 0x4d, 0x3d, 0xfa, 0x9c, 0xd9, 0xda, 0x86, 0x35, 0x5d, 0x85,
+	0x31, 0xee, 0x15, 0x4d, 0x0d, 0x81, 0x97, 0x9b, 0xe6, 0x76, 0x71, 0x88, 0xb9, 0x6d, 0xfd, 0x61,
+	0x01, 0x4a, 0x7c, 0xb8, 0x75, 0x3f, 0x3a, 0xdd, 0xf8, 0xc4, 0x08, 0x8a, 0x83, 0x47, 0x40, 0xde,
+	0x8e, 0xb9, 0x3d, 0x12, 0x6f, 0x7e, 0xd8, 0x55, 0xa6, 0xc3, 0x65, 0x25, 0x1b, 0x10, 0x97, 0x25,
+	0x7e, 0x3e, 0xc5, 0x01, 0xa1, 0x2c, 0x49, 0x09, 0xfa, 0x47, 0x45, 0xb8, 0xa8, 0x75, 0x31, 0xec,
+	0xfb, 0x5e, 0x48, 0xd9, 0x41, 0x9b, 0x09, 0x8b, 0xd6, 0x4f, 0x3c, 0x68, 0xb3, 0x2d, 0xb3, 0x1d,
+	0x1f, 0x14, 0xb0, 0xc3, 0xef, 0xb0, 0x13, 0x5e, 0x2f, 0x75, 0x26, 0x47, 0xc5, 0xcd, 0x41, 0x65,
+	0xf5, 0xa9, 0x3b, 0x7d, 0x1b, 0x26, 0xf0, 0x4f, 0xc6, 0x88, 0xd1, 0x7c, 0x46, 0x28, 0x20, 0xe2,
+	0x02, 0xdc, 0xf7, 0x5d, 0xef, 0x21, 0x8d, 0xf6, 0x7d, 0xe9, 0xc1, 0xd8, 0x60, 0x4a, 0xec, 0xff,
+	0xf3, 0x5d, 0xaf, 0x7d, 0x88, 0xc5, 0x67, 0x3d, 0xf3, 0xc5, 0x04, 0x6d, 0x8d, 0xb8, 0x75, 0x07,
+	0x4a, 0x4c, 0xdf, 0x9c, 0x7e, 0x46, 0xad, 0x39, 0x20, 0xf7, 0x68, 0x54, 0xf7, 0x8d, 0x8d, 0xc3,
+	0x9a, 0x81, 0xa9, 0x6d, 0xd7, 0xdb, 0x93, 0x9f, 0xff, 0xbc, 0x08, 0xd3, 0xfc, 0x5b, 0xcc, 0x40,
+	0x62, 0x27, 0x2d, 0x9c, 0x66, 0x27, 0xfd, 0x18, 0x66, 0x84, 0xdf, 0x8e, 0x06, 0xe8, 0x4c, 0xe3,
+	0xf3, 0x81, 0xc7, 0x7a, 0xee, 0xbe, 0x6b, 0x3f, 0xe3, 0x35, 0xb6, 0x09, 0x48, 0x36, 0x61, 0x96,
+	0x17, 0xdc, 0xa5, 0x4e, 0x74, 0x14, 0x1f, 0xfa, 0x2e, 0x08, 0x33, 0x58, 0x16, 0x73, 0x65, 0x24,
+	0x68, 0x3d, 0x15, 0x85, 0x76, 0x02, 0x97, 0x7c, 0x09, 0x17, 0xb6, 0x03, 0xff, 0xdb, 0x17, 0x9a,
+	0xed, 0xc0, 0xf5, 0xf1, 0x3c, 0x3b, 0x23, 0xf6, 0x59, 0x55, 0x5b, 0xb7, 0x20, 0x92, 0xd0, 0x4c,
+	0xa6, 0x36, 0xc2, 0xba, 0x1f, 0xb8, 0xde, 0x1e, 0xce, 0xe6, 0x04, 0x97, 0x29, 0x37, 0x6c, 0xef,
+	0x62, 0xa1, 0xad, 0xaa, 0xad, 0xff, 0x31, 0x0a, 0x13, 0xaa, 0xe1, 0x5b, 0xba, 0x59, 0x2a, 0x36,
+	0x63, 0x5c, 0x9e, 0xf1, 0xd9, 0xcc, 0xd6, 0x20, 0xc8, 0x15, 0xee, 0xb5, 0xe4, 0x66, 0xc0, 0x38,
+	0x93, 0x31, 0xa7, 0xdf, 0xe7, 0xbe, 0xc9, 0xcb, 0x50, 0x5c, 0xad, 0x23, 0x17, 0x26, 0xb8, 0x32,
+	0xed, 0xee, 0xda, 0xc5, 0xd5, 0x3a, 0x9b, 0xeb, 0x47, 0x1b, 0xab, 0x0d, 0x1c, 0xd0, 0x04, 0x9f,
+	0x6b, 0xdf, 0xed, 0x76, 0x6c, 0x2c, 0x65, 0xb5, 0xcd, 0xda, 0xc3, 0x4d, 0xd1, 0x69, 0xac, 0x0d,
+	0x9d, 0xc3, 0x9e, 0x8d, 0xa5, 0xcc, 0x0e, 0xe4, 0x7b, 0x74, 0xc3, 0xf7, 0xa2, 0xc0, 0xef, 0x85,
+	0xe8, 0xaf, 0x99, 0x30, 0xb6, 0xf3, 0x8e, 0xa8, 0xb2, 0x13, 0xa0, 0xe4, 0x09, 0x2c, 0xd4, 0xba,
+	0xcf, 0x1c, 0xaf, 0x43, 0xbb, 0xbc, 0xe6, 0x89, 0x1f, 0x1c, 0x3c, 0xed, 0xf9, 0xcf, 0x43, 0x3c,
+	0x84, 0x4e, 0x88, 0xe3, 0xac, 0x00, 0x91, 0xe6, 0xfe, 0x73, 0x09, 0x64, 0xe7, 0x61, 0x33, 0x15,
+	0xd1, 0xe8, 0xf9, 0x47, 0x5d, 0x3c, 0x7d, 0x4e, 0x70, 0x15, 0xd1, 0x61, 0x05, 0x36, 0x2f, 0x67,
+	0x5c, 0x5a, 0x6f, 0x3e, 0xc4, 0xc3, 0xa3, 0xe0, 0xd2, 0x7e, 0x78, 0x68, 0xb3, 0x32, 0xf2, 0x16,
+	0x8c, 0x4b, 0x93, 0x96, 0x7b, 0x66, 0xd0, 0x6d, 0x27, 0x4d, 0x59, 0x59, 0x47, 0x56, 0xe1, 0xe2,
+	0x43, 0xbf, 0x4b, 0x03, 0x27, 0xa2, 0x5d, 0x61, 0x5d, 0x86, 0x78, 0x0e, 0x9c, 0xe0, 0x66, 0xf5,
+	0xa1, 0xac, 0x94, 0x4e, 0xdd, 0xd0, 0x4e, 0x23, 0x30, 0xdd, 0xfb, 0xd0, 0xe9, 0xec, 0xbb, 0x1e,
+	0x15, 0x9e, 0x15, 0x31, 0xb9, 0x87, 0xbc, 0x10, 0x6d, 0x57, 0x05, 0x40, 0x76, 0xe0, 0xb2, 0x74,
+	0xfc, 0x26, 0x6c, 0xab, 0x19, 0x44, 0x15, 0xd7, 0x7c, 0x1c, 0x22, 0x79, 0x3a, 0xb2, 0x73, 0x70,
+	0xad, 0xf7, 0xe0, 0x22, 0x5f, 0xfe, 0xa7, 0xb6, 0x39, 0xad, 0x6d, 0x80, 0x26, 0x3d, 0x74, 0xfa,
+	0xfb, 0x3e, 0x13, 0xd1, 0xba, 0xfe, 0x25, 0x8c, 0x30, 0xa2, 0xee, 0xa6, 0x44, 0x45, 0x6b, 0x45,
+	0x5a, 0xe5, 0x12, 0xd2, 0xd6, 0xb0, 0xac, 0xff, 0x54, 0x04, 0x82, 0x77, 0x34, 0xcd, 0x28, 0xa0,
+	0xce, 0xa1, 0xec, 0xc6, 0x27, 0x30, 0xcd, 0x35, 0x39, 0x2f, 0xc6, 0xee, 0x30, 0x0b, 0x8f, 0x2f,
+	0x61, 0xbd, 0x6a, 0xfd, 0x9c, 0x6d, 0x80, 0x32, 0x54, 0x9b, 0x86, 0x47, 0x87, 0x12, 0xb5, 0x68,
+	0xa0, 0xea, 0x55, 0x0c, 0x55, 0xff, 0x26, 0x5f, 0xc2, 0x6c, 0xc3, 0x3f, 0xec, 0x33, 0x9e, 0x08,
+	0xe4, 0x11, 0x61, 0x47, 0x89, 0x76, 0x8d, 0xca, 0xf5, 0x73, 0x76, 0x02, 0x9c, 0x6c, 0xc1, 0xa5,
+	0xbb, 0xbd, 0xa3, 0x70, 0xbf, 0xe6, 0x75, 0x1b, 0x3d, 0x3f, 0x94, 0x54, 0x46, 0x85, 0xd7, 0x49,
+	0x28, 0xa0, 0x34, 0xc4, 0xfa, 0x39, 0x3b, 0x0b, 0x91, 0xbc, 0x25, 0x02, 0x4e, 0x84, 0x3d, 0x37,
+	0x73, 0x4b, 0xc4, 0xa3, 0x3c, 0xf2, 0xe8, 0xa3, 0xa7, 0xeb, 0xe7, 0x6c, 0x5e, 0x5b, 0x9f, 0x84,
+	0x71, 0xa9, 0x7c, 0x6f, 0xc3, 0x45, 0x8d, 0x9d, 0xcc, 0x02, 0x3d, 0x0a, 0x49, 0x05, 0x26, 0x1e,
+	0xf7, 0x7b, 0xbe, 0xd3, 0x95, 0x06, 0x8d, 0xad, 0xbe, 0xad, 0xef, 0x9a, 0x9c, 0x26, 0x8b, 0xfa,
+	0xa9, 0x8a, 0x03, 0xc7, 0x05, 0xd6, 0xba, 0xc9, 0xdc, 0xc1, 0xd0, 0x46, 0xbb, 0xc5, 0x44, 0xbb,
+	0xa5, 0x24, 0xaf, 0xad, 0xf9, 0x4c, 0xe6, 0x59, 0x0f, 0xd0, 0x58, 0xab, 0xf5, 0xfb, 0x3d, 0xb7,
+	0x83, 0x7b, 0x1c, 0xd7, 0xd0, 0xca, 0xce, 0xf9, 0x1d, 0x3d, 0x2c, 0x42, 0xdb, 0xe0, 0x55, 0x10,
+	0x84, 0x16, 0xf8, 0x60, 0xfd, 0x10, 0xae, 0xe5, 0x10, 0x13, 0x7b, 0xd5, 0x27, 0x30, 0x2e, 0x8a,
+	0x12, 0x02, 0xad, 0x5f, 0x24, 0xa1, 0x66, 0x08, 0x05, 0xa6, 0x84, 0xb7, 0xbe, 0x86, 0xa5, 0xc7,
+	0xfd, 0x90, 0x06, 0x69, 0xf2, 0xb2, 0xab, 0x1f, 0xaa, 0xb0, 0x8b, 0x42, 0xee, 0x25, 0x15, 0x9c,
+	0x1c, 0x57, 0xcf, 0x73, 0xda, 0x32, 0xda, 0xc2, 0xfa, 0x45, 0x01, 0x96, 0xf8, 0x52, 0xcd, 0x25,
+	0x7d, 0x16, 0x2e, 0x68, 0x17, 0x14, 0xc5, 0xfc, 0x0b, 0x8a, 0x81, 0x37, 0x36, 0xd6, 0x57, 0x60,
+	0x89, 0x1e, 0xf5, 0x7a, 0xaf, 0x69, 0x6e, 0xfe, 0x42, 0x01, 0xe6, 0xf8, 0xe4, 0xbc, 0x02, 0x15,
+	0xf2, 0x7d, 0x98, 0x6d, 0x1e, 0xb8, 0xfd, 0x96, 0xd3, 0x73, 0xbb, 0xdc, 0x57, 0xcf, 0xb7, 0xc4,
+	0x79, 0xdc, 0xed, 0x0f, 0xdc, 0x7e, 0xfb, 0x59, 0x5c, 0x55, 0xb0, 0x13, 0xc0, 0xd6, 0x23, 0x98,
+	0x4f, 0xf4, 0x41, 0x08, 0xc6, 0x87, 0x49, 0xc1, 0x48, 0xc5, 0xcc, 0x64, 0x4b, 0xc5, 0x43, 0xb8,
+	0xac, 0xa4, 0xc2, 0x9c, 0xb2, 0x95, 0x84, 0x34, 0xa4, 0x08, 0x66, 0x89, 0x42, 0x07, 0x2e, 0x2b,
+	0x49, 0x78, 0x05, 0x09, 0x90, 0x93, 0x5b, 0xcc, 0x9c, 0xdc, 0x0d, 0xa8, 0xe8, 0x93, 0xfb, 0x2a,
+	0x93, 0xfa, 0x1f, 0x0b, 0xb0, 0x70, 0x8f, 0x7a, 0xb8, 0xfd, 0xd5, 0xfa, 0x7d, 0xe3, 0x74, 0xa4,
+	0x7b, 0xf0, 0x0b, 0x03, 0x3d, 0xf8, 0xca, 0xf4, 0x2f, 0x66, 0x9b, 0xfe, 0x6c, 0x5f, 0x7f, 0x6c,
+	0x6f, 0x08, 0x59, 0xc5, 0x7d, 0xfd, 0x28, 0x70, 0x6d, 0x56, 0x46, 0x36, 0x62, 0xef, 0xff, 0xe8,
+	0x50, 0xef, 0xff, 0x25, 0xe1, 0x0d, 0x1d, 0x17, 0xde, 0x7f, 0xc3, 0xe7, 0x6f, 0x7d, 0x06, 0xe5,
+	0xf4, 0x58, 0x84, 0x7c, 0x0c, 0x3b, 0x6e, 0x59, 0xab, 0xb1, 0x74, 0x8b, 0x90, 0x0b, 0x75, 0xeb,
+	0x91, 0x50, 0xa1, 0x03, 0xdc, 0x58, 0x56, 0x33, 0x96, 0x4f, 0x41, 0x45, 0xb4, 0xff, 0x29, 0x93,
+	0x4f, 0x7e, 0xef, 0x5c, 0xc8, 0xbf, 0x77, 0x16, 0x32, 0xca, 0x51, 0x25, 0x82, 0xf5, 0x04, 0x2e,
+	0x1b, 0x44, 0x63, 0xa9, 0xff, 0x3e, 0x4c, 0x28, 0x23, 0xc7, 0xf4, 0xb2, 0x18, 0x64, 0x71, 0xde,
+	0x94, 0xbd, 0xa3, 0x50, 0xac, 0x1f, 0xa3, 0xee, 0x4e, 0x5e, 0x64, 0xbf, 0x36, 0xf2, 0xbf, 0x2a,
+	0xc0, 0x02, 0xdf, 0xbc, 0xd2, 0x6c, 0x3d, 0xbd, 0x70, 0xfd, 0x56, 0x3c, 0x83, 0x77, 0x32, 0x3c,
+	0x83, 0x88, 0xa2, 0x7b, 0x06, 0x75, 0x7f, 0xe0, 0xfd, 0xd1, 0x89, 0x62, 0x69, 0xc4, 0x6a, 0x41,
+	0x39, 0x3d, 0xc2, 0xd7, 0x30, 0xe5, 0xff, 0xa2, 0x00, 0xd7, 0xc4, 0xbe, 0x9f, 0x98, 0x9d, 0xb3,
+	0x33, 0xf0, 0x03, 0x98, 0x16, 0xb8, 0x7c, 0x05, 0x70, 0xa5, 0x82, 0xb1, 0x12, 0x52, 0x88, 0xf9,
+	0x4a, 0x30, 0xc0, 0xc8, 0x07, 0xda, 0xd1, 0x98, 0x7b, 0x39, 0xae, 0x30, 0x35, 0xc2, 0xcf, 0xd0,
+	0xb9, 0x07, 0x64, 0xeb, 0x1b, 0x58, 0xca, 0xeb, 0xf8, 0x6b, 0xe0, 0xcb, 0x7d, 0xa8, 0x64, 0x48,
+	0xec, 0xcb, 0xad, 0xd5, 0x1f, 0xc0, 0xd5, 0x4c, 0x5a, 0xaf, 0xa1, 0x9b, 0xf7, 0x60, 0x41, 0xdb,
+	0x06, 0x5e, 0xa1, 0x8f, 0x0f, 0xe1, 0x1a, 0x27, 0xf4, 0x7a, 0x86, 0xbc, 0x0e, 0x8b, 0xf1, 0x99,
+	0xc2, 0x50, 0x28, 0x67, 0x14, 0x2a, 0xa1, 0xe8, 0x62, 0x56, 0xbc, 0x46, 0x45, 0x17, 0x03, 0xbe,
+	0x36, 0x4d, 0xb4, 0x01, 0x97, 0x38, 0x61, 0x73, 0x53, 0x58, 0xd6, 0x37, 0x85, 0xcc, 0xc8, 0xc4,
+	0xf4, 0x3e, 0xf1, 0x10, 0xf7, 0x09, 0x09, 0x12, 0xf7, 0xf0, 0x03, 0x38, 0x2f, 0x82, 0xaf, 0x79,
+	0xff, 0x32, 0x88, 0xa1, 0xc1, 0xc0, 0x23, 0xae, 0x6d, 0x01, 0x6c, 0x95, 0x71, 0xc8, 0x0f, 0x8e,
+	0x76, 0xa9, 0xb8, 0x71, 0x52, 0x6e, 0x9b, 0xaf, 0xd8, 0xce, 0x9c, 0xa8, 0x79, 0x45, 0x63, 0xe7,
+	0x11, 0x94, 0xb9, 0xb1, 0xa3, 0x51, 0x7d, 0x25, 0x73, 0xe7, 0x63, 0x28, 0x73, 0x79, 0xca, 0x20,
+	0x38, 0xd8, 0x86, 0x59, 0x92, 0x92, 0x58, 0xeb, 0xf5, 0xb2, 0x46, 0xff, 0x57, 0x0a, 0x70, 0xe5,
+	0x1e, 0x8d, 0xcc, 0xf8, 0xd4, 0x3f, 0x15, 0x93, 0xf3, 0x1b, 0x54, 0x39, 0xa9, 0x8e, 0x88, 0xa9,
+	0xf8, 0x22, 0x39, 0x15, 0xb9, 0xc1, 0xb8, 0xd9, 0x53, 0xf2, 0x43, 0xb8, 0xca, 0xa7, 0xc4, 0x84,
+	0x97, 0x03, 0xfd, 0x2c, 0x31, 0x2b, 0xb9, 0xd4, 0xb3, 0x66, 0xe7, 0x6f, 0x14, 0xe0, 0x2a, 0x67,
+	0x72, 0x36, 0xf1, 0xdf, 0xf6, 0xa1, 0x64, 0x0b, 0xaa, 0x6a, 0xce, 0x5f, 0xc3, 0xc4, 0x5a, 0xff,
+	0xb8, 0x00, 0x44, 0xd2, 0x69, 0x34, 0x6d, 0x49, 0xe3, 0x0a, 0x8c, 0x34, 0x9a, 0xb6, 0x88, 0x50,
+	0x41, 0x63, 0xb3, 0x13, 0x06, 0x36, 0x2b, 0x4b, 0x9a, 0x06, 0xc5, 0xd3, 0x98, 0x06, 0x1b, 0x40,
+	0x9a, 0xee, 0x9e, 0xf7, 0xc4, 0x8d, 0xf6, 0x55, 0x63, 0x35, 0xe1, 0xae, 0xc3, 0x30, 0xe8, 0xd0,
+	0xdd, 0xf3, 0xda, 0x78, 0x07, 0xa7, 0x42, 0xad, 0x3b, 0x8e, 0x9d, 0x81, 0x64, 0xfd, 0x08, 0x2e,
+	0x19, 0xfd, 0x15, 0x32, 0xb4, 0x08, 0xa3, 0x0d, 0x1a, 0x44, 0xa2, 0xc7, 0xc8, 0xb5, 0x0e, 0x0d,
+	0x22, 0x1b, 0x4b, 0xc9, 0xdb, 0x30, 0xde, 0xa8, 0xe1, 0xd5, 0x01, 0x9a, 0xd7, 0xd3, 0x5c, 0xc9,
+	0x75, 0x9c, 0x36, 0xbe, 0xff, 0xb1, 0x65, 0xa5, 0xf5, 0xef, 0x8a, 0x1a, 0x75, 0x86, 0x3e, 0x9c,
+	0x1d, 0xef, 0x01, 0x70, 0xfe, 0x6b, 0xdc, 0x60, 0x76, 0xc1, 0x94, 0x70, 0xbb, 0xf2, 0x7d, 0xc0,
+	0xd6, 0x80, 0x4e, 0x79, 0xed, 0x21, 0xaf, 0xd9, 0x39, 0x92, 0xbc, 0x12, 0x50, 0xd7, 0xec, 0x82,
+	0x74, 0x68, 0xeb, 0x40, 0xe4, 0x27, 0x30, 0x23, 0xfa, 0x2c, 0x3a, 0x34, 0x86, 0xf7, 0x78, 0x6f,
+	0x0a, 0xbf, 0x4c, 0xc6, 0xd8, 0x6e, 0x29, 0x78, 0xf1, 0x32, 0x43, 0x7e, 0xf2, 0x69, 0x34, 0xc9,
+	0x59, 0x6f, 0xab, 0x1b, 0x2c, 0x1a, 0x90, 0x0b, 0x30, 0xf5, 0x78, 0xab, 0xb9, 0xbd, 0xd6, 0xd8,
+	0xb8, 0xbb, 0xb1, 0xb6, 0x5a, 0x3a, 0x47, 0x26, 0x60, 0x74, 0xa7, 0xb1, 0xb3, 0x59, 0x2a, 0x58,
+	0xdf, 0xc0, 0x9c, 0xd9, 0xd6, 0x6b, 0x9d, 0xa6, 0x08, 0x2e, 0xa9, 0xbd, 0xfc, 0xfe, 0x93, 0x1d,
+	0xed, 0x76, 0xb7, 0xd6, 0xe9, 0xf8, 0x47, 0x5e, 0x94, 0x74, 0xc2, 0x3b, 0xbc, 0x58, 0x48, 0xa6,
+	0x06, 0x64, 0x5c, 0x9d, 0x14, 0x07, 0x5e, 0x9d, 0x58, 0x1f, 0xc1, 0x9c, 0xd9, 0xea, 0x69, 0x8f,
+	0x45, 0x6f, 0xe2, 0xb5, 0xb7, 0x16, 0x04, 0x42, 0x88, 0xee, 0x82, 0x14, 0x2b, 0xfb, 0x23, 0x28,
+	0x09, 0xa8, 0x58, 0x33, 0xbe, 0x21, 0x0f, 0x85, 0x5c, 0x2f, 0x9a, 0x2f, 0x69, 0xe4, 0x9d, 0xd0,
+	0x77, 0xa4, 0x93, 0x73, 0x58, 0x0b, 0x7f, 0xbb, 0x00, 0xe5, 0x87, 0x77, 0x6b, 0xb5, 0xa3, 0x68,
+	0x9f, 0x7a, 0x91, 0xdb, 0x71, 0x22, 0xda, 0xd8, 0x77, 0x7a, 0x3d, 0xea, 0xed, 0x51, 0x72, 0x13,
+	0x46, 0x77, 0x1e, 0xed, 0x6c, 0x0b, 0x5f, 0xe2, 0x9c, 0x10, 0x18, 0x56, 0xa4, 0x60, 0x6c, 0x84,
+	0x20, 0x0f, 0xe0, 0xe2, 0x13, 0xf1, 0x76, 0x4d, 0x55, 0x09, 0x2f, 0xe2, 0xb5, 0x5b, 0xea, 0x55,
+	0x5b, 0x23, 0xa0, 0x5d, 0xd6, 0x8a, 0xd3, 0x53, 0x41, 0x71, 0x76, 0x1a, 0xef, 0xfe, 0xe8, 0x44,
+	0xa1, 0x54, 0xb4, 0x7e, 0xbf, 0x00, 0x0b, 0x89, 0x9e, 0x69, 0x97, 0x5b, 0x7a, 0xc7, 0x2e, 0x69,
+	0x1d, 0x93, 0x20, 0xeb, 0xe7, 0x44, 0xcf, 0x1a, 0xf8, 0x50, 0x02, 0x5b, 0x10, 0x1d, 0x7a, 0x6b,
+	0x70, 0x87, 0x62, 0x02, 0x0a, 0x51, 0x84, 0x20, 0x63, 0xb9, 0x75, 0x01, 0x66, 0x0c, 0x0e, 0x58,
+	0x16, 0x4c, 0xeb, 0x2d, 0x33, 0x36, 0x37, 0xfc, 0xae, 0x62, 0x33, 0xfb, 0xdb, 0xfa, 0x9b, 0x05,
+	0x98, 0x7b, 0x78, 0xb7, 0x66, 0xd3, 0x3d, 0x97, 0x2d, 0x93, 0x98, 0xc5, 0xcb, 0xc6, 0x48, 0x16,
+	0x8d, 0x91, 0x24, 0x60, 0xd5, 0x90, 0x3e, 0x4d, 0x0d, 0x69, 0x31, 0x6b, 0x48, 0x78, 0x5c, 0x70,
+	0x7d, 0xcf, 0x18, 0x89, 0xe6, 0x33, 0xfd, 0x3b, 0x05, 0xb8, 0xa4, 0xf5, 0x49, 0xf5, 0xff, 0x3d,
+	0xa3, 0x4b, 0x57, 0x33, 0xba, 0x94, 0x62, 0x72, 0x3d, 0xd5, 0xa3, 0x37, 0x07, 0xf5, 0x68, 0x28,
+	0x8f, 0xff, 0xb8, 0x00, 0xf3, 0x99, 0x3c, 0x20, 0x97, 0xd9, 0xc6, 0xdd, 0x09, 0x68, 0x24, 0xd8,
+	0x2b, 0xbe, 0x58, 0xf9, 0x46, 0x18, 0x1e, 0x89, 0x87, 0x85, 0x93, 0xb6, 0xf8, 0x22, 0x6f, 0xc2,
+	0xcc, 0x36, 0x0d, 0x5c, 0xbf, 0xdb, 0xa4, 0x1d, 0xdf, 0xeb, 0xf2, 0x5b, 0xb1, 0x19, 0xdb, 0x2c,
+	0x24, 0x8b, 0x30, 0x59, 0xeb, 0xed, 0xf9, 0x81, 0x1b, 0xed, 0x73, 0xb7, 0xf5, 0xa4, 0x1d, 0x17,
+	0x30, 0xda, 0xab, 0xee, 0x9e, 0x1b, 0xf1, 0xf8, 0x82, 0x19, 0x5b, 0x7c, 0x91, 0x32, 0x8c, 0x0b,
+	0xb5, 0x81, 0xb7, 0x40, 0x93, 0xb6, 0xfc, 0x64, 0x18, 0x5f, 0xd9, 0x28, 0x04, 0x18, 0x96, 0x6b,
+	0x8b, 0x2f, 0xeb, 0x5d, 0x98, 0xcb, 0xe2, 0x63, 0xa6, 0xc8, 0xfc, 0xb9, 0x22, 0x5c, 0xaa, 0x75,
+	0xbb, 0x0f, 0xef, 0xd6, 0x56, 0xa9, 0x6e, 0xff, 0xbd, 0x0f, 0xa3, 0x1b, 0x9e, 0x1b, 0x09, 0xc3,
+	0x65, 0x49, 0x4c, 0x4f, 0x06, 0x24, 0x83, 0x62, 0x33, 0xc4, 0xfe, 0x27, 0x36, 0x5c, 0x5a, 0xfb,
+	0xd6, 0x0d, 0x23, 0xd7, 0xdb, 0xc3, 0x39, 0xe7, 0x0d, 0x8b, 0x39, 0x96, 0x44, 0x72, 0x96, 0xdb,
+	0xfa, 0x39, 0x3b, 0x0b, 0x99, 0xec, 0xc0, 0xe5, 0x2d, 0xfa, 0x3c, 0x43, 0x84, 0x54, 0xbc, 0xa9,
+	0x22, 0x9b, 0x21, 0x39, 0x39, 0xb8, 0xba, 0x84, 0xfe, 0xe5, 0x22, 0x86, 0x6a, 0x6b, 0x03, 0x13,
+	0x2d, 0x3f, 0x86, 0x39, 0xad, 0x43, 0xb1, 0xc6, 0x29, 0x88, 0x87, 0x42, 0x99, 0xc3, 0xd1, 0x17,
+	0x52, 0x26, 0x3a, 0x79, 0x02, 0x0b, 0x66, 0xa7, 0x62, 0xca, 0xe6, 0x62, 0xc8, 0x02, 0x59, 0x3f,
+	0x67, 0xe7, 0x61, 0x93, 0x65, 0x18, 0xa9, 0x75, 0x0e, 0x04, 0x5b, 0xb2, 0xa7, 0x8c, 0x8f, 0xac,
+	0xd6, 0x39, 0xc0, 0xa7, 0x15, 0x9d, 0x03, 0x63, 0x3d, 0xfc, 0x9b, 0x02, 0x2c, 0xe4, 0xcc, 0x30,
+	0x59, 0x02, 0xe0, 0x85, 0x9a, 0x6e, 0xd7, 0x4a, 0x98, 0x31, 0xc2, 0xbf, 0x30, 0xe8, 0x62, 0x04,
+	0xf7, 0x7e, 0x19, 0xba, 0x19, 0x57, 0xd8, 0x1a, 0x10, 0xd9, 0x86, 0x29, 0xfe, 0xc5, 0x23, 0x48,
+	0x47, 0x11, 0x87, 0x18, 0x38, 0x3c, 0x64, 0x14, 0xe3, 0xae, 0xba, 0x58, 0xd0, 0x4e, 0x46, 0x8e,
+	0xea, 0x24, 0x84, 0x57, 0xa7, 0x91, 0x1c, 0x85, 0x1a, 0x34, 0xb9, 0x09, 0xe7, 0x79, 0xa1, 0x98,
+	0x43, 0xf9, 0xc4, 0x33, 0x06, 0x16, 0xf5, 0xd6, 0x1f, 0x16, 0xa4, 0x2f, 0x38, 0xb5, 0x34, 0x3e,
+	0x32, 0x96, 0xc6, 0x0d, 0xd5, 0xe1, 0x2c, 0x60, 0x63, 0x75, 0xd4, 0x61, 0xea, 0x65, 0x56, 0x85,
+	0x8e, 0xa4, 0xcb, 0xed, 0xdf, 0x2f, 0x48, 0x3f, 0x45, 0x5a, 0x74, 0xd7, 0x60, 0xfa, 0xe5, 0x44,
+	0xd6, 0x40, 0x23, 0x1f, 0x70, 0x89, 0x2a, 0x0e, 0x1e, 0xe9, 0x40, 0xa1, 0xfa, 0x5c, 0xba, 0xbb,
+	0x5f, 0x46, 0xac, 0xac, 0xc5, 0x0c, 0x6c, 0xd5, 0x9c, 0x75, 0x94, 0xaa, 0x6d, 0xbe, 0xf0, 0x3a,
+	0x72, 0x9e, 0xde, 0x4e, 0x06, 0x1a, 0xe5, 0x46, 0x91, 0xe8, 0x7d, 0x28, 0xc6, 0x2e, 0x4a, 0x21,
+	0x72, 0x68, 0x8c, 0xe9, 0x9d, 0xfa, 0x97, 0x45, 0x53, 0xc2, 0x5e, 0xa6, 0xd1, 0x06, 0xcc, 0x6c,
+	0xd1, 0xe7, 0xa9, 0x76, 0xf1, 0x6e, 0xde, 0xa3, 0xcf, 0xdb, 0x5a, 0xdb, 0x9a, 0xb4, 0x9b, 0x38,
+	0x64, 0x17, 0x66, 0xa5, 0x2e, 0x38, 0xad, 0x4a, 0xe4, 0x41, 0xf1, 0xac, 0x85, 0xc3, 0xa7, 0x4e,
+	0x3b, 0x10, 0xa5, 0x7a, 0x34, 0xbb, 0x49, 0xf1, 0xf5, 0xaf, 0x52, 0x6b, 0x1b, 0xca, 0x69, 0xee,
+	0x89, 0xd6, 0xde, 0x1f, 0xb6, 0x40, 0xf9, 0x51, 0xb9, 0x6b, 0x2e, 0xd6, 0x75, 0xf4, 0xea, 0x28,
+	0x18, 0x75, 0x1e, 0xbd, 0x93, 0x9c, 0x0c, 0x0c, 0x22, 0x90, 0x93, 0xa1, 0xbf, 0x56, 0x8a, 0x83,
+	0xd7, 0xe6, 0x13, 0x94, 0x44, 0xc7, 0xde, 0x85, 0x71, 0x51, 0xa4, 0x5e, 0x81, 0x25, 0x55, 0x87,
+	0x04, 0xb0, 0xfe, 0xa0, 0x00, 0x57, 0x98, 0xed, 0xde, 0x74, 0xbd, 0xbd, 0x1e, 0x7d, 0x1c, 0x9a,
+	0xa1, 0x63, 0xdf, 0x33, 0xd4, 0xc7, 0x42, 0x4e, 0xc4, 0xfc, 0xff, 0x2b, 0xa5, 0xf1, 0xf7, 0x0a,
+	0x50, 0xc9, 0xea, 0xdb, 0xeb, 0xd5, 0x1b, 0xb7, 0xc4, 0x61, 0x8b, 0xf7, 0xb6, 0x2c, 0xd0, 0x55,
+	0x9b, 0x72, 0xb0, 0x6c, 0x90, 0xec, 0x7f, 0x43, 0x61, 0xfc, 0xef, 0x02, 0xcc, 0x6d, 0x84, 0xd8,
+	0xfd, 0x9f, 0x1d, 0xb9, 0x01, 0xed, 0x4a, 0xc6, 0xdd, 0xca, 0x7a, 0x57, 0x81, 0xf3, 0xba, 0x7e,
+	0x2e, 0xeb, 0xdd, 0xc4, 0xfb, 0x5a, 0x68, 0x76, 0x71, 0xd0, 0x83, 0x09, 0xe3, 0xb9, 0xe3, 0xdb,
+	0x30, 0xba, 0xc5, 0x8c, 0xa4, 0x11, 0x21, 0x7f, 0x1c, 0x83, 0x15, 0x61, 0x14, 0x35, 0xeb, 0x32,
+	0xfb, 0x20, 0x77, 0x53, 0xb1, 0xda, 0xa3, 0xc3, 0x1f, 0x04, 0xa4, 0xdf, 0x69, 0xd6, 0x27, 0xe0,
+	0xfc, 0x8e, 0x13, 0xec, 0xd1, 0xc8, 0xfa, 0x21, 0x54, 0x44, 0x60, 0x01, 0x77, 0x7c, 0x62, 0xf8,
+	0x41, 0x18, 0x3b, 0xe4, 0x06, 0x05, 0x03, 0x2c, 0x01, 0x34, 0x23, 0x27, 0x88, 0x36, 0xbc, 0x2e,
+	0xfd, 0x16, 0x47, 0x3b, 0x66, 0x6b, 0x25, 0xd6, 0x07, 0x30, 0xa9, 0x86, 0x80, 0x27, 0x34, 0xcd,
+	0x0e, 0xc4, 0xe1, 0xcc, 0x19, 0xd1, 0xe3, 0x32, 0x64, 0x7c, 0x05, 0xe6, 0x13, 0x53, 0x21, 0xe4,
+	0xa4, 0xc2, 0x26, 0x8c, 0x97, 0xf1, 0xf0, 0x29, 0x5b, 0x7d, 0x5b, 0x0d, 0xb8, 0x98, 0x9a, 0x69,
+	0x42, 0xf0, 0x45, 0x00, 0x3f, 0x7d, 0xb3, 0x6d, 0xa2, 0xd9, 0x5c, 0x67, 0x65, 0x3b, 0x9b, 0x4d,
+	0x1e, 0x1d, 0xc9, 0xca, 0x76, 0x36, 0x9b, 0xf5, 0xf3, 0x5c, 0x72, 0xac, 0x7f, 0x58, 0xc4, 0x43,
+	0x69, 0x8a, 0x07, 0x09, 0xff, 0x92, 0xee, 0xe3, 0xaa, 0xc3, 0x24, 0x8e, 0x78, 0x55, 0x46, 0x11,
+	0x0f, 0xbe, 0x8d, 0x9c, 0xf8, 0xe5, 0x71, 0xf5, 0x1c, 0x5e, 0x41, 0xc6, 0x68, 0xe4, 0x0b, 0x18,
+	0x5f, 0xf3, 0xba, 0x48, 0x61, 0xe4, 0x0c, 0x14, 0x24, 0x12, 0x9b, 0x07, 0xec, 0x32, 0x33, 0x70,
+	0x84, 0xe3, 0xc4, 0xd6, 0x4a, 0x90, 0xcd, 0xee, 0xa1, 0xcb, 0x63, 0x4e, 0xc6, 0x6c, 0xfe, 0xc1,
+	0xb8, 0x89, 0x5d, 0x90, 0x2f, 0xf3, 0x26, 0x6d, 0xf5, 0x4d, 0x2c, 0x18, 0x7b, 0x14, 0x74, 0xc5,
+	0x0b, 0xa2, 0xd9, 0xe5, 0x69, 0x99, 0x0e, 0x85, 0x95, 0xd9, 0xbc, 0xca, 0xfa, 0x13, 0xbc, 0x07,
+	0x8e, 0x32, 0xe5, 0xc6, 0xe0, 0x4a, 0xe1, 0x95, 0xb9, 0x52, 0x7c, 0x19, 0xae, 0xa8, 0x51, 0x8f,
+	0xe4, 0x8d, 0x7a, 0x34, 0x6f, 0xd4, 0x63, 0xf9, 0xa3, 0xbe, 0x07, 0xe7, 0xf9, 0x50, 0xc9, 0x1b,
+	0x30, 0xb6, 0x11, 0xd1, 0xc3, 0xd8, 0x59, 0xa1, 0x47, 0xf2, 0xd8, 0xbc, 0x8e, 0x9d, 0xa3, 0x36,
+	0x9d, 0x30, 0x92, 0xf1, 0xb8, 0x93, 0xb6, 0xfc, 0xb4, 0x7e, 0x8a, 0xe1, 0xfa, 0x9b, 0x7e, 0xe7,
+	0x40, 0xf3, 0x64, 0x8e, 0xf3, 0x55, 0x99, 0xbc, 0x10, 0x60, 0x50, 0xbc, 0xc6, 0x96, 0x10, 0xe4,
+	0x3a, 0x4c, 0x6d, 0x78, 0x77, 0xfd, 0xa0, 0x43, 0x1f, 0x79, 0x3d, 0x4e, 0x7d, 0xc2, 0xd6, 0x8b,
+	0x84, 0x87, 0x45, 0xb4, 0x10, 0x7b, 0x58, 0xb0, 0x20, 0xe1, 0x61, 0xe1, 0x2f, 0xe6, 0x6d, 0x5e,
+	0x27, 0x1c, 0x38, 0xec, 0xef, 0x41, 0xee, 0x15, 0xe5, 0x87, 0x19, 0x06, 0xb8, 0x0b, 0x57, 0x6c,
+	0xda, 0xef, 0x39, 0xcc, 0x8c, 0x3a, 0xf4, 0x39, 0xbc, 0x1a, 0xf3, 0xf5, 0x8c, 0x48, 0x52, 0xd3,
+	0x99, 0xaa, 0xba, 0x5c, 0x1c, 0xd0, 0xe5, 0x43, 0xb8, 0x71, 0x8f, 0x46, 0x99, 0xcf, 0xde, 0xe3,
+	0xc1, 0xaf, 0xc3, 0x84, 0x78, 0xb1, 0x23, 0xc7, 0x3f, 0xec, 0xc5, 0xbd, 0xb8, 0x1c, 0x12, 0x74,
+	0xd4, 0x5f, 0xd6, 0x97, 0x50, 0xcd, 0x6b, 0xee, 0x74, 0x61, 0x77, 0x2e, 0x5c, 0xcf, 0x27, 0xa0,
+	0xb6, 0xc5, 0x71, 0xd1, 0xa0, 0x3a, 0x10, 0x0f, 0xee, 0xad, 0xba, 0x2e, 0x40, 0xc3, 0x40, 0xfc,
+	0x61, 0xd5, 0x65, 0x5c, 0xcf, 0x2b, 0x74, 0xb7, 0x8d, 0x17, 0x1a, 0x26, 0x81, 0x98, 0xaf, 0x35,
+	0x98, 0x90, 0x65, 0x89, 0x1b, 0x8d, 0x54, 0x46, 0x01, 0x64, 0x68, 0x57, 0x12, 0x50, 0x68, 0xd6,
+	0x4f, 0xe5, 0xb5, 0x83, 0x89, 0x71, 0xba, 0xa8, 0xf4, 0xd3, 0xdc, 0x33, 0x58, 0x3e, 0x5c, 0x31,
+	0x69, 0xeb, 0x0e, 0xef, 0x92, 0xe6, 0xf0, 0xe6, 0x7e, 0x6e, 0x26, 0x97, 0xf6, 0xe6, 0x9a, 0xd7,
+	0xed, 0xfb, 0xae, 0x17, 0x89, 0xc5, 0xab, 0x17, 0x91, 0x25, 0xdd, 0xad, 0x3d, 0x9d, 0x0e, 0xe3,
+	0xbf, 0x03, 0x95, 0xac, 0x06, 0x35, 0xb7, 0x88, 0xf2, 0x0c, 0x73, 0x83, 0xc4, 0xda, 0x87, 0x39,
+	0x23, 0x47, 0x53, 0x9c, 0x74, 0x26, 0xce, 0x4d, 0x35, 0x59, 0xff, 0xfc, 0x37, 0xc7, 0xd5, 0x8f,
+	0xcf, 0x12, 0x2b, 0x2e, 0x69, 0xee, 0xa8, 0x97, 0x08, 0xd6, 0x02, 0x8c, 0x34, 0xec, 0x4d, 0x1c,
+	0xb6, 0xbd, 0xa9, 0x86, 0x6d, 0x6f, 0x5a, 0x7f, 0x54, 0x84, 0x6a, 0x63, 0xdf, 0xf1, 0xf6, 0xf8,
+	0x75, 0x6f, 0x6c, 0x77, 0x69, 0xf7, 0xc7, 0xa7, 0x3d, 0x6d, 0x2c, 0xc3, 0xd4, 0x16, 0x7d, 0x2e,
+	0x5f, 0x51, 0x88, 0xf7, 0x08, 0xe8, 0x9f, 0x66, 0x27, 0x81, 0xbe, 0x28, 0xb7, 0x75, 0x20, 0xf2,
+	0xff, 0xbf, 0xbc, 0xdf, 0x85, 0x67, 0x6a, 0x89, 0x0f, 0x19, 0xbc, 0x36, 0xeb, 0xb4, 0x91, 0xd3,
+	0x44, 0xfa, 0x78, 0x34, 0x7a, 0xf6, 0xe3, 0x91, 0xf5, 0x4f, 0x0a, 0x70, 0x3d, 0x9f, 0x83, 0xa2,
+	0xa5, 0x55, 0x23, 0x69, 0xce, 0x80, 0x4b, 0x6f, 0x3c, 0x12, 0x6a, 0x49, 0x73, 0x92, 0x89, 0x72,
+	0x6c, 0xda, 0xf1, 0x9f, 0xd1, 0xe0, 0x45, 0xc2, 0x8f, 0x2d, 0x8b, 0x1b, 0x7e, 0x97, 0x86, 0x32,
+	0xe5, 0x18, 0x2f, 0x32, 0xde, 0xb0, 0x8b, 0x32, 0xeb, 0x3f, 0x14, 0xe0, 0x2a, 0x6e, 0x83, 0xc2,
+	0xcb, 0x27, 0x2b, 0x5e, 0x2a, 0x72, 0x44, 0x6f, 0x5c, 0xcc, 0x3a, 0x46, 0x8e, 0xc8, 0x1e, 0xb4,
+	0x3b, 0x7e, 0x97, 0xda, 0x06, 0x18, 0xd9, 0x80, 0x29, 0xf1, 0xad, 0xb9, 0x72, 0xe6, 0xb5, 0x14,
+	0x5c, 0x28, 0x54, 0xfc, 0xcc, 0x87, 0x22, 0x24, 0x88, 0xb5, 0xf1, 0x79, 0x8d, 0x8e, 0x6b, 0xfd,
+	0xba, 0x08, 0x8b, 0x2d, 0x1a, 0xb8, 0x4f, 0x5f, 0xe4, 0x0c, 0xe6, 0x11, 0xcc, 0xc9, 0x22, 0x1c,
+	0xb3, 0x29, 0xcc, 0xfc, 0x95, 0xae, 0xec, 0x6a, 0xc8, 0x00, 0xda, 0x4a, 0xb6, 0x33, 0x11, 0xcf,
+	0xf0, 0x6e, 0xfd, 0x7d, 0x98, 0x50, 0xeb, 0x61, 0x04, 0x39, 0x83, 0x73, 0x23, 0xd7, 0x82, 0x99,
+	0x0c, 0x45, 0x2d, 0x8a, 0xbf, 0x98, 0x7f, 0x5d, 0x20, 0xec, 0xff, 0x21, 0x47, 0x33, 0xbe, 0x34,
+	0xd8, 0xb2, 0x70, 0xb4, 0xda, 0x8c, 0xa5, 0xb1, 0x7e, 0xce, 0xce, 0x6b, 0xa9, 0x3e, 0x05, 0x93,
+	0x35, 0xbc, 0xcc, 0x60, 0xe6, 0xf6, 0xff, 0x2a, 0xc2, 0x92, 0x0c, 0xf6, 0xcd, 0x61, 0xf3, 0xd7,
+	0xb0, 0x20, 0x8b, 0x6a, 0xfd, 0x7e, 0xe0, 0x3f, 0xa3, 0x5d, 0x93, 0xd3, 0xfc, 0xa5, 0xbc, 0xe4,
+	0xb4, 0x23, 0x60, 0x62, 0x66, 0xe7, 0xa1, 0xbf, 0x1e, 0x37, 0xc6, 0x17, 0xa6, 0x76, 0xe2, 0xb3,
+	0x81, 0xee, 0x04, 0x5d, 0x3b, 0x99, 0xd9, 0xe2, 0x74, 0x4d, 0xd5, 0x4d, 0xb9, 0x41, 0x46, 0x5f,
+	0xd5, 0x0d, 0xc2, 0x0e, 0x6a, 0x26, 0xcd, 0xfa, 0x2c, 0x4c, 0x6f, 0xd1, 0xe7, 0x31, 0xdf, 0x7f,
+	0x5e, 0x80, 0x19, 0x63, 0x71, 0x93, 0x77, 0x60, 0x0c, 0xff, 0xc0, 0x9d, 0x57, 0xbc, 0xc7, 0x63,
+	0x0b, 0xcc, 0x78, 0x8f, 0xc7, 0x41, 0x37, 0x60, 0x9c, 0xc7, 0x59, 0x75, 0x4f, 0x61, 0x51, 0xab,
+	0xb8, 0xc9, 0x0e, 0x47, 0xe1, 0xc6, 0xb5, 0xc0, 0xb7, 0x1e, 0xc0, 0x0d, 0x11, 0xc4, 0x66, 0x4e,
+	0x3e, 0x36, 0x74, 0xc6, 0x8d, 0xc2, 0x72, 0x60, 0xe9, 0x1e, 0x4d, 0xaa, 0x1e, 0x23, 0xae, 0xf4,
+	0x4b, 0xb8, 0x60, 0x94, 0x2b, 0x8a, 0xf8, 0x66, 0x47, 0xc9, 0x90, 0x22, 0x9d, 0x84, 0xb6, 0xae,
+	0x67, 0x35, 0xa1, 0x77, 0xd6, 0xa2, 0xf8, 0xe4, 0x3d, 0x88, 0x6f, 0x74, 0xc2, 0x33, 0x68, 0xbd,
+	0x9b, 0xda, 0xba, 0xe6, 0x1a, 0x8f, 0x3f, 0xf7, 0x96, 0x7b, 0x9c, 0xaa, 0xb5, 0x66, 0x60, 0xaa,
+	0xe1, 0x7b, 0x11, 0xfd, 0x16, 0x1f, 0x5c, 0x59, 0xb3, 0x30, 0x2d, 0xab, 0x7a, 0x34, 0x0c, 0xad,
+	0xbf, 0x3b, 0x02, 0x96, 0x60, 0x6c, 0x96, 0xcf, 0x43, 0xf2, 0x63, 0x37, 0xd5, 0x59, 0xb1, 0x89,
+	0x5c, 0xd6, 0x3d, 0x3b, 0x71, 0x2d, 0x97, 0x3c, 0xbc, 0xe5, 0xed, 0xc4, 0xa5, 0x86, 0xe4, 0xa5,
+	0x46, 0xff, 0xa3, 0x1c, 0x35, 0xc9, 0x17, 0x1b, 0xe6, 0xa2, 0xca, 0x51, 0x93, 0x06, 0xdd, 0x6c,
+	0x95, 0x69, 0x1b, 0x6c, 0x10, 0x9b, 0x3b, 0x51, 0x8f, 0x32, 0x54, 0x8d, 0xc8, 0xdf, 0xc8, 0x0b,
+	0xda, 0xa9, 0xfc, 0x8b, 0x3a, 0x11, 0xf2, 0xd8, 0xe4, 0xa5, 0x58, 0x8f, 0xf2, 0x06, 0x55, 0xaf,
+	0xe2, 0x54, 0xfb, 0x5a, 0x89, 0x99, 0xce, 0xd2, 0x80, 0xd5, 0xfc, 0x58, 0x7f, 0xab, 0x00, 0x57,
+	0xf9, 0xec, 0x6c, 0x07, 0xee, 0x33, 0xb7, 0x47, 0xf7, 0xa8, 0x21, 0xa6, 0x47, 0xd9, 0x37, 0x51,
+	0x85, 0x53, 0xe9, 0x68, 0xcc, 0xce, 0x43, 0x05, 0x7a, 0x9e, 0xa3, 0x34, 0x8b, 0xbe, 0x75, 0x5c,
+	0x90, 0x01, 0x94, 0xa9, 0xeb, 0x99, 0xb3, 0xda, 0x6c, 0x75, 0xe3, 0x46, 0xa5, 0x98, 0x73, 0xa3,
+	0x62, 0x78, 0xaa, 0xa3, 0x21, 0x57, 0x2c, 0x23, 0xaf, 0xee, 0xbc, 0xfd, 0xd5, 0x08, 0x5c, 0xdc,
+	0x76, 0xf6, 0x5c, 0x8f, 0xe9, 0x1e, 0xf9, 0xf6, 0x89, 0xd4, 0x52, 0xb9, 0x0d, 0x07, 0x07, 0x3c,
+	0x65, 0x24, 0x2f, 0x5c, 0xd6, 0xd3, 0x8c, 0x15, 0xf3, 0x5e, 0x70, 0x98, 0xc9, 0xc4, 0x3e, 0x31,
+	0x7c, 0x75, 0xa9, 0x98, 0x37, 0x8c, 0x2a, 0xf1, 0xfc, 0x6e, 0x22, 0xdf, 0x27, 0xfa, 0xbb, 0x1e,
+	0xc1, 0x94, 0x16, 0xb8, 0x26, 0x04, 0x34, 0x45, 0x01, 0xd9, 0x72, 0x70, 0xb4, 0x4b, 0x33, 0x73,
+	0xbb, 0xe9, 0x14, 0x32, 0x32, 0xba, 0x8d, 0xbd, 0xe6, 0x8c, 0x6e, 0x3f, 0xe4, 0x5d, 0x96, 0x9e,
+	0xcf, 0xf3, 0x62, 0xdf, 0xe0, 0xe4, 0x53, 0xee, 0xcf, 0xd6, 0x8a, 0xd6, 0xfb, 0xac, 0xf4, 0x94,
+	0x3a, 0xb1, 0x3a, 0xc0, 0x84, 0x7c, 0xe2, 0x66, 0xfd, 0xcf, 0xf3, 0x30, 0xb7, 0xe9, 0x86, 0x91,
+	0x9c, 0xdd, 0x30, 0x56, 0xfd, 0xd3, 0xb2, 0x4c, 0x3b, 0x04, 0x09, 0x2b, 0x4d, 0xbc, 0x8f, 0x4b,
+	0xe4, 0xe5, 0x35, 0x10, 0xc8, 0x07, 0xba, 0xff, 0xae, 0xa8, 0xe5, 0x98, 0x49, 0xa7, 0x54, 0xd5,
+	0x1d, 0x7b, 0xef, 0x18, 0xee, 0x23, 0xbe, 0xaf, 0xf6, 0x58, 0x81, 0xbe, 0xaf, 0x72, 0x9f, 0xd2,
+	0x4a, 0xd2, 0xa7, 0xc4, 0x1b, 0xe0, 0x4a, 0xf1, 0x80, 0x1a, 0x26, 0xb7, 0x72, 0x36, 0x3d, 0x86,
+	0xf3, 0xf8, 0x82, 0x9f, 0xe7, 0xd3, 0x9a, 0x5a, 0xfe, 0x8e, 0x58, 0x20, 0x59, 0x4c, 0xe0, 0x6f,
+	0xfd, 0x43, 0x2d, 0x57, 0x5a, 0x0f, 0x0b, 0xf4, 0xb4, 0x01, 0x1c, 0x84, 0xec, 0xc0, 0xa5, 0xed,
+	0x80, 0x76, 0x51, 0xb5, 0xac, 0x7d, 0xdb, 0x0f, 0xc4, 0x11, 0x03, 0x1d, 0x7c, 0x3c, 0xdf, 0x4a,
+	0x5f, 0x56, 0xb7, 0xa9, 0xaa, 0xd7, 0x35, 0x4c, 0x06, 0x3a, 0x59, 0x83, 0xd9, 0x26, 0x75, 0x82,
+	0xce, 0xfe, 0x03, 0xfa, 0x82, 0x29, 0xc6, 0xb0, 0x3c, 0x1e, 0x27, 0x29, 0x0a, 0xb1, 0x86, 0x0d,
+	0x14, 0xab, 0xf4, 0x6b, 0x1d, 0x13, 0x89, 0xfc, 0x2e, 0x9c, 0x6f, 0xfa, 0x41, 0x54, 0x7f, 0x91,
+	0xc8, 0xb1, 0xcb, 0x0b, 0xeb, 0x57, 0x64, 0xa2, 0xa6, 0xd0, 0x0f, 0xa2, 0xf6, 0xae, 0xce, 0x37,
+	0x81, 0x47, 0xee, 0x32, 0xab, 0x8b, 0x59, 0x82, 0x91, 0xd3, 0x6b, 0x60, 0x78, 0x02, 0x7f, 0xf8,
+	0x29, 0x2c, 0x2b, 0x34, 0x1f, 0x23, 0xa7, 0xd7, 0xc6, 0x7d, 0xde, 0xbc, 0x60, 0xd2, 0xb1, 0xc8,
+	0x0b, 0x98, 0x33, 0x05, 0x5d, 0x24, 0xab, 0x03, 0x23, 0x5b, 0x65, 0x16, 0x48, 0xfd, 0xa6, 0xe8,
+	0xe5, 0xf5, 0x64, 0x26, 0xc6, 0x54, 0xfe, 0xba, 0xcc, 0x26, 0xc8, 0x43, 0xcc, 0x93, 0xc5, 0x39,
+	0x53, 0x0b, 0x65, 0x4e, 0x30, 0x36, 0x88, 0x1b, 0x27, 0xc7, 0xd5, 0x6b, 0x47, 0x98, 0x76, 0x15,
+	0x39, 0xea, 0x84, 0xc9, 0xd4, 0x60, 0x76, 0x0a, 0xb5, 0xf2, 0x09, 0x4c, 0x69, 0xd2, 0x71, 0xa6,
+	0x54, 0x77, 0x7f, 0x5c, 0x80, 0xf9, 0x84, 0xb8, 0x89, 0xf3, 0xe9, 0x23, 0x98, 0x54, 0x85, 0xc2,
+	0xa5, 0x53, 0x56, 0xfb, 0x68, 0x42, 0x0f, 0x73, 0x61, 0x97, 0x6b, 0x51, 0xef, 0x6c, 0x4c, 0x83,
+	0xdc, 0x81, 0xf1, 0x2d, 0xfa, 0x6d, 0xec, 0x07, 0xe5, 0xe7, 0x1e, 0x8f, 0x6d, 0xea, 0xe6, 0x02,
+	0x91, 0x60, 0xe4, 0x13, 0x00, 0x6d, 0x96, 0xf9, 0x22, 0xc4, 0xd8, 0xc9, 0xec, 0x09, 0xd6, 0x80,
+	0xad, 0x3f, 0x1a, 0x97, 0xdb, 0xb4, 0x7c, 0x9d, 0x10, 0x38, 0x9d, 0x83, 0x38, 0x88, 0xf5, 0x83,
+	0x74, 0xc4, 0xe8, 0x69, 0x34, 0xc2, 0xdb, 0x46, 0x72, 0x87, 0xfc, 0x84, 0xe0, 0x71, 0x9e, 0x8f,
+	0x91, 0x53, 0xe4, 0xf9, 0xb8, 0x0d, 0xe3, 0x1b, 0xde, 0x33, 0x97, 0x19, 0xe5, 0x3c, 0xe4, 0x11,
+	0x4d, 0x5a, 0x97, 0x17, 0xe9, 0x8c, 0x11, 0x50, 0xe4, 0x13, 0x98, 0x58, 0xf7, 0xc3, 0xc8, 0x93,
+	0xe1, 0x8e, 0x62, 0x15, 0x46, 0xe8, 0x17, 0x6e, 0xef, 0x8b, 0x2a, 0x5d, 0xe7, 0x48, 0x70, 0xf2,
+	0x21, 0x8c, 0xd7, 0xba, 0x5d, 0xb6, 0xa8, 0x85, 0x42, 0xc0, 0x67, 0xc6, 0x02, 0xd3, 0xe1, 0x35,
+	0x7a, 0x93, 0x02, 0x98, 0x7c, 0x6e, 0x3a, 0x69, 0xc7, 0xe3, 0x2c, 0x38, 0xd9, 0x99, 0xb5, 0x4d,
+	0x07, 0xee, 0x3b, 0xf2, 0x96, 0x67, 0x22, 0xce, 0x2b, 0x84, 0x39, 0x82, 0x0c, 0x4d, 0x8a, 0x97,
+	0x44, 0x1b, 0x30, 0xb9, 0xe1, 0xb9, 0x91, 0x8b, 0x99, 0x55, 0x26, 0x8d, 0xfd, 0x78, 0xdb, 0x09,
+	0x22, 0xb7, 0xe3, 0xf6, 0x1d, 0x2f, 0xe2, 0xb3, 0xe5, 0x4a, 0x40, 0x7d, 0xb6, 0x14, 0xb6, 0x9e,
+	0x22, 0x0e, 0x5e, 0x5b, 0x8a, 0xb8, 0xcc, 0x2c, 0x6b, 0x53, 0x2f, 0x9f, 0x65, 0x6d, 0x85, 0xcf,
+	0x25, 0xda, 0xc0, 0xd3, 0xb1, 0x20, 0xa2, 0xef, 0xd2, 0x34, 0x76, 0x6d, 0x05, 0x48, 0xae, 0x63,
+	0x26, 0x95, 0x99, 0x38, 0xdc, 0xd3, 0xb8, 0x55, 0x2e, 0x6e, 0xac, 0x92, 0x36, 0x4c, 0x33, 0xe8,
+	0x6d, 0xbf, 0xe7, 0x76, 0x5c, 0x1a, 0x96, 0x67, 0x0d, 0x67, 0xb7, 0xb9, 0x28, 0x10, 0xe8, 0x45,
+	0x93, 0x46, 0x7c, 0x4f, 0xc5, 0xa6, 0xfb, 0x02, 0x51, 0xdf, 0x53, 0x75, 0x82, 0xe4, 0x27, 0x6c,
+	0x3f, 0xd0, 0xa9, 0x88, 0x54, 0xd8, 0x0b, 0x99, 0x4d, 0xb4, 0xde, 0x93, 0x1b, 0x85, 0x78, 0x3a,
+	0xc4, 0x8b, 0xcd, 0x8d, 0x42, 0x47, 0xb0, 0x6c, 0x28, 0xc7, 0x57, 0x4b, 0x89, 0xd5, 0xfb, 0x61,
+	0xfa, 0xf9, 0x0a, 0xa6, 0x81, 0x8d, 0x9f, 0xaf, 0xe8, 0x02, 0x11, 0x3f, 0x64, 0x79, 0x0c, 0x57,
+	0x6d, 0x7a, 0xe8, 0x3f, 0xa3, 0xaf, 0x97, 0xec, 0x8f, 0xe0, 0x8a, 0x49, 0xf0, 0x71, 0xbf, 0x8b,
+	0x6f, 0xaf, 0xf9, 0x1d, 0x56, 0x66, 0x7e, 0x21, 0x81, 0xc0, 0xf3, 0x0b, 0xf1, 0xa4, 0x15, 0xec,
+	0x4f, 0x7d, 0x3d, 0x60, 0x9d, 0xe5, 0xc3, 0xa2, 0x49, 0xbc, 0xd6, 0xed, 0x6a, 0x0b, 0x81, 0x19,
+	0x94, 0xda, 0x67, 0xc2, 0x82, 0xd5, 0x57, 0x0c, 0x6a, 0xce, 0x7e, 0x5c, 0xa0, 0xaf, 0x55, 0x0d,
+	0xce, 0xa2, 0x50, 0x4d, 0xb2, 0x87, 0xb1, 0x4c, 0x6f, 0xb3, 0x0e, 0x33, 0xda, 0xa7, 0x3a, 0x10,
+	0xa2, 0x2a, 0xd1, 0x5a, 0x30, 0x19, 0x66, 0xa2, 0x58, 0x1d, 0xa8, 0x64, 0x31, 0x0d, 0x97, 0xd9,
+	0x0b, 0xb2, 0x16, 0x2f, 0xdd, 0xe1, 0x77, 0x87, 0x17, 0x72, 0xdf, 0x76, 0xfe, 0xde, 0x28, 0x5c,
+	0x15, 0x93, 0xf1, 0x3a, 0x67, 0x9c, 0xfc, 0x14, 0xa6, 0xb4, 0x39, 0x16, 0x4c, 0xbf, 0x2e, 0xc3,
+	0x0d, 0xf2, 0x64, 0x81, 0xeb, 0xcb, 0x23, 0x2c, 0x68, 0x27, 0xa6, 0x9b, 0x19, 0xc6, 0xba, 0xd8,
+	0xf4, 0x60, 0xd6, 0x9c, 0x68, 0x71, 0xd8, 0x78, 0x23, 0xb3, 0x11, 0x13, 0x54, 0x66, 0xda, 0xe8,
+	0xb6, 0x33, 0xa7, 0x1b, 0xf3, 0x76, 0x9b, 0x42, 0xf4, 0x2d, 0x5c, 0x4c, 0xcd, 0xb2, 0x38, 0x9b,
+	0xbc, 0x9d, 0xd9, 0x60, 0x0a, 0x9a, 0x2b, 0xbf, 0x00, 0x8b, 0x73, 0x9b, 0x4d, 0x37, 0x42, 0xba,
+	0x30, 0xad, 0x4f, 0xbc, 0x38, 0xbc, 0xdc, 0x18, 0xc0, 0x4a, 0x0e, 0xc8, 0x55, 0x95, 0xe0, 0x25,
+	0xce, 0xbd, 0xf9, 0x53, 0x17, 0x06, 0xd5, 0xfa, 0x04, 0x9c, 0xe7, 0xdf, 0x4c, 0x05, 0x6c, 0x07,
+	0x34, 0xa4, 0x5e, 0x87, 0xea, 0x91, 0x23, 0xaf, 0xaa, 0x02, 0xfe, 0x7d, 0x01, 0xca, 0x59, 0x74,
+	0x9b, 0xd4, 0xeb, 0x92, 0x6d, 0x28, 0x25, 0x1b, 0x12, 0x52, 0x6d, 0x49, 0x8b, 0x2a, 0xbf, 0x4b,
+	0xeb, 0xe7, 0xec, 0x14, 0x36, 0xdb, 0x84, 0xb4, 0xb2, 0x33, 0x86, 0xe8, 0xa4, 0x51, 0x75, 0x07,
+	0xc7, 0x3a, 0x46, 0x22, 0xad, 0xfa, 0x87, 0x8e, 0xeb, 0xb1, 0xbd, 0x5b, 0x19, 0x84, 0xb7, 0x01,
+	0xe2, 0x52, 0xc1, 0x1b, 0xee, 0x04, 0xc0, 0x52, 0x19, 0xae, 0xa6, 0x40, 0xac, 0xcf, 0x51, 0x83,
+	0x8b, 0x7d, 0x8e, 0x3f, 0x64, 0x50, 0xc4, 0xae, 0xc3, 0xd8, 0xce, 0x66, 0xb3, 0x51, 0x13, 0xcf,
+	0x22, 0xf8, 0x1b, 0xb7, 0x5e, 0xd8, 0xee, 0x38, 0x36, 0xaf, 0xb0, 0xfe, 0x55, 0x11, 0xe6, 0xe4,
+	0xbb, 0x6c, 0xc3, 0xc3, 0x32, 0x34, 0x05, 0xd6, 0x0f, 0xcc, 0x77, 0xe5, 0x0d, 0xf5, 0xae, 0xfc,
+	0x15, 0xb2, 0xea, 0x8a, 0x17, 0xe9, 0xa7, 0x7c, 0xc7, 0xf2, 0x40, 0x1d, 0xec, 0x46, 0x8d, 0x83,
+	0x5d, 0xd6, 0x78, 0x8c, 0x83, 0x1d, 0xf2, 0x81, 0x1f, 0xec, 0xe4, 0x71, 0xee, 0x55, 0xac, 0xfb,
+	0x8f, 0xd9, 0x5c, 0x1a, 0x4d, 0x9e, 0xf6, 0x01, 0xc7, 0x26, 0xbe, 0xa3, 0x7b, 0xb4, 0xb1, 0xda,
+	0x60, 0x42, 0x24, 0xba, 0x2a, 0x67, 0xe0, 0x36, 0x06, 0xfd, 0x08, 0x9a, 0xba, 0x24, 0xa0, 0x4e,
+	0x13, 0xcf, 0x82, 0x35, 0x10, 0x6b, 0x05, 0xa9, 0x35, 0x6b, 0x0f, 0x37, 0x33, 0xa8, 0xe5, 0x65,
+	0x85, 0xdb, 0xc2, 0x87, 0xb6, 0xf7, 0x70, 0xbe, 0x5e, 0x47, 0x27, 0xfe, 0xa0, 0xc0, 0x5f, 0xee,
+	0x36, 0x1f, 0xad, 0xba, 0xce, 0x9e, 0xe7, 0x87, 0x91, 0xdb, 0xd9, 0xf0, 0x9e, 0xfa, 0x9a, 0x83,
+	0x59, 0x6b, 0x46, 0xcb, 0x94, 0x8e, 0xd6, 0x38, 0xfe, 0x0a, 0x82, 0x78, 0x29, 0x84, 0x39, 0xc7,
+	0xed, 0x24, 0x34, 0xf9, 0x04, 0x66, 0xb4, 0x22, 0xb5, 0x2b, 0xf2, 0xe4, 0x49, 0x3a, 0xba, 0xdb,
+	0xb5, 0x4d, 0x48, 0xeb, 0xe7, 0x45, 0xb8, 0x3a, 0x20, 0xb7, 0x32, 0xba, 0x17, 0xd0, 0x37, 0xa4,
+	0x38, 0xc5, 0xdd, 0x0b, 0xfc, 0x55, 0x94, 0xa1, 0x94, 0x14, 0x20, 0x33, 0xd9, 0xf5, 0x54, 0xcf,
+	0x45, 0x2d, 0x71, 0x65, 0x76, 0x7a, 0x67, 0x1d, 0x9c, 0x84, 0x00, 0x71, 0x4f, 0xc4, 0x31, 0xa6,
+	0x89, 0x0f, 0xd7, 0xe2, 0x3c, 0xd1, 0xaf, 0x25, 0x61, 0xb5, 0xd6, 0x8c, 0xf5, 0xd7, 0x8b, 0xb0,
+	0x34, 0x80, 0x0f, 0x4d, 0x1a, 0xfd, 0x69, 0xb0, 0x22, 0x91, 0xbd, 0x7b, 0xe4, 0xb7, 0x94, 0xbd,
+	0xdb, 0xfa, 0xb7, 0x05, 0x4c, 0x33, 0x82, 0xb1, 0x79, 0x1b, 0xde, 0x33, 0xea, 0x45, 0x7e, 0xf0,
+	0x02, 0x63, 0x8b, 0xc8, 0x07, 0x30, 0xb6, 0x4e, 0x7b, 0x3d, 0x5f, 0xec, 0x23, 0xd7, 0xa4, 0xcf,
+	0x3f, 0x09, 0x8d, 0x40, 0xeb, 0xe7, 0x6c, 0x0e, 0x4d, 0x3e, 0x81, 0xc9, 0x75, 0xea, 0x04, 0xd1,
+	0x2e, 0x75, 0xa4, 0xa9, 0x78, 0x45, 0xa0, 0x6a, 0x28, 0x02, 0x60, 0xfd, 0x9c, 0x1d, 0x43, 0x93,
+	0x65, 0x18, 0xdd, 0xf6, 0xbd, 0x3d, 0xf5, 0x24, 0x27, 0xa7, 0x41, 0x06, 0xb3, 0x7e, 0xce, 0x46,
+	0xd8, 0xfa, 0x18, 0x8c, 0x3c, 0x0c, 0xf7, 0xac, 0x5f, 0x14, 0xa0, 0xbc, 0xea, 0x3f, 0xf7, 0x32,
+	0x47, 0xf2, 0x91, 0x39, 0x12, 0x19, 0xf2, 0x99, 0x01, 0x9f, 0x18, 0xcb, 0xfb, 0x30, 0xba, 0xed,
+	0x7a, 0x7b, 0x89, 0x6d, 0x2f, 0x03, 0x8f, 0x41, 0x61, 0x97, 0xdc, 0xb8, 0x4b, 0xef, 0xc0, 0x42,
+	0x0e, 0x24, 0x99, 0x55, 0xfa, 0x68, 0x14, 0xf5, 0xd0, 0x77, 0x60, 0x3e, 0x73, 0x94, 0x29, 0xc0,
+	0x7f, 0x90, 0x35, 0x5d, 0xbc, 0xaf, 0x65, 0x18, 0x97, 0x29, 0xef, 0xb8, 0xe2, 0x96, 0x9f, 0x18,
+	0x8c, 0x26, 0xc5, 0x59, 0x64, 0x53, 0x52, 0x52, 0xdb, 0xe2, 0x75, 0x18, 0xac, 0xc4, 0x85, 0xee,
+	0xd3, 0x57, 0x10, 0x2d, 0x45, 0xcb, 0xda, 0xce, 0x9c, 0x8e, 0x57, 0xe8, 0xa9, 0xd5, 0x00, 0x92,
+	0x96, 0x1f, 0xf2, 0x3d, 0x98, 0x6c, 0x36, 0xd7, 0x07, 0xbe, 0x0f, 0xb7, 0x63, 0x08, 0xeb, 0x43,
+	0xb8, 0xac, 0x88, 0xf0, 0x1c, 0x57, 0x5a, 0xfc, 0xa5, 0xf8, 0x79, 0x27, 0x15, 0xf6, 0x19, 0x17,
+	0x58, 0x3f, 0x4a, 0xe1, 0x35, 0x8f, 0x0e, 0x0f, 0x9d, 0xe0, 0x05, 0xa9, 0x99, 0x78, 0x23, 0x43,
+	0x57, 0x4a, 0x7d, 0xf4, 0x97, 0xc7, 0xd5, 0x73, 0x3a, 0xf1, 0x65, 0x98, 0x33, 0xc4, 0x43, 0x76,
+	0xa9, 0x92, 0x54, 0x43, 0x1a, 0x37, 0xee, 0xc2, 0x7c, 0x02, 0x47, 0x6c, 0xbb, 0xdf, 0x03, 0x65,
+	0x28, 0x20, 0xd2, 0x48, 0xfd, 0xe2, 0x6f, 0x8e, 0xab, 0x33, 0x91, 0x7b, 0x48, 0x6f, 0xc5, 0x49,
+	0x31, 0xe4, 0x5f, 0xef, 0xbe, 0x0b, 0x93, 0xea, 0xd7, 0xe7, 0xc8, 0x04, 0x8c, 0x6e, 0x6c, 0x6d,
+	0xec, 0xf0, 0x24, 0xd7, 0xdb, 0x8f, 0x77, 0x4a, 0x05, 0x02, 0x70, 0x7e, 0x75, 0x6d, 0x73, 0x6d,
+	0x67, 0xad, 0x54, 0x7c, 0xb7, 0xad, 0xdf, 0xda, 0x90, 0xab, 0xb0, 0xb0, 0xba, 0xd6, 0xda, 0x68,
+	0xac, 0xb5, 0x77, 0x7e, 0xb0, 0xbd, 0xd6, 0x36, 0xdf, 0xac, 0xce, 0x41, 0x49, 0xaf, 0xdc, 0x79,
+	0xb4, 0xb3, 0x5d, 0x2a, 0x90, 0x32, 0xcc, 0xe9, 0xa5, 0x4f, 0xd6, 0xea, 0xb5, 0xc7, 0x3b, 0xeb,
+	0x5b, 0xa5, 0x11, 0x6b, 0x74, 0xa2, 0x58, 0x2a, 0xbe, 0xfb, 0x53, 0xe3, 0x4a, 0x87, 0x2c, 0x42,
+	0x59, 0x80, 0x3f, 0x6e, 0xd6, 0xee, 0xe5, 0x37, 0xc1, 0x6b, 0x1f, 0xde, 0xad, 0x95, 0x0a, 0xe4,
+	0x1a, 0x5c, 0x31, 0x4a, 0xb7, 0x6b, 0xcd, 0xe6, 0x93, 0x47, 0xf6, 0xea, 0xe6, 0x5a, 0xb3, 0x59,
+	0x2a, 0xbe, 0xfb, 0xb6, 0x88, 0xbd, 0x24, 0xb3, 0x00, 0xab, 0x6b, 0xcd, 0xc6, 0xda, 0xd6, 0xea,
+	0xc6, 0xd6, 0xbd, 0xd2, 0x39, 0x32, 0x03, 0x93, 0x35, 0xf5, 0x59, 0x58, 0xfe, 0x13, 0x0f, 0xa6,
+	0xd8, 0xf6, 0x29, 0x6f, 0x40, 0xbe, 0xd1, 0xe6, 0x5f, 0x64, 0x23, 0x14, 0x89, 0xcc, 0x72, 0x27,
+	0x1b, 0x55, 0x4f, 0x65, 0x80, 0xae, 0x41, 0x80, 0x9b, 0x85, 0x3b, 0x05, 0x62, 0x63, 0x76, 0xcc,
+	0x84, 0x80, 0x29, 0xca, 0xd9, 0x02, 0x5b, 0xc9, 0xa9, 0x96, 0x72, 0x79, 0x1f, 0x66, 0x98, 0x5c,
+	0xa8, 0x5a, 0x72, 0x35, 0x09, 0xaf, 0x89, 0x5a, 0x65, 0x31, 0xbb, 0x52, 0xc8, 0x54, 0x1b, 0x16,
+	0x1e, 0x3a, 0xae, 0x17, 0x39, 0xae, 0x27, 0x8e, 0x23, 0xf2, 0x30, 0x41, 0xaa, 0x03, 0x4e, 0x17,
+	0xec, 0x60, 0x52, 0x19, 0x16, 0x5f, 0x8f, 0x0c, 0x68, 0xc2, 0x5c, 0x96, 0x27, 0x95, 0x58, 0x66,
+	0xde, 0xbe, 0xac, 0xf3, 0x75, 0x25, 0xcf, 0x19, 0x44, 0x1e, 0xc2, 0xc5, 0x94, 0x77, 0x47, 0xf5,
+	0x37, 0xcf, 0xef, 0x33, 0x88, 0x5c, 0x19, 0xef, 0xf6, 0x23, 0x37, 0xe9, 0xdb, 0x09, 0xc9, 0xe5,
+	0x94, 0xe7, 0x60, 0x8d, 0x6d, 0xd2, 0xb9, 0xc4, 0x70, 0xce, 0xe7, 0xb2, 0xfc, 0x44, 0x6a, 0xc8,
+	0x03, 0x9c, 0x48, 0x95, 0x9c, 0xe6, 0x18, 0xcd, 0x2c, 0x4f, 0x84, 0xa2, 0x39, 0xc0, 0x4d, 0x91,
+	0x4b, 0xf3, 0x73, 0x98, 0x65, 0xf3, 0xf8, 0x80, 0xd2, 0x7e, 0xad, 0xe7, 0x3e, 0xa3, 0x21, 0x91,
+	0xaf, 0x43, 0x54, 0x51, 0x1e, 0xee, 0xcd, 0x02, 0xf9, 0x1d, 0x98, 0xc2, 0x9f, 0xe2, 0x11, 0xc1,
+	0xcc, 0xd3, 0xfa, 0xcf, 0xf3, 0x54, 0xe4, 0x17, 0x56, 0xde, 0x29, 0x90, 0xef, 0xc3, 0xf8, 0x3d,
+	0x1a, 0xe1, 0x15, 0xe6, 0x8d, 0xc4, 0xaf, 0x5a, 0x6e, 0x78, 0xca, 0x41, 0x2e, 0x3b, 0x9c, 0x54,
+	0xf3, 0xcc, 0x5a, 0xe7, 0x09, 0x2b, 0x90, 0x42, 0xb2, 0xba, 0x92, 0xea, 0x36, 0xb9, 0xc7, 0xf4,
+	0x59, 0x8f, 0x46, 0xf4, 0xb4, 0x4d, 0xe6, 0xf1, 0x68, 0x13, 0x66, 0x55, 0xfa, 0x88, 0x2d, 0x8c,
+	0x81, 0xb1, 0x12, 0xc4, 0xc2, 0x33, 0x50, 0xfb, 0x94, 0xc9, 0x2d, 0x3f, 0x51, 0xa9, 0x97, 0x33,
+	0x24, 0xef, 0x2d, 0x8d, 0x62, 0x22, 0x07, 0xd3, 0x70, 0xd5, 0xaf, 0x0b, 0x29, 0xdc, 0xe4, 0xef,
+	0x0d, 0x25, 0x70, 0x29, 0x54, 0xf4, 0x76, 0xcd, 0x57, 0x34, 0xe4, 0xba, 0xd6, 0x81, 0xcc, 0xc7,
+	0x3f, 0x95, 0x1b, 0x03, 0x20, 0xb8, 0x22, 0xc1, 0xb5, 0x7e, 0x1f, 0x66, 0x8c, 0x77, 0x17, 0xb1,
+	0x62, 0xca, 0x78, 0x18, 0x13, 0x2b, 0xa6, 0xcc, 0xa7, 0x1a, 0x77, 0x71, 0x89, 0x27, 0x12, 0xc9,
+	0x57, 0xb2, 0x12, 0xc6, 0xf3, 0x5b, 0xb1, 0x8a, 0x4c, 0xc8, 0x99, 0x40, 0x79, 0x80, 0x59, 0x78,
+	0xcc, 0xc2, 0xd6, 0xf2, 0x40, 0x4a, 0x39, 0x69, 0xe9, 0xef, 0x14, 0xc8, 0x1a, 0x5c, 0x52, 0x41,
+	0x4b, 0xda, 0x6f, 0x3a, 0xe6, 0x20, 0xe4, 0x8a, 0xc1, 0x97, 0x70, 0x49, 0x08, 0x95, 0x41, 0xa6,
+	0xa4, 0xf4, 0x83, 0x38, 0xd8, 0xe5, 0x12, 0xb8, 0x0f, 0xf3, 0xcd, 0xc4, 0xa0, 0xb8, 0xdf, 0xef,
+	0x8a, 0x49, 0x42, 0xcb, 0x60, 0x9f, 0x4b, 0xeb, 0x01, 0x90, 0xe6, 0xd1, 0xee, 0xa1, 0xab, 0xc8,
+	0x3d, 0x73, 0xe9, 0x73, 0x72, 0x2d, 0x31, 0x24, 0x56, 0x88, 0x60, 0xa8, 0x60, 0xf2, 0x58, 0x44,
+	0x76, 0x78, 0x2a, 0x3a, 0x9e, 0xda, 0xd7, 0xe9, 0x3b, 0xbb, 0x6e, 0xcf, 0x8d, 0x5c, 0xca, 0x64,
+	0x4c, 0x47, 0xd0, 0xab, 0xa4, 0x38, 0x5c, 0xc9, 0x85, 0x20, 0x5f, 0xc0, 0xcc, 0x3d, 0x1a, 0xc5,
+	0x49, 0xfa, 0xc9, 0x42, 0x2a, 0xad, 0xbf, 0x98, 0x3a, 0x19, 0xbe, 0x6a, 0xfe, 0x32, 0xc0, 0x06,
+	0x94, 0xb8, 0x7e, 0xd4, 0x48, 0x5c, 0x4b, 0x91, 0x10, 0x20, 0x4e, 0xe0, 0x1c, 0x86, 0xb9, 0xdc,
+	0xba, 0xcd, 0x8f, 0x0d, 0x44, 0x46, 0xa3, 0xe8, 0x3b, 0xed, 0x25, 0xa3, 0x4c, 0xc8, 0xf1, 0x2e,
+	0x54, 0x79, 0x76, 0xfa, 0x74, 0x46, 0x78, 0xf9, 0x3b, 0x68, 0x6f, 0xaa, 0xb7, 0x57, 0x03, 0xb2,
+	0xd8, 0x2b, 0xfe, 0x24, 0xeb, 0x5b, 0x2b, 0x64, 0x1b, 0xb9, 0x9e, 0x6e, 0x80, 0xbc, 0x11, 0x6f,
+	0x89, 0xb9, 0x09, 0xe9, 0x2b, 0x24, 0x49, 0xb8, 0xb5, 0x42, 0x54, 0x8a, 0xb9, 0x0c, 0xa2, 0x6f,
+	0x1b, 0x3b, 0xf7, 0xd9, 0xe8, 0x7e, 0x01, 0x93, 0x2a, 0x1b, 0xbb, 0x52, 0x5e, 0xc9, 0x14, 0xf2,
+	0x95, 0x72, 0xba, 0x42, 0x70, 0xf3, 0x73, 0xfe, 0xc3, 0x09, 0x26, 0x7e, 0x32, 0x61, 0x79, 0xee,
+	0xe4, 0x7d, 0x02, 0x53, 0x5a, 0xaa, 0x72, 0xb5, 0x58, 0xd2, 0xe9, 0xcb, 0x2b, 0xe6, 0x6f, 0xf7,
+	0xde, 0x29, 0x90, 0xdb, 0xb8, 0x81, 0xe1, 0xed, 0xd9, 0x7c, 0x8c, 0xa6, 0x65, 0x49, 0x4e, 0xa0,
+	0x90, 0x8f, 0xf0, 0x09, 0x4c, 0xe3, 0x28, 0x08, 0xa8, 0xc7, 0xf1, 0xf2, 0x2c, 0x89, 0x04, 0xe2,
+	0x17, 0xa8, 0xb0, 0x34, 0x44, 0xee, 0x3b, 0x1c, 0x86, 0xcd, 0x53, 0x9c, 0xdc, 0x29, 0x90, 0x15,
+	0x98, 0x90, 0xbf, 0xe2, 0x41, 0x2e, 0x9b, 0x5d, 0xcd, 0x1f, 0xde, 0x0a, 0x00, 0x67, 0x36, 0xf6,
+	0xd4, 0xac, 0xce, 0x65, 0xe7, 0x0a, 0xdb, 0x95, 0xbb, 0x67, 0x44, 0xfa, 0x42, 0xee, 0xcc, 0x88,
+	0x54, 0x36, 0xa6, 0x50, 0x67, 0x67, 0x1e, 0xfe, 0x06, 0x94, 0x6a, 0x1d, 0xdc, 0x2b, 0x54, 0xc6,
+	0x68, 0xb2, 0xa4, 0x54, 0x87, 0x59, 0x21, 0x69, 0xcd, 0x27, 0x13, 0x50, 0x6f, 0x52, 0x07, 0x5f,
+	0xf3, 0x2c, 0x28, 0x8b, 0x21, 0x51, 0x95, 0x8d, 0x91, 0xdb, 0xa9, 0x35, 0x98, 0x6b, 0x38, 0x5e,
+	0x87, 0xf6, 0x5e, 0x8d, 0xcc, 0xa7, 0xa8, 0xe7, 0xb4, 0x6c, 0xda, 0x97, 0x93, 0xf8, 0x42, 0xcd,
+	0x5d, 0x54, 0x17, 0x1c, 0x0a, 0xb4, 0x06, 0x17, 0x44, 0xd2, 0x3e, 0xc5, 0x96, 0x3c, 0xec, 0xbc,
+	0xe6, 0x3f, 0x82, 0xd9, 0x35, 0xb6, 0x0f, 0x1c, 0x75, 0x5d, 0xfe, 0x82, 0x91, 0x98, 0x4f, 0xd2,
+	0x72, 0x11, 0xd7, 0xe5, 0x6f, 0x2c, 0x68, 0x69, 0xa6, 0xd5, 0xea, 0x4a, 0x67, 0xf2, 0xae, 0xcc,
+	0x49, 0xb2, 0x7a, 0x46, 0x6a, 0xb4, 0x20, 0xf6, 0x64, 0x2a, 0xd3, 0x44, 0xf2, 0x60, 0x5d, 0x93,
+	0xe5, 0xa6, 0x16, 0xae, 0xbc, 0x39, 0x18, 0x48, 0x04, 0x3b, 0x8e, 0xfc, 0xd5, 0x22, 0xb3, 0xd1,
+	0x17, 0x72, 0x12, 0x33, 0x93, 0xb7, 0xe2, 0x63, 0xdf, 0x80, 0xc4, 0xcd, 0x19, 0x46, 0xe7, 0xd7,
+	0x5a, 0x02, 0xc6, 0x1c, 0x9a, 0x83, 0x33, 0x36, 0xe7, 0x32, 0x58, 0x3d, 0x6e, 0xca, 0xcc, 0xac,
+	0x4c, 0xde, 0x31, 0xa9, 0x0f, 0xc8, 0xbe, 0x9c, 0xdb, 0xc2, 0x23, 0x14, 0xbd, 0x38, 0xb1, 0xaf,
+	0x32, 0xdd, 0xb2, 0xb2, 0x2f, 0x2b, 0xd3, 0x2d, 0x33, 0x2d, 0x32, 0x67, 0xf0, 0x3d, 0xb8, 0x90,
+	0xc8, 0x71, 0xac, 0x9f, 0xa7, 0x33, 0x72, 0x1f, 0xa7, 0x19, 0xca, 0x09, 0x3d, 0x94, 0x82, 0x9d,
+	0x26, 0x94, 0x9d, 0xf5, 0x38, 0x6f, 0x8c, 0x9c, 0xdc, 0x63, 0x65, 0x7b, 0xe9, 0x79, 0x8c, 0xc9,
+	0x8d, 0x0c, 0x16, 0x9e, 0x8e, 0x75, 0x9c, 0x6c, 0x13, 0x4a, 0xc9, 0x34, 0xc0, 0x64, 0x29, 0x71,
+	0x6f, 0x93, 0xc8, 0x75, 0x5c, 0xa9, 0xe6, 0xd6, 0x8b, 0xdd, 0xee, 0x7e, 0x3c, 0x29, 0x3c, 0x8a,
+	0x2e, 0x39, 0x29, 0x7a, 0x56, 0xce, 0xd4, 0xa4, 0x98, 0x29, 0x32, 0xef, 0xe1, 0x7e, 0xa4, 0xa5,
+	0xdf, 0xcc, 0xdd, 0x51, 0xae, 0x65, 0xd1, 0x89, 0x23, 0xbb, 0x9a, 0xf2, 0x37, 0x5f, 0xb4, 0x7e,
+	0x2d, 0x19, 0x1b, 0x76, 0xba, 0x6b, 0xd5, 0xdc, 0x7a, 0x35, 0xd2, 0x52, 0x32, 0x77, 0xa9, 0x22,
+	0x9a, 0x93, 0xd4, 0x34, 0x57, 0x94, 0xef, 0xc2, 0x9c, 0x39, 0x8b, 0x43, 0xc6, 0x9b, 0x47, 0x67,
+	0x07, 0xe6, 0x33, 0xf3, 0x96, 0x2a, 0x5d, 0x34, 0x28, 0xab, 0x69, 0x2e, 0x55, 0x0a, 0x97, 0xb3,
+	0x53, 0xd5, 0x2a, 0x33, 0x70, 0x60, 0x0a, 0xde, 0xca, 0x5b, 0x43, 0xa0, 0x04, 0x43, 0xbf, 0x41,
+	0x2b, 0x22, 0xd5, 0xc6, 0x0d, 0xcd, 0x47, 0x92, 0xd3, 0x80, 0x35, 0x08, 0x44, 0xc9, 0xc0, 0x5c,
+	0x56, 0x0e, 0xe7, 0x5c, 0x16, 0xbf, 0x91, 0x4f, 0x33, 0x16, 0xac, 0x96, 0x4c, 0x5d, 0x93, 0xcb,
+	0x99, 0x81, 0x59, 0x69, 0x07, 0x1c, 0xe1, 0xe3, 0xcc, 0xe5, 0xa7, 0xef, 0x72, 0xfe, 0xd1, 0x6b,
+	0xc6, 0x48, 0x17, 0x4b, 0x64, 0xa8, 0x67, 0x22, 0x33, 0x6d, 0x6a, 0x4d, 0x66, 0xa4, 0xad, 0xe5,
+	0x6b, 0x52, 0x4b, 0x3d, 0x7b, 0x9a, 0x35, 0x99, 0x95, 0xa9, 0x56, 0x2d, 0x1f, 0xad, 0x5f, 0xd2,
+	0x28, 0x4a, 0x56, 0x9c, 0x65, 0xf9, 0x9c, 0xa6, 0x6b, 0x79, 0x74, 0x56, 0xd1, 0xd8, 0x56, 0xbf,
+	0xa4, 0x7f, 0xc5, 0x60, 0x93, 0xa1, 0x07, 0x2b, 0xc6, 0xe0, 0x4c, 0x15, 0xd8, 0x80, 0x69, 0x3d,
+	0xf3, 0x6d, 0x6e, 0x2f, 0xae, 0xa6, 0x69, 0x84, 0x9a, 0x2f, 0x61, 0x56, 0x71, 0x81, 0xf7, 0x66,
+	0x31, 0xc9, 0x1c, 0xa3, 0x43, 0xf9, 0x43, 0x22, 0x3a, 0x6b, 0x86, 0x74, 0x29, 0xdf, 0x58, 0xbc,
+	0xc4, 0xcd, 0x66, 0xfe, 0x98, 0x5d, 0x46, 0xf2, 0x5d, 0x56, 0x7e, 0x25, 0xad, 0x74, 0x80, 0x13,
+	0xe1, 0x31, 0x3e, 0xff, 0xd7, 0xd3, 0xd8, 0x12, 0x4d, 0x4a, 0x32, 0xd2, 0xdb, 0x56, 0x96, 0xf2,
+	0xaa, 0xf5, 0x7d, 0xfb, 0x2b, 0xb8, 0x98, 0x4a, 0xd7, 0xab, 0x5c, 0xab, 0x79, 0x89, 0x7c, 0x07,
+	0xef, 0x8d, 0xeb, 0x6c, 0xc0, 0x09, 0xc4, 0xd6, 0xf2, 0x70, 0xa2, 0x69, 0x0b, 0x6b, 0x53, 0x66,
+	0x0c, 0xc8, 0xea, 0x5c, 0x5e, 0x52, 0xe0, 0xe1, 0x0a, 0x3e, 0x91, 0x0e, 0x38, 0xa1, 0xe0, 0xb3,
+	0x93, 0x05, 0xe7, 0x52, 0xfd, 0x09, 0x7a, 0xfc, 0x13, 0xa9, 0x66, 0x95, 0x8f, 0x2d, 0x37, 0xbd,
+	0x70, 0xe5, 0xc6, 0x00, 0x08, 0x7d, 0x82, 0x36, 0x61, 0x2e, 0x2b, 0x79, 0xaf, 0xe6, 0x09, 0xce,
+	0xcd, 0xec, 0x9b, 0xc1, 0x51, 0x5b, 0xae, 0xf6, 0x1c, 0x6a, 0x03, 0x52, 0xf9, 0xe6, 0x72, 0xe0,
+	0x87, 0x32, 0x41, 0x73, 0x3a, 0xe5, 0xae, 0x72, 0x1e, 0x0c, 0xc9, 0xc9, 0x3b, 0xe0, 0xa8, 0x71,
+	0xa1, 0xe9, 0xee, 0x79, 0x5a, 0x46, 0x5b, 0x75, 0xd0, 0x48, 0x67, 0xe5, 0x55, 0x9a, 0x25, 0x2b,
+	0x01, 0xee, 0xa3, 0x38, 0x40, 0x48, 0xcf, 0xbc, 0x4a, 0x2a, 0xf9, 0xa9, 0x5f, 0x95, 0x96, 0xc9,
+	0x4c, 0xd5, 0xaa, 0x11, 0xd4, 0xd3, 0x9e, 0x2a, 0x82, 0x19, 0x19, 0x58, 0x15, 0xc1, 0xcc, 0x3c,
+	0xa9, 0xdc, 0xe7, 0x80, 0x3f, 0xcb, 0xae, 0xf9, 0x1c, 0xb4, 0xa4, 0xa5, 0x89, 0xc3, 0x3f, 0xf9,
+	0x0c, 0x8f, 0xfe, 0x83, 0xfd, 0x05, 0x0b, 0x26, 0xa5, 0x58, 0x49, 0xae, 0x48, 0x1f, 0x3b, 0x36,
+	0x68, 0x52, 0x1e, 0x7e, 0x9a, 0x47, 0x24, 0xf3, 0x34, 0xaf, 0x77, 0x34, 0xdf, 0xf9, 0x38, 0xad,
+	0x27, 0xd5, 0x52, 0xbc, 0xca, 0xc8, 0xe7, 0xa7, 0x78, 0x95, 0x95, 0x25, 0x0f, 0x0f, 0x8f, 0x3b,
+	0xf2, 0xa4, 0x10, 0xd3, 0xbb, 0x36, 0x30, 0xcd, 0x5d, 0x65, 0x69, 0x70, 0x6e, 0x38, 0x71, 0x81,
+	0x55, 0x4a, 0xe6, 0xfd, 0x22, 0x59, 0x59, 0x0a, 0xb5, 0x74, 0x6a, 0xca, 0xde, 0xcd, 0x4d, 0x18,
+	0xb6, 0x2d, 0x4f, 0x21, 0x26, 0xdd, 0x9c, 0x5c, 0x75, 0x3a, 0xe9, 0xc1, 0x76, 0x49, 0x9c, 0x02,
+	0x4c, 0x3f, 0x2b, 0xa4, 0x52, 0x8c, 0xe9, 0x76, 0x49, 0x46, 0xd6, 0x30, 0x57, 0xbe, 0x7e, 0xc8,
+	0xce, 0x7c, 0xfb, 0x8e, 0x69, 0xcd, 0x0f, 0x78, 0x66, 0x3a, 0xf4, 0x8a, 0x90, 0xfc, 0x58, 0xfe,
+	0x5a, 0x47, 0x3a, 0x2f, 0xe4, 0x5b, 0x09, 0x3f, 0x63, 0xf6, 0xc3, 0xc4, 0xca, 0xa0, 0xb4, 0x93,
+	0xe4, 0x21, 0x66, 0xb0, 0x79, 0xb4, 0xb1, 0xda, 0x10, 0x77, 0xf2, 0x7e, 0x90, 0xba, 0x0d, 0xd2,
+	0x7e, 0xbb, 0x36, 0x66, 0x32, 0x07, 0x31, 0x10, 0x5b, 0x2b, 0xa4, 0x89, 0x97, 0x12, 0x46, 0x69,
+	0xc6, 0x85, 0x50, 0x06, 0xc1, 0x4a, 0x36, 0xc1, 0x4d, 0x37, 0x8c, 0xb8, 0x3d, 0xc0, 0x16, 0x9e,
+	0xd9, 0xcd, 0x9c, 0x3e, 0x0c, 0x32, 0x2b, 0xb8, 0xd8, 0x64, 0x93, 0x91, 0xbd, 0x1b, 0x26, 0x47,
+	0xf7, 0x60, 0x9e, 0x33, 0x3c, 0x11, 0xbd, 0x67, 0xf4, 0x47, 0x2b, 0xaf, 0xe4, 0x94, 0x93, 0x2d,
+	0xdc, 0x07, 0x93, 0xa5, 0xda, 0x3e, 0x98, 0x1d, 0x1e, 0x98, 0x4b, 0x8f, 0x4f, 0x65, 0xb3, 0xf6,
+	0x70, 0xf3, 0xa5, 0xa6, 0xd2, 0x40, 0x6c, 0x2d, 0x8b, 0xa9, 0x34, 0x4a, 0xcf, 0x36, 0x95, 0x09,
+	0x82, 0xe6, 0x54, 0x9a, 0xdd, 0xcc, 0xe9, 0xc3, 0xf0, 0xa9, 0xcc, 0x26, 0x73, 0xe6, 0xa9, 0x4c,
+	0x84, 0x4e, 0x1a, 0xfd, 0xc9, 0x9a, 0xca, 0x24, 0x3c, 0x9f, 0xca, 0x64, 0xa9, 0x36, 0x95, 0xd9,
+	0xb1, 0x99, 0xb9, 0xf4, 0xbe, 0x42, 0x7a, 0x3c, 0x36, 0xf3, 0x4c, 0x93, 0x59, 0x96, 0x87, 0x08,
+	0x13, 0xb5, 0xb5, 0x42, 0x9e, 0xe0, 0x79, 0x37, 0x51, 0x7e, 0xba, 0x09, 0x5d, 0xcc, 0x23, 0x8a,
+	0x53, 0xba, 0x81, 0xf1, 0x5b, 0x34, 0x48, 0x75, 0x37, 0xb7, 0x2f, 0x83, 0xe6, 0x83, 0x4f, 0x6b,
+	0x92, 0xd4, 0x59, 0x27, 0xf6, 0xa1, 0x54, 0x9a, 0xa9, 0xf0, 0xd6, 0x44, 0xaf, 0xf4, 0xc9, 0xcd,
+	0xad, 0x21, 0x3b, 0x78, 0x9a, 0x4f, 0x97, 0x6b, 0x9e, 0x80, 0xbc, 0x38, 0xda, 0xa1, 0x54, 0x53,
+	0xf1, 0xb2, 0x3a, 0xd5, 0xbc, 0x60, 0x5a, 0x45, 0x35, 0x8d, 0xbd, 0x8a, 0xcb, 0x76, 0x27, 0x60,
+	0xa7, 0xa3, 0x6e, 0xfa, 0xe8, 0x64, 0xf2, 0x4f, 0x5e, 0x13, 0x9a, 0xe0, 0xad, 0x65, 0xb2, 0x81,
+	0x02, 0x68, 0x16, 0x0f, 0x3a, 0x5b, 0x66, 0x93, 0x41, 0xf9, 0x58, 0x97, 0xe6, 0x78, 0xa2, 0x4f,
+	0x79, 0x6d, 0xe7, 0x77, 0x4a, 0x1d, 0xbc, 0x4f, 0x39, 0xba, 0x3c, 0xe9, 0xe0, 0x56, 0x20, 0x3f,
+	0xe7, 0x0e, 0xe3, 0xcc, 0x76, 0xe0, 0x3f, 0x73, 0xd5, 0xcf, 0x2f, 0xb5, 0x96, 0xc9, 0xef, 0xc2,
+	0xa4, 0x44, 0x1e, 0xce, 0x90, 0x24, 0x36, 0x32, 0xe4, 0x0b, 0x98, 0x12, 0x0c, 0xc1, 0x1e, 0xe4,
+	0xb5, 0x34, 0xc0, 0xa4, 0x9c, 0xe2, 0xc2, 0xfd, 0x92, 0xf8, 0x68, 0x08, 0x69, 0x51, 0xeb, 0x9a,
+	0x21, 0x94, 0x0e, 0x9f, 0xd7, 0x0c, 0xa1, 0xac, 0x40, 0xf7, 0xef, 0xc3, 0x94, 0x98, 0x92, 0x81,
+	0xdc, 0xcc, 0xf7, 0x3c, 0xcd, 0xc7, 0x4f, 0x18, 0xf0, 0x1e, 0xa4, 0xe1, 0x7b, 0x4f, 0xdd, 0xbd,
+	0xa1, 0x8c, 0x4d, 0xa3, 0xb4, 0x96, 0x49, 0x0b, 0x53, 0xa8, 0xc9, 0x77, 0x91, 0x34, 0x7a, 0xee,
+	0x07, 0x07, 0xae, 0xb7, 0x37, 0x84, 0xe4, 0x75, 0x93, 0x64, 0x12, 0x8f, 0xd3, 0x6d, 0xe6, 0xd3,
+	0x1d, 0x8a, 0x9f, 0x3b, 0xfa, 0x2d, 0x58, 0xc4, 0xcb, 0xe1, 0xb3, 0xf6, 0x38, 0xff, 0xb8, 0x7e,
+	0x25, 0x0e, 0xed, 0xb2, 0x69, 0xc7, 0x0f, 0xba, 0xc3, 0x89, 0x55, 0xcd, 0x30, 0xad, 0x04, 0x5a,
+	0x6b, 0x99, 0x51, 0x6d, 0xe6, 0x52, 0x1d, 0x86, 0x3d, 0x40, 0x43, 0x5f, 0xc5, 0xb1, 0x9f, 0xb1,
+	0xb7, 0xf9, 0x8e, 0x27, 0x0c, 0x86, 0x39, 0x8a, 0xf6, 0xb7, 0x03, 0xfa, 0x94, 0x06, 0x18, 0x9f,
+	0x37, 0x2c, 0x32, 0xcd, 0x04, 0x6f, 0x2d, 0x33, 0x2a, 0xcd, 0x14, 0x95, 0x3c, 0xe8, 0x41, 0xc6,
+	0x09, 0x0e, 0xed, 0x94, 0xbd, 0xc9, 0xbf, 0x3c, 0x9e, 0x54, 0x89, 0x52, 0x89, 0x76, 0x28, 0x35,
+	0xd2, 0x80, 0x56, 0x66, 0xf4, 0x38, 0xb2, 0x90, 0xd4, 0xb8, 0x0d, 0xa8, 0x27, 0x0c, 0xd5, 0x6e,
+	0x59, 0x32, 0x33, 0x89, 0x26, 0x49, 0xf0, 0x43, 0xf5, 0xa6, 0xdf, 0x39, 0xd0, 0x0f, 0xd5, 0x5a,
+	0x06, 0xca, 0x8a, 0x99, 0x1f, 0x52, 0xa8, 0x53, 0x4c, 0x12, 0xa9, 0xdf, 0xa7, 0xeb, 0x39, 0x28,
+	0xf5, 0x43, 0xb5, 0x99, 0x2d, 0x53, 0x1d, 0xaa, 0xb1, 0x41, 0x93, 0xf2, 0xf0, 0x43, 0x35, 0x22,
+	0x99, 0x87, 0x6a, 0xbd, 0xa3, 0xf9, 0x0b, 0x8f, 0xa4, 0xd3, 0x65, 0x2a, 0x73, 0x2d, 0x37, 0x93,
+	0xe6, 0x80, 0x2b, 0xf7, 0x4b, 0x19, 0x19, 0x7e, 0xd5, 0x61, 0x35, 0x3f, 0xfb, 0x6f, 0xc5, 0xbc,
+	0x3f, 0xbe, 0x53, 0x20, 0x5b, 0xf8, 0xcb, 0x63, 0x42, 0x15, 0xd8, 0x34, 0x8c, 0x02, 0xb7, 0x13,
+	0x0d, 0x74, 0x2f, 0x4b, 0xeb, 0x2c, 0x03, 0xa7, 0xf5, 0x3e, 0xa3, 0xd7, 0xcc, 0xa6, 0x37, 0x10,
+	0x6f, 0x80, 0x3f, 0xe2, 0x8a, 0x88, 0x1b, 0x3c, 0x43, 0x17, 0xf3, 0x45, 0x7c, 0x9c, 0xdf, 0xa1,
+	0xe5, 0xa3, 0x96, 0xe2, 0x5c, 0x31, 0xc2, 0xde, 0xbc, 0x05, 0xe7, 0x39, 0x52, 0xee, 0x6e, 0x33,
+	0xad, 0xe3, 0x90, 0xf7, 0x64, 0x44, 0x0d, 0x43, 0x31, 0xaa, 0x72, 0xfb, 0xf5, 0x1e, 0x4c, 0x72,
+	0x07, 0xf4, 0xe9, 0x51, 0x3e, 0x93, 0x71, 0x37, 0x83, 0x3a, 0x96, 0x1f, 0xee, 0x36, 0xa3, 0x5f,
+	0xc8, 0x9d, 0x9d, 0x91, 0xdf, 0xc7, 0x4b, 0x00, 0xe9, 0x74, 0xcb, 0xc7, 0x9f, 0x4f, 0xe4, 0xed,
+	0x11, 0x2c, 0xfd, 0x18, 0x6f, 0x22, 0x54, 0xaa, 0xec, 0xbc, 0xee, 0x5f, 0x4c, 0x61, 0x93, 0xcf,
+	0x60, 0x96, 0x33, 0x57, 0x21, 0xa7, 0x81, 0x06, 0xf0, 0x6c, 0x96, 0xb3, 0xf9, 0x65, 0x90, 0x7f,
+	0x57, 0x5e, 0x59, 0x0c, 0xed, 0xf6, 0x69, 0x2e, 0x2b, 0x86, 0xb3, 0x2e, 0x8f, 0xca, 0x8f, 0x71,
+	0xd3, 0xcd, 0x4e, 0x8b, 0x9b, 0x4b, 0xec, 0xa6, 0x76, 0x19, 0x33, 0x38, 0xa1, 0xee, 0x01, 0x46,
+	0x5e, 0x67, 0x02, 0x29, 0x57, 0xf1, 0x90, 0x3c, 0xb9, 0x95, 0xef, 0x0c, 0x85, 0x53, 0x0e, 0x5a,
+	0xf1, 0xb3, 0x77, 0xd9, 0xed, 0x0d, 0x49, 0x8e, 0x9b, 0xe1, 0x3c, 0xcf, 0xc9, 0x39, 0x2b, 0x09,
+	0x9a, 0x61, 0x19, 0x03, 0xc7, 0x90, 0xc7, 0xfe, 0xaf, 0xb4, 0x5f, 0xaf, 0x3b, 0xe3, 0x24, 0xe4,
+	0x9b, 0x51, 0x24, 0x9d, 0x89, 0x97, 0x0c, 0x4a, 0x58, 0xa3, 0x5f, 0x4d, 0xe4, 0x65, 0xf0, 0xbd,
+	0x27, 0xc3, 0xfc, 0x13, 0xd9, 0x9f, 0xf2, 0xf2, 0x48, 0x0d, 0x38, 0x24, 0x8b, 0x40, 0xf7, 0xd7,
+	0x42, 0x28, 0x3d, 0xdb, 0x67, 0x27, 0xa4, 0xae, 0x48, 0x12, 0x84, 0xac, 0x01, 0xd3, 0x3b, 0xdc,
+	0x5b, 0x5b, 0xce, 0x99, 0xd7, 0xb3, 0x4f, 0xa8, 0x13, 0x07, 0x77, 0xa7, 0xd3, 0x05, 0xab, 0x6d,
+	0x3f, 0x37, 0x75, 0xb1, 0x9a, 0xdd, 0x01, 0xb9, 0x86, 0x1b, 0xf1, 0x8f, 0x5c, 0x1b, 0xf9, 0x85,
+	0x1b, 0xf6, 0xa6, 0x3a, 0x5e, 0x65, 0x25, 0x1e, 0xae, 0x80, 0xac, 0xb4, 0x37, 0xd9, 0x5a, 0xcf,
+	0x4b, 0x6b, 0x1b, 0xc7, 0x94, 0x0e, 0xce, 0x1c, 0xac, 0xd6, 0xfa, 0xd0, 0xfc, 0xb8, 0x5b, 0x30,
+	0x97, 0x95, 0x8e, 0x56, 0x4d, 0xda, 0x80, 0x5c, 0xb5, 0x99, 0x81, 0xab, 0xdb, 0x30, 0x9f, 0x99,
+	0x12, 0x56, 0xdd, 0x15, 0x0e, 0x4a, 0x18, 0x9b, 0x49, 0xf1, 0x6b, 0x58, 0xc8, 0xc9, 0x7f, 0x1a,
+	0x7b, 0xbe, 0x07, 0xe6, 0x47, 0xcd, 0x15, 0x88, 0x6f, 0xa0, 0x92, 0x9f, 0x5a, 0x93, 0xdc, 0x34,
+	0xbd, 0xf7, 0xf9, 0x09, 0x2d, 0x2b, 0x99, 0xb9, 0x80, 0xc9, 0x0e, 0x26, 0xed, 0xcf, 0xca, 0xb5,
+	0xa9, 0xfa, 0x3d, 0x38, 0x17, 0x67, 0x4e, 0xc0, 0xf1, 0x42, 0x4e, 0x7a, 0xcd, 0x01, 0x54, 0x4f,
+	0xd1, 0xdb, 0x2d, 0xa9, 0x97, 0xcc, 0x7c, 0x8b, 0x89, 0xe7, 0x47, 0x99, 0xc9, 0x18, 0x33, 0xfb,
+	0x79, 0x1f, 0x66, 0x8c, 0x84, 0x57, 0x4a, 0xfc, 0xb3, 0xb2, 0xae, 0x29, 0xef, 0x42, 0x76, 0x8e,
+	0xac, 0x35, 0xbc, 0xb2, 0x89, 0x53, 0x1e, 0x0c, 0xb0, 0x81, 0xe3, 0xab, 0xe1, 0x74, 0x66, 0x85,
+	0x07, 0x78, 0x28, 0x32, 0x12, 0x25, 0x0c, 0x38, 0x0e, 0x2b, 0x4a, 0xd9, 0x99, 0x15, 0x5a, 0x50,
+	0x96, 0x2f, 0xa8, 0xf9, 0x1b, 0xe6, 0xf8, 0x09, 0x68, 0x7c, 0xc3, 0x9c, 0xff, 0xc4, 0x3a, 0x4f,
+	0x26, 0xeb, 0xa5, 0x5f, 0xfe, 0xf7, 0xa5, 0xc2, 0x2f, 0x7f, 0xbd, 0x54, 0xf8, 0xcf, 0xbf, 0x5e,
+	0x2a, 0xfc, 0xea, 0xd7, 0x4b, 0x85, 0xdd, 0xf3, 0x08, 0xb1, 0xf2, 0x7f, 0x03, 0x00, 0x00, 0xff,
+	0xff, 0x86, 0xfb, 0x57, 0xfc, 0xc1, 0xa8, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -11565,6 +12846,13 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AuthServiceClient interface {
+	// InventoryControlStream is the per-instance stream used to advertise teleport instance
+	// presence/version/etc to the auth server.
+	InventoryControlStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_InventoryControlStreamClient, error)
+	// GetInventoryStatus gets information about current instance inventory.
+	GetInventoryStatus(ctx context.Context, in *InventoryStatusRequest, opts ...grpc.CallOption) (*InventoryStatusSummary, error)
+	// PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
+	PingInventory(ctx context.Context, in *InventoryPingRequest, opts ...grpc.CallOption) (*InventoryPingResponse, error)
 	// MaintainSessionPresence establishes a channel used to continously verify the presence for a
 	// session.
 	MaintainSessionPresence(ctx context.Context, opts ...grpc.CallOption) (AuthService_MaintainSessionPresenceClient, error)
@@ -11573,11 +12861,11 @@ type AuthServiceClient interface {
 	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(ctx context.Context, in *GetSessionTrackerRequest, opts ...grpc.CallOption) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
-	GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
+	GetActiveSessionTrackers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error)
 	// RemoveSessionTracker removes a session tracker resource.
-	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
-	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (AuthService_SendKeepAlivesClient, error)
 	// WatchEvents returns a new stream of cluster events
@@ -11587,9 +12875,9 @@ type AuthServiceClient interface {
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(ctx context.Context, in *types.ServerV2, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteNode deletes an existing node in a backend described by the given request.
-	DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllNodes deletes all nodes.
-	DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(ctx context.Context, in *UserCertsRequest, opts ...grpc.CallOption) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
@@ -11601,13 +12889,16 @@ type AuthServiceClient interface {
 	// target.
 	IsMFARequired(ctx context.Context, in *IsMFARequiredRequest, opts ...grpc.CallOption) (*IsMFARequiredResponse, error)
 	// GetAccessRequests gets all pending access requests.
+	// DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
 	GetAccessRequests(ctx context.Context, in *types.AccessRequestFilter, opts ...grpc.CallOption) (*AccessRequests, error)
+	// GetAccessRequestsV2 gets all pending access requests.
+	GetAccessRequestsV2(ctx context.Context, in *types.AccessRequestFilter, opts ...grpc.CallOption) (AuthService_GetAccessRequestsV2Client, error)
 	// CreateAccessRequest creates a new access request.
-	CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SetAccessRequestState sets the state of an access request.
-	SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*empty.Empty, error)
+	SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, in *types.AccessReviewSubmission, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilites of a user.
@@ -11615,7 +12906,7 @@ type AuthServiceClient interface {
 	// GetPluginData gets all plugin data matching the supplied filter.
 	GetPluginData(ctx context.Context, in *types.PluginDataFilter, opts ...grpc.CallOption) (*PluginDataSeq, error)
 	// UpdatePluginData updates a plugin's resource-specific datastore.
-	UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Ping gets basic info about the auth server. This method is intended
 	// to mimic the behavior of the proxy's Ping method, and may be used by
 	// clients for verification or configuration on startup.
@@ -11631,34 +12922,36 @@ type AuthServiceClient interface {
 	// CreateBot creates a new bot user.
 	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error)
 	// DeleteBot deletes a bot user.
-	DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetBotUsers gets all users with bot labels.
 	GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error)
 	// GetUser gets a user resource by name.
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*types.UserV2, error)
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
-	GetCurrentUser(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.UserV2, error)
+	GetCurrentUser(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UserV2, error)
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error)
 	// GetUsers gets all current user resources.
 	GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (AuthService_GetUsersClient, error)
 	// CreateUser inserts a new user entry to a backend.
-	CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteUser deletes an existing user in a backend by username.
-	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(ctx context.Context, in *types.AcquireSemaphoreRequest, opts ...grpc.CallOption) (*types.SemaphoreLease, error)
 	// KeepAliveSemaphoreLease updates semaphore lease.
-	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
+	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
-	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
+	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
-	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
-	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error)
+	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error)
 	// GetApplicationServers gets all application servers.
@@ -11667,9 +12960,9 @@ type AuthServiceClient interface {
 	// UpsertApplicationServer adds an application server.
 	UpsertApplicationServer(ctx context.Context, in *UpsertApplicationServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteApplicationServer removes an application server.
-	DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApplicationServers removes all application servers.
-	DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAppServers gets all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
@@ -11681,76 +12974,76 @@ type AuthServiceClient interface {
 	// DeleteAppServer removes an application server.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllAppServers removes all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-	DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(ctx context.Context, in *GenerateAppTokenRequest, opts ...grpc.CallOption) (*GenerateAppTokenResponse, error)
 	// GetAppSession gets an application web session.
 	GetAppSession(ctx context.Context, in *GetAppSessionRequest, opts ...grpc.CallOption) (*GetAppSessionResponse, error)
 	// GetAppSessions gets all application web sessions.
-	GetAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error)
+	GetAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error)
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(ctx context.Context, in *CreateAppSessionRequest, opts ...grpc.CallOption) (*CreateAppSessionResponse, error)
 	// DeleteAppSession removes an application web session.
-	DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
-	DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
-	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	GetSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
-	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
-	DeleteAllSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
-	GetWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
+	GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
 	// DeleteWebSession deletes a web session.
-	DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWebSessions deletes all web sessions.
-	DeleteAllWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
-	GetWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
+	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
-	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
-	DeleteAllWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateRemoteCluster updates remote cluster
-	UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetKubeServices gets all kubernetes services.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(ctx context.Context, in *GetKubeServicesRequest, opts ...grpc.CallOption) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
 	UpsertKubeServiceV2(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(ctx context.Context, in *GetDatabaseServersRequest, opts ...grpc.CallOption) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(ctx context.Context, in *UpsertDatabaseServerRequest, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
-	DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabaseServers removes all registered database proxy servers.
-	DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.
 	SignDatabaseCSR(ctx context.Context, in *DatabaseCSRRequest, opts ...grpc.CallOption) (*DatabaseCSRResponse, error)
@@ -11762,11 +13055,11 @@ type AuthServiceClient interface {
 	// GetRole retrieves a role described by the given request.
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
-	GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
+	GetRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
-	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
 	// The RPC is streaming both ways and the message sequence is:
@@ -11790,7 +13083,7 @@ type AuthServiceClient interface {
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, in *AddMFADeviceSyncRequest, opts ...grpc.CallOption) (*AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
-	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(ctx context.Context, in *GetMFADevicesRequest, opts ...grpc.CallOption) (*GetMFADevicesResponse, error)
@@ -11804,61 +13097,79 @@ type AuthServiceClient interface {
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
-	DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreateOIDCAuthRequest creates OIDCAuthRequest.
+	CreateOIDCAuthRequest(ctx context.Context, in *types.OIDCAuthRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
+	// GetOIDCAuthRequest returns OIDC auth request if found.
+	GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
 	// UpsertSAMLConnector upserts a SAML connector in a backend.
-	UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
-	DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreateSAMLAuthRequest creates SAMLAuthRequest.
+	CreateSAMLAuthRequest(ctx context.Context, in *types.SAMLAuthRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
+	// GetSAMLAuthRequest returns SAML auth request if found.
+	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
 	// UpsertGithubConnector upserts a Github connector in a backend.
-	UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteGithubConnector deletes an existing Github connector in a backend by name.
-	DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreateGithubAuthRequest creates GithubAuthRequest.
+	CreateGithubAuthRequest(ctx context.Context, in *types.GithubAuthRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
+	// GetGithubAuthRequest returns Github auth request if found.
+	GetGithubAuthRequest(ctx context.Context, in *GetGithubAuthRequestRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error)
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(ctx context.Context, in *GetSSODiagnosticInfoRequest, opts ...grpc.CallOption) (*types.SSODiagnosticInfo, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	GetTrustedClusters(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
+	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
-	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
-	GetTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
+	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// CreateToken creates a token in a backend.
+	CreateToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GenerateToken generates a new auth token.
+	GenerateToken(ctx context.Context, in *GenerateTokenRequest, opts ...grpc.CallOption) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
-	DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetClusterAuditConfig gets cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	GetClusterAuditConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
 	// GetClusterNetworkingConfig gets cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
+	GetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
 	// SetClusterNetworkingConfig sets cluster networking configuration.
-	SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-	ResetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	ResetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetSessionRecordingConfig gets session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
+	GetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// SetSessionRecordingConfig sets session recording configuration.
-	SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
-	ResetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAuthPreference gets cluster auth preference.
-	GetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
+	GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// SetAuthPreference sets cluster auth preference.
-	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
-	ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -11868,66 +13179,66 @@ type AuthServiceClient interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
 	// UpsertLock upserts a lock.
-	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
-	DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
-	ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// StreamSessionEvents streams audit events from a given session recording.
 	StreamSessionEvents(ctx context.Context, in *StreamSessionEventsRequest, opts ...grpc.CallOption) (AuthService_StreamSessionEventsClient, error)
 	// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
-	GetNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error)
+	GetNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error)
 	// SetNetworkRestrictions updates the network restrictions.
-	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*empty.Empty, error)
+	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
-	DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
-	GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
+	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// GetApp returns an application by name.
 	GetApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
-	CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateApp updates existing application resource.
-	UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteApp removes specified application resource.
-	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
-	DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetDatabases returns all registered databases.
-	GetDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
+	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
-	CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateDatabase updates existing database resource.
-	UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteDatabase removes specified database resource.
-	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
-	DeleteAllDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
-	GetWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error)
 	GetWindowsDesktopService(ctx context.Context, in *GetWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(ctx context.Context, in *types.WindowsDesktopServiceV3, opts ...grpc.CallOption) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
-	DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
-	DeleteAllWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(ctx context.Context, in *types.WindowsDesktopFilter, opts ...grpc.CallOption) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
-	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
-	UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
-	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
 	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
 	// To delete all desktops, use DeleteAllWindowsDesktops.
-	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
-	DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeleteAllWindowsDesktops(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateWindowsDesktopCert generates client smartcard certificate used
 	// by an RDP client to authenticate with Windows.
 	GenerateWindowsDesktopCert(ctx context.Context, in *WindowsDesktopCertRequest, opts ...grpc.CallOption) (*WindowsDesktopCertResponse, error)
@@ -11976,7 +13287,7 @@ type AuthServiceClient interface {
 	// password or adds a new mfa device, allowing the user to regain access to their account with
 	// the new credentials. When the new authentication is successfully set, any user lock is
 	// removed so the user can login immediately afterwards.
-	CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
 	// user, replacing and invalidating any previously owned codes. Users can only get recovery
 	// codes if their username is in a valid email format.
@@ -11998,11 +13309,15 @@ type AuthServiceClient interface {
 	// ListResources retrieves a paginated list of resources.
 	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
 	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error)
+	GetDomainName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error)
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
 	// without signing keys. If the cluster has multiple TLS certs, they will
 	// all be appended.
-	GetClusterCACert(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error)
+	GetClusterCACert(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error)
+	// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+	// instances to prove that they hold a given system role.
+	// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+	UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type authServiceClient struct {
@@ -12013,8 +13328,57 @@ func NewAuthServiceClient(cc *grpc.ClientConn) AuthServiceClient {
 	return &authServiceClient{cc}
 }
 
+func (c *authServiceClient) InventoryControlStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_InventoryControlStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[0], "/proto.AuthService/InventoryControlStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceInventoryControlStreamClient{stream}
+	return x, nil
+}
+
+type AuthService_InventoryControlStreamClient interface {
+	Send(*UpstreamInventoryOneOf) error
+	Recv() (*DownstreamInventoryOneOf, error)
+	grpc.ClientStream
+}
+
+type authServiceInventoryControlStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceInventoryControlStreamClient) Send(m *UpstreamInventoryOneOf) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *authServiceInventoryControlStreamClient) Recv() (*DownstreamInventoryOneOf, error) {
+	m := new(DownstreamInventoryOneOf)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *authServiceClient) GetInventoryStatus(ctx context.Context, in *InventoryStatusRequest, opts ...grpc.CallOption) (*InventoryStatusSummary, error) {
+	out := new(InventoryStatusSummary)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetInventoryStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) PingInventory(ctx context.Context, in *InventoryPingRequest, opts ...grpc.CallOption) (*InventoryPingResponse, error) {
+	out := new(InventoryPingResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/PingInventory", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) MaintainSessionPresence(ctx context.Context, opts ...grpc.CallOption) (AuthService_MaintainSessionPresenceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[0], "/proto.AuthService/MaintainSessionPresence", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[1], "/proto.AuthService/MaintainSessionPresence", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12062,8 +13426,8 @@ func (c *authServiceClient) GetSessionTracker(ctx context.Context, in *GetSessio
 	return out, nil
 }
 
-func (c *authServiceClient) GetActiveSessionTrackers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[1], "/proto.AuthService/GetActiveSessionTrackers", opts...)
+func (c *authServiceClient) GetActiveSessionTrackers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetActiveSessionTrackersClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[2], "/proto.AuthService/GetActiveSessionTrackers", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12094,8 +13458,8 @@ func (x *authServiceGetActiveSessionTrackersClient) Recv() (*types.SessionTracke
 	return m, nil
 }
 
-func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/RemoveSessionTracker", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12103,8 +13467,8 @@ func (c *authServiceClient) RemoveSessionTracker(ctx context.Context, in *Remove
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateSessionTracker", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12113,7 +13477,7 @@ func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *Update
 }
 
 func (c *authServiceClient) SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (AuthService_SendKeepAlivesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[2], "/proto.AuthService/SendKeepAlives", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[3], "/proto.AuthService/SendKeepAlives", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12123,7 +13487,7 @@ func (c *authServiceClient) SendKeepAlives(ctx context.Context, opts ...grpc.Cal
 
 type AuthService_SendKeepAlivesClient interface {
 	Send(*types.KeepAlive) error
-	CloseAndRecv() (*empty.Empty, error)
+	CloseAndRecv() (*emptypb.Empty, error)
 	grpc.ClientStream
 }
 
@@ -12135,11 +13499,11 @@ func (x *authServiceSendKeepAlivesClient) Send(m *types.KeepAlive) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*empty.Empty, error) {
+func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*emptypb.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(empty.Empty)
+	m := new(emptypb.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -12147,7 +13511,7 @@ func (x *authServiceSendKeepAlivesClient) CloseAndRecv() (*empty.Empty, error) {
 }
 
 func (c *authServiceClient) WatchEvents(ctx context.Context, in *Watch, opts ...grpc.CallOption) (AuthService_WatchEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[3], "/proto.AuthService/WatchEvents", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[4], "/proto.AuthService/WatchEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12196,8 +13560,8 @@ func (c *authServiceClient) UpsertNode(ctx context.Context, in *types.ServerV2, 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteNode", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12205,8 +13569,8 @@ func (c *authServiceClient) DeleteNode(ctx context.Context, in *types.ResourceIn
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllNodes(ctx context.Context, in *types.ResourcesInNamespaceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllNodes", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12233,7 +13597,7 @@ func (c *authServiceClient) GenerateHostCerts(ctx context.Context, in *HostCerts
 }
 
 func (c *authServiceClient) GenerateUserSingleUseCerts(ctx context.Context, opts ...grpc.CallOption) (AuthService_GenerateUserSingleUseCertsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[4], "/proto.AuthService/GenerateUserSingleUseCerts", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[5], "/proto.AuthService/GenerateUserSingleUseCerts", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12281,8 +13645,40 @@ func (c *authServiceClient) GetAccessRequests(ctx context.Context, in *types.Acc
 	return out, nil
 }
 
-func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) GetAccessRequestsV2(ctx context.Context, in *types.AccessRequestFilter, opts ...grpc.CallOption) (AuthService_GetAccessRequestsV2Client, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[6], "/proto.AuthService/GetAccessRequestsV2", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceGetAccessRequestsV2Client{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuthService_GetAccessRequestsV2Client interface {
+	Recv() (*types.AccessRequestV3, error)
+	grpc.ClientStream
+}
+
+type authServiceGetAccessRequestsV2Client struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceGetAccessRequestsV2Client) Recv() (*types.AccessRequestV3, error) {
+	m := new(types.AccessRequestV3)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12290,8 +13686,8 @@ func (c *authServiceClient) CreateAccessRequest(ctx context.Context, in *types.A
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *RequestID, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAccessRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12299,8 +13695,8 @@ func (c *authServiceClient) DeleteAccessRequest(ctx context.Context, in *Request
 	return out, nil
 }
 
-func (c *authServiceClient) SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) SetAccessRequestState(ctx context.Context, in *RequestStateSetter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetAccessRequestState", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12335,8 +13731,8 @@ func (c *authServiceClient) GetPluginData(ctx context.Context, in *types.PluginD
 	return out, nil
 }
 
-func (c *authServiceClient) UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdatePluginData(ctx context.Context, in *types.PluginDataUpdateParams, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdatePluginData", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12389,8 +13785,8 @@ func (c *authServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest,
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteBot", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12399,7 +13795,7 @@ func (c *authServiceClient) DeleteBot(ctx context.Context, in *DeleteBotRequest,
 }
 
 func (c *authServiceClient) GetBotUsers(ctx context.Context, in *GetBotUsersRequest, opts ...grpc.CallOption) (AuthService_GetBotUsersClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[5], "/proto.AuthService/GetBotUsers", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[7], "/proto.AuthService/GetBotUsers", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12439,7 +13835,7 @@ func (c *authServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opt
 	return out, nil
 }
 
-func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.UserV2, error) {
+func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UserV2, error) {
 	out := new(types.UserV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetCurrentUser", in, out, opts...)
 	if err != nil {
@@ -12448,8 +13844,40 @@ func (c *authServiceClient) GetCurrentUser(ctx context.Context, in *empty.Empty,
 	return out, nil
 }
 
+func (c *authServiceClient) GetCurrentUserRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (AuthService_GetCurrentUserRolesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[8], "/proto.AuthService/GetCurrentUserRoles", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceGetCurrentUserRolesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AuthService_GetCurrentUserRolesClient interface {
+	Recv() (*types.RoleV5, error)
+	grpc.ClientStream
+}
+
+type authServiceGetCurrentUserRolesClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceGetCurrentUserRolesClient) Recv() (*types.RoleV5, error) {
+	m := new(types.RoleV5)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *authServiceClient) GetUsers(ctx context.Context, in *GetUsersRequest, opts ...grpc.CallOption) (AuthService_GetUsersClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[6], "/proto.AuthService/GetUsers", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[9], "/proto.AuthService/GetUsers", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12480,8 +13908,8 @@ func (x *authServiceGetUsersClient) Recv() (*types.UserV2, error) {
 	return m, nil
 }
 
-func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12489,8 +13917,8 @@ func (c *authServiceClient) CreateUser(ctx context.Context, in *types.UserV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12498,8 +13926,8 @@ func (c *authServiceClient) UpdateUser(ctx context.Context, in *types.UserV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUser", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12516,8 +13944,8 @@ func (c *authServiceClient) AcquireSemaphore(ctx context.Context, in *types.Acqu
 	return out, nil
 }
 
-func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/KeepAliveSemaphoreLease", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12525,8 +13953,8 @@ func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *typ
 	return out, nil
 }
 
-func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CancelSemaphoreLease", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12543,8 +13971,8 @@ func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.Semapho
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSemaphore", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12552,8 +13980,8 @@ func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.Semap
 	return out, nil
 }
 
-func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/EmitAuditEvent", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12562,7 +13990,7 @@ func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf
 }
 
 func (c *authServiceClient) CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[7], "/proto.AuthService/CreateAuditStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[10], "/proto.AuthService/CreateAuditStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -12611,8 +14039,8 @@ func (c *authServiceClient) UpsertApplicationServer(ctx context.Context, in *Ups
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *DeleteApplicationServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApplicationServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12620,8 +14048,8 @@ func (c *authServiceClient) DeleteApplicationServer(ctx context.Context, in *Del
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllApplicationServers(ctx context.Context, in *DeleteAllApplicationServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApplicationServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12650,8 +14078,8 @@ func (c *authServiceClient) UpsertAppServer(ctx context.Context, in *UpsertAppSe
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAppServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12660,8 +14088,8 @@ func (c *authServiceClient) DeleteAppServer(ctx context.Context, in *DeleteAppSe
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllAppServers(ctx context.Context, in *DeleteAllAppServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12687,7 +14115,7 @@ func (c *authServiceClient) GetAppSession(ctx context.Context, in *GetAppSession
 	return out, nil
 }
 
-func (c *authServiceClient) GetAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error) {
+func (c *authServiceClient) GetAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAppSessionsResponse, error) {
 	out := new(GetAppSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAppSessions", in, out, opts...)
 	if err != nil {
@@ -12705,8 +14133,8 @@ func (c *authServiceClient) CreateAppSession(ctx context.Context, in *CreateAppS
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAppSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12714,8 +14142,8 @@ func (c *authServiceClient) DeleteAppSession(ctx context.Context, in *DeleteAppS
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllAppSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12723,8 +14151,8 @@ func (c *authServiceClient) DeleteAllAppSessions(ctx context.Context, in *empty.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUserAppSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12750,7 +14178,7 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
-func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
+func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	out := new(GetSnowflakeSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSnowflakeSessions", in, out, opts...)
 	if err != nil {
@@ -12759,8 +14187,8 @@ func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *empty.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSnowflakeSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12768,8 +14196,8 @@ func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *Dele
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllSnowflakeSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllSnowflakeSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12786,7 +14214,7 @@ func (c *authServiceClient) GetWebSession(ctx context.Context, in *types.GetWebS
 	return out, nil
 }
 
-func (c *authServiceClient) GetWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
+func (c *authServiceClient) GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
 	out := new(GetWebSessionsResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWebSessions", in, out, opts...)
 	if err != nil {
@@ -12795,8 +14223,8 @@ func (c *authServiceClient) GetWebSessions(ctx context.Context, in *empty.Empty,
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.DeleteWebSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWebSession", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12804,8 +14232,8 @@ func (c *authServiceClient) DeleteWebSession(ctx context.Context, in *types.Dele
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWebSessions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWebSessions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12822,7 +14250,7 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 	return out, nil
 }
 
-func (c *authServiceClient) GetWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
+func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	out := new(GetWebTokensResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWebTokens", in, out, opts...)
 	if err != nil {
@@ -12831,8 +14259,8 @@ func (c *authServiceClient) GetWebTokens(ctx context.Context, in *empty.Empty, o
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWebToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12840,8 +14268,8 @@ func (c *authServiceClient) DeleteWebToken(ctx context.Context, in *types.Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWebTokens", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12849,8 +14277,8 @@ func (c *authServiceClient) DeleteAllWebTokens(ctx context.Context, in *empty.Em
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateRemoteCluster(ctx context.Context, in *types.RemoteClusterV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateRemoteCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12869,8 +14297,8 @@ func (c *authServiceClient) GetKubeServices(ctx context.Context, in *GetKubeServ
 }
 
 // Deprecated: Do not use.
-func (c *authServiceClient) UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertKubeService(ctx context.Context, in *UpsertKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertKubeService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12887,8 +14315,8 @@ func (c *authServiceClient) UpsertKubeServiceV2(ctx context.Context, in *UpsertK
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKubeServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteKubeService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12896,8 +14324,8 @@ func (c *authServiceClient) DeleteKubeService(ctx context.Context, in *DeleteKub
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllKubeServices(ctx context.Context, in *DeleteAllKubeServicesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllKubeServices", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12924,8 +14352,8 @@ func (c *authServiceClient) UpsertDatabaseServer(ctx context.Context, in *Upsert
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *DeleteDatabaseServerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteDatabaseServer", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12933,8 +14361,8 @@ func (c *authServiceClient) DeleteDatabaseServer(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllDatabaseServers(ctx context.Context, in *DeleteAllDatabaseServersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllDatabaseServers", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12978,7 +14406,7 @@ func (c *authServiceClient) GetRole(ctx context.Context, in *GetRoleRequest, opt
 	return out, nil
 }
 
-func (c *authServiceClient) GetRoles(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error) {
+func (c *authServiceClient) GetRoles(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetRolesResponse, error) {
 	out := new(GetRolesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetRoles", in, out, opts...)
 	if err != nil {
@@ -12987,8 +14415,8 @@ func (c *authServiceClient) GetRoles(ctx context.Context, in *empty.Empty, opts 
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -12996,8 +14424,8 @@ func (c *authServiceClient) UpsertRole(ctx context.Context, in *types.RoleV5, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteRole", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13006,7 +14434,7 @@ func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleReques
 }
 
 func (c *authServiceClient) AddMFADevice(ctx context.Context, opts ...grpc.CallOption) (AuthService_AddMFADeviceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[8], "/proto.AuthService/AddMFADevice", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[11], "/proto.AuthService/AddMFADevice", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13037,7 +14465,7 @@ func (x *authServiceAddMFADeviceClient) Recv() (*AddMFADeviceResponse, error) {
 }
 
 func (c *authServiceClient) DeleteMFADevice(ctx context.Context, opts ...grpc.CallOption) (AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[9], "/proto.AuthService/DeleteMFADevice", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[12], "/proto.AuthService/DeleteMFADevice", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13076,8 +14504,8 @@ func (c *authServiceClient) AddMFADeviceSync(ctx context.Context, in *AddMFADevi
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteMFADeviceSync(ctx context.Context, in *DeleteMFADeviceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteMFADeviceSync", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13130,8 +14558,8 @@ func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.OIDCConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertOIDCConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13139,9 +14567,27 @@ func (c *authServiceClient) UpsertOIDCConnector(ctx context.Context, in *types.O
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteOIDCConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteOIDCConnector", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateOIDCAuthRequest(ctx context.Context, in *types.OIDCAuthRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error) {
+	out := new(types.OIDCAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateOIDCAuthRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error) {
+	out := new(types.OIDCAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetOIDCAuthRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13166,8 +14612,8 @@ func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.SAMLConnectorV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertSAMLConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13175,9 +14621,27 @@ func (c *authServiceClient) UpsertSAMLConnector(ctx context.Context, in *types.S
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteSAMLConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSAMLConnector", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateSAMLAuthRequest(ctx context.Context, in *types.SAMLAuthRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error) {
+	out := new(types.SAMLAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateSAMLAuthRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error) {
+	out := new(types.SAMLAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSAMLAuthRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13202,8 +14666,8 @@ func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.R
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types.GithubConnectorV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertGithubConnector", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13211,9 +14675,36 @@ func (c *authServiceClient) UpsertGithubConnector(ctx context.Context, in *types
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteGithubConnector(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteGithubConnector", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateGithubAuthRequest(ctx context.Context, in *types.GithubAuthRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error) {
+	out := new(types.GithubAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateGithubAuthRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetGithubAuthRequest(ctx context.Context, in *GetGithubAuthRequestRequest, opts ...grpc.CallOption) (*types.GithubAuthRequest, error) {
+	out := new(types.GithubAuthRequest)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetGithubAuthRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetSSODiagnosticInfo(ctx context.Context, in *GetSSODiagnosticInfoRequest, opts ...grpc.CallOption) (*types.SSODiagnosticInfo, error) {
+	out := new(types.SSODiagnosticInfo)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSSODiagnosticInfo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13229,7 +14720,7 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
+func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	out := new(types.TrustedClusterV2List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetTrustedClusters", in, out, opts...)
 	if err != nil {
@@ -13247,8 +14738,8 @@ func (c *authServiceClient) UpsertTrustedCluster(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteTrustedCluster", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13265,7 +14756,7 @@ func (c *authServiceClient) GetToken(ctx context.Context, in *types.ResourceRequ
 	return out, nil
 }
 
-func (c *authServiceClient) GetTokens(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
+func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
 	out := new(types.ProvisionTokenV2List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetTokens", in, out, opts...)
 	if err != nil {
@@ -13274,8 +14765,8 @@ func (c *authServiceClient) GetTokens(ctx context.Context, in *empty.Empty, opts
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13283,8 +14774,26 @@ func (c *authServiceClient) UpsertToken(ctx context.Context, in *types.Provision
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CreateToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GenerateToken(ctx context.Context, in *GenerateTokenRequest, opts ...grpc.CallOption) (*GenerateTokenResponse, error) {
+	out := new(GenerateTokenResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GenerateToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteToken", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13292,7 +14801,7 @@ func (c *authServiceClient) DeleteToken(ctx context.Context, in *types.ResourceR
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
 	out := new(types.ClusterAuditConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterAuditConfig", in, out, opts...)
 	if err != nil {
@@ -13301,7 +14810,7 @@ func (c *authServiceClient) GetClusterAuditConfig(ctx context.Context, in *empty
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
+func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
 	out := new(types.ClusterNetworkingConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
@@ -13310,8 +14819,8 @@ func (c *authServiceClient) GetClusterNetworkingConfig(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *types.ClusterNetworkingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13319,8 +14828,8 @@ func (c *authServiceClient) SetClusterNetworkingConfig(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetClusterNetworkingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13328,7 +14837,7 @@ func (c *authServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in
 	return out, nil
 }
 
-func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
+func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
 	out := new(types.SessionRecordingConfigV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
@@ -13337,8 +14846,8 @@ func (c *authServiceClient) GetSessionRecordingConfig(ctx context.Context, in *e
 	return out, nil
 }
 
-func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *types.SessionRecordingConfigV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13346,8 +14855,8 @@ func (c *authServiceClient) SetSessionRecordingConfig(ctx context.Context, in *t
 	return out, nil
 }
 
-func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetSessionRecordingConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13355,7 +14864,7 @@ func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
+func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
 	out := new(types.AuthPreferenceV2)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetAuthPreference", in, out, opts...)
 	if err != nil {
@@ -13364,8 +14873,8 @@ func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *empty.Emp
 	return out, nil
 }
 
-func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetAuthPreference", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13373,8 +14882,8 @@ func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.Aut
 	return out, nil
 }
 
-func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ResetAuthPreference", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13418,8 +14927,8 @@ func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, o
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertLock", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13427,8 +14936,8 @@ func (c *authServiceClient) UpsertLock(ctx context.Context, in *types.LockV2, op
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteLock", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13436,8 +14945,8 @@ func (c *authServiceClient) DeleteLock(ctx context.Context, in *DeleteLockReques
 	return out, nil
 }
 
-func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceRemoteLocksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/ReplaceRemoteLocks", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13446,7 +14955,7 @@ func (c *authServiceClient) ReplaceRemoteLocks(ctx context.Context, in *ReplaceR
 }
 
 func (c *authServiceClient) StreamSessionEvents(ctx context.Context, in *StreamSessionEventsRequest, opts ...grpc.CallOption) (AuthService_StreamSessionEventsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[10], "/proto.AuthService/StreamSessionEvents", opts...)
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[13], "/proto.AuthService/StreamSessionEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -13477,7 +14986,7 @@ func (x *authServiceStreamSessionEventsClient) Recv() (*events.OneOf, error) {
 	return m, nil
 }
 
-func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error) {
+func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.NetworkRestrictionsV4, error) {
 	out := new(types.NetworkRestrictionsV4)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetNetworkRestrictions", in, out, opts...)
 	if err != nil {
@@ -13486,8 +14995,8 @@ func (c *authServiceClient) GetNetworkRestrictions(ctx context.Context, in *empt
 	return out, nil
 }
 
-func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/SetNetworkRestrictions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13495,8 +15004,8 @@ func (c *authServiceClient) SetNetworkRestrictions(ctx context.Context, in *type
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteNetworkRestrictions", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13504,7 +15013,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
-func (c *authServiceClient) GetApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
+func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	out := new(types.AppV3List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetApps", in, out, opts...)
 	if err != nil {
@@ -13522,8 +15031,8 @@ func (c *authServiceClient) GetApp(ctx context.Context, in *types.ResourceReques
 	return out, nil
 }
 
-func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13531,8 +15040,8 @@ func (c *authServiceClient) CreateApp(ctx context.Context, in *types.AppV3, opts
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13540,8 +15049,8 @@ func (c *authServiceClient) UpdateApp(ctx context.Context, in *types.AppV3, opts
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteApp", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13549,8 +15058,8 @@ func (c *authServiceClient) DeleteApp(ctx context.Context, in *types.ResourceReq
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllApps", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13558,7 +15067,7 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *empty.Empty, 
 	return out, nil
 }
 
-func (c *authServiceClient) GetDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
+func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	out := new(types.DatabaseV3List)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetDatabases", in, out, opts...)
 	if err != nil {
@@ -13576,8 +15085,8 @@ func (c *authServiceClient) GetDatabase(ctx context.Context, in *types.ResourceR
 	return out, nil
 }
 
-func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13585,8 +15094,8 @@ func (c *authServiceClient) CreateDatabase(ctx context.Context, in *types.Databa
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.DatabaseV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13594,8 +15103,8 @@ func (c *authServiceClient) UpdateDatabase(ctx context.Context, in *types.Databa
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteDatabase", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13603,8 +15112,8 @@ func (c *authServiceClient) DeleteDatabase(ctx context.Context, in *types.Resour
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllDatabases", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13612,7 +15121,7 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *empty.Em
 	return out, nil
 }
 
-func (c *authServiceClient) GetWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error) {
+func (c *authServiceClient) GetWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWindowsDesktopServicesResponse, error) {
 	out := new(GetWindowsDesktopServicesResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetWindowsDesktopServices", in, out, opts...)
 	if err != nil {
@@ -13639,8 +15148,8 @@ func (c *authServiceClient) UpsertWindowsDesktopService(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in *DeleteWindowsDesktopServiceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWindowsDesktopService", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13648,8 +15157,8 @@ func (c *authServiceClient) DeleteWindowsDesktopService(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWindowsDesktopServices(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllWindowsDesktopServices(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWindowsDesktopServices", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13666,8 +15175,8 @@ func (c *authServiceClient) GetWindowsDesktops(ctx context.Context, in *types.Wi
 	return out, nil
 }
 
-func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13675,8 +15184,8 @@ func (c *authServiceClient) CreateWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpdateWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13684,8 +15193,8 @@ func (c *authServiceClient) UpdateWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.WindowsDesktopV3, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/UpsertWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13693,8 +15202,8 @@ func (c *authServiceClient) UpsertWindowsDesktop(ctx context.Context, in *types.
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *DeleteWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteWindowsDesktop", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13702,8 +15211,8 @@ func (c *authServiceClient) DeleteWindowsDesktop(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *authServiceClient) DeleteAllWindowsDesktops(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) DeleteAllWindowsDesktops(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteAllWindowsDesktops", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13756,8 +15265,8 @@ func (c *authServiceClient) VerifyAccountRecovery(ctx context.Context, in *Verif
 	return out, nil
 }
 
-func (c *authServiceClient) CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *authServiceClient) CompleteAccountRecovery(ctx context.Context, in *CompleteAccountRecoveryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/CompleteAccountRecovery", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -13810,7 +15319,7 @@ func (c *authServiceClient) ListResources(ctx context.Context, in *ListResources
 	return out, nil
 }
 
-func (c *authServiceClient) GetDomainName(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error) {
+func (c *authServiceClient) GetDomainName(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetDomainNameResponse, error) {
 	out := new(GetDomainNameResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetDomainName", in, out, opts...)
 	if err != nil {
@@ -13819,7 +15328,7 @@ func (c *authServiceClient) GetDomainName(ctx context.Context, in *empty.Empty, 
 	return out, nil
 }
 
-func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error) {
+func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetClusterCACertResponse, error) {
 	out := new(GetClusterCACertResponse)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetClusterCACert", in, out, opts...)
 	if err != nil {
@@ -13828,8 +15337,24 @@ func (c *authServiceClient) GetClusterCACert(ctx context.Context, in *empty.Empt
 	return out, nil
 }
 
+func (c *authServiceClient) UnstableAssertSystemRole(ctx context.Context, in *UnstableSystemRoleAssertion, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/UnstableAssertSystemRole", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 type AuthServiceServer interface {
+	// InventoryControlStream is the per-instance stream used to advertise teleport instance
+	// presence/version/etc to the auth server.
+	InventoryControlStream(AuthService_InventoryControlStreamServer) error
+	// GetInventoryStatus gets information about current instance inventory.
+	GetInventoryStatus(context.Context, *InventoryStatusRequest) (*InventoryStatusSummary, error)
+	// PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
+	PingInventory(context.Context, *InventoryPingRequest) (*InventoryPingResponse, error)
 	// MaintainSessionPresence establishes a channel used to continously verify the presence for a
 	// session.
 	MaintainSessionPresence(AuthService_MaintainSessionPresenceServer) error
@@ -13838,11 +15363,11 @@ type AuthServiceServer interface {
 	// GetSessionTracker fetches a session tracker resource.
 	GetSessionTracker(context.Context, *GetSessionTrackerRequest) (*types.SessionTrackerV1, error)
 	// GetActiveSessionTrackers returns a list of active sessions.
-	GetActiveSessionTrackers(*empty.Empty, AuthService_GetActiveSessionTrackersServer) error
+	GetActiveSessionTrackers(*emptypb.Empty, AuthService_GetActiveSessionTrackersServer) error
 	// RemoveSessionTracker removes a session tracker resource.
-	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*empty.Empty, error)
+	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*emptypb.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
-	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*empty.Empty, error)
+	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*emptypb.Empty, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(AuthService_SendKeepAlivesServer) error
 	// WatchEvents returns a new stream of cluster events
@@ -13852,9 +15377,9 @@ type AuthServiceServer interface {
 	// UpsertNode upserts a node in a backend.
 	UpsertNode(context.Context, *types.ServerV2) (*types.KeepAlive, error)
 	// DeleteNode deletes an existing node in a backend described by the given request.
-	DeleteNode(context.Context, *types.ResourceInNamespaceRequest) (*empty.Empty, error)
+	DeleteNode(context.Context, *types.ResourceInNamespaceRequest) (*emptypb.Empty, error)
 	// DeleteAllNodes deletes all nodes.
-	DeleteAllNodes(context.Context, *types.ResourcesInNamespaceRequest) (*empty.Empty, error)
+	DeleteAllNodes(context.Context, *types.ResourcesInNamespaceRequest) (*emptypb.Empty, error)
 	// GenerateUserCerts generates a set of user certificates.
 	GenerateUserCerts(context.Context, *UserCertsRequest) (*Certs, error)
 	// GenerateHostCerts generates a set of host certificates.
@@ -13866,13 +15391,16 @@ type AuthServiceServer interface {
 	// target.
 	IsMFARequired(context.Context, *IsMFARequiredRequest) (*IsMFARequiredResponse, error)
 	// GetAccessRequests gets all pending access requests.
+	// DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
 	GetAccessRequests(context.Context, *types.AccessRequestFilter) (*AccessRequests, error)
+	// GetAccessRequestsV2 gets all pending access requests.
+	GetAccessRequestsV2(*types.AccessRequestFilter, AuthService_GetAccessRequestsV2Server) error
 	// CreateAccessRequest creates a new access request.
-	CreateAccessRequest(context.Context, *types.AccessRequestV3) (*empty.Empty, error)
+	CreateAccessRequest(context.Context, *types.AccessRequestV3) (*emptypb.Empty, error)
 	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(context.Context, *RequestID) (*empty.Empty, error)
+	DeleteAccessRequest(context.Context, *RequestID) (*emptypb.Empty, error)
 	// SetAccessRequestState sets the state of an access request.
-	SetAccessRequestState(context.Context, *RequestStateSetter) (*empty.Empty, error)
+	SetAccessRequestState(context.Context, *RequestStateSetter) (*emptypb.Empty, error)
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(context.Context, *types.AccessReviewSubmission) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilites of a user.
@@ -13880,7 +15408,7 @@ type AuthServiceServer interface {
 	// GetPluginData gets all plugin data matching the supplied filter.
 	GetPluginData(context.Context, *types.PluginDataFilter) (*PluginDataSeq, error)
 	// UpdatePluginData updates a plugin's resource-specific datastore.
-	UpdatePluginData(context.Context, *types.PluginDataUpdateParams) (*empty.Empty, error)
+	UpdatePluginData(context.Context, *types.PluginDataUpdateParams) (*emptypb.Empty, error)
 	// Ping gets basic info about the auth server. This method is intended
 	// to mimic the behavior of the proxy's Ping method, and may be used by
 	// clients for verification or configuration on startup.
@@ -13896,34 +15424,36 @@ type AuthServiceServer interface {
 	// CreateBot creates a new bot user.
 	CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error)
 	// DeleteBot deletes a bot user.
-	DeleteBot(context.Context, *DeleteBotRequest) (*empty.Empty, error)
+	DeleteBot(context.Context, *DeleteBotRequest) (*emptypb.Empty, error)
 	// GetBotUsers gets all users with bot labels.
 	GetBotUsers(*GetBotUsersRequest, AuthService_GetBotUsersServer) error
 	// GetUser gets a user resource by name.
 	GetUser(context.Context, *GetUserRequest) (*types.UserV2, error)
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
-	GetCurrentUser(context.Context, *empty.Empty) (*types.UserV2, error)
+	GetCurrentUser(context.Context, *emptypb.Empty) (*types.UserV2, error)
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(*emptypb.Empty, AuthService_GetCurrentUserRolesServer) error
 	// GetUsers gets all current user resources.
 	GetUsers(*GetUsersRequest, AuthService_GetUsersServer) error
 	// CreateUser inserts a new user entry to a backend.
-	CreateUser(context.Context, *types.UserV2) (*empty.Empty, error)
+	CreateUser(context.Context, *types.UserV2) (*emptypb.Empty, error)
 	// UpdateUser updates an existing user in a backend.
-	UpdateUser(context.Context, *types.UserV2) (*empty.Empty, error)
+	UpdateUser(context.Context, *types.UserV2) (*emptypb.Empty, error)
 	// DeleteUser deletes an existing user in a backend by username.
-	DeleteUser(context.Context, *DeleteUserRequest) (*empty.Empty, error)
+	DeleteUser(context.Context, *DeleteUserRequest) (*emptypb.Empty, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(context.Context, *types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error)
 	// KeepAliveSemaphoreLease updates semaphore lease.
-	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*empty.Empty, error)
+	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
-	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*empty.Empty, error)
+	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
-	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*empty.Empty, error)
+	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, *events.OneOf) (*empty.Empty, error)
+	EmitAuditEvent(context.Context, *events.OneOf) (*emptypb.Empty, error)
 	// CreateAuditStream creates or resumes audit events streams
 	CreateAuditStream(AuthService_CreateAuditStreamServer) error
 	// GetApplicationServers gets all application servers.
@@ -13932,9 +15462,9 @@ type AuthServiceServer interface {
 	// UpsertApplicationServer adds an application server.
 	UpsertApplicationServer(context.Context, *UpsertApplicationServerRequest) (*types.KeepAlive, error)
 	// DeleteApplicationServer removes an application server.
-	DeleteApplicationServer(context.Context, *DeleteApplicationServerRequest) (*empty.Empty, error)
+	DeleteApplicationServer(context.Context, *DeleteApplicationServerRequest) (*emptypb.Empty, error)
 	// DeleteAllApplicationServers removes all application servers.
-	DeleteAllApplicationServers(context.Context, *DeleteAllApplicationServersRequest) (*empty.Empty, error)
+	DeleteAllApplicationServers(context.Context, *DeleteAllApplicationServersRequest) (*emptypb.Empty, error)
 	// GetAppServers gets all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
@@ -13946,76 +15476,76 @@ type AuthServiceServer interface {
 	// DeleteAppServer removes an application server.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*empty.Empty, error)
+	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*emptypb.Empty, error)
 	// DeleteAllAppServers removes all application servers.
 	//
 	// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-	DeleteAllAppServers(context.Context, *DeleteAllAppServersRequest) (*empty.Empty, error)
+	DeleteAllAppServers(context.Context, *DeleteAllAppServersRequest) (*emptypb.Empty, error)
 	// GenerateAppToken will generate a JWT token for application access.
 	GenerateAppToken(context.Context, *GenerateAppTokenRequest) (*GenerateAppTokenResponse, error)
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, *GetAppSessionRequest) (*GetAppSessionResponse, error)
 	// GetAppSessions gets all application web sessions.
-	GetAppSessions(context.Context, *empty.Empty) (*GetAppSessionsResponse, error)
+	GetAppSessions(context.Context, *emptypb.Empty) (*GetAppSessionsResponse, error)
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, *CreateAppSessionRequest) (*CreateAppSessionResponse, error)
 	// DeleteAppSession removes an application web session.
-	DeleteAppSession(context.Context, *DeleteAppSessionRequest) (*empty.Empty, error)
+	DeleteAppSession(context.Context, *DeleteAppSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllAppSessions removes all application web sessions.
-	DeleteAllAppSessions(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllAppSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
-	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*empty.Empty, error)
+	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	GetSnowflakeSessions(context.Context, *empty.Empty) (*GetSnowflakeSessionsResponse, error)
+	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
-	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*empty.Empty, error)
+	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
-	DeleteAllSnowflakeSessions(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllSnowflakeSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
 	// GetWebSessions gets all web sessions.
-	GetWebSessions(context.Context, *empty.Empty) (*GetWebSessionsResponse, error)
+	GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error)
 	// DeleteWebSession deletes a web session.
-	DeleteWebSession(context.Context, *types.DeleteWebSessionRequest) (*empty.Empty, error)
+	DeleteWebSession(context.Context, *types.DeleteWebSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllWebSessions deletes all web sessions.
-	DeleteAllWebSessions(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllWebSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
-	GetWebTokens(context.Context, *empty.Empty) (*GetWebTokensResponse, error)
+	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
-	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*empty.Empty, error)
+	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
-	DeleteAllWebTokens(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllWebTokens(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// UpdateRemoteCluster updates remote cluster
-	UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*empty.Empty, error)
+	UpdateRemoteCluster(context.Context, *types.RemoteClusterV3) (*emptypb.Empty, error)
 	// GetKubeServices gets all kubernetes services.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetKubeServices(context.Context, *GetKubeServicesRequest) (*GetKubeServicesResponse, error)
 	// UpsertKubeService adds or updates a kubernetes service.
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*empty.Empty, error)
+	UpsertKubeService(context.Context, *UpsertKubeServiceRequest) (*emptypb.Empty, error)
 	// UpsertKubeServiceV2 adds or updates a kubernetes service.
 	UpsertKubeServiceV2(context.Context, *UpsertKubeServiceRequest) (*types.KeepAlive, error)
 	// DeleteKubeService removes a kubernetes service.
-	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*empty.Empty, error)
+	DeleteKubeService(context.Context, *DeleteKubeServiceRequest) (*emptypb.Empty, error)
 	// DeleteAllKubeServices removes all kubernetes services.
-	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*empty.Empty, error)
+	DeleteAllKubeServices(context.Context, *DeleteAllKubeServicesRequest) (*emptypb.Empty, error)
 	// GetDatabaseServers returns all registered database proxy servers.
 	// DELETE IN 10.0. Deprecated, use ListResources.
 	GetDatabaseServers(context.Context, *GetDatabaseServersRequest) (*GetDatabaseServersResponse, error)
 	// UpsertDatabaseServer registers a new database proxy server.
 	UpsertDatabaseServer(context.Context, *UpsertDatabaseServerRequest) (*types.KeepAlive, error)
 	// DeleteDatabaseServer removes the specified database proxy server.
-	DeleteDatabaseServer(context.Context, *DeleteDatabaseServerRequest) (*empty.Empty, error)
+	DeleteDatabaseServer(context.Context, *DeleteDatabaseServerRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabaseServers removes all registered database proxy servers.
-	DeleteAllDatabaseServers(context.Context, *DeleteAllDatabaseServersRequest) (*empty.Empty, error)
+	DeleteAllDatabaseServers(context.Context, *DeleteAllDatabaseServersRequest) (*emptypb.Empty, error)
 	// SignDatabaseCSR generates client certificate used by proxy to
 	// authenticate with a remote database service.
 	SignDatabaseCSR(context.Context, *DatabaseCSRRequest) (*DatabaseCSRResponse, error)
@@ -14027,11 +15557,11 @@ type AuthServiceServer interface {
 	// GetRole retrieves a role described by the given request.
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV5, error)
 	// GetRole retrieves all roles.
-	GetRoles(context.Context, *empty.Empty) (*GetRolesResponse, error)
+	GetRoles(context.Context, *emptypb.Empty) (*GetRolesResponse, error)
 	// UpsertRole upserts a role in a backend.
-	UpsertRole(context.Context, *types.RoleV5) (*empty.Empty, error)
+	UpsertRole(context.Context, *types.RoleV5) (*emptypb.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
-	DeleteRole(context.Context, *DeleteRoleRequest) (*empty.Empty, error)
+	DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error)
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
 	// The RPC is streaming both ways and the message sequence is:
@@ -14055,7 +15585,7 @@ type AuthServiceServer interface {
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(context.Context, *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
-	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*empty.Empty, error)
+	DeleteMFADeviceSync(context.Context, *DeleteMFADeviceSyncRequest) (*emptypb.Empty, error)
 	// GetMFADevices returns all MFA devices registered for the user calling
 	// this RPC.
 	GetMFADevices(context.Context, *GetMFADevicesRequest) (*GetMFADevicesResponse, error)
@@ -14069,61 +15599,79 @@ type AuthServiceServer interface {
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
 	// UpsertOIDCConnector upserts an OIDC connector in a backend.
-	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV3) (*empty.Empty, error)
+	UpsertOIDCConnector(context.Context, *types.OIDCConnectorV3) (*emptypb.Empty, error)
 	// DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
-	DeleteOIDCConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteOIDCConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	// CreateOIDCAuthRequest creates OIDCAuthRequest.
+	CreateOIDCAuthRequest(context.Context, *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
+	// GetOIDCAuthRequest returns OIDC auth request if found.
+	GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
 	// UpsertSAMLConnector upserts a SAML connector in a backend.
-	UpsertSAMLConnector(context.Context, *types.SAMLConnectorV2) (*empty.Empty, error)
+	UpsertSAMLConnector(context.Context, *types.SAMLConnectorV2) (*emptypb.Empty, error)
 	// DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
-	DeleteSAMLConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteSAMLConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	// CreateSAMLAuthRequest creates SAMLAuthRequest.
+	CreateSAMLAuthRequest(context.Context, *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
+	// GetSAMLAuthRequest returns SAML auth request if found.
+	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
 	// UpsertGithubConnector upserts a Github connector in a backend.
-	UpsertGithubConnector(context.Context, *types.GithubConnectorV3) (*empty.Empty, error)
+	UpsertGithubConnector(context.Context, *types.GithubConnectorV3) (*emptypb.Empty, error)
 	// DeleteGithubConnector deletes an existing Github connector in a backend by name.
-	DeleteGithubConnector(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteGithubConnector(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
+	// CreateGithubAuthRequest creates GithubAuthRequest.
+	CreateGithubAuthRequest(context.Context, *types.GithubAuthRequest) (*types.GithubAuthRequest, error)
+	// GetGithubAuthRequest returns Github auth request if found.
+	GetGithubAuthRequest(context.Context, *GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error)
+	// GetSSODiagnosticInfo returns SSO diagnostic info records.
+	GetSSODiagnosticInfo(context.Context, *GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	GetTrustedClusters(context.Context, *empty.Empty) (*types.TrustedClusterV2List, error)
+	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
-	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
 	// GetToken retrieves all tokens.
-	GetTokens(context.Context, *empty.Empty) (*types.ProvisionTokenV2List, error)
+	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	UpsertToken(context.Context, *types.ProvisionTokenV2) (*empty.Empty, error)
+	UpsertToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
+	// CreateToken creates a token in a backend.
+	CreateToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
+	// GenerateToken generates a new auth token.
+	GenerateToken(context.Context, *GenerateTokenRequest) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
-	DeleteToken(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteToken(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetClusterAuditConfig gets cluster audit configuration.
-	GetClusterAuditConfig(context.Context, *empty.Empty) (*types.ClusterAuditConfigV2, error)
+	GetClusterAuditConfig(context.Context, *emptypb.Empty) (*types.ClusterAuditConfigV2, error)
 	// GetClusterNetworkingConfig gets cluster networking configuration.
-	GetClusterNetworkingConfig(context.Context, *empty.Empty) (*types.ClusterNetworkingConfigV2, error)
+	GetClusterNetworkingConfig(context.Context, *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error)
 	// SetClusterNetworkingConfig sets cluster networking configuration.
-	SetClusterNetworkingConfig(context.Context, *types.ClusterNetworkingConfigV2) (*empty.Empty, error)
+	SetClusterNetworkingConfig(context.Context, *types.ClusterNetworkingConfigV2) (*emptypb.Empty, error)
 	// ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
-	ResetClusterNetworkingConfig(context.Context, *empty.Empty) (*empty.Empty, error)
+	ResetClusterNetworkingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetSessionRecordingConfig gets session recording configuration.
-	GetSessionRecordingConfig(context.Context, *empty.Empty) (*types.SessionRecordingConfigV2, error)
+	GetSessionRecordingConfig(context.Context, *emptypb.Empty) (*types.SessionRecordingConfigV2, error)
 	// SetSessionRecordingConfig sets session recording configuration.
-	SetSessionRecordingConfig(context.Context, *types.SessionRecordingConfigV2) (*empty.Empty, error)
+	SetSessionRecordingConfig(context.Context, *types.SessionRecordingConfigV2) (*emptypb.Empty, error)
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
-	ResetSessionRecordingConfig(context.Context, *empty.Empty) (*empty.Empty, error)
+	ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetAuthPreference gets cluster auth preference.
-	GetAuthPreference(context.Context, *empty.Empty) (*types.AuthPreferenceV2, error)
+	GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error)
 	// SetAuthPreference sets cluster auth preference.
-	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*empty.Empty, error)
+	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
-	ResetAuthPreference(context.Context, *empty.Empty) (*empty.Empty, error)
+	ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(context.Context, *GetEventsRequest) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -14133,66 +15681,66 @@ type AuthServiceServer interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
 	// UpsertLock upserts a lock.
-	UpsertLock(context.Context, *types.LockV2) (*empty.Empty, error)
+	UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
-	DeleteLock(context.Context, *DeleteLockRequest) (*empty.Empty, error)
+	DeleteLock(context.Context, *DeleteLockRequest) (*emptypb.Empty, error)
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
-	ReplaceRemoteLocks(context.Context, *ReplaceRemoteLocksRequest) (*empty.Empty, error)
+	ReplaceRemoteLocks(context.Context, *ReplaceRemoteLocksRequest) (*emptypb.Empty, error)
 	// StreamSessionEvents streams audit events from a given session recording.
 	StreamSessionEvents(*StreamSessionEventsRequest, AuthService_StreamSessionEventsServer) error
 	// GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
-	GetNetworkRestrictions(context.Context, *empty.Empty) (*types.NetworkRestrictionsV4, error)
+	GetNetworkRestrictions(context.Context, *emptypb.Empty) (*types.NetworkRestrictionsV4, error)
 	// SetNetworkRestrictions updates the network restrictions.
-	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*empty.Empty, error)
+	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
-	DeleteNetworkRestrictions(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetApps returns all registered applications.
-	GetApps(context.Context, *empty.Empty) (*types.AppV3List, error)
+	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// GetApp returns an application by name.
 	GetApp(context.Context, *types.ResourceRequest) (*types.AppV3, error)
 	// CreateApp creates a new application resource.
-	CreateApp(context.Context, *types.AppV3) (*empty.Empty, error)
+	CreateApp(context.Context, *types.AppV3) (*emptypb.Empty, error)
 	// UpdateApp updates existing application resource.
-	UpdateApp(context.Context, *types.AppV3) (*empty.Empty, error)
+	UpdateApp(context.Context, *types.AppV3) (*emptypb.Empty, error)
 	// DeleteApp removes specified application resource.
-	DeleteApp(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
-	DeleteAllApps(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetDatabases returns all registered databases.
-	GetDatabases(context.Context, *empty.Empty) (*types.DatabaseV3List, error)
+	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
-	CreateDatabase(context.Context, *types.DatabaseV3) (*empty.Empty, error)
+	CreateDatabase(context.Context, *types.DatabaseV3) (*emptypb.Empty, error)
 	// UpdateDatabase updates existing database resource.
-	UpdateDatabase(context.Context, *types.DatabaseV3) (*empty.Empty, error)
+	UpdateDatabase(context.Context, *types.DatabaseV3) (*emptypb.Empty, error)
 	// DeleteDatabase removes specified database resource.
-	DeleteDatabase(context.Context, *types.ResourceRequest) (*empty.Empty, error)
+	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
-	DeleteAllDatabases(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
-	GetWindowsDesktopServices(context.Context, *empty.Empty) (*GetWindowsDesktopServicesResponse, error)
+	GetWindowsDesktopServices(context.Context, *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error)
 	GetWindowsDesktopService(context.Context, *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error)
 	// UpsertWindowsDesktopService registers a new Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, *types.WindowsDesktopServiceV3) (*types.KeepAlive, error)
 	// DeleteWindowsDesktopService removes the specified Windows desktop service.
-	DeleteWindowsDesktopService(context.Context, *DeleteWindowsDesktopServiceRequest) (*empty.Empty, error)
+	DeleteWindowsDesktopService(context.Context, *DeleteWindowsDesktopServiceRequest) (*emptypb.Empty, error)
 	// DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
-	DeleteAllWindowsDesktopServices(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllWindowsDesktopServices(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
 	GetWindowsDesktops(context.Context, *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error)
 	// CreateWindowsDesktop registers a new Windows desktop host.
-	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
+	CreateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
 	// UpdateWindowsDesktop updates an existing Windows desktop host.
-	UpdateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
+	UpdateWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
 	// UpsertWindowsDesktop updates a Windows desktop host, creating it if it doesn't exist.
-	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*empty.Empty, error)
+	UpsertWindowsDesktop(context.Context, *types.WindowsDesktopV3) (*emptypb.Empty, error)
 	// DeleteWindowsDesktop removes the specified Windows desktop host.
 	// Unlike GetWindowsDesktops, this call will delete at-most 1 desktop.
 	// To delete all desktops, use DeleteAllWindowsDesktops.
-	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*empty.Empty, error)
+	DeleteWindowsDesktop(context.Context, *DeleteWindowsDesktopRequest) (*emptypb.Empty, error)
 	// DeleteAllWindowsDesktops removes all registered Windows desktop hosts.
-	DeleteAllWindowsDesktops(context.Context, *empty.Empty) (*empty.Empty, error)
+	DeleteAllWindowsDesktops(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GenerateWindowsDesktopCert generates client smartcard certificate used
 	// by an RDP client to authenticate with Windows.
 	GenerateWindowsDesktopCert(context.Context, *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error)
@@ -14241,7 +15789,7 @@ type AuthServiceServer interface {
 	// password or adds a new mfa device, allowing the user to regain access to their account with
 	// the new credentials. When the new authentication is successfully set, any user lock is
 	// removed so the user can login immediately afterwards.
-	CompleteAccountRecovery(context.Context, *CompleteAccountRecoveryRequest) (*empty.Empty, error)
+	CompleteAccountRecovery(context.Context, *CompleteAccountRecoveryRequest) (*emptypb.Empty, error)
 	// CreateAccountRecoveryCodes (exclusive to cloud users) creates new set of recovery codes for a
 	// user, replacing and invalidating any previously owned codes. Users can only get recovery
 	// codes if their username is in a valid email format.
@@ -14263,17 +15811,30 @@ type AuthServiceServer interface {
 	// ListResources retrieves a paginated list of resources.
 	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
 	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName(context.Context, *empty.Empty) (*GetDomainNameResponse, error)
+	GetDomainName(context.Context, *emptypb.Empty) (*GetDomainNameResponse, error)
 	// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
 	// without signing keys. If the cluster has multiple TLS certs, they will
 	// all be appended.
-	GetClusterCACert(context.Context, *empty.Empty) (*GetClusterCACertResponse, error)
+	GetClusterCACert(context.Context, *emptypb.Empty) (*GetClusterCACertResponse, error)
+	// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+	// instances to prove that they hold a given system role.
+	// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+	UnstableAssertSystemRole(context.Context, *UnstableSystemRoleAssertion) (*emptypb.Empty, error)
 }
 
 // UnimplementedAuthServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedAuthServiceServer struct {
 }
 
+func (*UnimplementedAuthServiceServer) InventoryControlStream(srv AuthService_InventoryControlStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method InventoryControlStream not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetInventoryStatus(ctx context.Context, req *InventoryStatusRequest) (*InventoryStatusSummary, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInventoryStatus not implemented")
+}
+func (*UnimplementedAuthServiceServer) PingInventory(ctx context.Context, req *InventoryPingRequest) (*InventoryPingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PingInventory not implemented")
+}
 func (*UnimplementedAuthServiceServer) MaintainSessionPresence(srv AuthService_MaintainSessionPresenceServer) error {
 	return status.Errorf(codes.Unimplemented, "method MaintainSessionPresence not implemented")
 }
@@ -14283,13 +15844,13 @@ func (*UnimplementedAuthServiceServer) CreateSessionTracker(ctx context.Context,
 func (*UnimplementedAuthServiceServer) GetSessionTracker(ctx context.Context, req *GetSessionTrackerRequest) (*types.SessionTrackerV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionTracker not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetActiveSessionTrackers(req *empty.Empty, srv AuthService_GetActiveSessionTrackersServer) error {
+func (*UnimplementedAuthServiceServer) GetActiveSessionTrackers(req *emptypb.Empty, srv AuthService_GetActiveSessionTrackersServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetActiveSessionTrackers not implemented")
 }
-func (*UnimplementedAuthServiceServer) RemoveSessionTracker(ctx context.Context, req *RemoveSessionTrackerRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) RemoveSessionTracker(ctx context.Context, req *RemoveSessionTrackerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveSessionTracker not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateSessionTracker(ctx context.Context, req *UpdateSessionTrackerRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateSessionTracker(ctx context.Context, req *UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSessionTracker not implemented")
 }
 func (*UnimplementedAuthServiceServer) SendKeepAlives(srv AuthService_SendKeepAlivesServer) error {
@@ -14304,10 +15865,10 @@ func (*UnimplementedAuthServiceServer) GetNode(ctx context.Context, req *types.R
 func (*UnimplementedAuthServiceServer) UpsertNode(ctx context.Context, req *types.ServerV2) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertNode not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNode not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllNodes(ctx context.Context, req *types.ResourcesInNamespaceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllNodes not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateUserCerts(ctx context.Context, req *UserCertsRequest) (*Certs, error) {
@@ -14325,13 +15886,16 @@ func (*UnimplementedAuthServiceServer) IsMFARequired(ctx context.Context, req *I
 func (*UnimplementedAuthServiceServer) GetAccessRequests(ctx context.Context, req *types.AccessRequestFilter) (*AccessRequests, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequests not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) GetAccessRequestsV2(req *types.AccessRequestFilter, srv AuthService_GetAccessRequestsV2Server) error {
+	return status.Errorf(codes.Unimplemented, "method GetAccessRequestsV2 not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessRequest not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAccessRequest(ctx context.Context, req *RequestID) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAccessRequest(ctx context.Context, req *RequestID) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAccessRequest not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetAccessRequestState(ctx context.Context, req *RequestStateSetter) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetAccessRequestState(ctx context.Context, req *RequestStateSetter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAccessRequestState not implemented")
 }
 func (*UnimplementedAuthServiceServer) SubmitAccessReview(ctx context.Context, req *types.AccessReviewSubmission) (*types.AccessRequestV3, error) {
@@ -14343,7 +15907,7 @@ func (*UnimplementedAuthServiceServer) GetAccessCapabilities(ctx context.Context
 func (*UnimplementedAuthServiceServer) GetPluginData(ctx context.Context, req *types.PluginDataFilter) (*PluginDataSeq, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPluginData not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdatePluginData(ctx context.Context, req *types.PluginDataUpdateParams) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdatePluginData(ctx context.Context, req *types.PluginDataUpdateParams) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePluginData not implemented")
 }
 func (*UnimplementedAuthServiceServer) Ping(ctx context.Context, req *PingRequest) (*PingResponse, error) {
@@ -14361,7 +15925,7 @@ func (*UnimplementedAuthServiceServer) CreateResetPasswordToken(ctx context.Cont
 func (*UnimplementedAuthServiceServer) CreateBot(ctx context.Context, req *CreateBotRequest) (*CreateBotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateBot not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteBot(ctx context.Context, req *DeleteBotRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteBot(ctx context.Context, req *DeleteBotRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteBot not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetBotUsers(req *GetBotUsersRequest, srv AuthService_GetBotUsersServer) error {
@@ -14370,37 +15934,40 @@ func (*UnimplementedAuthServiceServer) GetBotUsers(req *GetBotUsersRequest, srv 
 func (*UnimplementedAuthServiceServer) GetUser(ctx context.Context, req *GetUserRequest) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetCurrentUser(ctx context.Context, req *empty.Empty) (*types.UserV2, error) {
+func (*UnimplementedAuthServiceServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentUser not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetCurrentUserRoles(req *emptypb.Empty, srv AuthService_GetCurrentUserRolesServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetCurrentUserRoles not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetUsers(req *GetUsersRequest, srv AuthService_GetUsersServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateUser(ctx context.Context, req *types.UserV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateUser(ctx context.Context, req *types.UserV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUser not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteUser(ctx context.Context, req *DeleteUserRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
 }
 func (*UnimplementedAuthServiceServer) AcquireSemaphore(ctx context.Context, req *types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AcquireSemaphore not implemented")
 }
-func (*UnimplementedAuthServiceServer) KeepAliveSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) KeepAliveSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method KeepAliveSemaphoreLease not implemented")
 }
-func (*UnimplementedAuthServiceServer) CancelSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CancelSemaphoreLease(ctx context.Context, req *types.SemaphoreLease) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelSemaphoreLease not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
 }
-func (*UnimplementedAuthServiceServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EmitAuditEvent not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAuditStream(srv AuthService_CreateAuditStreamServer) error {
@@ -14412,10 +15979,10 @@ func (*UnimplementedAuthServiceServer) GetApplicationServers(ctx context.Context
 func (*UnimplementedAuthServiceServer) UpsertApplicationServer(ctx context.Context, req *UpsertApplicationServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertApplicationServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteApplicationServer(ctx context.Context, req *DeleteApplicationServerRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteApplicationServer(ctx context.Context, req *DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteApplicationServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllApplicationServers(ctx context.Context, req *DeleteAllApplicationServersRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllApplicationServers(ctx context.Context, req *DeleteAllApplicationServersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApplicationServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetAppServers(ctx context.Context, req *GetAppServersRequest) (*GetAppServersResponse, error) {
@@ -14424,10 +15991,10 @@ func (*UnimplementedAuthServiceServer) GetAppServers(ctx context.Context, req *G
 func (*UnimplementedAuthServiceServer) UpsertAppServer(ctx context.Context, req *UpsertAppServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAppServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAppServer(ctx context.Context, req *DeleteAppServerRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAppServer(ctx context.Context, req *DeleteAppServerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAppServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllAppServers(ctx context.Context, req *DeleteAllAppServersRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllAppServers(ctx context.Context, req *DeleteAllAppServersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAppServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateAppToken(ctx context.Context, req *GenerateAppTokenRequest) (*GenerateAppTokenResponse, error) {
@@ -14436,19 +16003,19 @@ func (*UnimplementedAuthServiceServer) GenerateAppToken(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetAppSession(ctx context.Context, req *GetAppSessionRequest) (*GetAppSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetAppSessions(ctx context.Context, req *empty.Empty) (*GetAppSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetAppSessions(ctx context.Context, req *emptypb.Empty) (*GetAppSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAppSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAppSession(ctx context.Context, req *CreateAppSessionRequest) (*CreateAppSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAppSession(ctx context.Context, req *DeleteAppSessionRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAppSession(ctx context.Context, req *DeleteAppSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAppSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllAppSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllAppSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAppSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteUserAppSessions(ctx context.Context, req *DeleteUserAppSessionsRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteUserAppSessions(ctx context.Context, req *DeleteUserAppSessionsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserAppSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateSnowflakeSession(ctx context.Context, req *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error) {
@@ -14457,55 +16024,55 @@ func (*UnimplementedAuthServiceServer) CreateSnowflakeSession(ctx context.Contex
 func (*UnimplementedAuthServiceServer) GetSnowflakeSession(ctx context.Context, req *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetSnowflakeSessions(ctx context.Context, req *empty.Empty) (*GetSnowflakeSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetSnowflakeSessions(ctx context.Context, req *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSnowflakeSession(ctx context.Context, req *DeleteSnowflakeSessionRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSnowflakeSession(ctx context.Context, req *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllSnowflakeSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllSnowflakeSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllSnowflakeSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWebSession(ctx context.Context, req *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWebSessions(ctx context.Context, req *empty.Empty) (*GetWebSessionsResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWebSessions(ctx context.Context, req *emptypb.Empty) (*GetWebSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSessions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWebSession(ctx context.Context, req *types.DeleteWebSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebSession not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWebSessions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWebSessions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWebSessions not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequest) (*GetWebTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWebTokens(ctx context.Context, req *empty.Empty) (*GetWebTokensResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWebTokens(ctx context.Context, req *emptypb.Empty) (*GetWebTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWebTokens(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWebTokens(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWebTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRemoteCluster not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetKubeServices(ctx context.Context, req *GetKubeServicesRequest) (*GetKubeServicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubeServices not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertKubeService(ctx context.Context, req *UpsertKubeServiceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertKubeService(ctx context.Context, req *UpsertKubeServiceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeService not implemented")
 }
 func (*UnimplementedAuthServiceServer) UpsertKubeServiceV2(ctx context.Context, req *UpsertKubeServiceRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertKubeServiceV2 not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteKubeService(ctx context.Context, req *DeleteKubeServiceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteKubeService(ctx context.Context, req *DeleteKubeServiceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteKubeService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllKubeServices(ctx context.Context, req *DeleteAllKubeServicesRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllKubeServices(ctx context.Context, req *DeleteAllKubeServicesRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllKubeServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetDatabaseServers(ctx context.Context, req *GetDatabaseServersRequest) (*GetDatabaseServersResponse, error) {
@@ -14514,10 +16081,10 @@ func (*UnimplementedAuthServiceServer) GetDatabaseServers(ctx context.Context, r
 func (*UnimplementedAuthServiceServer) UpsertDatabaseServer(ctx context.Context, req *UpsertDatabaseServerRequest) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertDatabaseServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteDatabaseServer(ctx context.Context, req *DeleteDatabaseServerRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteDatabaseServer(ctx context.Context, req *DeleteDatabaseServerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDatabaseServer not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllDatabaseServers(ctx context.Context, req *DeleteAllDatabaseServersRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllDatabaseServers(ctx context.Context, req *DeleteAllDatabaseServersRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllDatabaseServers not implemented")
 }
 func (*UnimplementedAuthServiceServer) SignDatabaseCSR(ctx context.Context, req *DatabaseCSRRequest) (*DatabaseCSRResponse, error) {
@@ -14532,13 +16099,13 @@ func (*UnimplementedAuthServiceServer) GenerateSnowflakeJWT(ctx context.Context,
 func (*UnimplementedAuthServiceServer) GetRole(ctx context.Context, req *GetRoleRequest) (*types.RoleV5, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRole not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *empty.Empty) (*GetRolesResponse, error) {
+func (*UnimplementedAuthServiceServer) GetRoles(ctx context.Context, req *emptypb.Empty) (*GetRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRoles not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertRole(ctx context.Context, req *types.RoleV5) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteRole(ctx context.Context, req *DeleteRoleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRole not implemented")
 }
 func (*UnimplementedAuthServiceServer) AddMFADevice(srv AuthService_AddMFADeviceServer) error {
@@ -14550,7 +16117,7 @@ func (*UnimplementedAuthServiceServer) DeleteMFADevice(srv AuthService_DeleteMFA
 func (*UnimplementedAuthServiceServer) AddMFADeviceSync(ctx context.Context, req *AddMFADeviceSyncRequest) (*AddMFADeviceSyncResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMFADeviceSync not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteMFADeviceSync(ctx context.Context, req *DeleteMFADeviceSyncRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteMFADeviceSync(ctx context.Context, req *DeleteMFADeviceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteMFADeviceSync not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetMFADevices(ctx context.Context, req *GetMFADevicesRequest) (*GetMFADevicesResponse, error) {
@@ -14568,11 +16135,17 @@ func (*UnimplementedAuthServiceServer) GetOIDCConnector(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertOIDCConnector(ctx context.Context, req *types.OIDCConnectorV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertOIDCConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteOIDCConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteOIDCConnector not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateOIDCAuthRequest(ctx context.Context, req *types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateOIDCAuthRequest not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetOIDCAuthRequest(ctx context.Context, req *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCAuthRequest not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnector not implemented")
@@ -14580,11 +16153,17 @@ func (*UnimplementedAuthServiceServer) GetSAMLConnector(ctx context.Context, req
 func (*UnimplementedAuthServiceServer) GetSAMLConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertSAMLConnector(ctx context.Context, req *types.SAMLConnectorV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertSAMLConnector(ctx context.Context, req *types.SAMLConnectorV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertSAMLConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteSAMLConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteSAMLConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSAMLConnector not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateSAMLAuthRequest(ctx context.Context, req *types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLAuthRequest not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetSAMLAuthRequest(ctx context.Context, req *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLAuthRequest not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetGithubConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnector not implemented")
@@ -14592,64 +16171,79 @@ func (*UnimplementedAuthServiceServer) GetGithubConnector(ctx context.Context, r
 func (*UnimplementedAuthServiceServer) GetGithubConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertGithubConnector(ctx context.Context, req *types.GithubConnectorV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertGithubConnector(ctx context.Context, req *types.GithubConnectorV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertGithubConnector not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteGithubConnector(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteGithubConnector(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGithubConnector not implemented")
+}
+func (*UnimplementedAuthServiceServer) CreateGithubAuthRequest(ctx context.Context, req *types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubAuthRequest not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetGithubAuthRequest(ctx context.Context, req *GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGithubAuthRequest not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetSSODiagnosticInfo(ctx context.Context, req *GetSSODiagnosticInfoRequest) (*types.SSODiagnosticInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSSODiagnosticInfo not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedCluster not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetTrustedClusters(ctx context.Context, req *empty.Empty) (*types.TrustedClusterV2List, error) {
+func (*UnimplementedAuthServiceServer) GetTrustedClusters(ctx context.Context, req *emptypb.Empty) (*types.TrustedClusterV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedClusters not implemented")
 }
 func (*UnimplementedAuthServiceServer) UpsertTrustedCluster(ctx context.Context, req *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertTrustedCluster not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTrustedCluster not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetToken(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetTokens(ctx context.Context, req *empty.Empty) (*types.ProvisionTokenV2List, error) {
+func (*UnimplementedAuthServiceServer) GetTokens(ctx context.Context, req *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertToken(ctx context.Context, req *types.ProvisionTokenV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertToken(ctx context.Context, req *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateToken(ctx context.Context, req *types.ProvisionTokenV2) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateToken not implemented")
+}
+func (*UnimplementedAuthServiceServer) GenerateToken(ctx context.Context, req *GenerateTokenRequest) (*GenerateTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateToken not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteToken(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteToken not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterAuditConfig(ctx context.Context, req *empty.Empty) (*types.ClusterAuditConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetClusterAuditConfig(ctx context.Context, req *emptypb.Empty) (*types.ClusterAuditConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAuditConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterNetworkingConfig(ctx context.Context, req *empty.Empty) (*types.ClusterNetworkingConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetClusterNetworkingConfig(ctx context.Context, req *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetClusterNetworkingConfig(ctx context.Context, req *types.ClusterNetworkingConfigV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetClusterNetworkingConfig(ctx context.Context, req *types.ClusterNetworkingConfigV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetClusterNetworkingConfig(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetClusterNetworkingConfig(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetClusterNetworkingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetSessionRecordingConfig(ctx context.Context, req *empty.Empty) (*types.SessionRecordingConfigV2, error) {
+func (*UnimplementedAuthServiceServer) GetSessionRecordingConfig(ctx context.Context, req *emptypb.Empty) (*types.SessionRecordingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetSessionRecordingConfig(ctx context.Context, req *types.SessionRecordingConfigV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetSessionRecordingConfig(ctx context.Context, req *types.SessionRecordingConfigV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetSessionRecordingConfig(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetSessionRecordingConfig(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetAuthPreference(ctx context.Context, req *empty.Empty) (*types.AuthPreferenceV2, error) {
+func (*UnimplementedAuthServiceServer) GetAuthPreference(ctx context.Context, req *emptypb.Empty) (*types.AuthPreferenceV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetAuthPreference(ctx context.Context, req *types.AuthPreferenceV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetAuthPreference(ctx context.Context, req *types.AuthPreferenceV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetAuthPreference not implemented")
 }
-func (*UnimplementedAuthServiceServer) ResetAuthPreference(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) ResetAuthPreference(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetEvents(ctx context.Context, req *GetEventsRequest) (*Events, error) {
@@ -14664,64 +16258,64 @@ func (*UnimplementedAuthServiceServer) GetLock(ctx context.Context, req *GetLock
 func (*UnimplementedAuthServiceServer) GetLocks(ctx context.Context, req *GetLocksRequest) (*GetLocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLocks not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertLock(ctx context.Context, req *types.LockV2) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertLock(ctx context.Context, req *types.LockV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertLock not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteLock(ctx context.Context, req *DeleteLockRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteLock(ctx context.Context, req *DeleteLockRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLock not implemented")
 }
-func (*UnimplementedAuthServiceServer) ReplaceRemoteLocks(ctx context.Context, req *ReplaceRemoteLocksRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) ReplaceRemoteLocks(ctx context.Context, req *ReplaceRemoteLocksRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaceRemoteLocks not implemented")
 }
 func (*UnimplementedAuthServiceServer) StreamSessionEvents(req *StreamSessionEventsRequest, srv AuthService_StreamSessionEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method StreamSessionEvents not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetNetworkRestrictions(ctx context.Context, req *empty.Empty) (*types.NetworkRestrictionsV4, error) {
+func (*UnimplementedAuthServiceServer) GetNetworkRestrictions(ctx context.Context, req *emptypb.Empty) (*types.NetworkRestrictionsV4, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) SetNetworkRestrictions(ctx context.Context, req *types.NetworkRestrictionsV4) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) SetNetworkRestrictions(ctx context.Context, req *types.NetworkRestrictionsV4) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteNetworkRestrictions(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteNetworkRestrictions(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteNetworkRestrictions not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetApps(ctx context.Context, req *empty.Empty) (*types.AppV3List, error) {
+func (*UnimplementedAuthServiceServer) GetApps(ctx context.Context, req *emptypb.Empty) (*types.AppV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateApp(ctx context.Context, req *types.AppV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateApp(ctx context.Context, req *types.AppV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateApp(ctx context.Context, req *types.AppV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteApp not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllApps(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllApps(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllApps not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetDatabases(ctx context.Context, req *empty.Empty) (*types.DatabaseV3List, error) {
+func (*UnimplementedAuthServiceServer) GetDatabases(ctx context.Context, req *emptypb.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetDatabase(ctx context.Context, req *types.ResourceRequest) (*types.DatabaseV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateDatabase(ctx context.Context, req *types.DatabaseV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateDatabase(ctx context.Context, req *types.DatabaseV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateDatabase(ctx context.Context, req *types.DatabaseV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateDatabase(ctx context.Context, req *types.DatabaseV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteDatabase(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDatabase not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllDatabases(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllDatabases(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllDatabases not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*GetWindowsDesktopServicesResponse, error) {
+func (*UnimplementedAuthServiceServer) GetWindowsDesktopServices(ctx context.Context, req *emptypb.Empty) (*GetWindowsDesktopServicesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktopServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWindowsDesktopService(ctx context.Context, req *GetWindowsDesktopServiceRequest) (*GetWindowsDesktopServiceResponse, error) {
@@ -14730,28 +16324,28 @@ func (*UnimplementedAuthServiceServer) GetWindowsDesktopService(ctx context.Cont
 func (*UnimplementedAuthServiceServer) UpsertWindowsDesktopService(ctx context.Context, req *types.WindowsDesktopServiceV3) (*types.KeepAlive, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktopService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWindowsDesktopService(ctx context.Context, req *DeleteWindowsDesktopServiceRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWindowsDesktopService(ctx context.Context, req *DeleteWindowsDesktopServiceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWindowsDesktopService not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktopServices(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktopServices not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetWindowsDesktops(ctx context.Context, req *types.WindowsDesktopFilter) (*GetWindowsDesktopsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsDesktops not implemented")
 }
-func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CreateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpdateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpdateWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) UpsertWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) UpsertWindowsDesktop(ctx context.Context, req *types.WindowsDesktopV3) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteWindowsDesktop(ctx context.Context, req *DeleteWindowsDesktopRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteWindowsDesktop(ctx context.Context, req *DeleteWindowsDesktopRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWindowsDesktop not implemented")
 }
-func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktops(ctx context.Context, req *empty.Empty) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) DeleteAllWindowsDesktops(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllWindowsDesktops not implemented")
 }
 func (*UnimplementedAuthServiceServer) GenerateWindowsDesktopCert(ctx context.Context, req *WindowsDesktopCertRequest) (*WindowsDesktopCertResponse, error) {
@@ -14769,7 +16363,7 @@ func (*UnimplementedAuthServiceServer) StartAccountRecovery(ctx context.Context,
 func (*UnimplementedAuthServiceServer) VerifyAccountRecovery(ctx context.Context, req *VerifyAccountRecoveryRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyAccountRecovery not implemented")
 }
-func (*UnimplementedAuthServiceServer) CompleteAccountRecovery(ctx context.Context, req *CompleteAccountRecoveryRequest) (*empty.Empty, error) {
+func (*UnimplementedAuthServiceServer) CompleteAccountRecovery(ctx context.Context, req *CompleteAccountRecoveryRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteAccountRecovery not implemented")
 }
 func (*UnimplementedAuthServiceServer) CreateAccountRecoveryCodes(ctx context.Context, req *CreateAccountRecoveryCodesRequest) (*RecoveryCodes, error) {
@@ -14787,15 +16381,80 @@ func (*UnimplementedAuthServiceServer) CreatePrivilegeToken(ctx context.Context,
 func (*UnimplementedAuthServiceServer) ListResources(ctx context.Context, req *ListResourcesRequest) (*ListResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListResources not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetDomainName(ctx context.Context, req *empty.Empty) (*GetDomainNameResponse, error) {
+func (*UnimplementedAuthServiceServer) GetDomainName(ctx context.Context, req *emptypb.Empty) (*GetDomainNameResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDomainName not implemented")
 }
-func (*UnimplementedAuthServiceServer) GetClusterCACert(ctx context.Context, req *empty.Empty) (*GetClusterCACertResponse, error) {
+func (*UnimplementedAuthServiceServer) GetClusterCACert(ctx context.Context, req *emptypb.Empty) (*GetClusterCACertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterCACert not implemented")
+}
+func (*UnimplementedAuthServiceServer) UnstableAssertSystemRole(ctx context.Context, req *UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnstableAssertSystemRole not implemented")
 }
 
 func RegisterAuthServiceServer(s *grpc.Server, srv AuthServiceServer) {
 	s.RegisterService(&_AuthService_serviceDesc, srv)
+}
+
+func _AuthService_InventoryControlStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AuthServiceServer).InventoryControlStream(&authServiceInventoryControlStreamServer{stream})
+}
+
+type AuthService_InventoryControlStreamServer interface {
+	Send(*DownstreamInventoryOneOf) error
+	Recv() (*UpstreamInventoryOneOf, error)
+	grpc.ServerStream
+}
+
+type authServiceInventoryControlStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceInventoryControlStreamServer) Send(m *DownstreamInventoryOneOf) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *authServiceInventoryControlStreamServer) Recv() (*UpstreamInventoryOneOf, error) {
+	m := new(UpstreamInventoryOneOf)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _AuthService_GetInventoryStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InventoryStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetInventoryStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetInventoryStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetInventoryStatus(ctx, req.(*InventoryStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_PingInventory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InventoryPingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).PingInventory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/PingInventory",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).PingInventory(ctx, req.(*InventoryPingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_MaintainSessionPresence_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -14861,7 +16520,7 @@ func _AuthService_GetSessionTracker_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_GetActiveSessionTrackers_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(empty.Empty)
+	m := new(emptypb.Empty)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -14922,7 +16581,7 @@ func _AuthService_SendKeepAlives_Handler(srv interface{}, stream grpc.ServerStre
 }
 
 type AuthService_SendKeepAlivesServer interface {
-	SendAndClose(*empty.Empty) error
+	SendAndClose(*emptypb.Empty) error
 	Recv() (*types.KeepAlive, error)
 	grpc.ServerStream
 }
@@ -14931,7 +16590,7 @@ type authServiceSendKeepAlivesServer struct {
 	grpc.ServerStream
 }
 
-func (x *authServiceSendKeepAlivesServer) SendAndClose(m *empty.Empty) error {
+func (x *authServiceSendKeepAlivesServer) SendAndClose(m *emptypb.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -15132,6 +16791,27 @@ func _AuthService_GetAccessRequests_Handler(srv interface{}, ctx context.Context
 		return srv.(AuthServiceServer).GetAccessRequests(ctx, req.(*types.AccessRequestFilter))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetAccessRequestsV2_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(types.AccessRequestFilter)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuthServiceServer).GetAccessRequestsV2(m, &authServiceGetAccessRequestsV2Server{stream})
+}
+
+type AuthService_GetAccessRequestsV2Server interface {
+	Send(*types.AccessRequestV3) error
+	grpc.ServerStream
+}
+
+type authServiceGetAccessRequestsV2Server struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceGetAccessRequestsV2Server) Send(m *types.AccessRequestV3) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _AuthService_CreateAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -15408,7 +17088,7 @@ func _AuthService_GetUser_Handler(srv interface{}, ctx context.Context, dec func
 }
 
 func _AuthService_GetCurrentUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -15420,9 +17100,30 @@ func _AuthService_GetCurrentUser_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetCurrentUser",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetCurrentUser(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetCurrentUser(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetCurrentUserRoles_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(emptypb.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuthServiceServer).GetCurrentUserRoles(m, &authServiceGetCurrentUserRolesServer{stream})
+}
+
+type AuthService_GetCurrentUserRolesServer interface {
+	Send(*types.RoleV5) error
+	grpc.ServerStream
+}
+
+type authServiceGetCurrentUserRolesServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceGetCurrentUserRolesServer) Send(m *types.RoleV5) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _AuthService_GetUsers_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -15815,7 +17516,7 @@ func _AuthService_GetAppSession_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetAppSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -15827,7 +17528,7 @@ func _AuthService_GetAppSessions_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetAppSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAppSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetAppSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -15869,7 +17570,7 @@ func _AuthService_DeleteAppSession_Handler(srv interface{}, ctx context.Context,
 }
 
 func _AuthService_DeleteAllAppSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -15881,7 +17582,7 @@ func _AuthService_DeleteAllAppSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/DeleteAllAppSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllAppSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllAppSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -15941,7 +17642,7 @@ func _AuthService_GetSnowflakeSession_Handler(srv interface{}, ctx context.Conte
 }
 
 func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -15953,7 +17654,7 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/GetSnowflakeSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetSnowflakeSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetSnowflakeSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -15977,7 +17678,7 @@ func _AuthService_DeleteSnowflakeSession_Handler(srv interface{}, ctx context.Co
 }
 
 func _AuthService_DeleteAllSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -15989,7 +17690,7 @@ func _AuthService_DeleteAllSnowflakeSessions_Handler(srv interface{}, ctx contex
 		FullMethod: "/proto.AuthService/DeleteAllSnowflakeSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllSnowflakeSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllSnowflakeSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16013,7 +17714,7 @@ func _AuthService_GetWebSession_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16025,7 +17726,7 @@ func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/proto.AuthService/GetWebSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16049,7 +17750,7 @@ func _AuthService_DeleteWebSession_Handler(srv interface{}, ctx context.Context,
 }
 
 func _AuthService_DeleteAllWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16061,7 +17762,7 @@ func _AuthService_DeleteAllWebSessions_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.AuthService/DeleteAllWebSessions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWebSessions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllWebSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16085,7 +17786,7 @@ func _AuthService_GetWebToken_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16097,7 +17798,7 @@ func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/proto.AuthService/GetWebTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16121,7 +17822,7 @@ func _AuthService_DeleteWebToken_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _AuthService_DeleteAllWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16133,7 +17834,7 @@ func _AuthService_DeleteAllWebTokens_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/DeleteAllWebTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWebTokens(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllWebTokens(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16391,7 +18092,7 @@ func _AuthService_GetRole_Handler(srv interface{}, ctx context.Context, dec func
 }
 
 func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16403,7 +18104,7 @@ func _AuthService_GetRoles_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/proto.AuthService/GetRoles",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetRoles(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetRoles(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16658,6 +18359,42 @@ func _AuthService_DeleteOIDCConnector_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_CreateOIDCAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.OIDCAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateOIDCAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateOIDCAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateOIDCAuthRequest(ctx, req.(*types.OIDCAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetOIDCAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOIDCAuthRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetOIDCAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetOIDCAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetOIDCAuthRequest(ctx, req.(*GetOIDCAuthRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetSAMLConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceWithSecretsRequest)
 	if err := dec(in); err != nil {
@@ -16726,6 +18463,42 @@ func _AuthService_DeleteSAMLConnector_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).DeleteSAMLConnector(ctx, req.(*types.ResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateSAMLAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.SAMLAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateSAMLAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateSAMLAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateSAMLAuthRequest(ctx, req.(*types.SAMLAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetSAMLAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSAMLAuthRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetSAMLAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetSAMLAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetSAMLAuthRequest(ctx, req.(*GetSAMLAuthRequestRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16802,6 +18575,60 @@ func _AuthService_DeleteGithubConnector_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_CreateGithubAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.GithubAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateGithubAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateGithubAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateGithubAuthRequest(ctx, req.(*types.GithubAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetGithubAuthRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGithubAuthRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetGithubAuthRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetGithubAuthRequest",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetGithubAuthRequest(ctx, req.(*GetGithubAuthRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetSSODiagnosticInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSSODiagnosticInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetSSODiagnosticInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetSSODiagnosticInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetSSODiagnosticInfo(ctx, req.(*GetSSODiagnosticInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -16821,7 +18648,7 @@ func _AuthService_GetTrustedCluster_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16833,7 +18660,7 @@ func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/GetTrustedClusters",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetTrustedClusters(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetTrustedClusters(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16893,7 +18720,7 @@ func _AuthService_GetToken_Handler(srv interface{}, ctx context.Context, dec fun
 }
 
 func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16905,7 +18732,7 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/proto.AuthService/GetTokens",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetTokens(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetTokens(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16924,6 +18751,42 @@ func _AuthService_UpsertToken_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpsertToken(ctx, req.(*types.ProvisionTokenV2))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.ProvisionTokenV2)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CreateToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateToken(ctx, req.(*types.ProvisionTokenV2))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GenerateToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GenerateToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GenerateToken",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GenerateToken(ctx, req.(*GenerateTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -16947,7 +18810,7 @@ func _AuthService_DeleteToken_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _AuthService_GetClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16959,13 +18822,13 @@ func _AuthService_GetClusterAuditConfig_Handler(srv interface{}, ctx context.Con
 		FullMethod: "/proto.AuthService/GetClusterAuditConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterAuditConfig(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetClusterAuditConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -16977,7 +18840,7 @@ func _AuthService_GetClusterNetworkingConfig_Handler(srv interface{}, ctx contex
 		FullMethod: "/proto.AuthService/GetClusterNetworkingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterNetworkingConfig(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetClusterNetworkingConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17001,7 +18864,7 @@ func _AuthService_SetClusterNetworkingConfig_Handler(srv interface{}, ctx contex
 }
 
 func _AuthService_ResetClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17013,13 +18876,13 @@ func _AuthService_ResetClusterNetworkingConfig_Handler(srv interface{}, ctx cont
 		FullMethod: "/proto.AuthService/ResetClusterNetworkingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetClusterNetworkingConfig(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).ResetClusterNetworkingConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17031,7 +18894,7 @@ func _AuthService_GetSessionRecordingConfig_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/GetSessionRecordingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetSessionRecordingConfig(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetSessionRecordingConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17055,7 +18918,7 @@ func _AuthService_SetSessionRecordingConfig_Handler(srv interface{}, ctx context
 }
 
 func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17067,13 +18930,13 @@ func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx conte
 		FullMethod: "/proto.AuthService/ResetSessionRecordingConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetSessionRecordingConfig(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).ResetSessionRecordingConfig(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17085,7 +18948,7 @@ func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context
 		FullMethod: "/proto.AuthService/GetAuthPreference",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17109,7 +18972,7 @@ func _AuthService_SetAuthPreference_Handler(srv interface{}, ctx context.Context
 }
 
 func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17121,7 +18984,7 @@ func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/proto.AuthService/ResetAuthPreference",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17274,7 +19137,7 @@ func (x *authServiceStreamSessionEventsServer) Send(m *events.OneOf) error {
 }
 
 func _AuthService_GetNetworkRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17286,7 +19149,7 @@ func _AuthService_GetNetworkRestrictions_Handler(srv interface{}, ctx context.Co
 		FullMethod: "/proto.AuthService/GetNetworkRestrictions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetNetworkRestrictions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetNetworkRestrictions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17310,7 +19173,7 @@ func _AuthService_SetNetworkRestrictions_Handler(srv interface{}, ctx context.Co
 }
 
 func _AuthService_DeleteNetworkRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17322,13 +19185,13 @@ func _AuthService_DeleteNetworkRestrictions_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/DeleteNetworkRestrictions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteNetworkRestrictions(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteNetworkRestrictions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17340,7 +19203,7 @@ func _AuthService_GetApps_Handler(srv interface{}, ctx context.Context, dec func
 		FullMethod: "/proto.AuthService/GetApps",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetApps(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetApps(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17418,7 +19281,7 @@ func _AuthService_DeleteApp_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _AuthService_DeleteAllApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17430,13 +19293,13 @@ func _AuthService_DeleteAllApps_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/proto.AuthService/DeleteAllApps",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllApps(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllApps(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17448,7 +19311,7 @@ func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/proto.AuthService/GetDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetDatabases(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetDatabases(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17526,7 +19389,7 @@ func _AuthService_DeleteDatabase_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _AuthService_DeleteAllDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17538,13 +19401,13 @@ func _AuthService_DeleteAllDatabases_Handler(srv interface{}, ctx context.Contex
 		FullMethod: "/proto.AuthService/DeleteAllDatabases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllDatabases(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllDatabases(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetWindowsDesktopServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17556,7 +19419,7 @@ func _AuthService_GetWindowsDesktopServices_Handler(srv interface{}, ctx context
 		FullMethod: "/proto.AuthService/GetWindowsDesktopServices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWindowsDesktopServices(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetWindowsDesktopServices(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17616,7 +19479,7 @@ func _AuthService_DeleteWindowsDesktopService_Handler(srv interface{}, ctx conte
 }
 
 func _AuthService_DeleteAllWindowsDesktopServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17628,7 +19491,7 @@ func _AuthService_DeleteAllWindowsDesktopServices_Handler(srv interface{}, ctx c
 		FullMethod: "/proto.AuthService/DeleteAllWindowsDesktopServices",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWindowsDesktopServices(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllWindowsDesktopServices(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17724,7 +19587,7 @@ func _AuthService_DeleteWindowsDesktop_Handler(srv interface{}, ctx context.Cont
 }
 
 func _AuthService_DeleteAllWindowsDesktops_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17736,7 +19599,7 @@ func _AuthService_DeleteAllWindowsDesktops_Handler(srv interface{}, ctx context.
 		FullMethod: "/proto.AuthService/DeleteAllWindowsDesktops",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).DeleteAllWindowsDesktops(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).DeleteAllWindowsDesktops(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17940,7 +19803,7 @@ func _AuthService_ListResources_Handler(srv interface{}, ctx context.Context, de
 }
 
 func _AuthService_GetDomainName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17952,13 +19815,13 @@ func _AuthService_GetDomainName_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/proto.AuthService/GetDomainName",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetDomainName(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetDomainName(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AuthService_GetClusterCACert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -17970,7 +19833,25 @@ func _AuthService_GetClusterCACert_Handler(srv interface{}, ctx context.Context,
 		FullMethod: "/proto.AuthService/GetClusterCACert",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetClusterCACert(ctx, req.(*empty.Empty))
+		return srv.(AuthServiceServer).GetClusterCACert(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UnstableAssertSystemRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnstableSystemRoleAssertion)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UnstableAssertSystemRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/UnstableAssertSystemRole",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UnstableAssertSystemRole(ctx, req.(*UnstableSystemRoleAssertion))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -17979,6 +19860,14 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.AuthService",
 	HandlerType: (*AuthServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetInventoryStatus",
+			Handler:    _AuthService_GetInventoryStatus_Handler,
+		},
+		{
+			MethodName: "PingInventory",
+			Handler:    _AuthService_PingInventory_Handler,
+		},
 		{
 			MethodName: "CreateSessionTracker",
 			Handler:    _AuthService_CreateSessionTracker_Handler,
@@ -18340,6 +20229,14 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteOIDCConnector_Handler,
 		},
 		{
+			MethodName: "CreateOIDCAuthRequest",
+			Handler:    _AuthService_CreateOIDCAuthRequest_Handler,
+		},
+		{
+			MethodName: "GetOIDCAuthRequest",
+			Handler:    _AuthService_GetOIDCAuthRequest_Handler,
+		},
+		{
 			MethodName: "GetSAMLConnector",
 			Handler:    _AuthService_GetSAMLConnector_Handler,
 		},
@@ -18356,6 +20253,14 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteSAMLConnector_Handler,
 		},
 		{
+			MethodName: "CreateSAMLAuthRequest",
+			Handler:    _AuthService_CreateSAMLAuthRequest_Handler,
+		},
+		{
+			MethodName: "GetSAMLAuthRequest",
+			Handler:    _AuthService_GetSAMLAuthRequest_Handler,
+		},
+		{
 			MethodName: "GetGithubConnector",
 			Handler:    _AuthService_GetGithubConnector_Handler,
 		},
@@ -18370,6 +20275,18 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteGithubConnector",
 			Handler:    _AuthService_DeleteGithubConnector_Handler,
+		},
+		{
+			MethodName: "CreateGithubAuthRequest",
+			Handler:    _AuthService_CreateGithubAuthRequest_Handler,
+		},
+		{
+			MethodName: "GetGithubAuthRequest",
+			Handler:    _AuthService_GetGithubAuthRequest_Handler,
+		},
+		{
+			MethodName: "GetSSODiagnosticInfo",
+			Handler:    _AuthService_GetSSODiagnosticInfo_Handler,
 		},
 		{
 			MethodName: "GetTrustedCluster",
@@ -18398,6 +20315,14 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertToken",
 			Handler:    _AuthService_UpsertToken_Handler,
+		},
+		{
+			MethodName: "CreateToken",
+			Handler:    _AuthService_CreateToken_Handler,
+		},
+		{
+			MethodName: "GenerateToken",
+			Handler:    _AuthService_GenerateToken_Handler,
 		},
 		{
 			MethodName: "DeleteToken",
@@ -18627,8 +20552,18 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			MethodName: "GetClusterCACert",
 			Handler:    _AuthService_GetClusterCACert_Handler,
 		},
+		{
+			MethodName: "UnstableAssertSystemRole",
+			Handler:    _AuthService_UnstableAssertSystemRole_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "InventoryControlStream",
+			Handler:       _AuthService_InventoryControlStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
 		{
 			StreamName:    "MaintainSessionPresence",
 			Handler:       _AuthService_MaintainSessionPresence_Handler,
@@ -18657,8 +20592,18 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 		{
+			StreamName:    "GetAccessRequestsV2",
+			Handler:       _AuthService_GetAccessRequestsV2_Handler,
+			ServerStreams: true,
+		},
+		{
 			StreamName:    "GetBotUsers",
 			Handler:       _AuthService_GetBotUsers_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetCurrentUserRoles",
+			Handler:       _AuthService_GetCurrentUserRoles_Handler,
 			ServerStreams: true,
 		},
 		{
@@ -19517,6 +21462,22 @@ func (m *HostCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.UnstableSystemRoleAssertionID) > 0 {
+		i -= len(m.UnstableSystemRoleAssertionID)
+		copy(dAtA[i:], m.UnstableSystemRoleAssertionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.UnstableSystemRoleAssertionID)))
+		i--
+		dAtA[i] = 0x62
+	}
+	if len(m.SystemRoles) > 0 {
+		for iNdEx := len(m.SystemRoles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SystemRoles[iNdEx])
+			copy(dAtA[i:], m.SystemRoles[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SystemRoles[iNdEx])))
+			i--
+			dAtA[i] = 0x5a
+		}
+	}
 	if m.NoCache {
 		i--
 		if m.NoCache {
@@ -19625,6 +21586,25 @@ func (m *UserCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.DropAccessRequests) > 0 {
+		for iNdEx := len(m.DropAccessRequests) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.DropAccessRequests[iNdEx])
+			copy(dAtA[i:], m.DropAccessRequests[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.DropAccessRequests[iNdEx])))
+			i--
+			dAtA[i] = 0x7a
+		}
+	}
+	if m.UseRoleRequests {
+		i--
+		if m.UseRoleRequests {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x70
 	}
 	{
 		size, err := m.RouteToWindowsDesktop.MarshalToSizedBuffer(dAtA[:i])
@@ -20610,6 +22590,26 @@ func (m *Features) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ResourceAccessRequests {
+		i--
+		if m.ResourceAccessRequests {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x68
+	}
+	if m.MachineID {
+		i--
+		if m.MachineID {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x60
 	}
 	if m.ModeratedSessions {
 		i--
@@ -27174,6 +29174,863 @@ func (m *GetClusterCACertResponse) MarshalToSizedBuffer(dAtA []byte) (int, error
 	return len(dAtA) - i, nil
 }
 
+func (m *GenerateTokenRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GenerateTokenRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GenerateTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintAuthservice(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if m.TTL != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.TTL))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Roles) > 0 {
+		for iNdEx := len(m.Roles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Roles[iNdEx])
+			copy(dAtA[i:], m.Roles[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Roles[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Token) > 0 {
+		i -= len(m.Token)
+		copy(dAtA[i:], m.Token)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Token)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GenerateTokenResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GenerateTokenResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GenerateTokenResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Token) > 0 {
+		i -= len(m.Token)
+		copy(dAtA[i:], m.Token)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Token)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetOIDCAuthRequestRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetOIDCAuthRequestRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetOIDCAuthRequestRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.StateToken) > 0 {
+		i -= len(m.StateToken)
+		copy(dAtA[i:], m.StateToken)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.StateToken)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetSAMLAuthRequestRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetSAMLAuthRequestRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetSAMLAuthRequestRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetGithubAuthRequestRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetGithubAuthRequestRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetGithubAuthRequestRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.StateToken) > 0 {
+		i -= len(m.StateToken)
+		copy(dAtA[i:], m.StateToken)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.StateToken)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *GetSSODiagnosticInfoRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetSSODiagnosticInfoRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetSSODiagnosticInfoRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.AuthRequestID) > 0 {
+		i -= len(m.AuthRequestID)
+		copy(dAtA[i:], m.AuthRequestID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AuthRequestID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.AuthRequestKind) > 0 {
+		i -= len(m.AuthRequestKind)
+		copy(dAtA[i:], m.AuthRequestKind)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AuthRequestKind)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UnstableSystemRoleAssertion) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UnstableSystemRoleAssertion) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UnstableSystemRoleAssertion) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SystemRole) > 0 {
+		i -= len(m.SystemRole)
+		copy(dAtA[i:], m.SystemRole)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SystemRole)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.AssertionID) > 0 {
+		i -= len(m.AssertionID)
+		copy(dAtA[i:], m.AssertionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AssertionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServerID) > 0 {
+		i -= len(m.ServerID)
+		copy(dAtA[i:], m.ServerID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UnstableSystemRoleAssertionSet) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UnstableSystemRoleAssertionSet) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UnstableSystemRoleAssertionSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.SystemRoles) > 0 {
+		for iNdEx := len(m.SystemRoles) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.SystemRoles[iNdEx])
+			copy(dAtA[i:], m.SystemRoles[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SystemRoles[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.AssertionID) > 0 {
+		i -= len(m.AssertionID)
+		copy(dAtA[i:], m.AssertionID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.AssertionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServerID) > 0 {
+		i -= len(m.ServerID)
+		copy(dAtA[i:], m.ServerID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpstreamInventoryOneOf) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpstreamInventoryOneOf) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryOneOf) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Msg != nil {
+		{
+			size := m.Msg.Size()
+			i -= size
+			if _, err := m.Msg.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpstreamInventoryOneOf_Hello) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryOneOf_Hello) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Hello != nil {
+		{
+			size, err := m.Hello.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UpstreamInventoryOneOf_Heartbeat) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryOneOf_Heartbeat) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Heartbeat != nil {
+		{
+			size, err := m.Heartbeat.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UpstreamInventoryOneOf_Pong) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryOneOf_Pong) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Pong != nil {
+		{
+			size, err := m.Pong.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *DownstreamInventoryOneOf) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DownstreamInventoryOneOf) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DownstreamInventoryOneOf) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Msg != nil {
+		{
+			size := m.Msg.Size()
+			i -= size
+			if _, err := m.Msg.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DownstreamInventoryOneOf_Hello) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DownstreamInventoryOneOf_Hello) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Hello != nil {
+		{
+			size, err := m.Hello.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *DownstreamInventoryOneOf_Ping) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DownstreamInventoryOneOf_Ping) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Ping != nil {
+		{
+			size, err := m.Ping.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *DownstreamInventoryPing) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DownstreamInventoryPing) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DownstreamInventoryPing) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ID != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpstreamInventoryPong) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpstreamInventoryPong) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryPong) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ID != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UpstreamInventoryHello) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpstreamInventoryHello) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpstreamInventoryHello) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Services) > 0 {
+		for iNdEx := len(m.Services) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Services[iNdEx])
+			copy(dAtA[i:], m.Services[iNdEx])
+			i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Services[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.ServerID) > 0 {
+		i -= len(m.ServerID)
+		copy(dAtA[i:], m.ServerID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Version) > 0 {
+		i -= len(m.Version)
+		copy(dAtA[i:], m.Version)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Version)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DownstreamInventoryHello) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DownstreamInventoryHello) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DownstreamInventoryHello) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ServerID) > 0 {
+		i -= len(m.ServerID)
+		copy(dAtA[i:], m.ServerID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Version) > 0 {
+		i -= len(m.Version)
+		copy(dAtA[i:], m.Version)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.Version)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InventoryHeartbeat) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InventoryHeartbeat) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InventoryHeartbeat) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.SSHServer != nil {
+		{
+			size, err := m.SSHServer.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InventoryStatusRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InventoryStatusRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InventoryStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Connected {
+		i--
+		if m.Connected {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InventoryStatusSummary) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InventoryStatusSummary) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InventoryStatusSummary) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Connected) > 0 {
+		for iNdEx := len(m.Connected) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Connected[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintAuthservice(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InventoryPingRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InventoryPingRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InventoryPingRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.ServerID) > 0 {
+		i -= len(m.ServerID)
+		copy(dAtA[i:], m.ServerID)
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.ServerID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *InventoryPingResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *InventoryPingResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InventoryPingResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Duration != 0 {
+		i = encodeVarintAuthservice(dAtA, i, uint64(m.Duration))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintAuthservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovAuthservice(v)
 	base := offset
@@ -27653,6 +30510,16 @@ func (m *HostCertsRequest) Size() (n int) {
 	if m.NoCache {
 		n += 2
 	}
+	if len(m.SystemRoles) > 0 {
+		for _, s := range m.SystemRoles {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	l = len(m.UnstableSystemRoleAssertionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -27712,6 +30579,15 @@ func (m *UserCertsRequest) Size() (n int) {
 	}
 	l = m.RouteToWindowsDesktop.Size()
 	n += 1 + l + sovAuthservice(uint64(l))
+	if m.UseRoleRequests {
+		n += 2
+	}
+	if len(m.DropAccessRequests) > 0 {
+		for _, s := range m.DropAccessRequests {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -28162,6 +31038,12 @@ func (m *Features) Size() (n int) {
 		n += 2
 	}
 	if m.ModeratedSessions {
+		n += 2
+	}
+	if m.MachineID {
+		n += 2
+	}
+	if m.ResourceAccessRequests {
 		n += 2
 	}
 	if m.XXX_unrecognized != nil {
@@ -31237,6 +34119,419 @@ func (m *GetClusterCACertResponse) Size() (n int) {
 	return n
 }
 
+func (m *GenerateTokenRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Token)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.Roles) > 0 {
+		for _, s := range m.Roles {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.TTL != 0 {
+		n += 1 + sovAuthservice(uint64(m.TTL))
+	}
+	if len(m.Labels) > 0 {
+		for k, v := range m.Labels {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovAuthservice(uint64(len(k))) + 1 + len(v) + sovAuthservice(uint64(len(v)))
+			n += mapEntrySize + 1 + sovAuthservice(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GenerateTokenResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Token)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetOIDCAuthRequestRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.StateToken)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetSAMLAuthRequestRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetGithubAuthRequestRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.StateToken)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetSSODiagnosticInfoRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.AuthRequestKind)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.AuthRequestID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UnstableSystemRoleAssertion) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServerID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.AssertionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.SystemRole)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UnstableSystemRoleAssertionSet) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServerID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.AssertionID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.SystemRoles) > 0 {
+		for _, s := range m.SystemRoles {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpstreamInventoryOneOf) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Msg != nil {
+		n += m.Msg.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpstreamInventoryOneOf_Hello) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Hello != nil {
+		l = m.Hello.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *UpstreamInventoryOneOf_Heartbeat) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Heartbeat != nil {
+		l = m.Heartbeat.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *UpstreamInventoryOneOf_Pong) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Pong != nil {
+		l = m.Pong.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *DownstreamInventoryOneOf) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Msg != nil {
+		n += m.Msg.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DownstreamInventoryOneOf_Hello) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Hello != nil {
+		l = m.Hello.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *DownstreamInventoryOneOf_Ping) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Ping != nil {
+		l = m.Ping.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *DownstreamInventoryPing) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovAuthservice(uint64(m.ID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpstreamInventoryPong) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovAuthservice(uint64(m.ID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpstreamInventoryHello) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Version)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.ServerID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if len(m.Services) > 0 {
+		for _, s := range m.Services {
+			l = len(s)
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DownstreamInventoryHello) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Version)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	l = len(m.ServerID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InventoryHeartbeat) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.SSHServer != nil {
+		l = m.SSHServer.Size()
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InventoryStatusRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Connected {
+		n += 2
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InventoryStatusSummary) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Connected) > 0 {
+		for _, e := range m.Connected {
+			l = e.Size()
+			n += 1 + l + sovAuthservice(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InventoryPingRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServerID)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *InventoryPingResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Duration != 0 {
+		n += 1 + sovAuthservice(uint64(m.Duration))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func sovAuthservice(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
@@ -33052,6 +36347,70 @@ func (m *HostCertsRequest) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.NoCache = bool(v != 0)
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SystemRoles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SystemRoles = append(m.SystemRoles, github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UnstableSystemRoleAssertionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UnstableSystemRoleAssertionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -33511,6 +36870,58 @@ func (m *UserCertsRequest) Unmarshal(dAtA []byte) error {
 			if err := m.RouteToWindowsDesktop.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 14:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UseRoleRequests", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.UseRoleRequests = bool(v != 0)
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DropAccessRequests", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DropAccessRequests = append(m.DropAccessRequests, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -36115,6 +39526,46 @@ func (m *Features) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.ModeratedSessions = bool(v != 0)
+		case 12:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MachineID", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.MachineID = bool(v != 0)
+		case 13:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceAccessRequests", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ResourceAccessRequests = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])
@@ -51000,6 +54451,2083 @@ func (m *GetClusterCACertResponse) Unmarshal(dAtA []byte) error {
 				m.TLSCA = []byte{}
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GenerateTokenRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GenerateTokenRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GenerateTokenRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Token", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Token = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Roles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Roles = append(m.Roles, github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TTL", wireType)
+			}
+			m.TTL = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TTL |= Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Labels", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Labels == nil {
+				m.Labels = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowAuthservice
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowAuthservice
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipAuthservice(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthAuthservice
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Labels[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GenerateTokenResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GenerateTokenResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GenerateTokenResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Token", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Token = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetOIDCAuthRequestRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetOIDCAuthRequestRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetOIDCAuthRequestRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StateToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StateToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetSAMLAuthRequestRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetSAMLAuthRequestRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetSAMLAuthRequestRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetGithubAuthRequestRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetGithubAuthRequestRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetGithubAuthRequestRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StateToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StateToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetSSODiagnosticInfoRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetSSODiagnosticInfoRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetSSODiagnosticInfoRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AuthRequestKind", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AuthRequestKind = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AuthRequestID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AuthRequestID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UnstableSystemRoleAssertion) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UnstableSystemRoleAssertion: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UnstableSystemRoleAssertion: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AssertionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AssertionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SystemRole", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SystemRole = github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UnstableSystemRoleAssertionSet) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UnstableSystemRoleAssertionSet: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UnstableSystemRoleAssertionSet: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AssertionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AssertionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SystemRoles", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SystemRoles = append(m.SystemRoles, github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpstreamInventoryOneOf) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpstreamInventoryOneOf: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpstreamInventoryOneOf: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hello", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UpstreamInventoryHello{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Msg = &UpstreamInventoryOneOf_Hello{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Heartbeat", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &InventoryHeartbeat{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Msg = &UpstreamInventoryOneOf_Heartbeat{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pong", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UpstreamInventoryPong{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Msg = &UpstreamInventoryOneOf_Pong{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DownstreamInventoryOneOf) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DownstreamInventoryOneOf: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DownstreamInventoryOneOf: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hello", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DownstreamInventoryHello{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Msg = &DownstreamInventoryOneOf_Hello{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Ping", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DownstreamInventoryPing{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Msg = &DownstreamInventoryOneOf_Ping{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DownstreamInventoryPing) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DownstreamInventoryPing: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DownstreamInventoryPing: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpstreamInventoryPong) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpstreamInventoryPong: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpstreamInventoryPong: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpstreamInventoryHello) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpstreamInventoryHello: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpstreamInventoryHello: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Version = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Services", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Services = append(m.Services, github_com_gravitational_teleport_api_types.SystemRole(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DownstreamInventoryHello) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DownstreamInventoryHello: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DownstreamInventoryHello: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Version = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InventoryHeartbeat) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InventoryHeartbeat: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InventoryHeartbeat: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SSHServer", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SSHServer == nil {
+				m.SSHServer = &types.ServerV2{}
+			}
+			if err := m.SSHServer.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InventoryStatusRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InventoryStatusRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InventoryStatusRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Connected", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Connected = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InventoryStatusSummary) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InventoryStatusSummary: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InventoryStatusSummary: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Connected", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Connected = append(m.Connected, UpstreamInventoryHello{})
+			if err := m.Connected[len(m.Connected)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InventoryPingRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InventoryPingRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InventoryPingRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuthservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *InventoryPingResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuthservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: InventoryPingResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: InventoryPingResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Duration", wireType)
+			}
+			m.Duration = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Duration |= time.Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipAuthservice(dAtA[iNdEx:])

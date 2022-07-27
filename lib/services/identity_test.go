@@ -31,12 +31,12 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     SAMLAuthRequest
+		req     types.SAMLAuthRequest
 		wantErr bool
 	}{
 		{
 			name: "normal request",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     60 * time.Minute,
@@ -45,7 +45,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "below min CertTTL",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     1 * time.Second,
@@ -54,7 +54,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "above max CertTTL",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     1000 * time.Hour,
@@ -63,7 +63,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "TTL ignored without cert",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				CertTTL:     60 * time.Minute,
 			},
@@ -71,7 +71,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "SSOTestFlow requires ConnectorSpec",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     60 * time.Minute,
@@ -81,7 +81,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec requires SSOTestFlow",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID:   "foo",
 				PublicKey:     []byte(exampleSSHCert),
 				CertTTL:       60 * time.Minute,
@@ -91,7 +91,7 @@ func TestSAMLAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec with SSOTestFlow works",
-			req: SAMLAuthRequest{
+			req: types.SAMLAuthRequest{
 				ConnectorID:   "foo",
 				PublicKey:     []byte(exampleSSHCert),
 				CertTTL:       60 * time.Minute,
@@ -120,12 +120,12 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     OIDCAuthRequest
+		req     types.OIDCAuthRequest
 		wantErr bool
 	}{
 		{
 			name: "normal request",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -135,7 +135,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "missing state token",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     60 * time.Minute,
@@ -144,7 +144,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "below min CertTTL",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -154,7 +154,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "above max CertTTL",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -164,7 +164,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "TTL ignored without cert",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				CertTTL:     60 * time.Minute,
@@ -173,7 +173,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "SSOTestFlow requires ConnectorSpec",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -184,7 +184,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec requires SSOTestFlow",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),
@@ -195,7 +195,7 @@ func TestOIDCAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec with SSOTestFlow works",
-			req: OIDCAuthRequest{
+			req: types.OIDCAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),
@@ -225,12 +225,12 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		req     GithubAuthRequest
+		req     types.GithubAuthRequest
 		wantErr bool
 	}{
 		{
 			name: "normal request",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -240,7 +240,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "missing state token",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				PublicKey:   []byte(exampleSSHCert),
 				CertTTL:     60 * time.Minute,
@@ -249,7 +249,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "below min CertTTL",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -259,7 +259,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "above max CertTTL",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -269,7 +269,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "TTL ignored without cert",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				CertTTL:     60 * time.Minute,
@@ -278,7 +278,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "SSOTestFlow requires ConnectorSpec",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID: "foo",
 				StateToken:  "bar",
 				PublicKey:   []byte(exampleSSHCert),
@@ -289,7 +289,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec requires SSOTestFlow",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),
@@ -300,7 +300,7 @@ func TestGithubAuthRequest_Check(t *testing.T) {
 		},
 		{
 			name: "ConnectorSpec with SSOTestFlow works",
-			req: GithubAuthRequest{
+			req: types.GithubAuthRequest{
 				ConnectorID:   "foo",
 				StateToken:    "bar",
 				PublicKey:     []byte(exampleSSHCert),

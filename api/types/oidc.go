@@ -21,13 +21,15 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
+// identity provider, e.g. google in some organization
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
@@ -420,4 +422,34 @@ func (o *OIDCConnectorV3) CheckSetRedirectURL() {
 	} else if len(o.Spec.RedirectURLs) == 0 && o.Spec.RedirectURL != "" {
 		o.Spec.RedirectURLs = []string{o.Spec.RedirectURL}
 	}
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *OIDCAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
+	}
+	if i.StateToken == "" {
+		return trace.BadParameter("StateToken: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
+	return nil
 }

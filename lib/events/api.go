@@ -278,6 +278,10 @@ const (
 	SCPActionUpload   = "upload"
 	SCPActionDownload = "download"
 
+	// SFTPEvent means a user attempted a file operation
+	SFTPEvent = "sftp"
+	SFTPPath  = "path"
+
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
@@ -380,6 +384,8 @@ const (
 
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
+	// AppSessionEndEvent is emitted when a user connects to a TCP application.
+	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
@@ -534,6 +540,10 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
+	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
+	// is updated. Used only for teleport cloud.
+	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
@@ -647,6 +657,9 @@ type MultipartUploader interface {
 	CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error)
 	// CompleteUpload completes the upload
 	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
+	// ReserveUploadPart reserves an upload part. Reserve is used to identify
+	// upload errors beforehand.
+	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
 	// UploadPart uploads part and returns the part
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
@@ -730,11 +743,7 @@ type IAuditLog interface {
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error)
-
-	// WaitForDelivery waits for resources to be released and outstanding requests to
-	// complete after calling Close method
-	WaitForDelivery(context.Context) error
+	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.

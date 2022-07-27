@@ -184,6 +184,20 @@ message HostCertsRequest {
     types.Rotation Rotation = 9 [ (gogoproto.jsontag) = "rotation,omitempty" ];
     // NoCache is argument that only local callers can supply to bypass cache
     bool NoCache = 10 [ (gogoproto.jsontag) = "-" ];
+    // SystemRoles is a list of system roles held by the host. Most host certs are
+    // single-role and only specify the Role field. The SystemRoles field is only
+    // currently used on Instance certs, which need to express all roles held by
+    // the instance.
+    repeated string SystemRoles = 11 [
+        (gogoproto.jsontag) = "system_roles,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
+    // older instances to requisition a multi-role cert by individually proving which
+    // system roles are held.
+    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+    string UnstableSystemRoleAssertionID = 12
+        [ (gogoproto.jsontag) = "system_role_assertion_id,omitempty" ];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -264,6 +278,15 @@ message UserCertsRequest {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
+
+    // UseRoleRequests is used to ensure a certificate request is intended to
+    // use role impersonation, even if the list of role requests is empty.
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
+
+    // DropAccessRequests is an optional list of request IDs indicating requests
+    // whose escalated privileges should be removed from the certificate.
+    repeated string DropAccessRequests = 15
+        [ (gogoproto.jsontag) = "drop_access_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -470,6 +493,10 @@ message Features {
     bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
     // ModeratedSessions enables moderated sessions product
     bool ModeratedSessions = 11 [ (gogoproto.jsontag) = "moderated_sessions" ];
+    // MachineID enables MachineID product
+    bool MachineID = 12 [ (gogoproto.jsontag) = "machine_id" ];
+    // ResourceAccessRequests enables resource access requests product
+    bool ResourceAccessRequests = 13 [ (gogoproto.jsontag) = "resource_access_requests" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1526,6 +1553,14 @@ message PaginatedResource {
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
+//
+// NOTE: There are two paths this request can take:
+//  1. ListResources: the more efficient path that retrieves resources by subset
+//  at a time defined by field 'Limit'. Does NOT de-duplicate matches.
+//  2. listResourcesWithSort: the less efficient path that retrieves all resources
+//  upfront by falling back to the traditional GetXXX calls. Used when sorting (SortBy),
+//  total count of resources (NeedTotalCount), or ResourceType `KindKubernetesCluster`
+//  is requested. Matches are de-duplicated.
 message ListResourcesRequest {
     // ResourceType is the resource that is going to be retrieved.
     // This only needs to be set explicitly for the `ListResources` rpc.
@@ -1709,19 +1744,193 @@ message PresenceMFAChallengeSend {
     }
 }
 
+// GetDomainNameResponse is a response from GetDomainName.
 message GetDomainNameResponse {
     // DomainName is the local auth domain of the current auth server.
     string DomainName = 1 [ (gogoproto.jsontag) = "domain_name" ];
 }
 
-// GetClusterCACertResponse is a response from GetClusterCACert
+// GetClusterCACertResponse is a response from GetClusterCACert.
 message GetClusterCACertResponse {
     // TLSCA is a PEM-encoded TLS certificate authority.
     bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
 }
 
+// GenerateTokenRequest is a request to generate auth token.
+message GenerateTokenRequest {
+    // Token sets the token value. If not set, it will be auto generated.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // Roles is a list of roles this token authenticates as.
+    repeated string Roles = 2 [
+        (gogoproto.jsontag) = "roles",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // TTL specifies how long the generated token will be valid for.
+    // Defaults to 30 minutes if not set.
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
+}
+
+// GenerateTokenResponse contains a generated auth token.
+message GenerateTokenResponse {
+    // Token is the generated auth token.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
+// GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
+message GetOIDCAuthRequestRequest {
+    // StateToken is an oidc auth request state token.
+    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
+}
+
+// GetSAMLAuthRequestRequest is a request for GetSAMLAuthRequest.
+message GetSAMLAuthRequestRequest {
+    // ID is a saml auth request unique id.
+    string ID = 1 [ (gogoproto.jsontag) = "id" ];
+}
+
+// GetGithubAuthRequestRequest is a request for GetGithubAuthRequest.
+message GetGithubAuthRequestRequest {
+    // StateToken is a github auth request state token.
+    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
+}
+
+// GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
+message GetSSODiagnosticInfoRequest {
+    // AuthRequestKind is the SSO Auth Request kind (oidc, saml, or github).
+    string AuthRequestKind = 1 [ (gogoproto.jsontag) = "auth_request_kind" ];
+    // AuthRequestID is the SSO Auth Request id or state token.
+    string AuthRequestID = 2 [ (gogoproto.jsontag) = "auth_request_id" ];
+}
+
+// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
+// to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertion {
+    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
+    string SystemRole = 3 [
+        (gogoproto.jsontag) = "system_role,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+}
+
+// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
+// role assertions provided by a given instance.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertionSet {
+    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
+    repeated string SystemRoles = 3 [
+        (gogoproto.jsontag) = "system_roles,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+}
+
+// UpstreamInventoryOneOf is the upstream message for the inventory control stream,
+// sent from teleport instances to the auth server.
+message UpstreamInventoryOneOf {
+    oneof Msg {
+        // Hello is the first message sent up the control stream.
+        UpstreamInventoryHello Hello = 1;
+        // Heartbeat advertises instance status/liveness.
+        InventoryHeartbeat Heartbeat = 2;
+        // UpstreamInventoryPong is a response to a ping (used for testing/debug).
+        UpstreamInventoryPong Pong = 3;
+    }
+}
+
+// DownstreamInventoryOneOf is the downstream message for the inventory control stream,
+// sent from auth servers to teleport instances.
+message DownstreamInventoryOneOf {
+    oneof Msg {
+        // Hello is the first message sent down the control stream.
+        DownstreamInventoryHello Hello = 1;
+        // Ping triggers an upstream pong (used for testing/debug).
+        DownstreamInventoryPing Ping = 2;
+    }
+}
+
+// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
+// purposes.
+message DownstreamInventoryPing { uint64 ID = 1; }
+
+// UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
+// ping (used for testing/debug purposes).
+message UpstreamInventoryPong { uint64 ID = 1; }
+
+// UpstreamInventoryHello is the hello message sent up the inventory control stream.
+message UpstreamInventoryHello {
+    // Version advertises the teleport version of the instance.
+    string Version = 1;
+    // ServerID advertises the server ID of the instance.
+    string ServerID = 2;
+    // Services advertises the currently live services of the instance. note: this is
+    // distinct from the SystemRoles associated with a certificate in that a service may
+    // hold a system role that is not currently in use if it was granted that role by
+    // its auth token. i.e. Services is the subset of SystemRoles that are currently
+    // active.
+    repeated string Services = 3
+        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole" ];
+
+    // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
+    // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
+    // non-trivial reduction in network usage by doing this.
+}
+
+// DownstreamInventoryHello is the hello message sent down the inventory control stream.
+message DownstreamInventoryHello {
+    // Version advertises the version of the auth server.
+    string Version = 1;
+    // ServerID advertises the server ID of the auth server.
+    string ServerID = 2;
+}
+
+// InventoryHeartbeat announces information about instance state.
+message InventoryHeartbeat {
+    // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
+    // in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
+    // we should be able to cut down on network usage fairly significantly by moving static values
+    // to the hello message and only heartbeating dynamic values here).
+    types.ServerV2 SSHServer = 1;
+}
+
+// InventoryStatusRequest requests inventory status info.
+message InventoryStatusRequest {
+    // Connected requests summary of the inventory control streams registered with
+    // the auth server that handles the request.
+    bool Connected = 1;
+}
+
+// InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
+message InventoryStatusSummary {
+    // Connected is a summary of the instances connected to the current auth server.  Only set if
+    // the Connected flag in the status request is true.
+    repeated UpstreamInventoryHello Connected = 1 [ (gogoproto.nullable) = false ];
+}
+
+// InventoryPingRequest is used to request that the specified server be sent an inventory ping
+// if it has a control stream registered.
+message InventoryPingRequest { string ServerID = 1; }
+
+// InventoryPingResponse returns the result of an inventory ping initiated via an
+// inventory ping request.
+message InventoryPingResponse { int64 Duration = 1 [ (gogoproto.casttype) = "time.Duration" ]; }
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
+    // InventoryControlStream is the per-instance stream used to advertise teleport instance
+    // presence/version/etc to the auth server.
+    rpc InventoryControlStream(stream UpstreamInventoryOneOf)
+        returns (stream DownstreamInventoryOneOf);
+
+    // GetInventoryStatus gets information about current instance inventory.
+    rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+    // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
+    rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
+
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
     // session.
     rpc MaintainSessionPresence(stream PresenceMFAChallengeSend)
@@ -1769,7 +1978,10 @@ service AuthService {
     rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
     // GetAccessRequests gets all pending access requests.
+    // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
     rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
+    // GetAccessRequestsV2 gets all pending access requests.
+    rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
     // CreateAccessRequest creates a new access request.
     rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
     // DeleteAccessRequest deletes an access request.
@@ -1812,6 +2024,8 @@ service AuthService {
     // GetCurrentUser returns current user as seen by the server.
     // Useful especially in the context of remote clusters which perform role and trait mapping.
     rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+    // GetCurrentUserRoles returns current user's roles.
+    rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV5);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
@@ -2016,6 +2230,10 @@ service AuthService {
     rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
     // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
     rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateOIDCAuthRequest creates OIDCAuthRequest.
+    rpc CreateOIDCAuthRequest(types.OIDCAuthRequest) returns (types.OIDCAuthRequest);
+    // GetOIDCAuthRequest returns OIDC auth request if found.
+    rpc GetOIDCAuthRequest(GetOIDCAuthRequestRequest) returns (types.OIDCAuthRequest);
 
     // GetSAMLConnector gets a SAML connector resource by name.
     rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
@@ -2025,6 +2243,10 @@ service AuthService {
     rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
     // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
     rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateSAMLAuthRequest creates SAMLAuthRequest.
+    rpc CreateSAMLAuthRequest(types.SAMLAuthRequest) returns (types.SAMLAuthRequest);
+    // GetSAMLAuthRequest returns SAML auth request if found.
+    rpc GetSAMLAuthRequest(GetSAMLAuthRequestRequest) returns (types.SAMLAuthRequest);
 
     // GetGithubConnector gets a Github connector resource by name.
     rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
@@ -2035,6 +2257,13 @@ service AuthService {
     rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
     // DeleteGithubConnector deletes an existing Github connector in a backend by name.
     rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
+    // CreateGithubAuthRequest creates GithubAuthRequest.
+    rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
+    // GetGithubAuthRequest returns Github auth request if found.
+    rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
+
+    // GetSSODiagnosticInfo returns SSO diagnostic info records.
+    rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
 
     // GetTrustedCluster gets a Trusted Cluster resource by name.
     rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
@@ -2051,6 +2280,10 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // CreateToken creates a token in a backend.
+    rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // GenerateToken generates a new auth token.
+    rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -2239,4 +2472,9 @@ service AuthService {
     // without signing keys. If the cluster has multiple TLS certs, they will
     // all be appended.
     rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
+
+    // UnstableAssertSystemRole is not a stable part of the public API. Used by older
+    // instances to prove that they hold a given system role.
+    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+    rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 }

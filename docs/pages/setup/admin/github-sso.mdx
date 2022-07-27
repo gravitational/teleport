@@ -1,6 +1,6 @@
 ---
 title: Set up Single Sign-On with GitHub
-description: Setting up Github SSO
+description: Setting up GitHub SSO
 videoBanner: XjgN2WWFCX8
 ---
 
@@ -11,6 +11,7 @@ Teleport.
 ## Prerequisites
 
 - A GitHub organization with at least one team.
+- Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -53,12 +54,12 @@ spec:
   display: GitHub
   # Callback URL that will be called after successful authentication
   redirect_url: https://<proxy-address>/v1/webapi/github/callback
-  # Mapping of org/team memberships onto allowed logins and roles
-  teams_to_logins:
+  # Mapping of org/team memberships onto allowed roles
+  teams_to_roles:
     - organization: octocats # GitHub organization name
       team: admins # GitHub team name within that organization
       # Maps octocats/admins to the "access" Teleport role
-      logins:
+      roles:
         - access
 ```
 
@@ -67,7 +68,7 @@ GitHub OAuth App you created earlier.
 
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
 
-[Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+[GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
 
 Finally, create the connector using `tctl`:
 

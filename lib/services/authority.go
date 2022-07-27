@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -285,6 +286,8 @@ type UserCertParams struct {
 	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
+	// SourceIP is an IP that certificate should be pinned to.
+	SourceIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
@@ -303,8 +306,8 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 	if c.CASigner == nil {
 		return trace.BadParameter("CASigner is required")
 	}
-	if c.TTL < defaults.MinCertDuration {
-		c.TTL = defaults.MinCertDuration
+	if c.TTL < apidefaults.MinCertDuration {
+		c.TTL = apidefaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")

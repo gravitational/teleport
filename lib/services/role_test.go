@@ -18,8 +18,10 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -188,13 +190,17 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -222,13 +228,17 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(apidefaults.MaxCertDuration),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -291,15 +301,19 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
 						DisconnectExpiredCert:   types.NewBool(true),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -377,16 +391,20 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -451,16 +469,20 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
-						CertificateFormat:       constants.CertificateFormatStandard,
-						ForwardAgent:            types.NewBool(true),
-						MaxSessionTTL:           types.NewDuration(20 * time.Hour),
-						PortForwarding:          types.NewBoolOption(true),
-						RecordSession:           &types.RecordSession{Desktop: types.NewBoolOption(true)},
+						CertificateFormat: constants.CertificateFormatStandard,
+						ForwardAgent:      types.NewBool(true),
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
 						ClientIdleTimeout:       types.NewDuration(0),
 						DisconnectExpiredCert:   types.NewBool(false),
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateHostUser:          types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -1807,30 +1829,34 @@ func TestCheckRuleSorting(t *testing.T) {
 
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
-		inLogins         []string
-		outLogins        []string
-		inWindowsLogins  []string
-		outWindowsLogins []string
-		inRoleARNs       []string
-		outRoleARNs      []string
-		inLabels         types.Labels
-		outLabels        types.Labels
-		inKubeLabels     types.Labels
-		outKubeLabels    types.Labels
-		inKubeGroups     []string
-		outKubeGroups    []string
-		inKubeUsers      []string
-		outKubeUsers     []string
-		inAppLabels      types.Labels
-		outAppLabels     types.Labels
-		inDBLabels       types.Labels
-		outDBLabels      types.Labels
-		inDBNames        []string
-		outDBNames       []string
-		inDBUsers        []string
-		outDBUsers       []string
-		inImpersonate    types.ImpersonateConditions
-		outImpersonate   types.ImpersonateConditions
+		inLogins                []string
+		outLogins               []string
+		inWindowsLogins         []string
+		outWindowsLogins        []string
+		inRoleARNs              []string
+		outRoleARNs             []string
+		inLabels                types.Labels
+		outLabels               types.Labels
+		inKubeLabels            types.Labels
+		outKubeLabels           types.Labels
+		inKubeGroups            []string
+		outKubeGroups           []string
+		inKubeUsers             []string
+		outKubeUsers            []string
+		inAppLabels             types.Labels
+		outAppLabels            types.Labels
+		inDBLabels              types.Labels
+		outDBLabels             types.Labels
+		inWindowsDesktopLabels  types.Labels
+		outWindowsDesktopLabels types.Labels
+		inDBNames               []string
+		outDBNames              []string
+		inDBUsers               []string
+		outDBUsers              []string
+		inImpersonate           types.ImpersonateConditions
+		outImpersonate          types.ImpersonateConditions
+		inSudoers               []string
+		outSudoers              []string
 	}
 	var tests = []struct {
 		comment  string
@@ -1906,8 +1932,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			allow: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
@@ -1917,8 +1943,8 @@ func TestApplyTraits(t *testing.T) {
 		{
 			comment: "AWS role ARN substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo":                     {"bar"},
-				teleport.TraitAWSRoleARNs: {"baz"},
+				"foo":                      {"bar"},
+				constants.TraitAWSRoleARNs: {"baz"},
 			},
 			deny: rule{
 				inRoleARNs:  []string{"{{external.foo}}", teleport.TraitInternalAWSRoleARNs},
@@ -2217,6 +2243,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "values are expanded in windows desktop labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inWindowsDesktopLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outWindowsDesktopLabels: types.Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
 			comment: "impersonate roles",
 			inTraits: map[string][]string{
 				"teams":         {"devs"},
@@ -2247,6 +2283,35 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "sudoers substitution roles",
+			inTraits: map[string][]string{
+				"users": {"alice", "bob"},
+			},
+			allow: rule{
+				inSudoers: []string{"{{external.users}} ALL=(ALL) ALL"},
+				outSudoers: []string{
+					"alice ALL=(ALL) ALL",
+					"bob ALL=(ALL) ALL",
+				},
+			},
+		},
+		{
+			comment: "sudoers substitution not found trait",
+			inTraits: map[string][]string{
+				"users": {"alice", "bob"},
+			},
+			allow: rule{
+				inSudoers: []string{
+					"{{external.hello}} ALL=(ALL) ALL",
+					"{{external.users}} ALL=(test) ALL",
+				},
+				outSudoers: []string{
+					"alice ALL=(test) ALL",
+					"bob ALL=(test) ALL",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2271,7 +2336,9 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.allow.inDBLabels,
 						DatabaseNames:        tt.allow.inDBNames,
 						DatabaseUsers:        tt.allow.inDBUsers,
+						WindowsDesktopLabels: tt.allow.inWindowsDesktopLabels,
 						Impersonate:          &tt.allow.inImpersonate,
+						HostSudoers:          tt.allow.inSudoers,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -2285,7 +2352,9 @@ func TestApplyTraits(t *testing.T) {
 						DatabaseLabels:       tt.deny.inDBLabels,
 						DatabaseNames:        tt.deny.inDBNames,
 						DatabaseUsers:        tt.deny.inDBUsers,
+						WindowsDesktopLabels: tt.deny.inWindowsDesktopLabels,
 						Impersonate:          &tt.deny.inImpersonate,
+						HostSudoers:          tt.deny.outSudoers,
 					},
 				},
 			}
@@ -2310,7 +2379,9 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outDBLabels, outRole.GetDatabaseLabels(rule.condition))
 				require.Equal(t, rule.spec.outDBNames, outRole.GetDatabaseNames(rule.condition))
 				require.Equal(t, rule.spec.outDBUsers, outRole.GetDatabaseUsers(rule.condition))
+				require.Equal(t, rule.spec.outWindowsDesktopLabels, outRole.GetWindowsDesktopLabels(rule.condition))
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
+				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 			}
 		})
 	}
@@ -2819,6 +2890,276 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}
+}
+
+func TestEnumerateTestLogins(t *testing.T) {
+	devEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins:     []string{"devuser"},
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{
+					"env": []string{"dev"},
+				},
+			},
+		},
+	}
+
+	prodEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins:     []string{"produser"},
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{
+					"env": []string{"prod"},
+				},
+			},
+		},
+	}
+
+	anyEnvRole := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins:     []string{"anyenvrole"},
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{
+					"env": []string{"*"},
+				},
+			},
+		},
+	}
+
+	rootUser := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins:     []string{"root"},
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+	}
+
+	roleWithMultipleLabels := &types.RoleV5{
+		Spec: types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins:     []string{"multiplelabelsuser"},
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{
+					"region": []string{"*"},
+					"env":    []string{"dev"},
+				},
+			},
+		},
+	}
+
+	tt := []struct {
+		name                 string
+		server               types.Server
+		roleSet              RoleSet
+		expectedLogins       []string
+		expectedDeniedLogins []string
+	}{
+		{
+			name: "env dev login is added",
+			server: makeTestServer(map[string]string{
+				"env": "dev",
+			}),
+			roleSet:        NewRoleSet(devEnvRole),
+			expectedLogins: []string{"devuser"},
+		},
+		{
+			name: "env prod login is added",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(prodEnvRole),
+			expectedLogins: []string{"produser"},
+		},
+		{
+			name: "only the correct login is added",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet:              NewRoleSet(prodEnvRole, devEnvRole),
+			expectedLogins:       []string{"produser"},
+			expectedDeniedLogins: []string{"devuser"},
+		},
+		{
+			name: "logins from role not authorizeds are not added",
+			server: makeTestServer(map[string]string{
+				"env": "staging",
+			}),
+			roleSet:              NewRoleSet(devEnvRole, prodEnvRole),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser", "produser"},
+		},
+		{
+			name: "role with wildcard get its logins",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(anyEnvRole),
+			expectedLogins: []string{"anyenvrole"},
+		},
+		{
+			name: "can return multiple logins",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(anyEnvRole, prodEnvRole),
+			expectedLogins: []string{"anyenvrole", "produser"},
+		},
+		{
+			name: "can return multiple logins from same role",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						Logins:     []string{"role1", "role2", "role3"},
+						Namespaces: []string{apidefaults.Namespace},
+						NodeLabels: types.Labels{
+							"env": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedLogins: []string{"role1", "role2", "role3"},
+		},
+		{
+			name: "works with user with full access",
+			server: makeTestServer(map[string]string{
+				"env": "prod",
+			}),
+			roleSet:        NewRoleSet(rootUser),
+			expectedLogins: []string{"root"},
+		},
+		{
+			name: "works with server with multiple labels",
+			server: makeTestServer(map[string]string{
+				"env":    "prod",
+				"region": "us-east-1",
+			}),
+			roleSet:        NewRoleSet(prodEnvRole),
+			expectedLogins: []string{"produser"},
+		},
+		{
+			name: "don't add login from unrelated labels",
+			server: makeTestServer(map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						Logins:     []string{"anyregionuser"},
+						Namespaces: []string{apidefaults.Namespace},
+						NodeLabels: types.Labels{
+							"region": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"anyregionuser"},
+		},
+		{
+			name: "works with roles with multiple labels that role shouldn't access",
+			server: makeTestServer(map[string]string{
+				"env": "dev",
+			}),
+			roleSet:              NewRoleSet(roleWithMultipleLabels),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"multiplelabelsuser"},
+		},
+		{
+			name: "works with roles with multiple labels that role shouldn't access",
+			server: makeTestServer(map[string]string{
+				"env":    "dev",
+				"region": "us-west-1",
+			}),
+			roleSet:        NewRoleSet(roleWithMultipleLabels),
+			expectedLogins: []string{"multiplelabelsuser"},
+		},
+		{
+			name: "works with roles with regular expressions",
+			server: makeTestServer(map[string]string{
+				"region": "us-west-1",
+			}),
+			roleSet: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						Logins:     []string{"rolewithregexpuser"},
+						Namespaces: []string{apidefaults.Namespace},
+						NodeLabels: types.Labels{
+							"region": []string{"^us-west-1|eu-central-1$"},
+						},
+					},
+				},
+			}),
+			expectedLogins: []string{"rolewithregexpuser"},
+		},
+		{
+			name: "works with denied roles",
+			server: makeTestServer(map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Deny: types.RoleConditions{
+						Logins:     []string{"devuser"},
+						Namespaces: []string{apidefaults.Namespace},
+						NodeLabels: types.Labels{
+							"env": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser"},
+		},
+		{
+			name: "works with denied roles of unrelated labels",
+			server: makeTestServer(map[string]string{
+				"env": "dev",
+			}),
+			roleSet: NewRoleSet(devEnvRole, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Deny: types.RoleConditions{
+						Logins:     []string{"devuser"},
+						Namespaces: []string{apidefaults.Namespace},
+						NodeLabels: types.Labels{
+							"region": []string{"*"},
+						},
+					},
+				},
+			}),
+			expectedLogins:       nil,
+			expectedDeniedLogins: []string{"devuser"},
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			logins := tc.roleSet.EnumerateServerLogins(tc.server)
+			require.Equal(t, tc.expectedLogins, logins.Allowed())
+			require.Equal(t, tc.expectedDeniedLogins, logins.Denied())
+			// wildcards are not allowed for logins
+			require.Equal(t, false, logins.wildcardAllowed)
+			require.Equal(t, false, logins.wildcardDenied)
+		})
+	}
+}
+
+// makeTestServer creates a server with labels and an empty spec.
+// It panics in case of an error. Used only for testing
+func makeTestServer(labels map[string]string) types.Server {
+	s, err := types.NewServerWithLabels("server", types.KindNode, types.ServerSpecV2{}, labels)
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
@@ -4181,4 +4522,557 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 			require.ElementsMatch(t, tc.wantGroups, gotGroups)
 		})
 	}
+}
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := map[string]struct {
+		service      constants.SessionRecordingService
+		expectedMode constants.SessionRecordingMode
+		rolesOptions []types.RoleOptions
+	}{
+		"service-specific option": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+		"strict service-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"strict default multiple roles": {
+			expectedMode: constants.SessionRecordingModeStrict,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+			},
+		},
+		"default multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			roles := make([]types.Role, len(test.rolesOptions))
+			for i := range roles {
+				roles[i] = &types.RoleV5{
+					Spec: types.RoleSpecV5{Options: test.rolesOptions[i]},
+				}
+			}
+
+			roleSet := RoleSet(roles)
+			require.Equal(t, test.expectedMode, roleSet.SessionRecordingMode(test.service))
+		})
+	}
+}
+
+func TestHostUsers_getGroups(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test   string
+		groups []string
+		roles  RoleSet
+		server types.Server
+	}{
+		{
+			test:   "test exact match, one group, one role",
+			groups: []string{"group"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:   "test deny on group entry",
+			groups: []string{"group"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group", "groupdel"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"groupdel"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:   "multiple roles, one no match",
+			groups: []string{"group1", "group2"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostGroups: []string{"group1"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostGroups: []string{"group2"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"fail": []string{"abc"}},
+						HostGroups: []string{"notpresentgroup"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+			info, err := tc.roles.HostUsers(tc.server)
+			require.NoError(t, err)
+			require.Equal(t, tc.groups, info.Groups)
+		})
+	}
+}
+
+func TestHostUsers_HostSudoers(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test    string
+		sudoers []string
+		roles   RoleSet
+		server  types.Server
+	}{
+		{
+			test: "test exact match, one sudoer entry, one role",
+			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
+			roles: NewRoleSet(&types.RoleV5{
+
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "multiple roles, one not matching",
+			sudoers: []string{"sudoers entry 1", "sudoers entry 2"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 2"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"fail": []string{"abc"}},
+						HostSudoers: []string{"not present sudoers entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "glob deny",
+			sudoers: nil,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"*"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test: "line deny",
+			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{
+							"%sudo	ALL=(ALL) ALL",
+							"removed entry"},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"removed entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+
+			info, err := tc.roles.HostUsers(tc.server)
+			require.NoError(t, err)
+			require.Equal(t, tc.sudoers, info.Sudoers)
+		})
+	}
+}
+
+func TestHostUsers_CanCreateHostUser(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		test      string
+		canCreate bool
+		roles     RoleSet
+		server    types.Server
+	}{
+		{
+			test:      "test exact match, one role, can create",
+			canCreate: true,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:      "test two roles, 1 exact match, one can create",
+			canCreate: false,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(false),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:      "test three roles, 2 exact match, both can create",
+			canCreate: true,
+			roles: NewRoleSet(&types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV5{
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(false),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"unmatched": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.test, func(t *testing.T) {
+			info, err := tc.roles.HostUsers(tc.server)
+			require.Equal(t, tc.canCreate, err == nil && info != nil)
+		})
+	}
+}
+
+type mockCurrentUserRoleGetter struct {
+	getCurrentUserError error
+	currentUser         types.User
+	nameToRole          map[string]types.Role
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUser(ctx context.Context) (types.User, error) {
+	if m.getCurrentUserError != nil {
+		return nil, trace.Wrap(m.getCurrentUserError)
+	}
+	if m.currentUser != nil {
+		return m.currentUser, nil
+	}
+	return nil, trace.NotFound("currentUser not set")
+}
+
+func (m mockCurrentUserRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.nameToRole {
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func (m mockCurrentUserRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, ok := m.nameToRole[name]; ok {
+		return role, nil
+	}
+	return nil, trace.NotFound("role not found: %v", name)
+}
+
+type mockCurrentUser struct {
+	types.User
+	roles  []string
+	traits wrappers.Traits
+}
+
+func (u mockCurrentUser) GetRoles() []string {
+	return u.roles
+}
+
+func (u mockCurrentUser) GetTraits() map[string][]string {
+	return u.traits
+}
+
+func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	user := mockCurrentUser{
+		roles: []string{"dev", "admin"},
+		traits: map[string][]string{
+			"logins": {"currentUserTraitLogin"},
+		},
+	}
+
+	devRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	adminRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "admin"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev":   &devRole,
+			"admin": &adminRole,
+		},
+		currentUser: user,
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	// After sort: "admin","default-implicit-role","dev"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
+	require.Contains(t, roleSet, &devRole, "devRole not found in roleSet")
+	require.Contains(t, roleSet, &adminRole, "adminRole not found in roleSet")
+	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[2].GetLogins(types.Allow))
+}
+
+func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailable(t *testing.T) {
+	defaultRoles := []string{"access", "editor"}
+	defaultTraits := map[string][]string{
+		"logins": {"defaultTraitLogin"},
+	}
+
+	accessRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "access"
+		r.Spec.Allow.Logins = []string{"{{internal.logins}}"}
+	})
+	editorRole := newRole(func(r *types.RoleV5) {
+		r.Metadata.Name = "editor"
+	})
+
+	currentUserRoleGetter := mockCurrentUserRoleGetter{
+		getCurrentUserError: trace.NotImplemented("GetCurrentUser not implemented on server"),
+		nameToRole: map[string]types.Role{
+			"access": &accessRole,
+			"editor": &editorRole,
+		},
+	}
+
+	roleSet, err := FetchAllClusterRoles(context.Background(), currentUserRoleGetter,
+		defaultRoles, defaultTraits)
+
+	require.NoError(t, err)
+
+	// After sort: "access","default-implicit-role","editor"
+	sort.Sort(SortedRoles(roleSet))
+	require.Len(t, roleSet, 3)
+	require.Contains(t, roleSet, &accessRole, "accessRole not found in roleSet")
+	require.Contains(t, roleSet, &editorRole, "editorRole not found in roleSet")
+	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
 }

@@ -78,6 +78,9 @@ type RemoteClusterTunnelManagerConfig struct {
 	FIPS bool
 	// Log is the logger
 	Log logrus.FieldLogger
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -220,6 +223,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
 		FIPS:                cfg.FIPS,
+		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 

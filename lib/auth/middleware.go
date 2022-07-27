@@ -292,7 +292,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
 			ourClusterName = clusterName.GetClusterName()
 		}
-		t.log.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
+		t.log.Errorf("Failed to retrieve client pool for client %v, client cluster %v, target cluster %v, error:  %v.",
+			info.Conn.RemoteAddr().String(), clusterName, ourClusterName, trace.DebugReport(err))
 		// this falls back to the default config
 		return nil, nil
 	}
@@ -525,7 +526,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
-		systemRole := findSystemRole(identity.Groups)
+		systemRole := findPrimarySystemRole(identity.Groups)
 		if systemRole != nil {
 			return RemoteBuiltinRole{
 				Role:        *systemRole,
@@ -549,15 +550,16 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
-	systemRole := findSystemRole(identity.Groups)
+	systemRole := findPrimarySystemRole(identity.Groups)
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
 		return BuiltinRole{
-			Role:        *systemRole,
-			Username:    identity.Username,
-			ClusterName: localClusterName.GetClusterName(),
-			Identity:    *identity,
+			Role:                  *systemRole,
+			AdditionalSystemRoles: extractAdditionalSystemRoles(identity.SystemRoles),
+			Username:              identity.Username,
+			ClusterName:           localClusterName.GetClusterName(),
+			Identity:              *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
@@ -568,7 +570,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}, nil
 }
 
-func findSystemRole(roles []string) *types.SystemRole {
+func findPrimarySystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
 		err := systemRole.Check()
@@ -577,6 +579,22 @@ func findSystemRole(roles []string) *types.SystemRole {
 		}
 	}
 	return nil
+}
+
+func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
+	var systemRoles types.SystemRoles
+	for _, role := range roles {
+		systemRole := types.SystemRole(role)
+		err := systemRole.Check()
+		if err != nil {
+			// ignore unknown system roles rather than rejecting them, since new unknown system
+			// roles may be present on certs if we rolled back from a newer version.
+			log.Warnf("Ignoring unknown system role: %q", role)
+			continue
+		}
+		systemRoles = append(systemRoles, systemRole)
+	}
+	return systemRoles
 }
 
 // ServeHTTP serves HTTP requests

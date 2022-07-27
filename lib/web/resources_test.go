@@ -85,6 +85,7 @@ spec:
     - dummy
     organization: octocats
     team: dummy
+  teams_to_roles: null
 version: v3
 `
 	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
@@ -127,6 +128,7 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:
@@ -134,8 +136,10 @@ spec:
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
+    pin_source_ip: false
     port_forwarding: true
     record_session:
+      default: best_effort
       desktop: true
 version: v3
 `
@@ -386,6 +390,7 @@ func TestListResources(t *testing.T) {
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
 				UseSearchAsRoles:    true,
+				NeedTotalCount:      true,
 			},
 		},
 		{

@@ -345,5 +345,4 @@ type ListWindowsDesktopsRequest struct {
 	StartKey, PredicateExpression string
 	Labels                        map[string]string
 	SearchKeywords                []string
-	SortBy                        SortBy
 }

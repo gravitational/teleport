@@ -274,6 +274,7 @@ func (u *Users) setupUser(ctx context.Context, user User) (User, error) {
 func makeFetchers(cfg Config) (map[string]Fetcher, error) {
 	newFetcherFuncs := []func(Config) (Fetcher, error){
 		newElastiCacheFetcher,
+		newMemoryDBFetcher,
 	}
 
 	fetchersByType := make(map[string]Fetcher)

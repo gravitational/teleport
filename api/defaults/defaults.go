@@ -37,6 +37,9 @@ const (
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
 
+	// MinCertDuration specifies minimum duration of validity of issued certificate
+	MinCertDuration = time.Minute
+
 	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = 30 * time.Hour
 
@@ -126,6 +129,9 @@ const (
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
+
+	// SSHProxyListenPort is the default Teleport SSH proxy listen port.
+	SSHProxyListenPort = 3023
 
 	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
 	ProxyWebListenPort = 3080

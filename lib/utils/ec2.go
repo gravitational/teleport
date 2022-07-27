@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -31,6 +33,10 @@ import (
 
 // metadataReadLimit is the largest number of bytes that will be read from imds responses.
 const metadataReadLimit = 1_000_000
+
+// instanceMetadataURL is the URL for EC2 instance metadata.
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+const instanceMetadataURL = "http://169.254.169.254/latest/meta-data"
 
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
@@ -80,7 +86,11 @@ func GetEC2NodeID() (string, error) {
 //   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
 var ec2NodeIDRE = regexp.MustCompile("^[0-9]{12}-i-[0-9a-f]{8,}$")
 
-// IsEC2NodeID returns true if the given ID looks like an EC2 node ID
+// IsEC2NodeID returns true if the given ID looks like an EC2 node ID. Uses a
+// simple regex to check. Node IDs are almost always UUIDs when set
+// automatically, but can be manually overridden by admins. If someone manually
+// sets a host ID that looks like one of our generated EC2 node IDs, they may be
+// able to trick this function, so don't use it for any critical purpose.
 func IsEC2NodeID(id string) bool {
 	return ec2NodeIDRE.MatchString(id)
 }
@@ -109,8 +119,21 @@ func NewInstanceMetadataClient(ctx context.Context) (*InstanceMetadataClient, er
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	_, err := client.getMetadata(ctx, "")
-	return err == nil
+	// Doing this check via imds.Client.GetMetadata() involves several unrelated requests and takes a few seconds
+	// to complete when not on EC2. This approach is faster.
+	httpClient := http.Client{
+		Timeout: 250 * time.Millisecond,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, instanceMetadataURL, nil)
+	if err != nil {
+		return false
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // getMetadata gets the raw metadata from a specified path.

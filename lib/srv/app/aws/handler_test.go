@@ -133,7 +133,7 @@ func TestAWSSignerHandler(t *testing.T) {
 			suite := createSuite(t, handler)
 
 			s3Client := s3.New(tc.awsClientSession, &aws.Config{
-				Endpoint: &suite.server.URL,
+				Endpoint: &suite.URL,
 			})
 			resp, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
 			for _, check := range tc.checks {
@@ -157,12 +157,12 @@ func TestAWSSignerHandler(t *testing.T) {
 	}
 }
 
-func staticAWSCredentials(client.ConfigProvider, *tlsca.Identity) *credentials.Credentials {
+func staticAWSCredentials(client.ConfigProvider, *common.SessionContext) *credentials.Credentials {
 	return credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
 }
 
 type suite struct {
-	server   *httptest.Server
+	*httptest.Server
 	identity *tlsca.Identity
 	app      types.Application
 	emitter  *eventstest.ChannelEmitter
@@ -220,9 +220,9 @@ func createSuite(t *testing.T, handler http.HandlerFunc) *suite {
 	})
 
 	return &suite{
+		Server:   server,
 		identity: &user.Identity,
 		app:      app,
 		emitter:  emitter,
-		server:   server,
 	}
 }

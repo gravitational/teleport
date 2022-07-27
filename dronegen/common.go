@@ -22,6 +22,18 @@ import (
 	"strings"
 )
 
+const (
+	// StagingRegistry is the staging registry images are pushed to before being promoted to the production registry.
+	StagingRegistry = "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+
+	// ProductionRegistry is the production image registry that hosts are customer facing container images.
+	ProductionRegistry = "public.ecr.aws"
+
+	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	ProductionRegistryQuay = "quay.io"
+)
+
 var (
 	triggerPush = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
@@ -197,15 +209,23 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos7 {
+	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
+	if b.centos7 || b.arch == "amd64" {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-	if b.os == "windows" && b.windowsUnsigned {
-		makefileTarget = "release-windows-unsigned"
+
+	// Override Windows targets.
+	if b.os == "windows" {
+		if b.windowsUnsigned {
+			makefileTarget = "release-windows-unsigned"
+		} else {
+			makefileTarget = "release-windows"
+		}
 	}
+
 	return makefileTarget
 }
 

@@ -5,29 +5,8 @@ h1: Single Sign-On (SSO) for SSH
 ---
 
 Users of the Enterprise edition of Teleport can log in to servers, Kubernetes
-clusters, databases, web applications, and Windows desktops through your
+clusters, databases, web applications, and Windows desktops through their
 organization's Single Sign-On (SSO) provider.
-
-<ScopedBlock scope="oss">
-<TileSet>
-    <Tile 
-    icon="bolt"
-    title="Use SSO with Teleport Cloud"
-    href="./sso.mdx/?scope=cloud"
-  >
-    Learn how to use Teleport's SSO integrations in Teleport Cloud.
-    </Tile>
-    <Tile 
-    icon="bolt"
-    title="Use SSO with Teleport Enterprise"
-    href="./sso.mdx/?scope=enterprise"
-  >
-    Learn how to use Teleport's SSO integrations in Teleport Enterprise.
-    </Tile>
-  </TileSet>
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
 
 <TileSet>
   <Tile icon="bolt" title="Azure Active Directory (AD)" href="./sso/azuread.mdx">
@@ -55,30 +34,36 @@ organization's Single Sign-On (SSO) provider.
 
 ## How does SSO work?
 
-Users need to execute the following command login in the CLI or login using UI:
+Execute the following command to log in to your Teleport cluster using the CLI.
 
-```bsh
-# this command will automatically open the default web browser and take a user
-# through the login process with an SSO provider:
+```code
+# This command will automatically open the default web browser and take a user
+# through the login process with an SSO provider
 $ tsh login --proxy=proxy.example.com --auth=github
+```
 
-# output:
+The command opens a browser window and shows a URL the user can visit in the
+terminal to complete their SSO flow:
+
+```text
 If browser window does not open automatically, open it by clicking on the link:
 http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
-Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
-succeeds, Teleport will retrieve an SSH and X.509 certificates and will store them in
-`~/.tsh/keys/proxy.example.com` directory. The tool will also will add SSH cert to an
-SSH agent if there's one running.
+Teleport will wait for up to 3 minutes for a user to authenticate. If
+authentication succeeds, Teleport will retrieve SSH and X.509 certificates and
+store them in the `~/.tsh/keys/<clustername>` directory. The tool will also will
+add SSH cert to an SSH agent if there's one running.
 
 ## Configuring SSO
 
-Teleport works with SSO providers by relying on a concept called
-*"authentication connector"*. An auth connector is a plugin which controls how
-a user logs in and which group he or she belongs to.
+Teleport works with SSO providers by relying on the concept of an
+**authentication connector**. An authentication connector is a plugin that
+controls how a user logs in and which group they belong to.
 
-The following connectors are supported:
+### Supported connectors
+
+The following authentication connectors are supported:
 
 - `local` connector type uses the built-in user database. This database can be
   manipulated by the `tctl users` command.
@@ -87,23 +72,68 @@ The following connectors are supported:
 - `oidc` connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect)
   to authenticate users and query their group membership.
 
-To configure SSO, a Teleport administrator must:
+### Creating an authentication connector
 
-- Update `/etc/teleport.yaml` on the auth server to set the default
-  authentication connector.
-- Define the connector [resource](../setup/reference/resources.mdx) and save it into
-  a YAML file (like `connector.yaml`)
-- Create the connector using `tctl create connector.yaml`.
+Before you can create an authentication connector, you must enable
+authentication via that connector's protocol.
 
-```yaml
-# snippet from /etc/teleport.yaml on the auth server:
-auth_service:
-    # defines the default authentication connector type:
+To set the default authentication type as `saml` or `oidc`, <ScopedBlock
+scope={["oss", "enterprise"]}>either modify your Auth Service configuration file
+or </ScopedBlock>create a `cluster_auth_preference` resource.
+
+<Tabs>
+  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+ Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+  ```yaml
+  auth_service:
     authentication:
-        type: saml
-```
+      # Set as saml or oidc
+      type: saml|oidc
+  ```
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  Create a file called `cap.yaml`:
+  ```yaml
+  kind: cluster_auth_preference
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    authentication:
+      # set as saml or oidc
+      type: saml|oidc
+  version: v2
+  ```
 
-An example of a connector:
+  Create the resource:
+
+  <ScopedBlock scope={["oss", "enterprise"]}>
+
+  ```code
+  # Log in to your cluster with tsh so you can run tctl commands.
+  # You can also run tctl directly on the Auth Service host.
+  $ tsh login --proxy=teleport.example.com --user=myuser
+  $ tctl create -f cap.yaml
+  ```
+
+  </ScopedBlock>
+  <ScopedBlock scope={["cloud"]}>
+
+  ```code
+  # Log in to your cluster with tsh so you can run tctl commands.
+  $ tsh login --proxy=mytenant.teleport.sh --user=myuser
+  $ tctl create -f cap.yaml
+  ```
+
+  </ScopedBlock>
+  </TabItem>
+</Tabs>
+
+
+Next, define an authentication connector. Create a file called `connector.yaml`
+based on one of the following examples.
+
+<Tabs>
+<TabItem label="Okta">
 
 ```yaml
 # connector.yaml
@@ -129,22 +159,67 @@ spec:
      - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
 
   entity_descriptor: |
-    <paste SAML XML contents here>
+    <paste SAML XML contents here>```
+
+</TabItem>
+<TabItem label="OneLogin">
+
+```yaml
+(!/examples/resources/onelogin-connector.yaml!)
 ```
 
-- See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
-  directory in the Teleport Github repository for examples of possible connectors.
-- You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
-  your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
+</TabItem>
+<TabItem label="OIDC">
 
-### User Logins
+```yaml
+(!/examples/resources/oidc-connector.yaml!)
+```
+
+</TabItem>
+<TabItem label="Google Workspace">
+
+```yaml
+(!/examples/resources/gworkspace-connector-inline.yaml!)
+```
+
+</TabItem>
+<TabItem label="ADFS">
+
+```yaml
+(!/examples/resources/adfs-connector.yaml!)
+```
+
+</TabItem>
+<TabItem label="SAML">
+
+```yaml
+(!/examples/resources/saml-connector.yaml!)
+```
+
+</TabItem>
+</Tabs>
+
+
+You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
+
+Create the connector: 
+
+```code
+$ tctl create -f connector.yaml
+```
+
+### User logins
 
 Often it is required to restrict SSO users to their unique UNIX logins when they
-connect to Teleport nodes. To support this:
+connect to Teleport Nodes. To support this:
 
-- Use the SSO provider to create a field called *"unix_login"* (you can use another name).
-- Make sure it's exposed as a claim via SAML/OIDC.
-- Update a Teleport SSH role to include `{{external.unix_login}}` variable into the list of allowed logins:
+- Use the SSO provider to create a field called `unix_login` (you can use another name).
+- Make sure the `unix_login` field is exposed as a claim via SAML/OIDC.
+- Update a Teleport role to include the `{{external.unix_login}}` variable in the list of allowed logins:
 
 ```yaml
 kind: role
@@ -179,10 +254,10 @@ At this time, the `spec.provider` field should not be set for any other identity
 ## Working with External Email Identity
 
 Along with sending groups, an SSO provider will also provide a user's email address.
-In many organizations, the username that a person uses to log into a system is the
-same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport provides an easy way to extract the first part of an email address so it can be used as a username - this is the `{{email.local}}` function.
+In many organizations, the username that a person uses to log in to a system is the
+same as the first part of their email address, the "local" part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport provides an easy way to extract the first part of an email address so it can be used as a username. This is the `{{email.local}}` function.
 
-If the email claim from the identity provider (which can be accessed via `{{external.email}}`) is sent and contains an email address, you can extract the 'local' part of the email address before the @ sign like this: `{{email.local(external.email)}}`
+If the email claim from the identity provider (which can be accessed via `{{external.email}}`) is sent and contains an email address, you can extract the "local" part of the email address before the @ sign like this: `{{email.local(external.email)}}`
 
 Here's how this looks in a Teleport role:
 
@@ -218,7 +293,7 @@ as described in the [Resources Reference](../setup/reference/resources.mdx).
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
 
-```bsh
+```code
 # use "okta" SAML connector:
 $ tsh --proxy=proxy.example.com login --auth=okta
 
@@ -238,7 +313,7 @@ SAML and OIDC types:
 
 | Provider | YAML | Example |
 | - | - | - |
-| Github | `display: Github` | ![github](../../img/teleport-sso/github@2x.png) |
+| GitHub | `display: GitHub` | ![github](../../img/teleport-sso/github@2x.png) |
 | Microsoft | `display: Microsoft` | ![microsoft](../../img/teleport-sso/microsoft@2x.png) |
 | Google | `display: Google` | ![google](../../img/teleport-sso/google@2x.png) |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket@2x.png) |
@@ -286,21 +361,12 @@ Example of a user being denied because the role `clusteradmin` wasn't set up:
 
 ### Teleport does not show the expected Nodes
 
-When Teleport's Auth Service receives a request to list Teleport Nodes,
-it only returns the Nodes that a user is authorized to access. 
+(!docs/pages/includes/node-logins.mdx!)
 
-A user's Teleport roles must grant the user explicit access to Nodes with a particular label
- before the user can view those Nodes. The Auth Service compares the user's 
-`traits.logins` with the `allow` and `deny` rules defined in each of the user's roles. 
-If the user's logins match a role's `allow` and `deny` rules, and a Node's labels match 
-the keys and values listed within a role's `node_labels` field, then the Auth Service will
-list the Node in response to the user's request.
-
-When configuring SSO, ensure that the identity provider is populating each user's 
+When configuring SSO, ensure that the identity provider is populating each user's
 traits correctly. For a user to see a Node in Teleport, the result of populating a
  template variable in a role's `allow.logins` must match at least one of a user's
  `traits.logins`.
-
 
 In this example a user will have usernames `ubuntu`, `debian` and usernames from the SSO trait `logins` for Nodes that have a `env: dev` label.  If the SSO trait username is `bob` then the usernames would include `ubuntu`, `debian`, and `bob`.
 
@@ -315,4 +381,3 @@ spec:
       'env': 'dev'
 version: v5
 ```
-</ScopedBlock>

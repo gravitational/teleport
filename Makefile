@@ -11,10 +11,13 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.0-dev
+VERSION=11.0.0-dev
 
-DOCKER_IMAGE ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+
+DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
+DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
+DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -45,6 +48,9 @@ CGOFLAG_TSH = $(CGOFLAG)
 endif
 
 ifeq ("$(OS)","linux")
+# Link static version of libgcc to reduce system dependencies.
+CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
+CGOFLAG_TSH ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
 # ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
@@ -115,8 +121,8 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lelf -lz -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG_TSH = CGO_ENABLED=1
 endif
 endif
 endif
@@ -124,9 +130,6 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
-
-with_roletester := no
-ROLETESTER_MESSAGE := "without access tester"
 
 with_rdpclient := no
 RDPCLIENT_MESSAGE := "without Windows RDP client"
@@ -142,12 +145,9 @@ CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
-with_roletester := yes
-ROLETESTER_MESSAGE := "with access tester"
-ROLETESTER_TAG := roletester
 
 ifneq ("$(ARCH)","arm")
-# Do not build RDP client on ARM. The client includes OpenSSL which requires libatomic on ARM 32bit.
+# Do not build RDP client on ARM.
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := "with Windows RDP client"
 RDPCLIENT_TAG := desktop_access_rdp
@@ -162,12 +162,15 @@ LIBFIDO2_TEST_TAG := libfido2
 endif
 
 # Build tsh against libfido2?
-# Only build if FIDO2=yes, each platform we support must make this decision
-# explicitly.
+# FIDO2=yes and FIDO2=static enable static libfido2 builds.
+# FIDO2=dynamic enables dynamic libfido2 builds.
 LIBFIDO2_MESSAGE := without libfido2
-ifeq ("$(FIDO2)", "yes")
+ifneq (, $(filter $(FIDO2), yes static))
 LIBFIDO2_MESSAGE := with libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
+else ifeq ("$(FIDO2)", "dynamic")
+LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
@@ -188,7 +191,7 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(ROLETESTER_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
@@ -227,8 +230,8 @@ all: version
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl: roletester
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(ROLETESTER_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+$(BUILDDIR)/tctl:
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -282,25 +285,10 @@ else
 bpf-bytecode:
 endif
 
-#
-# tctl role tester
-# Requires a recent version of Rust and Cargo installed (tested rustc >= 1.52.1 and cargo >= 1.52.0)
-#
-ifeq ("$(with_roletester)", "yes")
-.PHONY: roletester
-roletester:
-	cargo build -p role_tester --release $(CARGO_TARGET)
-else
-.PHONY: roletester
-roletester:
-endif
-
 ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 	cargo build -p rdp-client --release $(CARGO_TARGET)
-	cargo install cbindgen
-	cbindgen --quiet --crate rdp-client --output lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c lib/srv/desktop/rdp/rdpclient/
 else
 .PHONY: rdpclient
 rdpclient:
@@ -335,13 +323,17 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	rm -rf $(ER_BPF_BUILDDIR)
-	rm -rf $(RS_BPF_BUILDDIR)
+# Check if the variable is set to prevent calling remove on the root directory.
+ifneq ($(ER_BPF_BUILDDIR),)
+	rm -f $(ER_BPF_BUILDDIR)/*.o
+endif
+ifneq ($(RS_BPF_BUILDDIR),)
+	rm -f $(RS_BPF_BUILDDIR)/*.o
+endif
 	-cargo clean
 	-go clean -cache
-	rm -rf teleport
-	rm -rf *.gz
-	rm -rf *.zip
+	rm -f *.gz
+	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 
@@ -489,7 +481,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust
+test: test-helm test-sh test-ci test-api test-go test-rust test-operator
 
 # Runs bot Go tests.
 #
@@ -520,12 +512,12 @@ test-helm-update-snapshots:
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test-go
-test-go: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-go: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go: FLAGS ?= -race -shuffle on
-test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
+test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
@@ -546,7 +538,7 @@ endif
 	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG)" github.com/gravitational/teleport/tool/tsh $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| ${RENDER_TESTS}
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
 
@@ -562,11 +554,11 @@ test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode roletester rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
 test-go-root: $(VERSRC)
-	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 		| tee $(TEST_LOG_DIR)/unit-root.json \
 		| ${RENDER_TESTS}
 
@@ -578,9 +570,17 @@ test-api:
 test-api: FLAGS ?= -race -shuffle on
 test-api: PACKAGES = $(shell cd api && go list ./...)
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
-	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
 		| ${RENDER_TESTS}
+
+#
+# Runs Teleport Operator tests.
+# We have to run them using the makefile to ensure the installation of the k8s test tools (envtest)
+#
+.PHONY: test-operator
+test-operator:
+	make -C operator test
 
 #
 # Runs cargo test on our Rust modules.
@@ -620,7 +620,7 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep integration)
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
 		| $(RENDER_TESTS) -report-by test
 
@@ -764,7 +764,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'lib/datalog/roletester/target/**'
+		-ignore 'docs/pages/includes/**/*.go'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -799,7 +799,7 @@ $(VERSRC): Makefile
 # Note: any build flags needed to compile go files (such as build tags) should be provided below.
 .PHONY: update-api-import-path
 update-api-import-path:
-	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam roletester desktop_access_rdp linux"
+	go run build.assets/gomod/update-api-import-path/main.go -tags "bpf fips pam desktop_access_rdp linux"
 	$(MAKE) grpc
 
 # make tag - prints a tag to use with git for the current version
@@ -914,7 +914,6 @@ buildbox-grpc:
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
 		api/types/wrappers/wrappers.proto \
-		lib/datalog/types.proto \
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
@@ -937,10 +936,6 @@ buildbox-grpc:
 	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		wrappers.proto
-
-	cd lib/datalog && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		types.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
@@ -993,13 +988,19 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: publish-ecr
+publish-ecr: image
+	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
+	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -1009,13 +1010,22 @@ publish: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
+
+# Docker image build for Teleport Operator
+.PHONY: image-operator-ci
+image-operator-ci:
+	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+
+.PHONY: publish-operator-ci
+publish-operator-ci: image-operator-ci
+	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
 
 .PHONY: print-version
 print-version:
@@ -1039,7 +1049,7 @@ endif
 .PHONY: pkg
 pkg:
 	mkdir -p $(BUILDDIR)/
-	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
 	# we pass them through for consistency - they will be dropped by the build script
@@ -1057,7 +1067,7 @@ pkg-tsh:
 .PHONY: rpm
 rpm:
 	mkdir -p $(BUILDDIR)/
-	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ./build.assets/rpm $(BUILDDIR)/
 	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
@@ -1073,20 +1083,15 @@ rpm-unsigned:
 .PHONY: deb
 deb:
 	mkdir -p $(BUILDDIR)/
-	cp ./build.assets/build-package.sh $(BUILDDIR)/
+	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
-# update Helm chart versions
-# this isn't a 'proper' semver regex but should cover most cases
-# the order of parameters in sed's extended regex mode matters; the
-# dash (-) must be the last character for this to work as expected
-.PHONY: update-helm-charts
-update-helm-charts:
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-auto-trustedcluster/values.yaml
-	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-daemonset/values.yaml
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
 
 .PHONY: ensure-webassets
 ensure-webassets:

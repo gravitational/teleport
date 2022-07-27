@@ -53,6 +53,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -153,6 +155,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
+		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
@@ -177,6 +180,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
+		ServerID:        cfg.HostUUID,
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
@@ -184,6 +188,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
+		unstable:        local.NewUnstableService(cfg.Backend),
 		Services: Services{
 			Trust:                 cfg.Trust,
 			Presence:              cfg.Presence,
@@ -202,6 +207,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		},
 		keyStore:     keyStore,
 		getClaimsFun: getClaims,
+		inventory:    inventory.NewController(cfg.Presence),
 	}
 	for _, o := range opts {
 		o(&as)
@@ -328,6 +334,13 @@ type Server struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
+	// ServerID is the server ID of this auth server.
+	ServerID string
+
+	// unstable implements unstable backend methods not suitable
+	// for inclusion in Services.
+	unstable local.UnstableService
+
 	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure
 	Services
@@ -362,6 +375,12 @@ type Server struct {
 
 	// getClaimsFun is used in tests for overriding the implementation of getClaims method used in OIDC.
 	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
+
+	inventory *inventory.Controller
+}
+
+func (a *Server) CloseContext() context.Context {
+	return a.closeCtx
 }
 
 // SetCache sets cache used by auth server
@@ -558,10 +577,19 @@ func (a *Server) updateVersionMetrics() {
 
 func (a *Server) Close() error {
 	a.cancelFunc()
-	if a.bk != nil {
-		return trace.Wrap(a.bk.Close())
+
+	var errs []error
+
+	if err := a.inventory.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return nil
+
+	if a.bk != nil {
+		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 func (a *Server) GetClock() clockwork.Clock {
@@ -761,6 +789,8 @@ type certRequest struct {
 	mfaVerified string
 	// clientIP is an IP of the client requesting the certificate.
 	clientIP string
+	// sourceIP is an IP this certificate should be pinned to
+	sourceIP string
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -806,20 +836,20 @@ func certRequestClientIP(ip string) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            ttl,
@@ -828,6 +858,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
+		sourceIP:       sourceIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -860,15 +891,15 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
@@ -882,7 +913,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {uuid.New().String()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -918,22 +949,22 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.Access)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
-			teleport.TraitLogins: {req.Username},
+			constants.TraitLogins: {req.Username},
 		},
 		routeToCluster: req.Cluster,
 		dbService:      req.RouteToDatabase.ServiceName,
@@ -953,6 +984,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(req.checker.GetAllowedResourceIDs()) > 0 && !modules.GetModules().Features().ResourceAccessRequests {
+		return nil, trace.AccessDenied("this Teleport cluster is not licensed for resource access requests, please contact the cluster administrator")
 	}
 
 	// Reject the cert request if there is a matching lock in force.
@@ -1055,7 +1090,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
-	allowedLogins = append(allowedLogins, "-teleport-internal-join")
+	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
@@ -1084,6 +1119,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Generation:            req.generation,
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
+		SourceIP:              req.sourceIP,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1307,12 +1343,12 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 
 // PreAuthenticatedSignIn is for MFA authentication methods where the password
 // is already checked before issuing the second factor challenge
-func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (types.WebSession, error) {
+func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identity tlsca.Identity) (types.WebSession, error) {
 	accessInfo, err := services.AccessInfoFromLocalIdentity(identity, a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
@@ -1322,7 +1358,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -1843,13 +1879,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
-		// There's not a consistent way to merge multiple search-based access
-		// requests, a user may be able to request access to different resources
-		// with different roles which should not overlap.
-		if len(allowedResourceIDs) > 0 && len(accessRequest.GetRequestedResourceIDs()) > 0 {
-			return nil, trace.BadParameter("user is already logged in with a search-based access request, cannot issue another")
+		if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+			// There's not a consistent way to merge multiple resource access
+			// requests, a user may be able to request access to different resources
+			// with different roles which should not overlap.
+			if len(allowedResourceIDs) > 0 {
+				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
+			}
+			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
-		allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 
 		// Let session expire with the shortest expiry time.
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
@@ -1886,7 +1924,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
 		Roles:                roles,
 		Traits:               traits,
@@ -1932,7 +1970,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 		return nil, trace.AccessDenied("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequestForUser(a, req); err != nil {
+	if err := services.ValidateAccessRequestForUser(ctx, a, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1946,12 +1984,12 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, user, accessRequ
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
+func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	u, err := a.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(types.NewWebSessionRequest{
+	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:      user,
 		Roles:     u.GetRoles(),
 		Traits:    u.GetTraits(),
@@ -1960,52 +1998,30 @@ func (a *Server) CreateWebSession(user string) (types.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
+	if err := a.upsertWebSession(ctx, user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
 }
 
-// GenerateTokenRequest is a request to generate auth token
-type GenerateTokenRequest struct {
-	// Token if provided sets the token value, otherwise will be auto generated
-	Token string `json:"token"`
-	// Roles is a list of roles this token authenticates as
-	Roles types.SystemRoles `json:"roles"`
-	// TTL is a time to live for token
-	TTL time.Duration `json:"ttl"`
-	// Labels sets token labels, e.g. {env: prod, region: us-west}.
-	// Labels are later passed to resources that are joining
-	// e.g. remote clusters and in the future versions, nodes and proxies.
-	Labels map[string]string `json:"labels"`
-}
+// GenerateToken generates multi-purpose authentication token.
+func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	expires := a.clock.Now().UTC()
+	if req.TTL != 0 {
+		expires.Add(req.TTL.Get())
+	} else {
+		expires.Add(defaults.ProvisioningTokenTTL)
+	}
 
-// CheckAndSetDefaults checks and sets default values of request
-func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
-	for _, role := range req.Roles {
-		if err := role.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if req.TTL == 0 {
-		req.TTL = defaults.ProvisioningTokenTTL
-	}
 	if req.Token == "" {
 		token, err := utils.CryptoRandomHex(TokenLenBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		req.Token = token
 	}
-	return nil
-}
 
-// GenerateToken generates multi-purpose authentication token.
-func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	token, err := types.NewProvisionToken(req.Token, req.Roles, a.clock.Now().UTC().Add(req.TTL))
+	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2183,11 +2199,21 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
+		return nil, trace.BadParameter("cannot generate instance cert with no system roles")
+	}
+
+	systemRoles := make([]string, 0, len(req.SystemRoles))
+	for _, r := range req.SystemRoles {
+		systemRoles = append(systemRoles, string(r))
+	}
+
 	// generate host TLS certificate
 	identity := tlsca.Identity{
 		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
+		SystemRoles:     systemRoles,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2221,6 +2247,88 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+// instances to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	return trace.Wrap(a.unstable.AssertSystemRole(ctx, req))
+}
+
+func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
+	set, err := a.unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
+}
+
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
+	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
+	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
+	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
+	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: a.ServerID,
+	}
+	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
+		return trace.Wrap(err)
+	}
+	a.inventory.RegisterControlStream(ics, hello)
+	return nil
+}
+
+// MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
+// server upon hello exchange.
+func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe()
+	go func() {
+		select {
+		case msg := <-upstream.Recv():
+			hello, ok := msg.(proto.UpstreamInventoryHello)
+			if !ok {
+				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
+				return
+			}
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+				upstream.CloseWithError(err)
+				return
+			}
+		case <-upstream.Done():
+		case <-a.CloseContext().Done():
+			upstream.Close()
+		}
+	}()
+	return downstream
+}
+
+func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+	var rsp proto.InventoryStatusSummary
+	if req.Connected {
+		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+			rsp.Connected = append(rsp.Connected, handle.Hello())
+		})
+	}
+	return rsp
+}
+
+func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	if !ok {
+		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
+	}
+
+	d, err := stream.Ping(ctx)
+	if err != nil {
+		return proto.InventoryPingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.InventoryPingResponse{
+		Duration: d,
+	}, nil
+}
+
+// TokenExpiredOrNotFound is a special message returned by the auth server when provisioning
+// tokens are either past their TTL, or could not be found.
+const TokenExpiredOrNotFound = "token expired or not found"
+
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
@@ -2242,10 +2350,13 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied("token expired")
+		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -2325,12 +2436,8 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 }
 
 // NewWebSession creates and returns a new web session for the specified request
-func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession, error) {
+func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	user, err := a.GetUser(req.User, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleSet, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2338,14 +2445,16 @@ func (a *Server) NewWebSession(req types.NewWebSessionRequest) (types.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(&services.AccessInfo{
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
-		RoleSet:            roleSet,
 		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName())
+	}, clusterName.GetClusterName(), a.Access)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	netCfg, err := a.GetClusterNetworkingConfig(context.TODO())
+	netCfg, err := a.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2438,13 +2547,13 @@ func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	err := services.ValidateAccessRequestForUser(a, req,
+	if err := services.ValidateAccessRequestForUser(ctx, a, req,
 		// if request is in state pending, variable expansion must be applied
 		services.ExpandVars(req.GetState().IsPending()),
-	)
-	if err != nil {
+	); err != nil {
 		return trace.Wrap(err)
 	}
+
 	ttl, err := a.calculateMaxAccessTTL(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2466,6 +2575,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			req.SetExpiry(pexp)
 		}
 	}
+
+	if req.GetDryRun() {
+		// Made it this far with no errors, return before creating the request
+		// if this is a dry run.
+		return nil
+	}
+
 	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2736,48 +2852,31 @@ func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	return a.GetCache().GetNodes(ctx, namespace)
 }
 
-// ResourcePageFunc is a function to run on each page iterated over.
-type ResourcePageFunc func(next []types.ResourceWithLabels) (stop bool, err error)
+// ErrDone indicates that resource iteration is complete
+var ErrDone = errors.New("done iterating")
 
-// IterateResourcePages can be used to iterate over pages of resources.
-func (a *Server) IterateResourcePages(ctx context.Context, req proto.ListResourcesRequest, f ResourcePageFunc) (*types.ListResourcesResponse, error) {
+// IterateResources loads all resources matching the provided request and passes them one by one to the provided
+// callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
+// a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
+// and the error to be returned.
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
-		var resp *types.ListResourcesResponse
-		switch {
-		case req.ResourceType == types.KindWindowsDesktop:
-			wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-				WindowsDesktopFilter: req.WindowsDesktopFilter,
-				Limit:                int(req.Limit),
-				StartKey:             req.StartKey,
-				PredicateExpression:  req.PredicateExpression,
-				Labels:               req.Labels,
-				SearchKeywords:       req.SearchKeywords,
-				SortBy:               req.SortBy,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = &types.ListResourcesResponse{
-				Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
-				NextKey:   wResp.NextKey,
-			}
-		default:
-			dResp, err := a.ListResources(ctx, req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resp = dResp
-		}
-
-		stop, err := f(resp.Resources)
+		resp, err := a.ListResources(ctx, req)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		// Iterator stopped before end of pages or
-		// there are no more pages, return nextKey
-		if stop || resp.NextKey == "" {
-			return resp, nil
+		for _, resource := range resp.Resources {
+			if err := f(resource); err != nil {
+				if errors.Is(err, ErrDone) {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
+		}
+
+		if resp.NextKey == "" {
+			return nil
 		}
 
 		req.StartKey = resp.NextKey
@@ -3070,6 +3169,26 @@ func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, 
 
 // ListResources returns paginated resources depending on the resource type..
 func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// Because WindowsDesktopService does not contain the desktop resources,
+	// this is not implemented at the cache level and requires the workaround
+	// here in order to support KindWindowsDesktop for ListResources.
+	if req.ResourceType == types.KindWindowsDesktop {
+		wResp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: req.WindowsDesktopFilter,
+			Limit:                int(req.Limit),
+			StartKey:             req.StartKey,
+			PredicateExpression:  req.PredicateExpression,
+			Labels:               req.Labels,
+			SearchKeywords:       req.SearchKeywords,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ListResourcesResponse{
+			Resources: types.WindowsDesktops(wResp.Desktops).AsResources(),
+			NextKey:   wResp.NextKey,
+		}, nil
+	}
 	return a.GetCache().ListResources(ctx, req)
 }
 
@@ -3510,6 +3629,8 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 	}
 }
 
+// newKeySet generates a new sets of keys for a given CA type.
+// Keep this function in sync with lib/service/suite/suite.go:NewTestCAWithConfig().
 func newKeySet(keyStore keystore.KeyStore, caID types.CertAuthID) (types.CAKeySet, error) {
 	var keySet types.CAKeySet
 	switch caID.Type {

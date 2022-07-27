@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 
@@ -117,6 +118,22 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 	return nil, trace.BadParameter("unsupported database resource version %q", h.Version)
 }
 
+// setDBName modifies the types.Metadata argument in place, setting the database name.
+// The name is calculated based on nameParts arguments which are joined by hyphens "-".
+// If the DB name override label is present (labelTeleportDBName), it will replace the *first* name part.
+func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	nameParts := append([]string{firstNamePart}, extraNameParts...)
+
+	// apply override
+	if override, found := meta.Labels[labelTeleportDBName]; found && override != "" {
+		nameParts[0] = override
+	}
+
+	meta.Name = strings.Join(nameParts, "-")
+
+	return meta
+}
+
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
 func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
@@ -127,15 +144,17 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(instance.DBInstanceIdentifier),
-		Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
-		Labels:      labelsFromRDSInstance(instance, metadata),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
-		AWS:      *metadata,
-	})
+
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
+			Labels:      labelsFromRDSInstance(instance, metadata),
+		}, aws.StringValue(instance.DBInstanceIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(instance.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromRDSCluster creates a database resource from an RDS cluster (Aurora).
@@ -144,15 +163,16 @@ func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(cluster.DBClusterIdentifier),
-		Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
-		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
+			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypePrimary),
+		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromRDSClusterReaderEndpoint creates a database resource from an RDS cluster reader endpoint (Aurora).
@@ -161,15 +181,16 @@ func NewDatabaseFromRDSClusterReaderEndpoint(cluster *rds.DBCluster) (types.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        fmt.Sprintf("%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
-		Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
-		Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
-	}, types.DatabaseSpecV3{
-		Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeReader)),
+			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeReader),
+		}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeReader)),
+		types.DatabaseSpecV3{
+			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabasesFromRDSClusterCustomEndpoints creates database resources from RDS cluster custom endpoints (Aurora).
@@ -190,21 +211,22 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 			continue
 		}
 
-		database, err := types.NewDatabaseV3(types.Metadata{
-			Name:        fmt.Sprintf("%v-%v-%v", aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
-			Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
-			Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
-		}, types.DatabaseSpecV3{
-			Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
-			AWS:      *metadata,
+		database, err := types.NewDatabaseV3(
+			setDBName(types.Metadata{
+				Description: fmt.Sprintf("Aurora cluster in %v (%v endpoint)", metadata.Region, string(RDSEndpointTypeCustom)),
+				Labels:      labelsFromRDSCluster(cluster, metadata, RDSEndpointTypeCustom),
+			}, aws.StringValue(cluster.DBClusterIdentifier), string(RDSEndpointTypeCustom), endpointName),
+			types.DatabaseSpecV3{
+				Protocol: engineToProtocol(aws.StringValue(cluster.Engine)),
+				URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint), aws.Int64Value(cluster.Port)),
+				AWS:      *metadata,
 
-			// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
-			// away. Using primary endpoint instead as server name since it's always available.
-			TLS: types.DatabaseTLS{
-				ServerName: aws.StringValue(cluster.Endpoint),
-			},
-		})
+				// Aurora instances update their certificates upon restart, and thus custom endpoint SAN may not be available right
+				// away. Using primary endpoint instead as server name since it's always available.
+				TLS: types.DatabaseTLS{
+					ServerName: aws.StringValue(cluster.Endpoint),
+				},
+			})
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -229,15 +251,16 @@ func NewDatabaseFromRedshiftCluster(cluster *redshift.Cluster) (types.Database, 
 		return nil, trace.Wrap(err)
 	}
 
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        aws.StringValue(cluster.ClusterIdentifier),
-		Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
-		Labels:      labelsFromRedshiftCluster(cluster, metadata),
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
-		AWS:      *metadata,
-	})
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Redshift cluster in %v", metadata.Region),
+			Labels:      labelsFromRedshiftCluster(cluster, metadata),
+		}, aws.StringValue(cluster.ClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint.Address), aws.Int64Value(cluster.Endpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromElastiCacheConfigurationEndpoint creates a database resource
@@ -281,20 +304,41 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 		return nil, trace.Wrap(err)
 	}
 
-	name := aws.StringValue(cluster.ReplicationGroupId)
+	suffix := make([]string, 0)
 	if endpointType == awsutils.ElastiCacheReaderEndpoint {
-		name = fmt.Sprintf("%s-%s", name, endpointType)
+		suffix = []string{endpointType}
 	}
 
-	return types.NewDatabaseV3(types.Metadata{
-		Name:        name,
+	return types.NewDatabaseV3(setDBName(types.Metadata{
 		Description: fmt.Sprintf("ElastiCache cluster in %v (%v endpoint)", metadata.Region, endpointType),
-		Labels:      labelsFromElastiCacheCluster(metadata, endpointType, extraLabels),
-	}, types.DatabaseSpecV3{
+		Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
+	}, aws.StringValue(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 		AWS:      *metadata,
 	})
+}
+
+// NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
+// cluster.
+func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
+	endpointType := awsutils.MemoryDBClusterEndpoint
+
+	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("MemoryDB cluster in %v", metadata.Region),
+			Labels:      labelsFromMetaAndEndpointType(metadata, endpointType, extraLabels),
+		}, aws.StringValue(cluster.Name)),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolRedis,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ClusterEndpoint.Address), aws.Int64Value(cluster.ClusterEndpoint.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
@@ -367,6 +411,26 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 	}, nil
 }
 
+// MetadataFromMemoryDBCluster creates AWS metadata for the providec MemoryDB
+// cluster.
+func MetadataFromMemoryDBCluster(cluster *memorydb.Cluster, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		MemoryDB: types.MemoryDB{
+			ClusterName:  aws.StringValue(cluster.Name),
+			ACLName:      aws.StringValue(cluster.ACLName),
+			TLSEnabled:   aws.BoolValue(cluster.TLSEnabled),
+			EndpointType: endpointType,
+		},
+	}, nil
+}
+
 // ExtraElastiCacheLabels returns a list of extra labels for provided
 // ElastiCache cluster.
 func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elasticache.Tag, allNodes []*elasticache.CacheCluster, allSubnetGroups []*elasticache.CacheSubnetGroup) map[string]string {
@@ -400,6 +464,35 @@ func ExtraElastiCacheLabels(cluster *elasticache.ReplicationGroup, tags []*elast
 	// for filtering.
 	for _, subnetGroup := range allSubnetGroups {
 		if aws.StringValue(subnetGroup.CacheSubnetGroupName) == subnetGroupName {
+			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
+			break
+		}
+	}
+
+	return labels
+}
+
+// ExtraMemoryDBLabels returns a list of extra labels for provided MemoryDB
+// cluster.
+func ExtraMemoryDBLabels(cluster *memorydb.Cluster, tags []*memorydb.Tag, allSubnetGroups []*memorydb.SubnetGroup) map[string]string {
+	labels := make(map[string]string)
+
+	// Add AWS resource tags.
+	for _, tag := range tags {
+		key := aws.StringValue(tag.Key)
+		if types.IsValidLabelKey(key) {
+			labels[key] = aws.StringValue(tag.Value)
+		} else {
+			log.Debugf("Skipping MemoryDB tag %q, not a valid label key.", key)
+		}
+	}
+
+	// Engine version.
+	labels[labelEngineVersion] = aws.StringValue(cluster.EngineVersion)
+
+	// VPC ID.
+	for _, subnetGroup := range allSubnetGroups {
+		if aws.StringValue(subnetGroup.Name) == aws.StringValue(cluster.SubnetGroupName) {
 			labels[labelVPCID] = aws.StringValue(subnetGroup.VpcId)
 			break
 		}
@@ -460,9 +553,8 @@ func labelsFromRedshiftCluster(cluster *redshift.Cluster, meta *types.AWS) map[s
 	return labels
 }
 
-// labelsFromElastiCacheCluster creates database labels for the provided
-// ElastiCache cluster.
-func labelsFromElastiCacheCluster(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
+// labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
+func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, value := range extraLabels {
 		labels[key] = value
@@ -542,6 +634,11 @@ func IsRDSClusterSupported(cluster *rds.DBCluster) bool {
 // supported.
 func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
 	return aws.BoolValue(cluster.TransitEncryptionEnabled)
+}
+
+// IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
+func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
+	return aws.BoolValue(cluster.TLSEnabled)
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -626,6 +723,7 @@ func IsRedshiftClusterAvailable(cluster *redshift.Cluster) bool {
 	// if the status is resulted by modifying the cluster, and the cluster is
 	// assumed to be unavailable if the cluster cannot be created or restored.
 	switch aws.StringValue(cluster.ClusterStatus) {
+	// nolint:misspell
 	case "available", "available, prep-for-resize", "available, resize-cleanup",
 		"cancelling-resize", "final-snapshot", "modifying", "rebooting",
 		"renaming", "resizing", "rotating-keys", "storage-full", "updating-hsm",
@@ -659,6 +757,25 @@ func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
 		log.Warnf("Unknown status type: %q. Assuming ElastiCache %q is available.",
 			aws.StringValue(cluster.Status),
 			aws.StringValue(cluster.ReplicationGroupId),
+		)
+		return true
+
+	}
+}
+
+// IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
+func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
+	switch aws.StringValue(cluster.Status) {
+	case "available", "modifying", "snapshotting":
+		return true
+
+	case "creating", "deleting", "create-failed":
+		return false
+
+	default:
+		log.Warnf("Unknown status type: %q. Assuming MemoryDB %q is available.",
+			aws.StringValue(cluster.Status),
+			aws.StringValue(cluster.Name),
 		)
 		return true
 
@@ -714,6 +831,8 @@ const (
 	labelEndpointType = "endpoint-type"
 	// labelVPCID is the label key containing the VPC ID.
 	labelVPCID = "vpc-id"
+	// labelTeleportDBName is the label key containing the database name override.
+	labelTeleportDBName = types.TeleportNamespace + "/database-name"
 )
 
 const (

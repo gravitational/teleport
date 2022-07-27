@@ -1369,6 +1369,57 @@ func TestDebugFlag(t *testing.T) {
 	require.True(t, cfg.Debug)
 }
 
+func TestMergingCAPinConfig(t *testing.T) {
+	tests := []struct {
+		desc       string
+		cliPins    []string
+		configPins string // this goes into the yaml in bracket syntax [val1,val2,...]
+		want       []string
+	}{
+		{
+			desc:       "pin taken from cli only",
+			cliPins:    []string{"cli-pin"},
+			configPins: "",
+			want:       []string{"cli-pin"},
+		},
+		{
+			desc:       "pin taken from file config only",
+			cliPins:    []string{},
+			configPins: "fc-pin",
+			want:       []string{"fc-pin"},
+		},
+		{
+			desc:       "non-empty pins from cli override file config",
+			cliPins:    []string{"cli-pin1", "", "cli-pin2", ""},
+			configPins: "fc-pin",
+			want:       []string{"cli-pin1", "cli-pin2"},
+		},
+		{
+			desc:       "all empty pins from cli do not override file config",
+			cliPins:    []string{"", ""},
+			configPins: "fc-pin1,fc-pin2",
+			want:       []string{"fc-pin1", "fc-pin2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				CAPins: tt.cliPins,
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(
+					configWithCAPins,
+					tt.configPins,
+				))),
+			}
+			cfg := service.MakeDefaultConfig()
+			require.Empty(t, cfg.CAPins)
+			err := Configure(&clf, cfg)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.want, cfg.CAPins)
+		})
+	}
+}
+
 func TestLicenseFile(t *testing.T) {
 	testCases := []struct {
 		path   string
@@ -1685,6 +1736,13 @@ func TestWindowsDesktopService(t *testing.T) {
 				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
 					{Match: "g(-z]+ invalid regex", Labels: map[string]string{"key": "value"}},
 				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label key for LDAP attribute",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
 		{
@@ -2417,6 +2475,70 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.want, cfg.Auth.KeyStore)
 			}
+		})
+	}
+}
+
+// TestApplyConfigSessionRecording checks if the session recording origin is
+// set correct and if file configuration is read and applied correctly.
+func TestApplyConfigSessionRecording(t *testing.T) {
+	tests := []struct {
+		desc                   string
+		inSessionRecording     string
+		inProxyChecksHostKeys  string
+		outOrigin              string
+		outSessionRecording    string
+		outProxyChecksHostKeys bool
+	}{
+		{
+			desc:                   "both-empty",
+			inSessionRecording:     "",
+			inProxyChecksHostKeys:  "",
+			outOrigin:              "defaults",
+			outSessionRecording:    "node",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "proxy-checks-empty",
+			inSessionRecording:     "session_recording: proxy-sync",
+			inProxyChecksHostKeys:  "",
+			outOrigin:              "config-file",
+			outSessionRecording:    "proxy-sync",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "session-recording-empty",
+			inSessionRecording:     "",
+			inProxyChecksHostKeys:  "proxy_checks_host_keys: true",
+			outOrigin:              "config-file",
+			outSessionRecording:    "node",
+			outProxyChecksHostKeys: true,
+		},
+		{
+			desc:                   "both-set",
+			inSessionRecording:     "session_recording: node-sync",
+			inProxyChecksHostKeys:  "proxy_checks_host_keys: false",
+			outOrigin:              "config-file",
+			outSessionRecording:    "node-sync",
+			outProxyChecksHostKeys: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			fileconfig := fmt.Sprintf(configSessionRecording,
+				tt.inSessionRecording,
+				tt.inProxyChecksHostKeys)
+			conf, err := ReadConfig(bytes.NewBufferString(fileconfig))
+			require.NoError(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.outOrigin, cfg.Auth.SessionRecordingConfig.Origin())
+			require.Equal(t, tt.outSessionRecording, cfg.Auth.SessionRecordingConfig.GetMode())
+			require.Equal(t, tt.outProxyChecksHostKeys, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys())
 		})
 	}
 }

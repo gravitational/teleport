@@ -24,6 +24,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// OpenFileWithFlagsFunc defines a function used to open files providing options.
+type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
+
 // EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
 // default gravity config directory, e.g.
 //
@@ -60,17 +63,6 @@ func MkdirAll(targetDirectory string, mode os.FileMode) error {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
-}
-
-// RemoveDirCloser removes directory and all it's contents
-// when Close is called
-type RemoveDirCloser struct {
-	Path string
-}
-
-// Close removes directory and all it's contents
-func (r *RemoveDirCloser) Close() error {
-	return trace.ConvertSystemError(os.RemoveAll(r.Path))
 }
 
 // IsDir is a helper function to quickly check if a given path is a valid directory

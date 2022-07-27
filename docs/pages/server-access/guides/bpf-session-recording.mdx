@@ -8,7 +8,7 @@ videoBanner: 8uO5H-iYw5A
 This guide explains Enhanced Session Recording for SSH with BPF and how to set
 it up in your Teleport cluster.
 
-Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
+Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#ssh-session-recording)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages. For example, because no input is captured, Teleport
@@ -49,7 +49,7 @@ Teleport Enhanced Session Recording mitigates all three concerns by providing ad
 <Notice type="tip">
 
   Our Standard Session Recording works with older Linux kernels. View
-  [Teleport Nodes](../../architecture/nodes.mdx#session-recording) for more
+  [Teleport Nodes](../../architecture/nodes.mdx#ssh-session-recording) for more
   details.
 
 </Notice>
@@ -255,6 +255,6 @@ Sessions with Enhanced Session Recording will include the
 ## Next steps
 
 - Read more about
-  [session recording](../../architecture/nodes.mdx#session-recording).
+  [session recording](../../architecture/nodes.mdx#ssh-session-recording).
 - See all configuration options for Enhanced Session Recording in our
   [Configuration Reference](../../setup/reference/config.mdx).

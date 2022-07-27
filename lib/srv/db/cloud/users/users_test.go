@@ -18,11 +18,13 @@ package users
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -57,15 +59,22 @@ func TestUsers(t *testing.T) {
 	ecMock.AddMockUser(elastiCacheUser("dan", "group3"), managedTags)
 	ecMock.AddMockUser(elastiCacheUser("not-managed", "group1", "group2"), nil)
 
+	mdbMock := &cloud.MemoryDBMock{}
+	mdbMock.AddMockUser(memoryDBUser("alice", "acl1"), managedTags)
+	mdbMock.AddMockUser(memoryDBUser("bob", "acl1", "acl2"), managedTags)
+	mdbMock.AddMockUser(memoryDBUser("charlie", "acl2", "acl3"), managedTags)
+
 	db1 := mustCreateElastiCacheDatabase(t, "db1", "group1")
 	db2 := mustCreateElastiCacheDatabase(t, "db2", "group2")
 	db3 := mustCreateElastiCacheDatabase(t, "db3", "group-not-found")
 	db4 := mustCreateElastiCacheDatabase(t, "db4" /*no group*/)
 	db5 := mustCreateRDSDatabase(t, "db5")
+	db6 := mustCreateMemoryDBDatabase(t, "db6", "acl1")
 
 	users, err := NewUsers(Config{
 		Clients: &common.TestCloudClients{
 			ElastiCache:    ecMock,
+			MemoryDB:       mdbMock,
 			SecretsManager: smMock,
 		},
 		Clock: clock,
@@ -82,7 +91,7 @@ func TestUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("setup single database", func(t *testing.T) {
-		for _, database := range []types.Database{db1, db2, db3, db4, db5} {
+		for _, database := range []types.Database{db1, db2, db3, db4, db5, db6} {
 			users.setupDatabaseAndRotatePasswords(ctx, database)
 		}
 
@@ -91,13 +100,14 @@ func TestUsers(t *testing.T) {
 		requireDatabaseWithManagedUsers(t, users, db3, nil)
 		requireDatabaseWithManagedUsers(t, users, db4, nil)
 		requireDatabaseWithManagedUsers(t, users, db5, nil)
+		requireDatabaseWithManagedUsers(t, users, db6, []string{"alice", "bob"})
 	})
 
 	t.Run("setup all databases", func(t *testing.T) {
 		clock.Advance(time.Hour)
 
 		// Remove db2.
-		users.setupAllDatabasesAndRotatePassowrds(ctx, types.Databases{db1, db3, db4, db5})
+		users.setupAllDatabasesAndRotatePassowrds(ctx, types.Databases{db1, db3, db4, db5, db6})
 
 		// Validate db1 is updated thourgh cfg.UpdateMeta.
 		requireDatabaseWithManagedUsers(t, users, db1, []string{"charlie", "dan"})
@@ -105,6 +115,9 @@ func TestUsers(t *testing.T) {
 		// Validate db2 is no longer tracked.
 		_, err = users.GetPassword(ctx, db2, "charlie")
 		require.True(t, trace.IsNotFound(err))
+
+		// Validate db6 is same as before.
+		requireDatabaseWithManagedUsers(t, users, db6, []string{"alice", "bob"})
 	})
 }
 
@@ -133,6 +146,22 @@ func mustCreateElastiCacheDatabase(t *testing.T, name string, userGroupIDs ...st
 	return db
 }
 
+func mustCreateMemoryDBDatabase(t *testing.T, name, aclName string) types.Database {
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: name,
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      fmt.Sprintf("clustercfg.%v.xxxxxx.memorydb.us-east-1.amazonaws.com:6379", name),
+		AWS: types.AWS{
+			MemoryDB: types.MemoryDB{
+				ACLName: aclName,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return db
+}
+
 func mustCreateRDSDatabase(t *testing.T, name string) types.Database {
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: name,
@@ -150,5 +179,13 @@ func elastiCacheUser(name string, groupIDs ...string) *elasticache.User {
 		ARN:          aws.String("arn:aws:elasticache:us-east-1:1234567890:user:" + name),
 		UserName:     aws.String(name),
 		UserGroupIds: aws.StringSlice(groupIDs),
+	}
+}
+
+func memoryDBUser(name string, aclNames ...string) *memorydb.User {
+	return &memorydb.User{
+		ARN:      aws.String("arn:aws:memorydb:us-east-1:1234567890:user/" + name),
+		Name:     aws.String(name),
+		ACLNames: aws.StringSlice(aclNames),
 	}
 }

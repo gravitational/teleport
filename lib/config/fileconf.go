@@ -161,8 +161,13 @@ type SampleFlags struct {
 	AppURI string
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
+	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
+	// a single value or a list.
+	CAPin string
 	// JoinMethod is the method that will be used to join the cluster, either "token", "iam" or "ec2"
 	JoinMethod string
+	// NodeName is the name of the teleport node
+	NodeName string
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -184,7 +189,12 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	conf := service.MakeDefaultConfig()
 
 	var g Global
-	g.NodeName = conf.Hostname
+
+	if flags.NodeName != "" {
+		g.NodeName = flags.NodeName
+	} else {
+		g.NodeName = conf.Hostname
+	}
 	g.Logger.Output = "stderr"
 	g.Logger.Severity = "INFO"
 	g.Logger.Format.Output = "text"
@@ -194,14 +204,20 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		g.DataDir = defaults.DataDir
 	}
 
+	joinMethod := flags.JoinMethod
+	if joinMethod == "" && flags.AuthToken != "" {
+		joinMethod = string(types.JoinMethodToken)
+	}
 	g.JoinParams = JoinParams{
 		TokenName: flags.AuthToken,
-		Method:    types.JoinMethod(flags.JoinMethod),
+		Method:    types.JoinMethod(joinMethod),
 	}
 
 	if flags.AuthServer != "" {
 		g.AuthServers = []string{flags.AuthServer}
 	}
+
+	g.CAPin = strings.Split(flags.CAPin, ",")
 
 	roles := roleMapFromFlags(flags)
 
@@ -282,7 +298,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
-		a.ListenAddress = conf.Auth.SSHAddr.Addr
+		a.ListenAddress = conf.Auth.ListenAddr.Addr
 		a.ClusterName = ClusterName(flags.ClusterName)
 		a.EnabledFlag = "yes"
 
@@ -505,9 +521,13 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Global is 'teleport' (global) section of the config file
 type Global struct {
-	NodeName    string           `yaml:"nodename,omitempty"`
-	DataDir     string           `yaml:"data_dir,omitempty"`
-	PIDFile     string           `yaml:"pid_file,omitempty"`
+	NodeName string `yaml:"nodename,omitempty"`
+	DataDir  string `yaml:"data_dir,omitempty"`
+	PIDFile  string `yaml:"pid_file,omitempty"`
+
+	// AuthToken is the old way of configuring the token to be used by the
+	// node to join the Teleport cluster. `JoinParams.TokenName` should be
+	// used instead with `JoinParams.JoinMethod = types.JoinMethodToken`.
 	AuthToken   string           `yaml:"auth_token,omitempty"`
 	JoinParams  JoinParams       `yaml:"join_params,omitempty"`
 	AuthServers []string         `yaml:"auth_servers,omitempty"`
@@ -970,6 +990,13 @@ type SSH struct {
 
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
+
+	// DisableCreateHostUser disables automatic user provisioning on this
+	// SSH node.
+	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1149,12 +1176,16 @@ type ResourceMatcher struct {
 
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", or "elasticache".
+	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// SSMDocument is the ssm command document to execute for EC2
+	// installation
+	SSMDocument string `yaml:"ssm_command_document"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1236,6 +1267,8 @@ type DatabaseAWS struct {
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
+	// MemoryDB contains MemoryDB specific settings.
+	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1256,6 +1289,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
+type DatabaseAWSMemoryDB struct {
+	// ClusterName is the MemoryDB cluster name.
+	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -1312,6 +1351,9 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+
+	// AWS contains additional options for AWS applications.
+	AWS *AppAWS `yaml:"aws,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -1320,6 +1362,12 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+}
+
+// AppAWS contains additional options for AWS applications.
+type AppAWS struct {
+	// ExternalID is the AWS External ID used when assuming roles in this app.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

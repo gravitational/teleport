@@ -145,6 +145,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionReject{}
 	case AppSessionStartEvent:
 		e = &events.AppSessionStart{}
+	case AppSessionEndEvent:
+		e = &events.AppSessionEnd{}
 	case AppSessionChunkEvent:
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
@@ -243,6 +245,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
 		e = &events.RenewableCertificateGenerationMismatch{}
+	case SFTPEvent:
+		e = &events.SFTP{}
+	case UpgradeWindowStartUpdateEvent:
+		e = &events.UpgradeWindowStartUpdate{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:

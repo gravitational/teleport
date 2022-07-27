@@ -126,6 +126,11 @@ type AgentPoolConfig struct {
 	// This means the tunnel strategy should be ignored and tls routing is determined
 	// by the remote cluster.
 	IsRemoteCluster bool
+	// DisableCreateHostUser disables host user creation on a node.
+	DisableCreateHostUser bool
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -408,11 +413,13 @@ func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease,
 
 // waitForBackoff processes events while waiting for the backoff.
 func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
+	backoffC := p.backoff.After()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-p.backoff.After():
+		case <-backoffC:
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:
@@ -487,15 +494,16 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:          *addr,
-		keepAlive:     p.runtimeConfig.keepAliveInterval,
-		sshDialer:     dialer,
-		transporter:   p,
-		versionGetter: p,
-		tracker:       tracker,
-		lease:         lease,
-		clock:         p.Clock,
-		log:           p.log,
+		addr:               *addr,
+		keepAlive:          p.runtimeConfig.keepAliveInterval,
+		sshDialer:          dialer,
+		transporter:        p,
+		versionGetter:      p,
+		tracker:            tracker,
+		lease:              lease,
+		clock:              p.Clock,
+		log:                p.log,
+		localAuthAddresses: p.LocalAuthAddresses,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -549,6 +557,7 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 		channel:             channel,
 		requestCh:           requests,
 		log:                 p.log,
+		authServers:         p.LocalAuthAddresses,
 	}
 }
 
@@ -655,10 +664,9 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	tlsRoutingEnabled := false
 
 	ping, err := webclient.Find(&webclient.Config{
-		Context:         ctx,
-		ProxyAddr:       addr.Addr,
-		Insecure:        lib.IsInsecureDevMode(),
-		IgnoreHTTPProxy: true,
+		Context:   ctx,
+		ProxyAddr: addr.Addr,
+		Insecure:  lib.IsInsecureDevMode(),
 	})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel

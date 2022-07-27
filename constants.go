@@ -149,6 +149,9 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
+	// ComponentSubsystemSFTP is the SFTP subsystem.
+	ComponentSubsystemSFTP = "subsystem:sftp"
+
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -245,6 +248,9 @@ const (
 
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
+
+	// ComponentInstance is an abstract component common to all services.
+	ComponentInstance = "instance"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -514,34 +520,6 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
-	// TraitLogins is the name of the role variable used to store
-	// allowed logins.
-	TraitLogins = "logins"
-
-	// TraitWindowsLogins is the name of the role variable used
-	// to store allowed Windows logins.
-	TraitWindowsLogins = "windows_logins"
-
-	// TraitKubeGroups is the name the role variable used to store
-	// allowed kubernetes groups
-	TraitKubeGroups = "kubernetes_groups"
-
-	// TraitKubeUsers is the name the role variable used to store
-	// allowed kubernetes users
-	TraitKubeUsers = "kubernetes_users"
-
-	// TraitDBNames is the name of the role variable used to store
-	// allowed database names.
-	TraitDBNames = "db_names"
-
-	// TraitDBUsers is the name of the role variable used to store
-	// allowed database users.
-	TraitDBUsers = "db_users"
-
-	// TraitAWSRoleARNs is the name of the role variable used to store
-	// allowed AWS role ARNs.
-	TraitAWSRoleARNs = "aws_role_arns"
-
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -739,6 +717,15 @@ const (
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
+
+	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
+	// specific UID to prevent the matching user from being deleted before
+	// spawning the intended child process.
+	ParkSubCommand = "park"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
 )
 
 const (

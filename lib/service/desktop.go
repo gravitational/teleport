@@ -106,7 +106,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		log.Info("Using local listener and registering directly with auth server")
-		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
+		listener, err = process.importOrCreateListener(ListenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -226,11 +226,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:           desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
-		DiscoveryBaseDN:      cfg.WindowsDesktop.Discovery.BaseDN,
-		DiscoveryLDAPFilters: cfg.WindowsDesktop.Discovery.Filters,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
+		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -252,6 +253,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				"Windows desktop service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {

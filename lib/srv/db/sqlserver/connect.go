@@ -22,12 +22,12 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-	"github.com/gravitational/trace"
-
 	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/denisenkom/go-mssqldb/msdsn"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
 // Connector defines an interface for connecting to a SQL Server so it can be
@@ -76,6 +76,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		LoginOptions: options,
 		Encryption:   msdsn.EncryptionRequired,
 		TLSConfig:    tlsConfig,
+		PacketSize:   loginPacket.PacketSize(),
 	}, auth)
 
 	conn, err := connector.Connect(ctx)

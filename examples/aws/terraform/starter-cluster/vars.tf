@@ -31,6 +31,32 @@ variable "route53_domain" {
   type = string
 }
 
+// Whether to add a while a wildcard entry *.proxy.example.com for application access
+variable "add_wildcard_route53_record" {
+  type = string
+}
+
+// whether to enable the mongodb listener
+// adds security group setting, maps load balancer to port and adds to teleport config
+variable "enable_mongodb_listener" {
+  type    = bool
+  default = false
+}
+
+// whether to enable the mysql listener
+// adds security group setting, maps load balancer to port and adds to teleport config
+variable "enable_mysql_listener" {
+  type    = bool
+  default = false
+}
+
+// whether to enable the postgres listener
+// adds security group setting, maps load balancer to port and adds to teleport config
+variable "enable_postgres_listener" {
+  type    = bool
+  default = false
+}
+
 // S3 Bucket to create for encrypted letsencrypt certificates
 variable "s3_bucket_name" {
   type = string
@@ -57,6 +83,24 @@ variable "use_letsencrypt" {
 // This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
 variable "use_acm" {
   type = string
+}
+
+// CIDR blocks allowed to connect to the SSH port
+variable "allowed_ssh_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for ingress for all Teleport ports 
+variable "allowed_ingress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for egress from Teleport
+variable "allowed_egress_cidr_blocks" {
+  type = list
+  default = ["0.0.0.0/0"]
 }
 
 variable "kms_alias_name" {

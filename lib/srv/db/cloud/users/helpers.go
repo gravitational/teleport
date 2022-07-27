@@ -64,6 +64,11 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 		m.byDatabase[database] = users
 	} else {
 		delete(m.byDatabase, database)
+
+		// Short circuit.
+		if len(database.GetManagedUsers()) == 0 {
+			return
+		}
 	}
 
 	// Update database resource.

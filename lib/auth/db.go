@@ -225,12 +225,6 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	accnName := strings.ToUpper(req.AccountName)
-	userName := strings.ToUpper(req.UserName)
-	log.Debugf("Signing database JWT token for %s %s", accnName, userName)
-
-	subject := fmt.Sprintf("%s.%s", accnName, userName)
-
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,11 +257,8 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyFp := sha256.Sum256(pubKey)
-	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
 
-	// Generate issuer name in the Snowflake required format.
-	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnName, userName, keyFpStr)
+	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
 	_, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ca)
 	if err != nil {
@@ -288,4 +279,29 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	return &proto.SnowflakeJWTResponse{
 		Token: token,
 	}, nil
+}
+
+func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (string, string) {
+	// Use only the first part of the account name to generate JWT
+	// Based on:
+	// https://github.com/snowflakedb/snowflake-connector-python/blob/f2f7e6f35a162484328399c8a50a5015825a5573/src/snowflake/connector/auth_keypair.py#L83
+	accNameSeparator := "."
+	if strings.Contains(accountName, ".global") {
+		accNameSeparator = "-"
+	}
+
+	accnToken, _, _ := strings.Cut(accountName, accNameSeparator)
+	accnTokenCap := strings.ToUpper(accnToken)
+	userNameCap := strings.ToUpper(userName)
+	log.Debugf("Signing database JWT token for %s %s", accnTokenCap, userNameCap)
+
+	subject := fmt.Sprintf("%s.%s", accnTokenCap, userNameCap)
+
+	keyFp := sha256.Sum256(publicKey)
+	keyFpStr := base64.StdEncoding.EncodeToString(keyFp[:])
+
+	// Generate issuer name in the Snowflake required format.
+	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accnTokenCap, userNameCap, keyFpStr)
+
+	return subject, issuer
 }

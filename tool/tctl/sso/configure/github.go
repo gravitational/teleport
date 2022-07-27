@@ -42,11 +42,11 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub := cmd.ConfigureCmd.Command("github", "Configure Github auth connector.")
 	// commonly used flags
 	sub.Flag("name", "Connector name.").Default("github").Short('n').StringVar(&gh.connectorName)
-	sub.Flag("teams-to-logins", "Sets teams-to-logins mapping using format 'organization,name,role1,role2,...'. Repeatable.").
+	sub.Flag("teams-to-roles", "Sets teams-to-roles mapping using format 'organization,name,role1,role2,...'. Repeatable.").
 		Short('r').
 		Required().
 		PlaceHolder("org,team,role1,role2,...").
-		SetValue(newTeamsToLoginsParser(&spec.TeamsToLogins))
+		SetValue(newTeamsToRolesParser(&spec.TeamsToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
 	sub.Flag("id", "Github app client ID.").PlaceHolder("ID").Required().StringVar(&spec.ClientID)
 	sub.Flag("secret", "Github app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)
@@ -55,7 +55,7 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("redirect-url", "Authorization callback URL.").PlaceHolder("URL").StringVar(&spec.RedirectURL)
 
 	// ignores
-	sub.Flag("ignore-missing-roles", "Ignore missing roles referenced in --teams-to-logins.").BoolVar(&gh.ignoreMissingRoles)
+	sub.Flag("ignore-missing-roles", "Ignore missing roles referenced in --teams-to-roles.").BoolVar(&gh.ignoreMissingRoles)
 
 	sub.Alias("gh")
 
@@ -133,25 +133,25 @@ func ResolveCallbackURL(logger *logrus.Entry, clt auth.ClientI, fieldName string
 func specCheckRoles(ctx context.Context, logger *logrus.Entry, spec *types.GithubConnectorSpecV3, ignoreMissingRoles bool, clt auth.ClientI) error {
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
-		logger.WithError(err).Warn("unable to get roles list. Skipping teams-to-logins sanity checks.")
+		logger.WithError(err).Warn("Unable to get roles list. Skipping teams-to-roles sanity checks.")
 		return nil
 	}
 
-	roleMap := map[string]bool{}
-	var roleNames []string
+	roleMap := map[string]struct{}{}
+	roleNames := make([]string, 0, len(allRoles))
 	for _, role := range allRoles {
-		roleMap[role.GetName()] = true
+		roleMap[role.GetName()] = struct{}{}
 		roleNames = append(roleNames, role.GetName())
 	}
 
-	for _, mapping := range spec.TeamsToLogins {
-		for _, role := range mapping.Logins {
+	for _, mapping := range spec.TeamsToRoles {
+		for _, role := range mapping.Roles {
 			_, found := roleMap[role]
 			if !found {
 				if ignoreMissingRoles {
-					logger.Warnf("teams-to-logins references non-existing role: %q. Available roles: %v.", role, roleNames)
+					logger.Warnf("teams-to-roles references non-existing role: %q. Available roles: %v.", role, roleNames)
 				} else {
-					return trace.BadParameter("teams-to-logins references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
+					return trace.BadParameter("teams-to-roles references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
 				}
 			}
 		}

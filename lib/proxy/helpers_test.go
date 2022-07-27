@@ -165,7 +165,7 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 }
 
 // setupClients return a Client object.
-func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role types.SystemRole) (*Client, *tls.Config) {
+func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role types.SystemRole) *Client {
 	tlsConf := certFromIdentity(t, clientCA, tlsca.Identity{
 		Groups: []string{string(role)},
 	})
@@ -194,11 +194,11 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 		client.Shutdown()
 	})
 
-	return client, tlsConf
+	return client
 }
 
 // setupServer return a Server object.
-func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole) (*Server, *tls.Config, types.Server) {
+func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole) (*Server, types.Server) {
 	tlsConf := certFromIdentity(t, serverCA, tlsca.Identity{
 		Groups: []string{string(role)},
 	})
@@ -236,7 +236,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		require.NoError(t, server.Close())
 	})
 
-	return server, tlsConf, ts
+	return server, ts
 }
 
 func sendDialRequest(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {

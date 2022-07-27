@@ -226,11 +226,11 @@ spec:
   # Callback URL that will be called after successful authentication
   redirect_url: https://teleport.example.com/v1/webapi/github/callback
   # Mapping of org/team memberships onto allowed Teleport roles
-  teams_to_logins:
+  teams_to_roles:
     - organization: octocats # GitHub organization name
       team: cyber # GitHub team name within that organization
       # Role names to map to
-      logins:
+      roles:
         - sso-users
 ```
 

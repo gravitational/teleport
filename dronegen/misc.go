@@ -20,11 +20,6 @@ import (
 	"strings"
 )
 
-func promoteBuildPipeline() pipeline {
-	aptPipeline := promoteAptPipeline()
-	return aptPipeline
-}
-
 // Used for one-off migrations of older versions.
 // Use cases include:
 //  * We want to support another OS while providing backwards compatibility
@@ -41,6 +36,7 @@ func artifactMigrationPipeline() pipeline {
 		// "v7.3.19",
 		// "v7.3.20",
 		// "v7.3.21",
+		// "v7.3.23",
 		// "v8.3.3",
 		// "v8.3.4",
 		// "v8.3.5",
@@ -51,6 +47,7 @@ func artifactMigrationPipeline() pipeline {
 		// "v8.3.10",
 		// "v8.3.11",
 		// "v8.3.12",
+		// "v8.3.14",
 		// "v9.0.0",
 		// "v9.0.1",
 		// "v9.0.2",
@@ -67,6 +64,8 @@ func artifactMigrationPipeline() pipeline {
 		// "v9.2.4",
 		// "v9.3.0",
 		// "v9.3.2",
+		// "v9.3.4",
+		// "v9.3.5",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
@@ -79,23 +78,28 @@ func artifactMigrationPipeline() pipeline {
 // This function calls the build-apt-repos tool which handles the APT portion of RFD 0058.
 func promoteAptPipeline() pipeline {
 	aptVolumeName := "aptrepo"
+	checkoutPath := "/go/src/github.com/gravitational/teleport"
 	commitName := "${DRONE_TAG}"
 
-	p := buildBaseAptPipeline("publish-apt-new-repos", aptVolumeName, commitName)
+	p := buildBaseAptPipeline("publish-apt-new-repos", aptVolumeName, checkoutPath, commitName)
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
 	steps := []step{
-		{
-			Name:  "Verify build is tagged",
-			Image: "alpine:latest",
-			Commands: []string{
-				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-			},
-		},
+		verifyTaggedBuildStep(),
 	}
 	steps = append(steps, p.Steps...)
-	steps = append(steps, getDroneTagVersionSteps(aptVolumeName)...)
+	steps = append(steps,
+		step{
+			Name:  "Check if tag is prerelease",
+			Image: "golang:1.17-alpine",
+			Commands: []string{
+				fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+				"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)",
+			},
+		},
+	)
+	steps = append(steps, getDroneTagVersionSteps(checkoutPath, aptVolumeName)...)
 	p.Steps = steps
 
 	return p
@@ -106,6 +110,7 @@ func migrateAptPipeline(triggerBranch string, migrationVersions []string) pipeli
 	pipelineName := "migrate-apt-new-repos"
 	// DRONE_TAG is not available outside of promotion pipelines and will cause drone to fail with a
 	// "migrate-apt-new-repos: bad substitution" error if used here
+	checkoutPath := "/go/src/github.com/gravitational/teleport"
 	commitName := "${DRONE_COMMIT}"
 
 	// If migrations are not configured then don't run
@@ -113,7 +118,7 @@ func migrateAptPipeline(triggerBranch string, migrationVersions []string) pipeli
 		return buildNeverTriggerPipeline(pipelineName)
 	}
 
-	p := buildBaseAptPipeline(pipelineName, aptVolumeName, commitName)
+	p := buildBaseAptPipeline(pipelineName, aptVolumeName, checkoutPath, commitName)
 	p.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 		Event:  triggerRef{Include: []string{"push"}},
@@ -121,7 +126,7 @@ func migrateAptPipeline(triggerBranch string, migrationVersions []string) pipeli
 	}
 
 	for _, migrationVersion := range migrationVersions {
-		p.Steps = append(p.Steps, getVersionSteps(migrationVersion, aptVolumeName)...)
+		p.Steps = append(p.Steps, getVersionSteps(checkoutPath, migrationVersion, aptVolumeName)...)
 	}
 
 	return p
@@ -153,7 +158,7 @@ func buildNeverTriggerPipeline(pipelineName string) pipeline {
 // Functions that use this method should add at least:
 // * a Trigger
 // * Steps for checkout
-func buildBaseAptPipeline(pipelineName, aptVolumeName, commit string) pipeline {
+func buildBaseAptPipeline(pipelineName, aptVolumeName, commit, checkoutPath string) pipeline {
 	p := newKubePipeline(pipelineName)
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
@@ -169,20 +174,20 @@ func buildBaseAptPipeline(pipelineName, aptVolumeName, commit string) pipeline {
 		{
 			Name:     "Check out code",
 			Image:    "alpine/git:latest",
-			Commands: aptToolCheckoutCommands(commit),
+			Commands: aptToolCheckoutCommands(checkoutPath, commit),
 		},
 	}
 
 	return p
 }
 
-func getDroneTagVersionSteps(aptVolumeName string) []step {
-	return getVersionSteps("${DRONE_TAG}", aptVolumeName)
+func getDroneTagVersionSteps(codePath, aptVolumeName string) []step {
+	return getVersionSteps(codePath, "${DRONE_TAG}", aptVolumeName)
 }
 
 // Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
 // i.e. ${DRONE_TAG}
-func getVersionSteps(version, aptVolumeName string) []step {
+func getVersionSteps(codePath, version, aptVolumeName string) []step {
 	artifactPath := "/go/artifacts"
 	pvcMountPoint := "/mnt"
 
@@ -281,7 +286,7 @@ func getVersionSteps(version, aptVolumeName string) []step {
 				"chown -R root:root $GNUPGHOME",
 				"apt update",
 				"apt install aptly tree -y",
-				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
+				fmt.Sprintf("cd %q", path.Join(codePath, "build.assets", "tooling")),
 				fmt.Sprintf("export VERSION=%q", version),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				// "rm -rf \"$APTLY_ROOT_DIR\"",		// Uncomment this to completely dump the Aptly database and force a rebuild
@@ -314,10 +319,10 @@ func getVersionSteps(version, aptVolumeName string) []step {
 }
 
 // Note that tags are also valid here as a tag refers to a specific commit
-func aptToolCheckoutCommands(commit string) []string {
+func aptToolCheckoutCommands(commit, checkoutPath string) []string {
 	commands := []string{
-		`mkdir -p /go/src/github.com/gravitational/teleport`,
-		`cd /go/src/github.com/gravitational/teleport`,
+		fmt.Sprintf("mkdir -p %q", checkoutPath),
+		fmt.Sprintf("cd %q", checkoutPath),
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 		fmt.Sprintf("git checkout %q", commit),
 	}
@@ -327,4 +332,14 @@ func aptToolCheckoutCommands(commit string) []string {
 func updateDocsPipeline() pipeline {
 	// TODO: migrate
 	return pipeline{}
+}
+
+func verifyTaggedBuildStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
 }

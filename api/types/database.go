@@ -104,6 +104,8 @@ type Database interface {
 	IsAzure() bool
 	// IsElastiCache returns true if this is an AWS ElastiCache database.
 	IsElastiCache() bool
+	// IsMemoryDB returns true if this is an AWS MemoryDB database.
+	IsMemoryDB() bool
 	// IsAWSHosted returns true if database is hosted by AWS.
 	IsAWSHosted() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
@@ -348,9 +350,14 @@ func (d *DatabaseV3) IsElastiCache() bool {
 	return d.GetType() == DatabaseTypeElastiCache
 }
 
+// IsMemoryDB returns true if this is an AWS MemoryDB database.
+func (d *DatabaseV3) IsMemoryDB() bool {
+	return d.GetType() == DatabaseTypeMemoryDB
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache()
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -366,6 +373,9 @@ func (d *DatabaseV3) GetType() string {
 	}
 	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
 		return DatabaseTypeElastiCache
+	}
+	if d.GetAWS().MemoryDB.ClusterName != "" {
+		return DatabaseTypeMemoryDB
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
@@ -471,6 +481,20 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
+	case awsutils.IsMemoryDBEndpoint(d.Spec.URI):
+		endpointInfo, err := awsutils.ParseMemoryDBEndpoint(d.Spec.URI)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to parse %v as MemoryDB endpoint", d.Spec.URI)
+			break
+		}
+		if d.Spec.AWS.MemoryDB.ClusterName == "" {
+			d.Spec.AWS.MemoryDB.ClusterName = endpointInfo.ID
+		}
+		if d.Spec.AWS.Region == "" {
+			d.Spec.AWS.Region = endpointInfo.Region
+		}
+		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
+		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
@@ -607,6 +631,8 @@ const (
 	DatabaseTypeAzure = "azure"
 	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
 	DatabaseTypeElastiCache = "elasticache"
+	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
+	DatabaseTypeMemoryDB = "memorydb"
 )
 
 // DeduplicateDatabases deduplicates databases by name.

@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 	"github.com/gravitational/trace"
 )
 
@@ -32,7 +33,15 @@ import (
 // set of reviewers determined by: content of the PR, if the author is internal
 // or external, and team they are on.
 func (b *Bot) Assign(ctx context.Context) error {
-	reviewers, err := b.getReviewers(ctx)
+	files, err := b.c.GitHub.ListFiles(ctx,
+		b.c.Environment.Organization,
+		b.c.Environment.Repository,
+		b.c.Environment.Number)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reviewers, err := b.getReviewers(ctx, files)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -52,7 +61,7 @@ func (b *Bot) Assign(ctx context.Context) error {
 	return nil
 }
 
-func (b *Bot) getReviewers(ctx context.Context) ([]string, error) {
+func (b *Bot) getReviewers(ctx context.Context, files []github.PullRequestFile) ([]string, error) {
 	// If a backport PR was found, assign original reviewers. Otherwise fall
 	// through to normal assignment logic.
 	if isBackport(b.c.Environment.UnsafeBase) {
@@ -63,7 +72,7 @@ func (b *Bot) getReviewers(ctx context.Context) ([]string, error) {
 		log.Printf("Assign: Found backport PR, but failed to find original reviewers: %v. Falling through to normal assignment logic.", err)
 	}
 
-	docs, code, err := b.parseChanges(ctx)
+	docs, code, err := classifyChanges(files)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -154,9 +155,13 @@ func TestBotCertificateGenerationCheck(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
+	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
+	require.NoError(t, err)
+
 	// Create a new bot.
 	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name: "test",
+		Name:  "test",
+		Roles: []string{"example"},
 	})
 	require.NoError(t, err)
 
@@ -207,9 +212,13 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
+	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
+	require.NoError(t, err)
+
 	// Create a new bot.
 	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name: "test",
+		Name:  "test",
+		Roles: []string{"example"},
 	})
 	require.NoError(t, err)
 
@@ -256,6 +265,18 @@ func TestBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
+}
+
+// TestBotNoRoles attempts to create a bot with an empty role list.
+func TestBotNoRoles(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	// Create a new bot without roles specified. This should fail.
+	_, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+		Name: "test",
+	})
+	require.True(t, trace.IsBadParameter(err))
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
@@ -358,8 +379,8 @@ func TestSAMLAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	reqNormal := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
-	reqTest := services.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
+	reqNormal := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+	reqTest := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML, SSOTestFlow: true, ConnectorSpec: &types.SAMLConnectorSpecV2{
 		Issuer:                   "test",
 		Audience:                 "test",
 		ServiceProviderIssuer:    "test",
@@ -376,7 +397,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.SAMLAuthRequest
+		request            types.SAMLAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -441,7 +462,7 @@ func TestSAMLAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateSAMLAuthRequest(tt.request)
+			request, err := client.CreateSAMLAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -534,8 +555,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertOIDCConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := services.OIDCAuthRequest{
+	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := types.OIDCAuthRequest{
 		ConnectorID: conn.GetName(),
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
@@ -558,7 +579,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.OIDCAuthRequest
+		request            types.OIDCAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -623,7 +644,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateOIDCAuthRequest(tt.request)
+			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -714,8 +735,8 @@ func TestGithubAuthRequest(t *testing.T) {
 	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
 
-	reqNormal := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
-	reqTest := services.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
+	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
+	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
@@ -732,7 +753,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	tests := []struct {
 		desc               string
 		roles              []string
-		request            services.GithubAuthRequest
+		request            types.GithubAuthRequest
 		expectAccessDenied bool
 	}{
 		{
@@ -797,7 +818,7 @@ func TestGithubAuthRequest(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			request, err := client.CreateGithubAuthRequest(tt.request)
+			request, err := client.CreateGithubAuthRequest(ctx, tt.request)
 			if tt.expectAccessDenied {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -940,6 +961,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 		username         string
 		roles            []string
 		roleRequests     []string
+		useRoleRequests  bool
 		expectPrincipals []string
 		expectRoles      []string
 		expectError      func(error) bool
@@ -949,6 +971,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "alice",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo", "bar"},
 		},
 		{
@@ -956,30 +979,46 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "bob",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
 		},
 		{
-			// users not using role requests should keep their own roles
-			desc:         "requesting no roles",
-			username:     "charlie",
-			roles:        []string{emptyRole.GetName()},
-			roleRequests: []string{},
-			expectRoles:  []string{emptyRole.GetName()},
+			// Users not using role requests should keep their own roles
+			desc:            "requesting no roles",
+			username:        "charlie",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{},
+			useRoleRequests: false,
+			expectRoles:     []string{emptyRole.GetName()},
 		},
 		{
-			desc:         "requesting a disallowed role",
-			username:     "dave",
-			roles:        []string{emptyRole.GetName()},
-			roleRequests: []string{accessFooRole.GetName()},
+			// An empty role request should fail when role requests are
+			// expected.
+			desc:            "requesting no roles with UseRoleRequests",
+			username:        "charlie",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{},
+			useRoleRequests: true,
+			expectError: func(err error) bool {
+				return trace.IsBadParameter(err)
+			},
+		},
+		{
+			desc:            "requesting a disallowed role",
+			username:        "dave",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{accessFooRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
 		},
 		{
-			desc:         "requesting a nonexistent role",
-			username:     "erin",
-			roles:        []string{emptyRole.GetName()},
-			roleRequests: []string{"doesnotexist"},
+			desc:            "requesting a nonexistent role",
+			username:        "erin",
+			roles:           []string{emptyRole.GetName()},
+			roleRequests:    []string{"doesnotexist"},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsNotFound(err)
 			},
@@ -989,22 +1028,25 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			username:         "frank",
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
+			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
 		},
 		{
-			desc:         "requesting a denied role",
-			username:     "geoff",
-			roles:        []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
-			roleRequests: []string{accessBarRole.GetName()},
+			desc:            "requesting a denied role",
+			username:        "geoff",
+			roles:           []string{emptyRole.GetName(), impersonatorRole.GetName(), denyBarRole.GetName()},
+			roleRequests:    []string{accessBarRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
 		},
 		{
-			desc:         "misusing a role intended for user impersonation",
-			username:     "helen",
-			roles:        []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
-			roleRequests: []string{dummyUserRole.GetName()},
+			desc:            "misusing a role intended for user impersonation",
+			username:        "helen",
+			roles:           []string{emptyRole.GetName(), dummyUserImpersonatorRole.GetName()},
+			roleRequests:    []string{dummyUserRole.GetName()},
+			useRoleRequests: true,
 			expectError: func(err error) bool {
 				return err != nil && trace.IsAccessDenied(err)
 			},
@@ -1030,10 +1072,11 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:    pub,
-				Username:     user.GetName(),
-				Expires:      time.Now().Add(time.Hour),
-				RoleRequests: tt.roleRequests,
+				PublicKey:       pub,
+				Username:        user.GetName(),
+				Expires:         time.Now().Add(time.Hour),
+				RoleRequests:    tt.roleRequests,
+				UseRoleRequests: tt.useRoleRequests,
 			})
 			if tt.expectError != nil {
 				require.True(t, tt.expectError(err), "error: %+v: %s", err, trace.DebugReport(err))
@@ -1233,7 +1276,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 
 			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
 			if test.err != "" {
-				require.EqualError(t, err, test.err)
+				require.ErrorContains(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 			}
@@ -2850,7 +2893,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	testNames := []string{"a", "b", "c", "d"}
 
-	// Add some kube services.
+	// Add a kube service with 3 clusters.
 	kubeService, err := types.NewServer("bar", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "d"}, {Name: "b"}, {Name: "a"}},
 	})
@@ -2858,7 +2901,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	_, err = s.UpsertKubeServiceV2(ctx, kubeService)
 	require.NoError(t, err)
 
-	// Include a duplicate cluster name to test deduplicate.
+	// Add a kube service with 2 clusters.
+	// Includes a duplicate cluster name to test deduplicate.
 	kubeService, err = types.NewServer("foo", types.KindKubeService, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{{Name: "a"}, {Name: "c"}},
 	})
@@ -2881,7 +2925,8 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		require.Empty(t, res.TotalCount)
+		// There is 2 kube services, but 4 unique clusters.
+		require.Equal(t, 4, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -3033,4 +3078,372 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	sessions, err = srv.Auth().GetAppSessions(ctx)
 	require.NoError(t, err)
 	require.Len(t, sessions, 0)
+}
+
+func TestListResources_SortAndDeduplicate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create user, role, and client.
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// Permit user to get all resources.
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// Define some resource names for testing.
+	names := []string{"d", "b", "d", "a", "a", "b"}
+	uniqueNames := []string{"a", "b", "d"}
+
+	tests := []struct {
+		name            string
+		kind            string
+		insertResources func()
+		wantNames       []string
+	}{
+		{
+			name: "KindDatabaseServer",
+			kind: types.KindDatabaseServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					db, err := types.NewDatabaseServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.DatabaseServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Database: &types.DatabaseV3{
+							Metadata: types.Metadata{
+								Name: names[i],
+							},
+							Spec: types.DatabaseSpecV3{
+								Protocol: "_",
+								URI:      "_",
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindAppServer",
+			kind: types.KindAppServer,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewAppServerV3(types.Metadata{
+						Name: fmt.Sprintf("name-%v", i),
+					}, types.AppServerSpecV3{
+						HostID: "_",
+						App:    &types.AppV3{Metadata: types.Metadata{Name: names[i]}, Spec: types.AppSpecV3{URI: "_"}},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+		{
+			name: "KindWindowsDesktop",
+			kind: types.KindWindowsDesktop,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					desktop, err := types.NewWindowsDesktopV3(names[i], nil, types.WindowsDesktopSpecV3{
+						Addr:   "_",
+						HostID: fmt.Sprintf("name-%v", i),
+					})
+					require.NoError(t, err)
+					require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+				}
+			},
+		},
+		{
+			name: "KindKubernetesCluster",
+			kind: types.KindKubernetesCluster,
+			insertResources: func() {
+				for i := 0; i < len(names); i++ {
+					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
+						KubernetesClusters: []*types.KubernetesCluster{
+							// Test dedup inside this list as well as from each service.
+							{Name: names[i]},
+							{Name: names[i]},
+						},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertKubeServiceV2(ctx, server)
+					require.NoError(t, err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResources()
+
+			// Fetch all resources
+			fetchedResources := make([]types.ResourceWithLabels, 0, len(uniqueNames))
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType:   tc.kind,
+				NeedTotalCount: true,
+				StartKey:       resp.NextKey,
+				Limit:          2,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName, IsDesc: true},
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 1)
+			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			fetchedResources = append(fetchedResources, resp.Resources...)
+
+			r := types.ResourcesWithLabels(fetchedResources)
+			var extractedErr error
+			var extractedNames []string
+
+			switch tc.kind {
+			case types.KindDatabaseServer:
+				s, err := r.AsDatabaseServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.DatabaseServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			case types.KindAppServer:
+				s, err := r.AsAppServers()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.AppServers(s).GetFieldVals(types.ResourceMetadataName)
+
+			case types.KindWindowsDesktop:
+				s, err := r.AsWindowsDesktops()
+				require.NoError(t, err)
+				extractedNames, extractedErr = types.WindowsDesktops(s).GetFieldVals(types.ResourceMetadataName)
+
+			default:
+				s, err := r.AsKubeClusters()
+				require.NoError(t, err)
+				require.Len(t, s, 3)
+				extractedNames, extractedErr = types.KubeClusters(s).GetFieldVals(types.ResourceMetadataName)
+			}
+
+			require.NoError(t, extractedErr)
+			require.ElementsMatch(t, uniqueNames, extractedNames)
+			require.IsDecreasing(t, extractedNames)
+		})
+	}
+}
+
+func TestListResources_WithRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	const nodePerPool = 3
+
+	// inserts a pool nodes with different labels
+	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
+		for i := 0; i < nodeCount; i++ {
+			name := uuid.NewString()
+			addr := fmt.Sprintf("node-%s.example.com", name)
+
+			node := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: defaults.Namespace,
+					Labels:    labels,
+				},
+				Spec: types.ServerSpecV2{
+					Addr:       addr,
+					PublicAddr: addr,
+				},
+			}
+
+			_, err := srv.UpsertNode(ctx, node)
+			require.NoError(t, err)
+		}
+	}
+
+	// creates roles that deny the given labels
+	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
+		role, err := types.NewRoleV3(name, types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				NodeLabels: types.Labels{
+					"*": []string{types.Wildcard},
+				},
+			},
+			Deny: types.RoleConditions{
+				NodeLabels: labels,
+			},
+		})
+		require.NoError(t, err)
+		err = srv.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	// the pool from which nodes and roles are created from
+	pool := map[string]struct {
+		denied map[string]apiutils.Strings
+		labels map[string]string
+	}{
+		"other": {
+			denied: nil,
+			labels: map[string]string{
+				"other": "123",
+			},
+		},
+		"a": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"a"},
+			},
+			labels: map[string]string{
+				"pool": "a",
+			},
+		},
+		"b": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"b"},
+			},
+			labels: map[string]string{
+				"pool": "b",
+			},
+		},
+		"c": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"c"},
+			},
+			labels: map[string]string{
+				"pool": "c",
+			},
+		},
+		"d": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"d"},
+			},
+			labels: map[string]string{
+				"pool": "d",
+			},
+		},
+		"e": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"e"},
+			},
+			labels: map[string]string{
+				"pool": "e",
+			},
+		},
+	}
+
+	// create the nodes and role
+	for name, data := range pool {
+		insertNodes(ctx, t, srv.Auth(), nodePerPool, data.labels)
+		createRole(ctx, t, srv.Auth(), name, data.denied)
+	}
+
+	nodeCount := len(pool) * nodePerPool
+
+	cases := []struct {
+		name     string
+		roles    []string
+		expected int
+	}{
+		{
+			name:     "all allowed",
+			roles:    []string{"other"},
+			expected: nodeCount,
+		},
+		{
+			name:     "role a",
+			roles:    []string{"a"},
+			expected: nodeCount - nodePerPool,
+		},
+		{
+			name:     "role a,b",
+			roles:    []string{"a", "b"},
+			expected: nodeCount - (2 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c",
+			roles:    []string{"a", "b", "c"},
+			expected: nodeCount - (3 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d",
+			roles:    []string{"a", "b", "c", "d"},
+			expected: nodeCount - (4 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d,e",
+			roles:    []string{"a", "b", "c", "d", "e"},
+			expected: nodeCount - (5 * nodePerPool),
+		},
+	}
+
+	// ensure that a user can see the correct number of resources for their role(s)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
+
+			for _, role := range tt.roles {
+				user.AddRole(role)
+			}
+
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			for _, needTotal := range []bool{true, false} {
+				total := needTotal
+				t.Run(fmt.Sprintf("needTotal=%t", total), func(t *testing.T) {
+					t.Parallel()
+
+					clt, err := srv.NewClient(TestUser(user.GetName()))
+					require.NoError(t, err)
+
+					var resp *types.ListResourcesResponse
+					var nodes []types.ResourceWithLabels
+					for {
+						key := ""
+						if resp != nil {
+							key = resp.NextKey
+						}
+
+						resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+							ResourceType:   types.KindNode,
+							StartKey:       key,
+							Limit:          nodePerPool,
+							NeedTotalCount: total,
+						})
+						require.NoError(t, err)
+
+						nodes = append(nodes, resp.Resources...)
+
+						if resp.NextKey == "" {
+							break
+						}
+					}
+
+					require.Len(t, nodes, tt.expected)
+				})
+			}
+		})
+	}
 }

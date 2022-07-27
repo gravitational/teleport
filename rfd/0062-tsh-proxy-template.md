@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 62 - Proxy template support for tsh proxy
@@ -60,7 +60,7 @@ determine which host/proxy/cluster user is connecting to.
 ## UX
 
 The proposal is to extend the existing `tsh proxy ssh` command with support for
-parsing out the node name and proxy address from the full hostname token `%h` in
+parsing out the node name and proxy address from the full hostname `%h:%p` in
 SSH config.
 
 Specifically, the syntax for the `<some proxy command>` would look like:
@@ -69,57 +69,61 @@ Specifically, the syntax for the `<some proxy command>` would look like:
 Host *.acme.com
     HostName %h
     Port 3022
-    ProxyCommand tsh proxy ssh --proxy={{proxy}} %r@%h:%p
+    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
 ```
 
-With the `--proxy` flag set, the command connects directly to the specified
-proxy instead of the default behavior of connecting to the proxy of the current
-client profile.
+With the `-J` flag set, the command connects directly to the specified proxy
+instead of the default behavior of connecting to the proxy of the current
+client profile. This usage of the `-J` flag is consistent with the existing
+proxy jump functionality (`tsh ssh -J`) and [Cluster Routing](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md).
 
-When a templating variable `{{proxy}}` is used, the host name and proxy address
-are extracted from the full hostname in the `%r@%h:%p` spec.
-
-Users define the rules of how to parse node/proxy from the full hostname in
-the tsh config file `$TELEPORT_HOME/config/config.yaml`. Similar to role
-templating, group captures are supported:
+When a template variable `{{proxy}}` is used, the desired hostname and proxy address
+are extracted from the full hostname in the `%r@%h:%p` spec. Users define the
+rules of how to parse node/proxy from the full hostname in the tsh config file
+`$TELEPORT_HOME/config/config.yaml` (or global `/etc/tsh.yaml`). Group captures
+are supported:
 
 ```yaml
 proxy_templates:
 # Example template where nodes have short names like node-1, node-2, etc.
-- template: "^(\w+)\.(leaf1.us.acme.com)$"
-  host: "$1" # host is optional and will default to the full %h if not specified
-  proxy: "$2:3023"
+- template: '^(\w+)\.(leaf1.us.acme.com):(.*)$'
+  proxy: "$2:3080"
+  host: "$1:$3" # host is optional and will default to the full %h:%p if not specified
 # Example template where nodes have FQDN names like node-1.leaf2.eu.acme.com.
-- template: "^(\w+)\.(leaf2.eu.acme.com)$"
+- template: '^(\w+)\.(leaf2.eu.acme.com):(.*)$'
   proxy: "$2:443"
 ```
 
 Templates are evaluated in order and the first one matching will take effect.
+
+Note that the proxy address must point to the web proxy address (not SSH proxy):
+`tsh proxy ssh` will issue a ping request to the proxy to retrieve additional
+information about the cluster, including the SSH proxy endpoint.
 
 In the example described above, where the user has nodes `node-1`, `node-2` in
 multiple leaf clusters, their template configuration can look like:
 
 ```yaml
 proxy_templates:
-- template: "^([^\.]+)\.(.+)$"
-  host: "$1"
-  proxy: "$2:3023"
+- template: '^([^\.]+)\.(.+):(.*)$'
+  proxy: "$2:3080"
+  host: "$1:$3"
 ```
 
-In the node spec `%r@%h:%p` the host name `%h` will be replaced by the host from
-the template specification and will default to full `%h` if it's not present in
+In the node spec `%r@%h:%p` the hostname `%h:%p` will be replaced by the host from
+the template specification and will default to full `%h:%p` if it's not present in
 the template.
 
 So given the above proxy template configuration, the following proxy command:
 
 ```bash
-tsh proxy ssh --proxy={{proxy}} %r@%h:%p
+tsh proxy ssh -J {{proxy}} %r@%h:%p
 ```
 
 is equivalent to the following when connecting to `node-1.leaf1.us.acme.com`:
 
 ```bash
-tsh proxy ssh --proxy=leaf1.us.acme.com:3023 %r@node-1:3022
+tsh proxy ssh -J leaf1.us.acme.com:3080 %r@node-1:3022
 ```
 
 ### Auto-login

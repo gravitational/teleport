@@ -20,10 +20,16 @@ package dbcmd
 
 import (
 	"fmt"
+	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
@@ -32,10 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -59,9 +61,9 @@ const (
 	snowsqlBin = "snowsql"
 )
 
-// execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
+// Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
 // This interface exists only to enable mocking.
-type execer interface {
+type Execer interface {
 	// RunCommand runs a system command.
 	RunCommand(name string, arg ...string) ([]byte, error)
 	// LookPath returns a full path to a binary if this one is found in system PATH,
@@ -71,21 +73,21 @@ type execer interface {
 	Command(name string, arg ...string) *exec.Cmd
 }
 
-// systemExecer implements execer interface by using Go exec module.
-type systemExecer struct{}
+// SystemExecer implements execer interface by using Go exec module.
+type SystemExecer struct{}
 
 // RunCommand is a wrapper for exec.Command(...).Output()
-func (s systemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
+func (s SystemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
 	return exec.Command(name, arg...).Output()
 }
 
 // LookPath is a wrapper for exec.LookPath(...)
-func (s systemExecer) LookPath(file string) (string, error) {
+func (s SystemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
 // Command is a wrapper for exec.Command(...)
-func (s systemExecer) Command(name string, arg ...string) *exec.Cmd {
+func (s SystemExecer) Command(name string, arg ...string) *exec.Cmd {
 	return exec.Command(name, arg...)
 }
 
@@ -101,8 +103,6 @@ type CLICommandBuilder struct {
 	port        int
 	options     connectionCommandOpts
 	uid         utils.UID
-
-	exe execer
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -124,6 +124,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
+	if options.exe == nil {
+		options.exe = &SystemExecer{}
+	}
+
 	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
@@ -133,8 +137,6 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options:     options,
 		rootCluster: rootClusterName,
 		uid:         utils.NewRealUID(),
-
-		exe: &systemExecer{},
 	}
 }
 
@@ -196,17 +198,17 @@ func (c *CLICommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
 }
 
 func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
-	return c.exe.Command(postgresBin, c.getPostgresConnString())
+	return c.options.exe.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
-	if _, err := c.exe.LookPath(cockroachBin); err != nil {
+	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
 		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
-	return c.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+	return c.options.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
 }
 
 // getPostgresConnString returns the connection string for postgres.
@@ -272,7 +274,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.exe.Command(mysqlBin, args...)
+		return c.options.exe.Command(mysqlBin, args...)
 	}
 
 	// defaults-group-suffix must be first.
@@ -284,7 +286,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.exe.Command(mysqlBin, args...)
+	return c.options.exe.Command(mysqlBin, args...)
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -293,7 +295,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
-		return c.exe.Command(mariadbBin, args...), nil
+		return c.options.exe.Command(mariadbBin, args...), nil
 	}
 
 	// Check for mysql binary. In case the caller doesn't tolerate a missing CLI client, return with
@@ -311,7 +313,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariaDBFlavor && err == nil {
 		args := c.getMariaDBArgs()
-		return c.exe.Command(mysqlBin, args...), nil
+		return c.options.exe.Command(mysqlBin, args...), nil
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
@@ -320,19 +322,19 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMariaDBBinAvailable() bool {
-	_, err := c.exe.LookPath(mariadbBin)
+	_, err := c.options.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
-	_, err := c.exe.LookPath(mysqlBin)
+	_, err := c.options.exe.LookPath(mysqlBin)
 	return err == nil
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
-	_, err := c.exe.LookPath(mongoshBin)
+	_, err := c.options.exe.LookPath(mongoshBin)
 	return err == nil
 }
 
@@ -340,7 +342,7 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
-	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
+	mysqlVer, err := c.options.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
 		// Looks like incorrect mysql installation.
 		return false, trace.Wrap(err)
@@ -359,10 +361,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
 	hasMongosh := c.isMongoshBinAvailable()
 
-	args := []string{
-		"--host", c.host,
-		"--port", strconv.Itoa(c.port),
-	}
+	var args []string
 
 	if !c.options.noTLS {
 		// Starting with Mongo 4.2 there is an updated set of flags.
@@ -400,17 +399,44 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 		}
 	}
 
-	if c.db.Database != "" {
-		args = append(args, c.db.Database)
-	}
+	// Add the address at the end. Address contains host, port, database name,
+	// and other options like server selection timeout.
+	args = append(args, c.getMongoAddress())
 
 	// use `mongosh` if available
 	if hasMongosh {
-		return c.exe.Command(mongoshBin, args...)
+		return c.options.exe.Command(mongoshBin, args...)
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return c.exe.Command(mongoBin, args...)
+	return c.options.exe.Command(mongoBin, args...)
+}
+
+func (c *CLICommandBuilder) getMongoAddress() string {
+	query := make(url.Values)
+
+	// Use the same default server selection timeout (5s) that the backend
+	// engine is using. The environment variable serves as a hidden option to
+	// force a different timeout for debugging purpose or extreme situations.
+	serverSelectionTimeoutMS := "5000"
+	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
+		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
+		serverSelectionTimeoutMS = envValue
+	}
+	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
+
+	address := url.URL{
+		Scheme:   connstring.SchemeMongoDB,
+		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
+		RawQuery: query.Encode(),
+		Path:     fmt.Sprintf("/%s", c.db.Database),
+	}
+
+	// Quote the address for printing as the address contains "?".
+	if c.options.printFormat {
+		return fmt.Sprintf(`"%s"`, address.String())
+	}
+	return address.String()
 }
 
 // getRedisCommand returns redis-cli commands used by 'tsh db connect' when connecting to a Redis instance.
@@ -441,7 +467,7 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return c.exe.Command(redisBin, args...)
+	return c.options.exe.Command(redisBin, args...)
 }
 
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
@@ -458,7 +484,7 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	return c.exe.Command(mssqlBin, args...)
+	return c.options.exe.Command(mssqlBin, args...)
 }
 
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
@@ -487,6 +513,7 @@ type connectionCommandOpts struct {
 	printFormat              bool
 	tolerateMissingCLIClient bool
 	log                      *logrus.Entry
+	exe                      Execer
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -519,6 +546,17 @@ func WithNoTLS() ConnectCommandFunc {
 
 // WithPrintFormat is the connect command option that hints the command will be
 // printed instead of being executed.
+//
+// For example, when enabled, a quote will be used for Postgres and MongoDB
+// connection strings to avoid "&" getting interpreted by the shell.
+//
+// WithPrintFormat is known to be used for the following situations:
+// - tsh db config --format cmd <database>
+// - tsh proxy db --tunnel <database>
+// - Teleport Connect where the command is put into a terminal.
+//
+// WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
+// client application.
 func WithPrintFormat() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.printFormat = true
@@ -548,3 +586,17 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 		opts.tolerateMissingCLIClient = true
 	}
 }
+
+// WithExecer allows to provide a different Execer than the default SystemExecer. Useful in contexts
+// where there's a place that wants to use dbcmd with the ability to mock out SystemExecer in tests.
+func WithExecer(exe Execer) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.exe = exe
+	}
+}
+
+const (
+	// envVarMongoServerSelectionTimeoutMS is the environment variable that
+	// controls the server selection timeout used for MongoDB clients.
+	envVarMongoServerSelectionTimeoutMS = "TELEPORT_MONGO_SERVER_SELECTION_TIMEOUT_MS"
+)

@@ -112,6 +112,9 @@ const (
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
+	// HTTPRequestTimeout is a default timeout for HTTP requests
+	HTTPRequestTimeout = 30 * time.Second
+
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
 	// the browser
@@ -298,10 +301,6 @@ var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
 
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
-
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
@@ -384,18 +383,6 @@ var (
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
 
-	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
-	// to be considered when deciding to restart the process. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	ConnectionErrorMeasurementPeriod = 2 * time.Minute
-
-	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
-	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	MaxConnectionErrorsBeforeRestart = 5
-
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
 	MaxWatcherBackoff = time.Minute
@@ -438,9 +425,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration

@@ -783,12 +783,8 @@ type IdentityID struct {
 }
 
 // HostID is host ID part of the host UUID that consists cluster name
-func (id *IdentityID) HostID() (string, error) {
-	parts := strings.Split(id.HostUUID, ".")
-	if len(parts) < 2 {
-		return "", trace.BadParameter("expected 2 parts in %q", id.HostUUID)
-	}
-	return parts[0], nil
+func (id *IdentityID) HostID() string {
+	return strings.SplitN(id.HostUUID, ".", 2)[0]
 }
 
 // Equals returns true if two identities are equal

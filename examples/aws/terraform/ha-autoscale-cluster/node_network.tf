@@ -14,7 +14,7 @@ resource "aws_route_table" "node" {
 resource "aws_route" "node" {
   count                  = length(local.azs)
   route_table_id         = element(aws_route_table.node.*.id, count.index)
-  destination_cidr_block = "0.0.0.0/0"
+  destination_cidr_block = var.node_aws_route_dest_cidr_block
   nat_gateway_id         = element(local.nat_gateways, count.index)
   depends_on             = [aws_route_table.node]
 }
@@ -70,7 +70,7 @@ resource "aws_security_group_rule" "node_egress_allow_all_traffic" {
   from_port         = 0
   to_port           = 0
   protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = var.allowed_node_egress_cidr_blocks
   security_group_id = aws_security_group.node.id
 }
 
