@@ -26,21 +26,26 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/trace"
+	"github.com/inhies/go-bytesize"
 	"github.com/seqsense/s3sync"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
 type S3manager struct {
-	syncManager          *s3sync.Manager
-	uploader             *s3manager.Uploader
-	bucketLocalPath      string
-	bucketName           string
-	bucketURL            *url.URL
-	maxConcurrentUploads int
+	syncManager        *s3sync.Manager
+	uploader           *s3manager.Uploader
+	downloader         *s3manager.Downloader
+	bucketLocalPath    string
+	bucketName         string
+	bucketURL          *url.URL
+	maxConcurrentSyncs int
+	downloadedBytes    int64
 }
 
 func NewS3Manager(config *S3Config) (*S3manager, error) {
@@ -51,11 +56,11 @@ func NewS3Manager(config *S3Config) (*S3manager, error) {
 		return nil, trace.Wrap(err, "failed to create a new AWS session")
 	}
 
-	syncManagerMaxConcurrentUploads := config.maxConcurrentUploads
-	if syncManagerMaxConcurrentUploads < 0 {
+	syncManagerMaxConcurrentSyncs := config.maxConcurrentSyncs
+	if syncManagerMaxConcurrentSyncs < 0 {
 		// This isn't unlimited but due to the s3sync library's parallelism implementation
 		//  this must be limited to a "reasonable" number
-		syncManagerMaxConcurrentUploads = 128
+		syncManagerMaxConcurrentSyncs = 128
 	}
 
 	s := &S3manager{
@@ -64,9 +69,10 @@ func NewS3Manager(config *S3Config) (*S3manager, error) {
 			Scheme: "s3",
 			Host:   config.bucketName,
 		},
-		syncManager:          s3sync.New(awsSession, s3sync.WithParallel(syncManagerMaxConcurrentUploads)),
-		uploader:             s3manager.NewUploader(awsSession),
-		maxConcurrentUploads: config.maxConcurrentUploads,
+		syncManager:        s3sync.New(awsSession, s3sync.WithParallel(syncManagerMaxConcurrentSyncs), s3sync.WithDelete()),
+		uploader:           s3manager.NewUploader(awsSession),
+		downloader:         s3manager.NewDownloader(awsSession),
+		maxConcurrentSyncs: config.maxConcurrentSyncs,
 	}
 	s.ChangeLocalBucketPath(config.localBucketPath)
 
@@ -88,11 +94,162 @@ func (s *S3manager) ChangeLocalBucketPath(newBucketPath string) error {
 }
 
 func (s *S3manager) DownloadExistingRepo() error {
-	err := s.sync(true)
+	err := deleteAllFilesInDirectory(s.bucketLocalPath)
 	if err != nil {
-		return trace.Wrap(err, "failed to download bucket")
+		return trace.Wrap(err, "failed to remove all filesystem entries in %q", s.bucketLocalPath)
 	}
 
+	downloadGroup := &errgroup.Group{}
+	downloadGroup.SetLimit(s.maxConcurrentSyncs)
+	linkMap := make(map[string]string)
+
+	var continuationToken *string = nil
+	for {
+		listObjResponse, err := s.downloader.S3.ListObjectsV2(&s3.ListObjectsV2Input{
+			Bucket:            &s.bucketName,
+			ContinuationToken: continuationToken,
+		})
+		if err != nil {
+			return trace.Wrap(err, "failed to list objects for bucket %q", s.bucketName)
+		}
+
+		for _, s3object := range listObjResponse.Contents {
+			s.processS3ObjectDownload(s3object, downloadGroup, &linkMap)
+		}
+
+		continuationToken = listObjResponse.NextContinuationToken
+		if continuationToken == nil {
+			break
+		}
+	}
+
+	// Even if an error has occurred we should wait to exit until all running syncs have
+	// completed, even if not successful
+	logrus.Info("Waiting for download to complete...")
+	err = downloadGroup.Wait()
+	if err != nil {
+		return trace.Wrap(err, "failed to perform S3 sync from remote bucket %q to local bucket %q", s.bucketName, s.bucketLocalPath)
+	}
+
+	// Links must be created after their target exists
+	err = createLinks(linkMap)
+	if err != nil {
+		return trace.Wrap(err, "failed to create filesystem links for bucket %q", s.bucketName)
+	}
+
+	logrus.Infof("Downloaded %s bytes", bytesize.New(float64(s.downloadedBytes)))
+	return nil
+}
+
+func (s *S3manager) processS3ObjectDownload(s3object *s3.Object, downloadGroup *errgroup.Group, linkMap *map[string]string) {
+	downloadGroup.Go(func() error {
+		objectLink, err := s.getObjectLink(s3object)
+		if err != nil {
+			return trace.Wrap(err, "failed to get object link for key %q in bucket %q", *s3object.Key, s.bucketName)
+		}
+
+		// If the link does not start with a '/' then it is not a filesystem link
+		if objectLink != nil && len(*objectLink) > 0 && (*objectLink)[0] == '/' {
+			localObjectPath := filepath.Join(s.bucketLocalPath, *s3object.Key)
+			linkTarget := filepath.Join(s.bucketLocalPath, *objectLink)
+			(*linkMap)[localObjectPath] = linkTarget
+			return nil
+		}
+
+		err = s.downloadFile(s3object)
+		if err != nil {
+			return trace.Wrap(err, "failed to download S3 file %q from bucket %q", *s3object.Key, s.bucketName)
+		}
+
+		return nil
+	})
+}
+
+func createLinks(linkMap map[string]string) error {
+	for file, target := range linkMap {
+		logrus.Infof("Creating a symlink from %q to %q", file, target)
+		err := os.MkdirAll(filepath.Dir(file), 0660)
+		if err != nil {
+			return trace.Wrap(err, "failed to create directory structure for %q", file)
+		}
+
+		err = os.Symlink(target, file)
+		if err != nil {
+			return trace.Wrap(err, "failed to symlink %q to %q", file, target)
+		}
+	}
+
+	return nil
+}
+
+// This could potentially be made more efficient by running `os.RemoveAll` in a goroutine
+//  as random access on storage devices performs better at a higher queue depth
+func deleteAllFilesInDirectory(dir string) error {
+	// Note that os.ReadDir does not follow/eval links which is important here
+	dirEntries, err := os.ReadDir(dir)
+	if err != nil {
+		return trace.Wrap(err, "failed to list directory entries for directory %q", dir)
+	}
+
+	for _, dirEntry := range dirEntries {
+		dirEntryPath := filepath.Join(dir, dirEntry.Name())
+		err = os.RemoveAll(dirEntryPath)
+		if err != nil {
+			return trace.Wrap(err, "failed to remove directory entry %q", dirEntryPath)
+		}
+	}
+
+	return nil
+}
+
+func (s *S3manager) getObjectLink(s3object *s3.Object) (*string, error) {
+	s3HeadObjectOutput, err := s.downloader.S3.HeadObject(&s3.HeadObjectInput{
+		Bucket: &s.bucketName,
+		Key:    s3object.Key,
+		// Probably unnecessary but this will cause an error to be thrown if somebody is
+		// modifying the object while this program is running
+		IfMatch:           s3object.ETag,
+		IfUnmodifiedSince: s3object.LastModified,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to retrieve metadata for key %q in bucket %q", *s3object.Key, s.bucketName)
+	}
+
+	return s3HeadObjectOutput.WebsiteRedirectLocation, nil
+}
+
+// s3sync has a bug when downloading a single file so this call reimplements s3sync's download
+func (s *S3manager) downloadFile(s3object *s3.Object) error {
+	logrus.Infof("Downloading %q...", *s3object.Key)
+	localObjectPath := filepath.Join(s.bucketLocalPath, *s3object.Key)
+
+	err := os.MkdirAll(filepath.Dir(localObjectPath), 0660)
+	if err != nil {
+		return trace.Wrap(err, "failed to create directory structure for %q", localObjectPath)
+	}
+
+	fileWriter, err := os.Create(localObjectPath)
+	if err != nil {
+		return trace.Wrap(err, "failed to open %q for writing", localObjectPath)
+	}
+	defer fileWriter.Close()
+
+	fileDownloadByteCount, err := s.downloader.Download(fileWriter, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucketName),
+		Key:    aws.String(*s3object.Key),
+	})
+	if err != nil {
+		return trace.Wrap(err, "failed to download object %q from bucket %q to local path %q", *s3object.Key, s.bucketName, localObjectPath)
+	}
+
+	s.downloadedBytes += fileDownloadByteCount
+
+	err = os.Chtimes(localObjectPath, *s3object.LastModified, *s3object.LastModified)
+	if err != nil {
+		return trace.Wrap(err, "failed to update the access and modification time on file %q to %v", localObjectPath, *s3object.LastModified)
+	}
+
+	logrus.Infof("Download %q complete", *s3object.Key)
 	return nil
 }
 
@@ -107,7 +264,7 @@ func (s *S3manager) UploadBuiltRepo() error {
 
 func (s *S3manager) UploadBuiltRepoWithRedirects(extensionToMatch, relativeRedirectDir string) error {
 	uploadGroup := &errgroup.Group{}
-	uploadGroup.SetLimit(s.maxConcurrentUploads)
+	uploadGroup.SetLimit(s.maxConcurrentSyncs)
 
 	walkErr := filepath.WalkDir(s.bucketLocalPath, func(absPath string, info fs.DirEntry, err error) error {
 		logrus.Debugf("Starting on %q...", absPath)
@@ -236,7 +393,7 @@ func (s *S3manager) buildSyncSymbolicLinkFunc(absPath string) (func() error, err
 func (s *S3manager) buildSyncSingleFsEntryFunc(absPath string) (func() error, error) {
 	relPath, err := filepath.Rel(s.bucketLocalPath, absPath)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to get %q relative to %q", absPath, s.uploader.LeavePartsOnError)
+		return nil, trace.Wrap(err, "failed to get %q relative to %q", absPath, s.bucketLocalPath)
 	}
 
 	remoteURL := getURLWithPath(*s.bucketURL, relPath)

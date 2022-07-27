@@ -40,11 +40,12 @@ func artifactMigrationPipeline() []pipeline {
 	migrationVersions := []string{
 		// These versions were migrated as a part of the new `promoteAptPipeline`
 		"v6.2.31",
-		// "v7.3.17",
-		// "v7.3.18",
-		// "v7.3.19",
-		// "v7.3.20",
-		// "v7.3.21",
+		"v7.3.17",
+		"v7.3.18",
+		"v7.3.19",
+		"v7.3.20",
+		"v7.3.21",
+		"v7.3.23",
 		// "v8.3.3",
 		// "v8.3.4",
 		// "v8.3.5",
@@ -375,9 +376,9 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			Commands: append(
 				toolSetupCommands,
 				[]string{
-					"mkdir -pv -m0700 $GNUPGHOME",
+					"mkdir -pv -m0700 \"$GNUPGHOME\"",
 					"echo \"$GPG_RPM_SIGNING_ARCHIVE\" | base64 -d | tar -xzf - -C $GNUPGHOME",
-					"chown -R root:root $GNUPGHOME",
+					"chown -R root:root \"$GNUPGHOME\"",
 					fmt.Sprintf("cd %q", path.Join(codePath, "build.assets", "tooling")),
 					fmt.Sprintf("export VERSION=%q", version),
 					"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
@@ -398,7 +399,6 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 						),
 						" ",
 					),
-					"rm -rf \"$BUCKET_CACHE_PATH\"",
 				}...,
 			),
 			Volumes: []volumeRef{

@@ -5130,7 +5130,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:268
+# Generated at dronegen/os_repos.go:269
 ################################################
 
 kind: pipeline
@@ -5188,16 +5188,15 @@ steps:
   commands:
   - apt update
   - apt install -y aptly
-  - mkdir -pv -m0700 $GNUPGHOME
+  - mkdir -pv -m0700 "$GNUPGHOME"
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
-  - rm -rf "$BUCKET_CACHE_PATH"
   environment:
     APTLY_ROOT_DIR: /mnt/aptly
     ARTIFACT_PATH: /go/artifacts
@@ -5230,7 +5229,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:268
+# Generated at dronegen/os_repos.go:269
 ################################################
 
 kind: pipeline
@@ -5278,16 +5277,309 @@ steps:
   - apt update
   - apt install -y createrepo-c
   - mkdir -pv "$CACHE_DIR"
-  - mkdir -pv -m0700 $GNUPGHOME
+  - mkdir -pv -m0700 "$GNUPGHOME"
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="v6.2.31"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
-  - rm -rf "$BUCKET_CACHE_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.17"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.17/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.17"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.17"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.18"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.18/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.18"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.18"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.19"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.19/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.19"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.19"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.20"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.20/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.20"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.20"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.21"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.21/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.21"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.21"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+- name: Download artifacts for "v7.3.23"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/7.3.23/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v7.3.23"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v7.3.23"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
   environment:
     ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
@@ -5320,7 +5612,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:268
+# Generated at dronegen/os_repos.go:269
 ################################################
 
 kind: pipeline
@@ -5379,16 +5671,15 @@ steps:
   - apt update
   - apt install -y createrepo-c
   - mkdir -pv "$CACHE_DIR"
-  - mkdir -pv -m0700 $GNUPGHOME
+  - mkdir -pv -m0700 "$GNUPGHOME"
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
-  - rm -rf "$BUCKET_CACHE_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
@@ -5805,6 +6096,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: b0dbaf60be6003ede54f8a0a47da0afc517eac52c78f11119858644fe61d6eb3
+hmac: b02aa3a58e7c942ed2cfe61d7e3a677496be5874d4df6269b1c90c4216698c18
 
 ...

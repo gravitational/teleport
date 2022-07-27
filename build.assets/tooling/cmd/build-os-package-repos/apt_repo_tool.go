@@ -108,7 +108,7 @@ func (art *AptRepoTool) Run() error {
 	}
 
 	// Both Hashicorp and Docker publish their key to this path
-	err = art.gpg.WritePublicKeyToFile(filepath.Join(art.config.localBucketPath, "gpg"))
+	err = art.gpg.WritePublicKeyToFile(filepath.Join(art.aptly.rootDir, "public", "gpg"))
 	if err != nil {
 		return trace.Wrap(err, "failed to write GPG public key")
 	}

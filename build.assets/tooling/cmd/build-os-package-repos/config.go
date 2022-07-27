@@ -58,16 +58,16 @@ func (lc *LoggerConfig) validateLogLevel() error {
 }
 
 type S3Config struct {
-	bucketName           string
-	localBucketPath      string
-	maxConcurrentUploads int
+	bucketName         string
+	localBucketPath    string
+	maxConcurrentSyncs int
 }
 
 func NewS3ConfigWithFlagset(fs *flag.FlagSet) *S3Config {
 	s3c := &S3Config{}
 	fs.StringVar(&s3c.bucketName, "bucket", "", "The name of the S3 bucket where the repo should be synced to/from")
 	fs.StringVar(&s3c.localBucketPath, "local-bucket-path", "/bucket", "The local path where the bucket should be synced to")
-	fs.IntVar(&s3c.maxConcurrentUploads, "max-concurrent-uploads", 16, "The maximum number of S3 bucket uploads that may run in parallel (-1 for unlimited, 16 default)")
+	fs.IntVar(&s3c.maxConcurrentSyncs, "max-concurrent-syncs", 16, "The maximum number of S3 bucket syncs that may run in parallel (-1 for unlimited, 16 default)")
 
 	return s3c
 }
@@ -79,8 +79,8 @@ func (s3c *S3Config) Check() error {
 	if err := s3c.validateLocalBucketPath(); err != nil {
 		return trace.Wrap(err, "failed to validate the local bucket path flag")
 	}
-	if err := s3c.validateMaxConcurrentUploads(); err != nil {
-		return trace.Wrap(err, "failed to validate the max concurrent uploads flag")
+	if err := s3c.validateMaxConcurrentSyncs(); err != nil {
+		return trace.Wrap(err, "failed to validate the max concurrent syncs flag")
 	}
 
 	return nil
@@ -106,9 +106,9 @@ func (s3c *S3Config) validateLocalBucketPath() error {
 	return nil
 }
 
-func (s3c *S3Config) validateMaxConcurrentUploads() error {
-	if s3c.maxConcurrentUploads < -1 {
-		return trace.BadParameter("the max-concurrent-uploads flag must be greater than -1")
+func (s3c *S3Config) validateMaxConcurrentSyncs() error {
+	if s3c.maxConcurrentSyncs < -1 {
+		return trace.BadParameter("the max-concurrent-syncs flag must be greater than -1")
 	}
 
 	return nil

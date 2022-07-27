@@ -378,8 +378,9 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, relativeGpgPublicKeyPat
 				"/",
 			),
 		}).String(),
-		"enabled":  "1",
-		"gpgcheck": "1",
+		"enabled":       "1",
+		"gpgcheck":      "1",
+		"repo_gpgcheck": "1",
 		"gpgkey": (&url.URL{
 			Scheme: "https",
 			Host:   domainName,
