@@ -50,7 +50,27 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
         'toggle-identity': 'Command-I',
       };
 
-      const windowsAndLinuxShortcuts: KeyboardShortcutsConfig = {
+      const windowsShortcuts: KeyboardShortcutsConfig = {
+        'tab-1': 'Ctrl-1',
+        'tab-2': 'Ctrl-2',
+        'tab-3': 'Ctrl-3',
+        'tab-4': 'Ctrl-4',
+        'tab-5': 'Ctrl-5',
+        'tab-6': 'Ctrl-6',
+        'tab-7': 'Ctrl-7',
+        'tab-8': 'Ctrl-8',
+        'tab-9': 'Ctrl-9',
+        'tab-close': 'Ctrl-W',
+        'tab-new': 'Ctrl-T',
+        'tab-previous': 'Ctrl-Shift-Tab',
+        'tab-next': 'Ctrl-Tab',
+        'open-quick-input': 'Ctrl-K',
+        'toggle-connections': 'Ctrl-P',
+        'toggle-clusters': 'Ctrl-E',
+        'toggle-identity': 'Ctrl-I',
+      };
+
+      const linuxShortcuts: KeyboardShortcutsConfig = {
         'tab-1': 'Alt-1',
         'tab-2': 'Alt-2',
         'tab-3': 'Alt-3',
@@ -72,8 +92,9 @@ export const keyboardShortcutsConfigProvider: ConfigServiceProvider<KeyboardShor
 
       switch (platform) {
         case 'win32':
+          return windowsShortcuts;
         case 'linux':
-          return windowsAndLinuxShortcuts;
+          return linuxShortcuts;
         case 'darwin':
           return macShortcuts;
       }
