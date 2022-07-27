@@ -57,7 +57,7 @@ type AuthSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `protobuf:"varint,5,opt,name=has_message_of_the_day,json=hasMessageOfTheDay,proto3" json:"has_message_of_the_day,omitempty"`
-	// auth_type is the authentication type.
+	// auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
 	AuthType string `protobuf:"bytes,6,opt,name=auth_type,json=authType,proto3" json:"auth_type,omitempty"`
 	// allow_passwordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `protobuf:"varint,7,opt,name=allow_passwordless,json=allowPasswordless,proto3" json:"allow_passwordless,omitempty"`
