@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist (zac.bergquist@goteleport.com), Tim Buckley (tim@goteleport.com)
-state: implemented
+state: implemented (v9.0.0-v10.1.0)
 ---
 
 # RFD 56 - Teleport Cert Renewal Bot
