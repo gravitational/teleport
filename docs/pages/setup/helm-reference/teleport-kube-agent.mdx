@@ -3,8 +3,8 @@ title: teleport-kube-agent Chart Reference
 description: Values that can be set using the teleport-kube-agent Helm chart
 ---
 
-The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
-runs in a remote Kubernetes cluster and joins back to a Teleport cluster to
+The `teleport-kube-agent` Helm chart is used to configure a Teleport instance
+that runs in a remote Kubernetes cluster and joins back to a Teleport cluster to
 provide access to services running there.
 
 You can [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
@@ -65,7 +65,7 @@ If you specify a role here, you may also need to specify some other settings whi
 | - | - | - |
 | `string` | `nil` | Yes |
 
-`authToken` provides a Teleport join token which will be used to join the Teleport agent to a Teleport cluster.
+`authToken` provides a Teleport join token which will be used to join the Teleport instance to a Teleport cluster.
 
 This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
 are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
@@ -86,7 +86,7 @@ are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
   You cannot reuse the same static token and specify a different set of services.
 </Admonition>
 
-If you do not have the correct services (Teleport refers to these internally as `Roles`) assigned to your join token, the Teleport agent will
+If you do not have the correct services (Teleport refers to these internally as `Roles`) assigned to your join token, the Teleport instance will
 fail to join the Teleport cluster.
 
 <Tabs>
@@ -199,7 +199,7 @@ You can specify multiple apps by adding additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your agent pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#create-iam-policy-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#create-iam-policy-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
@@ -363,10 +363,10 @@ See [this link for information on Community Docker image versions](../../setup/g
 | - | - |
 | `bool` | `false` |
 
-When `insecureSkipProxyTLSVerify` is set to `true`, the agent will skip the verification of the TLS certificate presented by the Teleport
-proxy server specified using [`proxyAddr`](#proxyaddr).
+When `insecureSkipProxyTLSVerify` is set to `true`, the Teleport instance will skip the verification of the TLS certificate presented by the Teleport
+Proxy Service specified using [`proxyAddr`](#proxyaddr).
 
-This can be used for joining a Teleport agent to a Teleport cluster which does not have valid TLS certificates for testing.
+This can be used for joining a Teleport instance to a Teleport cluster which does not have valid TLS certificates for testing.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -484,7 +484,7 @@ These labels can then be used with Teleport's RBAC policies to define access rul
 | - | - |
 | `bool` | `false` |
 
-Enables the creation of a Kubernetes persistent volume to hold Teleport agent state.
+Enables the creation of a Kubernetes persistent volume to hold Teleport instance state.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
@@ -606,7 +606,7 @@ A list of secrets containing authorization tokens which can be optionally used t
 
 `highAvailability.replicaCount` can be used to set the number of replicas used in the deployment.
 
-Set to a number higher than `1` for a high availability mode where multiple Teleport agent pods will be deployed.
+Set to a number higher than `1` for a high availability mode where multiple Teleport pods will be deployed.
 
 <Admonition type="tip" title="Sizing guidelines">
   As a rough guide, we recommend configuring one replica per distinct availability zone where your cluster has worker nodes.
@@ -980,7 +980,8 @@ Kubernetes affinity to set for pod assignments.
 | - | - |
 | `object` | `{}` |
 
-`nodeSelector` can be used to add a map of key-value pairs to constrain the nodes the agent pods will run on.
+`nodeSelector` can be used to add a map of key-value pairs to constrain the
+nodes that Teleport pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 
