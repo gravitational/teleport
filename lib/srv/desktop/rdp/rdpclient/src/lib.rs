@@ -480,8 +480,8 @@ fn connect_rdp_inner(
                             &mut CGOSharedDirectoryMoveRequest {
                                 completion_id: req.completion_id,
                                 directory_id: req.directory_id,
-                                original_path,
-                                new_path,
+                                original_path: original_path.as_ptr(),
+                                new_path: new_path.as_ptr(),
                             },
                         );
 

@@ -233,6 +233,13 @@ typedef struct CGOSharedDirectoryWriteRequest {
   uint8_t *write_data;
 } CGOSharedDirectoryWriteRequest;
 
+typedef struct CGOSharedDirectoryMoveRequest {
+  uint32_t completion_id;
+  uint32_t directory_id;
+  const char *original_path;
+  const char *new_path;
+} CGOSharedDirectoryMoveRequest;
+
 
 
 
@@ -445,3 +452,6 @@ extern enum CGOErrCode tdp_sd_read_request(uintptr_t client_ref,
 
 extern enum CGOErrCode tdp_sd_write_request(uintptr_t client_ref,
                                             struct CGOSharedDirectoryWriteRequest *req);
+
+extern enum CGOErrCode tdp_sd_move_request(uintptr_t client_ref,
+                                           struct CGOSharedDirectoryMoveRequest *req);

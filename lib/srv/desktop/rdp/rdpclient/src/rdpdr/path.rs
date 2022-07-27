@@ -24,7 +24,7 @@ use std::ffi::{CString, NulError};
 /// r"\Program Files\Custom Utilities\StringFinder.exe": An absolute path from the root of the current drive.
 ///
 /// r"2018\January.xlsx": A relative path to a file in a subdirectory of the current directory.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct WindowsPath {
     pub path: String,
 }
