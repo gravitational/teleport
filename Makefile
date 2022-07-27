@@ -13,9 +13,11 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-DOCKER_IMAGE ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+
 DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
+DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
+DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -29,7 +31,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-TELEPORT_DEBUG ?= no
+TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
@@ -986,13 +988,19 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: publish-ecr
+publish-ecr: image
+	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
+	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -1002,12 +1010,12 @@ publish: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
@@ -1079,6 +1087,11 @@ deb:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
+
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
 
 .PHONY: ensure-webassets
 ensure-webassets:
