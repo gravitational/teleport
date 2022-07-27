@@ -63,6 +63,11 @@ exports[`loaded 1`] = `
   margin-bottom: 40px;
 }
 
+.c11 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
 .c7 {
   line-height: 1.5;
   margin: 0;
@@ -106,7 +111,7 @@ exports[`loaded 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -134,25 +139,25 @@ exports[`loaded 1`] = `
   width: 165px;
 }
 
-.c11:active {
+.c12:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c12:hover,
+.c12:focus {
   background: #651FFF;
 }
 
-.c11:active {
+.c12:active {
   background: #354AA4;
 }
 
-.c11:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -176,21 +181,20 @@ exports[`loaded 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-right: 16px;
   margin-top: 16px;
   width: 165px;
 }
 
-.c12:active {
+.c13:active {
   opacity: 0.56;
 }
 
-.c12:hover,
-.c12:focus {
+.c13:hover,
+.c13:focus {
   background: #2C3A73;
 }
 
-.c12:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -338,20 +342,24 @@ exports[`loaded 1`] = `
       Add New Principle
     </button>
   </div>
-  <button
+  <div
     class="c11"
-    kind="primary"
-    width="165px"
   >
-    Proceed
-  </button>
-  <button
-    class="c12"
-    kind="secondary"
-    width="165px"
-  >
-    Go To Dashboard
-  </button>
+    <button
+      class="c12"
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c13"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
+  </div>
 </div>
 `;
 
@@ -363,6 +371,11 @@ exports[`loaded empty state 1`] = `
 .c3 {
   box-sizing: border-box;
   margin-bottom: 40px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-top: 24px;
 }
 
 .c4 {
@@ -408,7 +421,7 @@ exports[`loaded empty state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c9 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -436,25 +449,25 @@ exports[`loaded empty state 1`] = `
   width: 165px;
 }
 
-.c8:active {
+.c9:active {
   opacity: 0.56;
 }
 
-.c8:hover,
-.c8:focus {
+.c9:hover,
+.c9:focus {
   background: #651FFF;
 }
 
-.c8:active {
+.c9:active {
   background: #354AA4;
 }
 
-.c8:disabled {
+.c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -478,21 +491,20 @@ exports[`loaded empty state 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-right: 16px;
   margin-top: 16px;
   width: 165px;
 }
 
-.c9:active {
+.c10:active {
   opacity: 0.56;
 }
 
-.c9:hover,
-.c9:focus {
+.c10:hover,
+.c10:focus {
   background: #2C3A73;
 }
 
-.c9:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -562,19 +574,23 @@ exports[`loaded empty state 1`] = `
       Add New Principle
     </button>
   </div>
-  <button
+  <div
     class="c8"
-    kind="primary"
-    width="165px"
   >
-    Proceed
-  </button>
-  <button
-    class="c9"
-    kind="secondary"
-    width="165px"
-  >
-    Go To Dashboard
-  </button>
+    <button
+      class="c9"
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c10"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
+  </div>
 </div>
 `;

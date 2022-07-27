@@ -15,7 +15,14 @@
  */
 
 import React from 'react';
-import { Text, ButtonSecondary } from 'design';
+
+import { Text, ButtonPrimary, ButtonSecondary, Box } from 'design';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -26,17 +33,52 @@ export const Header: React.FC = ({ children }) => (
   </Text>
 );
 
-// CancelButton is clicked when user wants to cancel connecting resource
-// which at the moment just means to go back to dashboard.
-// Later implementation, this could mean go back to main discover
-// menu (TBD).
-export const CancelButton: React.FC = () => (
-  <ButtonSecondary
-    mr={3}
-    mt={3}
-    width="165px"
-    onClick={() => history.push(cfg.routes.root, true)}
-  >
-    Go To Dashboard
-  </ButtonSecondary>
-);
+export const ActionButtons = ({ onProceed }: { onProceed(): void }) => {
+  const [confirmExit, setConfirmExit] = React.useState(false);
+  return (
+    <Box mt={4}>
+      <ButtonPrimary width="165px" onClick={onProceed} mr={3}>
+        Proceed
+      </ButtonPrimary>
+      <ButtonSecondary
+        mt={3}
+        width="165px"
+        onClick={() => setConfirmExit(true)}
+      >
+        Exit
+      </ButtonSecondary>
+      {confirmExit && (
+        <ConfirmExitDialog onClose={() => setConfirmExit(false)} />
+      )}
+    </Box>
+  );
+};
+
+function ConfirmExitDialog({ onClose }: { onClose(): void }) {
+  return (
+    <Dialog
+      dialogCss={() => ({ maxWidth: '600px' })}
+      disableEscapeKeyDown={false}
+      onClose={onClose}
+      open={true}
+    >
+      <DialogHeader>
+        <DialogTitle>Exit Resource Connection</DialogTitle>
+      </DialogHeader>
+      <DialogContent minWidth="500px" flex="0 0 auto">
+        <Text mb={2}>
+          Are you sure you want to cancel the Resource connection process?
+        </Text>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonPrimary
+          mr="3"
+          onClick={() => history.push(cfg.routes.root, true)}
+        >
+          Yes
+        </ButtonPrimary>
+        <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
+      </DialogFooter>
+    </Dialog>
+  );
+}

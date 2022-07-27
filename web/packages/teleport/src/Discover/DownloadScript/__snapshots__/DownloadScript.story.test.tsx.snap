@@ -1,0 +1,319 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`failed 1`] = `
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c2 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Configure Resource
+  </div>
+  <div
+    class="c2"
+    kind="danger"
+  >
+    some error message
+  </div>
+</div>
+`;
+
+exports[`loaded 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
+}
+
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #651FFF;
+}
+
+.c10:active {
+  background: #354AA4;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  max-width: 800px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Configure Resource
+  </div>
+  <div
+    class="c2"
+  >
+    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+    <div
+      class="c3"
+    >
+      The script will be valid for
+       
+      <span
+        class="c4"
+      >
+        4 hours
+        .
+      </span>
+    </div>
+  </div>
+  <div
+    class="c5"
+  >
+    <div
+      class="c6"
+      style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+    >
+      <div
+        class="c7"
+      >
+        $
+      </div>
+      <div>
+        sudo bash -c "$(curl -fsSL http://localhost/scripts/some-join-token-hash/install-node.sh)"
+      </div>
+    </div>
+    <button
+      class="c8"
+      kind="primary"
+      style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+    >
+      Copy
+    </button>
+  </div>
+  <div
+    class="c9"
+  >
+    <button
+      class="c10"
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c11"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
+  </div>
+</div>
+`;

@@ -27,8 +27,7 @@ import {
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 
-import { Header, CancelButton } from '../Shared';
-
+import { Header, ActionButtons } from '../Shared';
 import { useDiscoverContext } from '../discoverContextProvider';
 
 import { useLoginTrait, State } from './useLoginTrait';
@@ -51,6 +50,17 @@ export function LoginTrait({ attempt, nextStep, logins, addLogin }: State) {
     addLogin(newLogin);
     setNewLogin('');
     setShowInputBox(false);
+  }
+
+  function onProceed() {
+    const names: string[] = [];
+    inputRefs.current.forEach(el => {
+      if (el.checked) {
+        names.push(el.name);
+      }
+    });
+
+    nextStep(names);
   }
 
   let $content;
@@ -126,23 +136,7 @@ export function LoginTrait({ attempt, nextStep, logins, addLogin }: State) {
               <AddLoginButton setShowInputBox={setShowInputBox} />
             )}
           </Box>
-          <ButtonPrimary
-            width="165px"
-            onClick={() => {
-              const names: string[] = [];
-              inputRefs.current.forEach(el => {
-                if (el.checked) {
-                  names.push(el.name);
-                }
-              });
-
-              nextStep(names);
-            }}
-            mr={3}
-          >
-            Proceed
-          </ButtonPrimary>
-          <CancelButton />
+          <ActionButtons onProceed={onProceed} />
         </>
       );
       break;
