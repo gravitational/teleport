@@ -591,7 +591,7 @@ func TestTokensCRUD(t *testing.T) {
 	require.NoError(t, err)
 	token, err := s.a.GetToken(ctx, tokenName)
 	require.NoError(t, err)
-	actualTTL := token.Expiry().Sub(time.Now())
+	actualTTL := time.Until(token.Expiry())
 	diff := actualTTL - desiredTTL
 	require.True(
 		t,
