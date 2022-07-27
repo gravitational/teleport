@@ -685,7 +685,6 @@ func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadReques
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
-		PathLength:   uint32(req.path_length),
 		Offset:       uint64(req.offset),
 		Length:       uint32(req.length),
 	})
@@ -708,7 +707,6 @@ func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequ
 		CompletionID:    uint32(req.completion_id),
 		DirectoryID:     uint32(req.directory_id),
 		Offset:          uint64(req.offset),
-		PathLength:      uint32(req.path_length),
 		Path:            C.GoString(req.path),
 		WriteDataLength: uint32(req.write_data_length),
 		WriteData:       C.GoBytes(unsafe.Pointer(req.write_data), C.int(req.write_data_length)),
@@ -719,6 +717,27 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
 			c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
+			return C.ErrCodeFailure
+		}
+		return C.ErrCodeSuccess
+	}
+	return C.ErrCodeFailure
+}
+
+//export tdp_sd_move_request
+func tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		OriginalPath: C.GoString(req.original_path),
+		NewPath:      C.GoString(req.new_path),
+	})
+}
+
+func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) C.CGOErrCode {
+	if c.cfg.AllowDirectorySharing {
+		if err := c.cfg.Conn.OutputMessage(req); err != nil {
+			c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
 			return C.ErrCodeFailure
 		}
 		return C.ErrCodeSuccess
