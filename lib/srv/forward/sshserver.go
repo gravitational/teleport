@@ -732,8 +732,9 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	case tracessh.TracingChannel:
 		ch, _, err := nch.Accept()
 		if err != nil {
-			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
-				s.log.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
+			s.log.Warnf("Unable to accept channel: %v", err)
+			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+				s.log.Warnf("Failed to reject channel: %v", err)
 			}
 			return
 		}
