@@ -975,3 +975,6 @@ type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (Rem
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.
 const notImplementedMessage = "not implemented: can only be called by auth locally"
+
+// LicenseExpiredNotification defines a license expired notification
+const LicenseExpiredNotification = "licenseExpired"

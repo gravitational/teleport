@@ -1458,7 +1458,20 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	return trace.Wrap(onStatus(cf))
+	if err := onStatus(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Display any license compliance warnings
+	resp, err := tc.Ping(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, warning := range resp.LicenseWarnings {
+		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
+	}
+
+	return nil
 }
 
 // setupNoninteractiveClient sets up existing client to use
