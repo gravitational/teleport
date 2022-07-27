@@ -90,7 +90,7 @@ const (
 )
 
 // ServerOption allows setting options as functional arguments to Server
-type ServerOption func(*Server)
+type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
@@ -177,6 +177,24 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	services := &Services{
+		Trust:                 cfg.Trust,
+		Presence:              cfg.Presence,
+		Provisioner:           cfg.Provisioner,
+		Identity:              cfg.Identity,
+		Access:                cfg.Access,
+		DynamicAccessExt:      cfg.DynamicAccessExt,
+		ClusterConfiguration:  cfg.ClusterConfiguration,
+		Restrictions:          cfg.Restrictions,
+		Apps:                  cfg.Apps,
+		Databases:             cfg.Databases,
+		IAuditLog:             cfg.AuditLog,
+		Events:                cfg.Events,
+		WindowsDesktops:       cfg.WindowsDesktops,
+		SessionTrackerService: cfg.SessionTrackerService,
+		Enforcer:              cfg.Enforcer,
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
@@ -192,29 +210,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
 		unstable:        local.NewUnstableService(cfg.Backend),
-		Services: Services{
-			Trust:                 cfg.Trust,
-			Presence:              cfg.Presence,
-			Provisioner:           cfg.Provisioner,
-			Identity:              cfg.Identity,
-			Access:                cfg.Access,
-			DynamicAccessExt:      cfg.DynamicAccessExt,
-			ClusterConfiguration:  cfg.ClusterConfiguration,
-			Restrictions:          cfg.Restrictions,
-			Apps:                  cfg.Apps,
-			Databases:             cfg.Databases,
-			IAuditLog:             cfg.AuditLog,
-			Events:                cfg.Events,
-			WindowsDesktops:       cfg.WindowsDesktops,
-			SessionTrackerService: cfg.SessionTrackerService,
-			Enforcer:              cfg.Enforcer,
-		},
-		keyStore:     keyStore,
-		getClaimsFun: getClaims,
-		inventory:    inventory.NewController(cfg.Presence),
+		Services:        services,
+		Cache:           services,
+		keyStore:        keyStore,
+		getClaimsFun:    getClaims,
+		inventory:       inventory.NewController(cfg.Presence),
 	}
 	for _, o := range opts {
-		o(&as)
+		if err := o(&as); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
@@ -243,13 +248,13 @@ type Services struct {
 
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return r.Identity.WebSessions().Get(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
 }
 
@@ -346,20 +351,23 @@ type Server struct {
 	// for inclusion in Services.
 	unstable local.UnstableService
 
-	// Services encapsulate services - provisioner, trust, etc
-	// used by the auth server in a separate structure
-	Services
+	// Services encapsulate services - provisioner, trust, etc. used by the auth
+	// server in a separate structure. Reads through Services hit the backend.
+	*Services
+
+	// Cache should either be the same as Services, or a caching layer over it.
+	// As it's an interface (and thus directly implementing all of its methods)
+	// its embedding takes priority over Services (which only indirectly
+	// implements its methods), thus any implemented GetFoo method on both Cache
+	// and Services will call the one from Cache. To bypass the cache, call the
+	// method on Services instead.
+	Cache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
-
-	// cache is a fast cache that allows auth server
-	// to use cache for most frequent operations,
-	// if not set, cache uses itself
-	cache Cache
 
 	// limiter limits the number of active connections per client IP.
 	limiter *limiter.ConnectionsLimiter
@@ -386,23 +394,6 @@ type Server struct {
 
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
-}
-
-// SetCache sets cache used by auth server
-func (a *Server) SetCache(clt Cache) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.cache = clt
-}
-
-// GetCache returns cache used by auth server
-func (a *Server) GetCache() Cache {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-	if a.cache == nil {
-		return &a.Services
-	}
-	return a.cache
 }
 
 // SetLockWatcher sets the lock watcher.
@@ -515,9 +506,8 @@ func (a *Server) updateVersionMetrics() {
 			}
 		}
 	}
-	client := a.GetCache()
 
-	proxyServers, err := client.GetProxies()
+	proxyServers, err := a.GetProxies()
 	if err != nil {
 		log.Debugf("Failed to get Proxies for teleport_registered_servers metric: %v", err)
 	}
@@ -525,7 +515,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(proxyServer)
 	}
 
-	authServers, err := client.GetAuthServers()
+	authServers, err := a.GetAuthServers()
 	if err != nil {
 		log.Debugf("Failed to get Auth servers for teleport_registered_servers metric: %v", err)
 	}
@@ -533,7 +523,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(authServer)
 	}
 
-	servers, err := client.GetNodes(a.closeCtx, apidefaults.Namespace)
+	servers, err := a.GetNodes(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Nodes for teleport_registered_servers metric: %v", err)
 	}
@@ -541,7 +531,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(server)
 	}
 
-	dbs, err := client.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
+	dbs, err := a.GetDatabaseServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Database servers for teleport_registered_servers metric: %v", err)
 	}
@@ -549,7 +539,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(db)
 	}
 
-	apps, err := client.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
+	apps, err := a.GetApplicationServers(a.closeCtx, apidefaults.Namespace)
 	if err != nil {
 		log.Debugf("Failed to get Application servers for teleport_registered_servers metric: %v", err)
 	}
@@ -557,7 +547,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(app)
 	}
 
-	kubeServices, err := client.GetKubeServices(a.closeCtx)
+	kubeServices, err := a.GetKubeServices(a.closeCtx)
 	if err != nil {
 		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
 	}
@@ -565,7 +555,7 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(kubeService)
 	}
 
-	windowsServices, err := client.GetWindowsDesktopServices(a.closeCtx)
+	windowsServices, err := a.GetWindowsDesktopServices(a.closeCtx)
 	if err != nil {
 		log.Debugf("Failed to get Window Desktop Services for teleport_registered_servers metric: %v", err)
 	}
@@ -612,38 +602,12 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.IAuditLog = auditLog
+	a.Services.IAuditLog = auditLog
 }
 
 // SetEnforcer sets the server's enforce service
 func (a *Server) SetEnforcer(enforcer services.Enforcer) {
-	a.Enforcer = enforcer
-}
-
-// GetAuthPreference gets AuthPreference from the cache.
-func (a *Server) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	return a.GetCache().GetAuthPreference(ctx)
-}
-
-// GetClusterAuditConfig gets ClusterAuditConfig from the cache.
-func (a *Server) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	return a.GetCache().GetClusterAuditConfig(ctx, opts...)
-}
-
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the cache.
-func (a *Server) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
-	return a.GetCache().GetClusterNetworkingConfig(ctx, opts...)
-}
-
-// GetSessionRecordingConfig gets SessionRecordingConfig from the cache.
-func (a *Server) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
-	return a.GetCache().GetSessionRecordingConfig(ctx, opts...)
-}
-
-// GetClusterName returns the domain name that identifies this authority server.
-// Also known as "cluster name"
-func (a *Server) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	return a.GetCache().GetClusterName(opts...)
+	a.Services.Enforcer = enforcer
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -664,7 +628,7 @@ func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 		return nil, trace.Wrap(err)
 	}
 	// Extract the TLS CA for this cluster.
-	hostCA, err := a.GetCache().GetCertAuthority(ctx, types.CertAuthID{
+	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, false)
@@ -691,7 +655,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Trust.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -847,7 +811,7 @@ func certRequestClientIP(ip string) certRequestOption {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -856,7 +820,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -897,7 +861,7 @@ type AppTestCertRequest struct {
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
-	user, err := a.Identity.GetUser(req.Username, false)
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -906,7 +870,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -955,7 +919,7 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	user, err := a.Identity.GetUser(req.Username, false)
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -964,7 +928,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1074,7 +1038,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 	if req.routeToCluster != clusterName {
 		// Authorize access to a remote cluster.
-		rc, err := a.Presence.GetRemoteCluster(req.routeToCluster)
+		rc, err := a.GetRemoteCluster(req.routeToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1086,7 +1050,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	userCA, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	}, true)
@@ -1146,7 +1110,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	// cluster. If this cert is targeting a trusted teleport cluster, leave all
 	// the kubernetes cluster validation up to them.
 	if req.routeToCluster == clusterName {
-		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a.Presence, req.kubernetesCluster, clusterName)
+		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a, req.kubernetesCluster, clusterName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -1251,7 +1215,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// also include host CA certs if requested
 	if req.includeHostCA {
-		hostCA, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName,
 		}, false)
@@ -1277,7 +1241,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.Identity.GetUser(username, false)
+	user, err := a.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -1327,7 +1291,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	loginAttempts, err := a.Identity.GetUserLoginAttempts(username)
+	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -1340,7 +1304,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	log.Debug(fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
 		username, defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(lockUntil)))
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
-	err = a.Identity.UpsertUser(user)
+	err = a.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -1515,7 +1479,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 
 		identity := req.webIdentityOverride
 		if identity == nil {
-			identity = a.Identity
+			identity = a.Services
 		}
 
 		webRegistration := &wanlib.RegistrationFlow{
@@ -1564,7 +1528,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		}
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, username, false)
+	devs, err := a.Services.GetMFADevices(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1592,7 +1556,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 // deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
 // for clusters that require second factors, which prevents users from being locked out of their account.
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
-	devs, err := a.Identity.GetMFADevices(ctx, user, true)
+	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1790,7 +1754,7 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 	var secret string
 	switch {
 	case req.tokenID != "":
-		secrets, err := a.Identity.GetUserTokenSecrets(ctx, req.tokenID)
+		secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1829,7 +1793,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	}
 	identity := req.webIdentityOverride // Override Identity, if supplied.
 	if identity == nil {
-		identity = a.Identity
+		identity = a.Services
 	}
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
@@ -1843,6 +1807,18 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
+}
+
+// GetWebSession returns existing web session described by req. Explicitly
+// delegating to Cache as it's directly implemented by *Services as well.
+func (a *Server) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	return a.Cache.GetWebSession(ctx, req)
+}
+
+// GetWebToken returns existing web token described by req. Explicitly
+// delegating to Cache as it's directly implemented by *Services as well.
+func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	return a.Cache.GetWebToken(ctx, req)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
@@ -1920,7 +1896,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		allowedResourceIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+		roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2040,7 +2016,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		token.SetMetadata(meta)
 	}
 
-	if err := a.Provisioner.UpsertToken(ctx, token); err != nil {
+	if err := a.UpsertToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -2130,11 +2106,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
-	client := a.GetCache()
-	if req.NoCache {
-		client = a.Services
-	}
-	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -2401,11 +2373,11 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 		}
 	}
 	// Delete a user token.
-	if err = a.Identity.DeleteUserToken(ctx, token); err == nil {
+	if err = a.DeleteUserToken(ctx, token); err == nil {
 		return nil
 	}
 	// delete node token:
-	if err = a.Provisioner.DeleteToken(ctx, token); err == nil {
+	if err = a.Services.DeleteToken(ctx, token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -2415,7 +2387,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Provisioner.GetTokens(ctx)
+	tokens, err = a.Services.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2428,7 +2400,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get user tokens:
-	userTokens, err := a.Identity.GetUserTokens(ctx)
+	userTokens, err := a.GetUserTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2458,7 +2430,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		Roles:              req.Roles,
 		Traits:             req.Traits,
 		AllowedResourceIDs: req.RequestedResourceIDs,
-	}, clusterName.GetClusterName(), a.Access)
+	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2526,7 +2498,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
 func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	sess, err := a.Identity.WebSessions().Get(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
+	sess, err := a.GetWebSession(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2538,21 +2510,14 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if namespace == apidefaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := a.Presence.GetNodes(ctx, namespace)
+	nodes, err := a.GetNodes(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(nodes) != 0 {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
-	return a.Presence.DeleteNamespace(namespace)
-}
-
-// NewWatcher returns a new event watcher. In case of an auth server
-// this watcher will return events as seen by the auth server's
-// in memory cache, not the backend.
-func (a *Server) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	return a.GetCache().NewWatcher(ctx, watch)
+	return a.Services.DeleteNamespace(namespace)
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
@@ -2591,7 +2556,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		return nil
 	}
 
-	if err := a.DynamicAccessExt.CreateAccessRequest(ctx, req); err != nil {
+	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
@@ -2616,7 +2581,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
-	if err := a.DynamicAccessExt.DeleteAccessRequest(ctx, name); err != nil {
+	if err := a.Services.DeleteAccessRequest(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestDelete{
@@ -2633,7 +2598,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
-	req, err := a.DynamicAccessExt.SetAccessRequestState(ctx, params)
+	req, err := a.Services.SetAccessRequestState(ctx, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2690,7 +2655,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 
 	// final permission checks and review application must be done by the local backend
 	// service, as their validity depends upon optimistic locking.
-	req, err := a.DynamicAccessExt.ApplyAccessReview(ctx, params, checker)
+	req, err := a.ApplyAccessReview(ctx, params, checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2765,18 +2730,6 @@ func (a *Server) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return k, nil
 }
 
-// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-// controls if signing keys are loaded
-func (a *Server) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return a.GetCache().GetCertAuthority(ctx, id, loadSigningKeys, opts...)
-}
-
-// GetCertAuthorities returns a list of authorities of a given type
-// loadSigningKeys controls whether signing keys should be loaded or not
-func (a *Server) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	return a.GetCache().GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
-}
-
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -2826,41 +2779,6 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 	return crl, nil
 }
 
-// GetStaticTokens gets the list of static tokens used to provision nodes.
-func (a *Server) GetStaticTokens() (types.StaticTokens, error) {
-	return a.GetCache().GetStaticTokens()
-}
-
-// GetToken finds and returns token by ID
-func (a *Server) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	return a.GetCache().GetToken(ctx, token)
-}
-
-// GetRoles returns roles from the cache
-func (a *Server) GetRoles(ctx context.Context) ([]types.Role, error) {
-	return a.GetCache().GetRoles(ctx)
-}
-
-// GetRole returns a role from the cache
-func (a *Server) GetRole(ctx context.Context, name string) (types.Role, error) {
-	return a.GetCache().GetRole(ctx, name)
-}
-
-// GetNamespace returns a namespace from the cache
-func (a *Server) GetNamespace(name string) (*types.Namespace, error) {
-	return a.GetCache().GetNamespace(name)
-}
-
-// GetNamespaces returns namespaces from the cache
-func (a *Server) GetNamespaces() ([]types.Namespace, error) {
-	return a.GetCache().GetNamespaces()
-}
-
-// GetNodes returns nodes from the cache
-func (a *Server) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	return a.GetCache().GetNodes(ctx, namespace)
-}
-
 // ErrDone indicates that resource iteration is complete
 var ErrDone = errors.New("done iterating")
 
@@ -2890,38 +2808,6 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 		req.StartKey = resp.NextKey
 	}
-}
-
-// GetReverseTunnels returns reverse tunnels from the cache
-func (a *Server) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	return a.GetCache().GetReverseTunnels(ctx, opts...)
-}
-
-// GetProxies returns proxies from the cache
-func (a *Server) GetProxies() ([]types.Server, error) {
-	return a.GetCache().GetProxies()
-}
-
-// GetUser returns a user from the cache
-func (a *Server) GetUser(name string, withSecrets bool) (user types.User, err error) {
-	return a.GetCache().GetUser(name, withSecrets)
-}
-
-// GetUsers returns users from the cache
-func (a *Server) GetUsers(withSecrets bool) (users []types.User, err error) {
-	return a.GetCache().GetUsers(withSecrets)
-}
-
-// GetTunnelConnections are not using recent cache as they are designed
-// to be called periodically and always return fresh data
-func (a *Server) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	return a.GetCache().GetTunnelConnections(clusterName, opts...)
-}
-
-// GetAllTunnelConnections are not using recent cache, as they are designed
-// to be called periodically and always return fresh data
-func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error) {
-	return a.GetCache().GetAllTunnelConnections(opts...)
 }
 
 // CreateAuditStream creates audit event stream
@@ -2960,19 +2846,9 @@ func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
 	return a.streamer, nil
 }
 
-// GetAppServers returns app servers from the cache
-func (a *Server) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return a.GetCache().GetAppServers(ctx, namespace, opts...)
-}
-
-// GetAppSession returns app sessions from the cache
-func (a *Server) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	return a.GetCache().GetAppSession(ctx, req)
-}
-
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
-	if err := a.Apps.CreateApp(ctx, app); err != nil {
+	if err := a.Services.CreateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppCreate{
@@ -2998,7 +2874,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := a.Apps.UpdateApp(ctx, app); err != nil {
+	if err := a.Services.UpdateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppUpdate{
@@ -3024,7 +2900,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 
 // DeleteApp deletes an application resource.
 func (a *Server) DeleteApp(ctx context.Context, name string) error {
-	if err := a.Apps.DeleteApp(ctx, name); err != nil {
+	if err := a.Services.DeleteApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{
@@ -3042,16 +2918,6 @@ func (a *Server) DeleteApp(ctx context.Context, name string) error {
 	return nil
 }
 
-// GetApps returns all application resources.
-func (a *Server) GetApps(ctx context.Context) ([]types.Application, error) {
-	return a.GetCache().GetApps(ctx)
-}
-
-// GetApp returns the specified application resource.
-func (a *Server) GetApp(ctx context.Context, name string) (types.Application, error) {
-	return a.GetCache().GetApp(ctx, name)
-}
-
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
@@ -3063,32 +2929,12 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 		}
 	}
 
-	return a.SessionTrackerService.CreateSessionTracker(ctx, tracker)
-}
-
-// GetActiveSessionTrackers returns a list of active session trackers.
-func (a *Server) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return a.SessionTrackerService.GetActiveSessionTrackers(ctx)
-}
-
-// RemoveSessionTracker removes a tracker resource for an active session.
-func (a *Server) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	return a.SessionTrackerService.RemoveSessionTracker(ctx, sessionID)
-}
-
-// UpdateSessionTracker updates a tracker resource for an active session.
-func (a *Server) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	return a.SessionTrackerService.UpdateSessionTracker(ctx, req)
-}
-
-// GetDatabaseServers returns all registers database proxy servers.
-func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+	return a.Services.CreateSessionTracker(ctx, tracker)
 }
 
 // CreateDatabase creates a new database resource.
 func (a *Server) CreateDatabase(ctx context.Context, database types.Database) error {
-	if err := a.Databases.CreateDatabase(ctx, database); err != nil {
+	if err := a.Services.CreateDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseCreate{
@@ -3118,7 +2964,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 
 // UpdateDatabase updates an existing database resource.
 func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) error {
-	if err := a.Databases.UpdateDatabase(ctx, database); err != nil {
+	if err := a.Services.UpdateDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseUpdate{
@@ -3148,7 +2994,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 
 // DeleteDatabase deletes a database resource.
 func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
-	if err := a.Databases.DeleteDatabase(ctx, name); err != nil {
+	if err := a.Services.DeleteDatabase(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseDelete{
@@ -3164,16 +3010,6 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 		log.WithError(err).Warn("Failed to emit database delete event.")
 	}
 	return nil
-}
-
-// GetDatabases returns all database resources.
-func (a *Server) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	return a.GetCache().GetDatabases(ctx)
-}
-
-// GetDatabase returns the specified database resource.
-func (a *Server) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	return a.GetCache().GetDatabase(ctx, name)
 }
 
 // ListResources returns paginated resources depending on the resource type..
@@ -3198,22 +3034,7 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 			NextKey:   wResp.NextKey,
 		}, nil
 	}
-	return a.GetCache().ListResources(ctx, req)
-}
-
-// ListWindowsDesktops returns paginated windows desktops.
-func (a *Server) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return a.GetCache().ListWindowsDesktops(ctx, req)
-}
-
-// GetLock gets a lock by name from the auth server's cache.
-func (a *Server) GetLock(ctx context.Context, name string) (types.Lock, error) {
-	return a.GetCache().GetLock(ctx, name)
-}
-
-// GetLocks gets all/in-force matching locks from the auth server's cache.
-func (a *Server) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	return a.GetCache().GetLocks(ctx, inForceOnly, targets...)
+	return a.Cache.ListResources(ctx, req)
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -3417,7 +3238,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		}
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
-			Identity: a.Identity,
+			Identity: a.Services,
 		}
 		assertion, err := webLogin.Begin(ctx)
 		if err != nil {
@@ -3433,7 +3254,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		return nil, trace.BadParameter("user required")
 	}
 
-	devs, err := a.Identity.GetMFADevices(ctx, user, true /* withSecrets */)
+	devs, err := a.Services.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3450,7 +3271,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
-			Identity: wanlib.WithDevices(a.Identity, groupedDevs.Webauthn),
+			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
 		assertion, err := webLogin.Begin(ctx, user)
 		if err != nil {
@@ -3524,14 +3345,14 @@ func (a *Server) validateMFAAuthResponse(
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
-				Identity: a.Identity,
+				Identity: a.Services,
 			}
 			dev, user, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
 				Webauthn: webConfig,
-				Identity: a.Identity,
+				Identity: a.Services,
 			}
 			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
@@ -3546,13 +3367,6 @@ func (a *Server) validateMFAAuthResponse(
 
 	default:
 		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
-	}
-}
-
-// WithClock is a functional server option that sets the server's clock
-func WithClock(clock clockwork.Clock) func(*Server) {
-	return func(s *Server) {
-		s.clock = clock
 	}
 }
 
@@ -3571,21 +3385,6 @@ func (a *Server) upsertWebSession(ctx context.Context, user string, session type
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// GetNetworkRestrictions returns the network restrictions from the cache
-func (a *Server) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	return a.GetCache().GetNetworkRestrictions(ctx)
-}
-
-// SetNetworkRestrictions updates the network restrictions in the backend
-func (a *Server) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
-	return a.Services.Restrictions.SetNetworkRestrictions(ctx, nr)
-}
-
-// DeleteNetworkRestrictions deletes the network restrictions in the backend
-func (a *Server) DeleteNetworkRestrictions(ctx context.Context) error {
-	return a.Services.Restrictions.DeleteNetworkRestrictions(ctx)
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
@@ -3621,7 +3420,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 			return trace.Wrap(err)
 		}
 
-		err := a.Trust.CompareAndSwapCertAuthority(newCA, currentCA)
+		err := a.CompareAndSwapCertAuthority(newCA, currentCA)
 		if err != nil && !trace.IsCompareFailed(err) {
 			return trace.Wrap(err)
 		}
@@ -3631,7 +3430,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 		}
 		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
 
-		currentCA, err = a.Trust.GetCertAuthority(ctx, currentCA.GetID(), true)
+		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3711,7 +3510,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.Trust.CreateCertAuthority(ca); err != nil {
+	if err := a.CreateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -3720,7 +3519,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 // deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
 func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3728,7 +3527,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	var usedKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Trust.GetCertAuthority(ctx, caID, true)
+		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}

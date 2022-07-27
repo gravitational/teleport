@@ -28,6 +28,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	directory "google.golang.org/api/admin/directory/v1"
+	"google.golang.org/api/cloudidentity/v1"
+	"google.golang.org/api/option"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -37,17 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	directory "google.golang.org/api/admin/directory/v1"
-	"google.golang.org/api/cloudidentity/v1"
-	"google.golang.org/api/option"
 )
 
 type OIDCSuite struct {
@@ -385,7 +384,7 @@ func TestPingProvider(t *testing.T) {
 		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.Identity.UpsertOIDCConnector(ctx, connector)
+	err = s.a.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
 	for _, req := range []types.OIDCAuthRequest{
@@ -701,17 +700,20 @@ func TestOIDCGoogle(t *testing.T) {
 		email, domain                string
 		transitive, direct, filtered []string
 	}{
-		{"alice@foo.example", "foo.example",
+		{
+			"alice@foo.example", "foo.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group1@foo.example"},
 		},
-		{"bob@foo.example", "foo.example",
+		{
+			"bob@foo.example", "foo.example",
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 		},
-		{"carlos@bar.example", "bar.example",
+		{
+			"carlos@bar.example", "bar.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group3@bar.example"},
