@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
@@ -565,7 +566,9 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
 	require.NoError(t, err)
 	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -579,9 +582,31 @@ func TestTokensCRUD(t *testing.T) {
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
+	// generate persistent token with defined TTL
+	desiredTTL := 6 * time.Hour
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(desiredTTL),
+	})
+	require.NoError(t, err)
+	token, err := s.a.GetToken(ctx, tokenName)
+	require.NoError(t, err)
+	actualTTL := time.Until(token.Expiry())
+	diff := actualTTL - desiredTTL
+	require.True(
+		t,
+		diff <= time.Minute && diff >= (-1*time.Minute),
+		"Token TTL should be within one minute of the desired TTL",
+	)
+
+	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+
 	// generate predefined token
 	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		Token: customToken,
+	})
 	require.NoError(t, err)
 	require.Equal(t, tokenName, customToken)
 
@@ -2037,4 +2062,40 @@ func TestCAGeneration(t *testing.T) {
 				"test CA and production CA have different JWT keys for type %v", caType)
 		})
 	}
+}
+
+type mockEnforcer struct {
+	services.Enforcer
+	notifications []reporting.Notification
+}
+
+func (m mockEnforcer) GetLicenseCheckResult(ctx context.Context) (*reporting.Heartbeat, error) {
+	return &reporting.Heartbeat{
+		Spec: reporting.HeartbeatSpec{
+			Notifications: m.notifications,
+		},
+	}, nil
+}
+
+func TestEnforcerGetLicenseCheckResult(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newAuthSuite(t)
+
+	expected := []reporting.Notification{
+		{
+			Type:     "test",
+			Severity: "warning",
+			Text:     "test warning",
+			HTML:     "test warning",
+		},
+	}
+
+	s.a.SetEnforcer(&mockEnforcer{
+		notifications: expected,
+	})
+
+	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expected, heartbeat.Spec.Notifications)
 }
