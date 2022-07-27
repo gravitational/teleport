@@ -563,7 +563,9 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
 	require.NoError(t, err)
 	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -577,9 +579,31 @@ func TestTokensCRUD(t *testing.T) {
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
+	// generate persistent token with defined TTL
+	desiredTTL := 6 * time.Hour
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(desiredTTL),
+	})
+	require.NoError(t, err)
+	token, err := s.a.GetToken(ctx, tokenName)
+	require.NoError(t, err)
+	actualTTL := token.Expiry().Sub(time.Now())
+	diff := actualTTL - desiredTTL
+	require.True(
+		t,
+		diff <= time.Minute && diff >= (-1*time.Minute),
+		"Token TTL should be within one minute of the desired TTL",
+	)
+
+	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+
 	// generate predefined token
 	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		Token: customToken,
+	})
 	require.NoError(t, err)
 	require.Equal(t, tokenName, customToken)
 

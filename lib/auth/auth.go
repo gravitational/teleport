@@ -2008,9 +2008,9 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	expires := a.clock.Now().UTC()
 	if req.TTL != 0 {
-		expires.Add(req.TTL.Get())
+		expires = expires.Add(req.TTL.Get())
 	} else {
-		expires.Add(defaults.ProvisioningTokenTTL)
+		expires = expires.Add(defaults.ProvisioningTokenTTL)
 	}
 
 	if req.Token == "" {
