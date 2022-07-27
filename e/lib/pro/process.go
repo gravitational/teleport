@@ -110,5 +110,6 @@ func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	config.Teleport.GetAuthServer().SetEnforcer(enforcer)
 	return enforcer, nil
 }
