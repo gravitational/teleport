@@ -290,7 +290,7 @@ type ServerContext struct {
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time
@@ -700,7 +700,7 @@ func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, di
 				defer cancel()
 
 				go func() {
-					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession)
+					err := sshutils.ForwardRequests(ctx, sin, c.RemoteSession.Session)
 					if err != nil {
 						c.Logger.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
 					}

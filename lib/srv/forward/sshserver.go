@@ -990,13 +990,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	if scx.JoinOnly {
 		switch req.Type {
 		case tracessh.TracingRequest:
-			return s.handleTracingRequest(req, scx)
+			return s.handleTracingRequest(ctx, req, scx)
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, scx)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 		case sshutils.ShellRequest:
 			return s.termHandlers.HandleShell(ctx, ch, req, scx)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, scx)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, scx)
 		case sshutils.EnvRequest:
@@ -1020,19 +1020,19 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 
 	switch req.Type {
 	case tracessh.TracingRequest:
-		return s.handleTracingRequest(req, scx)
+		return s.handleTracingRequest(ctx, req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, scx)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 	case sshutils.ShellRequest:
 		return s.termHandlers.HandleShell(ctx, ch, req, scx)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, scx)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
-		return s.handleEnv(ch, req, scx)
+		return s.handleEnv(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -1066,7 +1066,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession)
+	err = agent.RequestAgentForwarding(ctx.RemoteSession.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1157,7 +1157,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}
 
 	// send X11 forwarding request to remote
-	ok, err := sshutils.ForwardRequest(scx.RemoteSession, req)
+	ok, err := sshutils.ForwardRequest(scx.RemoteSession.Session, req)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
@@ -1200,22 +1200,22 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	return nil
 }
 
-func (s *Server) handleTracingRequest(req *ssh.Request, ctx *srv.ServerContext) error {
-	if _, err := ctx.RemoteSession.SendRequest(req.Type, false, req.Payload); err != nil {
+func (s *Server) handleTracingRequest(ctx context.Context, req *ssh.Request, scx *srv.ServerContext) error {
+	if _, err := scx.RemoteSession.SendRequest(ctx, req.Type, false, req.Payload); err != nil {
 		s.log.WithError(err).Debugf("Unable to set forward tracing context")
 	}
 
 	return nil
 }
 
-func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
 	if err := ssh.Unmarshal(req.Payload, &e); err != nil {
-		ctx.Error(err)
+		scx.Error(err)
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
-	err := ctx.RemoteSession.Setenv(e.Name, e.Value)
+	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
 	}
