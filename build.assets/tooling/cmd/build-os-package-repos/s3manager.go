@@ -69,7 +69,7 @@ func NewS3Manager(config *S3Config) (*S3manager, error) {
 			Scheme: "s3",
 			Host:   config.bucketName,
 		},
-		syncManager:        s3sync.New(awsSession, s3sync.WithParallel(syncManagerMaxConcurrentSyncs), s3sync.WithDelete()),
+		syncManager:        s3sync.New(awsSession, s3sync.WithParallel(syncManagerMaxConcurrentSyncs)),
 		uploader:           s3manager.NewUploader(awsSession),
 		downloader:         s3manager.NewDownloader(awsSession),
 		maxConcurrentSyncs: config.maxConcurrentSyncs,
