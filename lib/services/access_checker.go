@@ -188,8 +188,6 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
-	// RoleSet holds the fetched and parsed roles from Roles.
-	RoleSet RoleSet
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -204,21 +202,35 @@ type accessChecker struct {
 	RoleSet
 }
 
-// NewAccessChecker returns a new AccessChecker which may be used to check
+// NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
-// - `info *AccessInfo` should at a minimum hold a valid RoleSet for the
-//   identity for which resource access should be checked. It must also hold the
-//   AllowedResourceIDs for the identity if there is any possibility that it has
-//   been granted a search-based access request.
+// - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
+//   for the identity.
 // - `localCluster string` should be the name of the local cluster in which
 //   access will be checked. You cannot check for access to resources in remote
 //   clusters.
-func NewAccessChecker(info *AccessInfo, localCluster string) AccessChecker {
+// - `access RoleGetter` should be a RoleGetter which will be used to fetch the
+//   full RoleSet
+func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
-		RoleSet:      info.RoleSet,
+		RoleSet:      roleSet,
+	}, nil
+}
+
+// NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
+// full RoleSet rather than a RoleGetter.
+func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
+	return &accessChecker{
+		info:         info,
+		localCluster: localCluster,
+		RoleSet:      roleSet,
 	}
 }
 
@@ -290,17 +302,13 @@ func (a *accessChecker) GetSearchAsRoles() []string {
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
 // given ssh certificate. Should only be used for cluster local users as roles
 // will not be mapped.
-func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) {
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	roles, err := ExtractRolesFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleSet, err := FetchRoles(roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,14 +322,13 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
 // AccessInfoFromRemoteCertificate returns a new AccessInfo populated from the
 // given remote cluster user's ssh certificate. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Old-style SSH certificates don't have traits in metadata.
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil && !trace.IsNotFound(err) {
@@ -352,11 +359,6 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	log.Debugf("Mapped remote roles %v to local roles %v and traits %v.",
 		unmappedRoles, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -366,19 +368,13 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
-}
-
-type RoleAndUserGetter interface {
-	RoleGetter
-	UserGetter
 }
 
 // AccessInfoFromLocalIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
 	roles := identity.Groups
 	traits := identity.Traits
 	allowedResourceIDs := identity.AllowedResourceIDs
@@ -401,23 +397,17 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGett
 		traits = u.GetTraits()
 	}
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &AccessInfo{
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
 // AccessInfoFromRemoteIdentity returns a new AccessInfo populated from the
 // given remote cluster user's tlsca.Identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups and database users/names
 	// to the remote cluster.
@@ -454,18 +444,12 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		unmappedRoles, identity.Username, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
@@ -473,16 +457,11 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 // traits held be the given user. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
-func AccessInfoFromUser(user types.User, access RoleGetter) (*AccessInfo, error) {
+func AccessInfoFromUser(user types.User) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &AccessInfo{
-		Roles:   roles,
-		Traits:  traits,
-		RoleSet: roleSet,
-	}, nil
+		Roles:  roles,
+		Traits: traits,
+	}
 }
