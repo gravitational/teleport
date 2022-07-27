@@ -764,5 +764,44 @@ $ tsh status
   Extensions:         permit-X11-forwarding
 ```
 
+## Custom aliases and defaults
+
+You can define your own custom commands and set command-specific flag defaults by using the `aliases` section of `tsh` config.
+
+There are two configuration files:
+- global: by default `/etc/tsh.yaml`, unless overridden by `$TELEPORT_GLOBAL_TSH_CONFIG` env var.
+- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by defaults resolves to `~/.tsh/config/config.yaml`.
+
+The user-specific config is merged with global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
+
+In either of those files you can add define an alias such as:
+
+```yaml
+aliases:
+    "l": "tsh login --auth=okta --username=alice"
+```
+
+From now on, `tsh l` will resolve to `tsh login --auth=okta --username=bob`.
+
+You can also change defaults for regular commands:
+
+```yaml
+aliases:
+    "status": "tsh status --format=json"
+```
+
+Calling external programs other than `tsh` is also possible:
+
+```yaml
+aliases:
+    "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
+```
+
+The example above also demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`. The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will catch that and report is as an error. Conversely providing additional arguments is *NOT* an error; any unused arguments will simply be appended at the end of the expanded alias definition.
+
+The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To debug aliases, set the `TELEPORT_DEBUG=1` environment variable instead.
+
+If you want to temporarily disable an alias, set the `TSH_ALIAS` environment variable. `tsh` understands the value of that flag to be a comma-separated list of aliases it should ignore. For example, `TSH_ALIAS=connect,status` will make it behave as if those two aliases were not set. This environment variable is also used to prevent infinite alias loops from occurring.
+
 ## Further reading
 - [CLI Reference](../setup/reference/cli.mdx).

@@ -722,6 +722,8 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 The settings from both are merged, with the user config taking precedence.
 
+#### Extra proxy headers
+
 The `tsh` configuration file enables you to specify HTTP headers to be
 included in requests to Teleport Proxy Servers with addresses matching
 the `proxy` field.
@@ -742,6 +744,46 @@ add_headers:
     headers:
       "Authorization": "Bearer tokentokentoken"
 ```
+
+#### Aliases
+
+You can define custom `tsh` command aliases using the `aliases` section. It also allows for changing of the default flag values for existing commands.
+
+New command `tsh l`:
+
+```yaml
+aliases:
+    "l": "tsh login --auth=okta --username=alice"
+```
+
+Make `tsh status` use JSON as a default format:
+
+```yaml
+aliases:
+    "status": "tsh status --format=json"
+```
+
+Define custom command using with `bash`. The `$0` and `$1` variables will be substituted by command arguments.
+
+```yaml
+aliases:
+    "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
+```
+
+The alias can use an arbitrary number of arguments. If a argument variable `$N` is referenced, `tsh` will check that at least `N+1` arguments were given to the alias invocation. All arguments that were given but not referenced in the alias definition will be appended at the end.
+
+Given configuration:
+
+```yaml
+aliases:
+    "example": "bash -c 'echo first=$0 $0-$1 $3'"
+```
+
+`tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
+
+To debug aliases, set the `TELEPORT_DEBUG=1` environment variable.
+
+To disable an alias temporarily, set the `TSH_ALIAS` environment variable. `tsh` understands the value of that flag to be a comma-separated list of aliases it should ignore. For example, `TSH_ALIAS=connect,status` will make it behave as if those two aliases were not set. This environment variable is also used to prevent infinite alias loops from occurring.
 
 ## tctl
 
