@@ -1,13 +1,10 @@
 import { ChildProcess, fork, spawn } from 'child_process';
-
 import path from 'path';
 
 import { app, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
 
 import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
-
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-
 import createLoggerService from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 
@@ -18,6 +15,7 @@ import {
 
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
+import { resolveNetworkAddress } from './resolveNetworkAddress';
 
 type Options = {
   settings: RuntimeSettings;
@@ -116,60 +114,15 @@ export default class MainProcess {
 
   private _initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
-      this.resolveNetworkAddress(
+      resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
         this.tshdProcess
       ),
-      this.resolveNetworkAddress(
+      resolveNetworkAddress(
         this.settings.sharedProcess.requestedNetworkAddress,
         this.sharedProcess
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
-  }
-
-  private resolveNetworkAddress(
-    requestedAddress: string,
-    process: ChildProcess
-  ): Promise<string> {
-    if (new URL(requestedAddress).protocol === 'unix:') {
-      return Promise.resolve(requestedAddress);
-    }
-
-    // TCP case
-    return new Promise((resolve, reject) => {
-      process.stdout.setEncoding('utf-8');
-      let chunks = '';
-      const timeout = setTimeout(() => {
-        rejectOnError(
-          new Error(
-            `Could not resolve address (${requestedAddress}) for process ${process.spawnfile}. The operation timed out.`
-          )
-        );
-      }, 10_000); // 10s
-
-      const removeListeners = () => {
-        process.stdout.off('data', findAddressInChunk);
-        process.off('error', rejectOnError);
-        clearTimeout(timeout);
-      };
-
-      const findAddressInChunk = (chunk: string) => {
-        chunks += chunk;
-        const matchResult = chunks.match(/\{CONNECT_GRPC_PORT:\s(\d+)}/);
-        if (matchResult) {
-          resolve(`localhost:${matchResult[1]}`);
-          removeListeners();
-        }
-      };
-
-      const rejectOnError = (error: Error) => {
-        reject(error);
-        removeListeners();
-      };
-
-      process.stdout.on('data', findAddressInChunk);
-      process.on('error', rejectOnError);
-    });
   }
 
   private _initIpc() {
