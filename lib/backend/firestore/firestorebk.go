@@ -497,7 +497,7 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	if !doc.Exists() {
 		return trace.NotFound("key %s does not exist", string(key))
 	}
-	_, err = docRef.Delete(ctx)
+	_, err = docRef.Delete(ctx, firestore.Exists)
 	if err != nil {
 		return ConvertGRPCError(err)
 	}
