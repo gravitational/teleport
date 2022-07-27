@@ -570,11 +570,15 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     ARCH: amd64
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
     GOPATH: /tmp/push-build-darwin-amd64/go
     OS: darwin
@@ -6073,6 +6077,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 084a8ac6cb415c7919799b27ceef13812c37faacc14093bb46b79908051b0a2c
+hmac: e3a5814199a0d80fff258945dc968a32fa0d6380fe235ea4f0cfcc506b0e881c
 
 ...
