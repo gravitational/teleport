@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-func promoteBuildPipeline() []pipeline {
+func promoteBuildOsRepoPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
 	yumPipeline := promoteYumPipeline()
 	return []pipeline{
