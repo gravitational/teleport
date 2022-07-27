@@ -381,7 +381,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
       template:
         metadata:
           annotations:
-            checksum/config: 4e3d4cbd8163fcd955cd7f8f13e88ccdef04a77ae689d1ec48dce37465d71d4f
+            checksum/config: b68f736b13876b204549cacfa6683f63942acdfe1e98c43d74f9868eb8f1edff
           labels:
             app: RELEASE-NAME
         spec:
