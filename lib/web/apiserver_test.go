@@ -1576,6 +1576,7 @@ func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
 	s := newWebSuite(t)
 	nodeClient, err := s.server.NewClient(auth.TestBuiltin(types.RoleNode))
 	require.NoError(t, err)
+	ctx := context.Background()
 
 	// Create a session with empty ClusterName.
 	sess1 := session.Session{
@@ -1588,7 +1589,7 @@ func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
 		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 	}
-	err = nodeClient.CreateSession(sess1)
+	err = nodeClient.CreateSession(ctx, sess1)
 	require.NoError(t, err)
 
 	// Retrieve the session with the empty ClusterName.
@@ -1607,7 +1608,7 @@ func TestEmptySessionClusterHostnameIsSet(t *testing.T) {
 	sess2 := sess1
 	sess2.ID = session.NewID()
 	sess2.ServerID = string(session.NewID())
-	err = nodeClient.CreateSession(sess2)
+	err = nodeClient.CreateSession(ctx, sess2)
 	require.NoError(t, err)
 
 	// Retrieve sessions list.

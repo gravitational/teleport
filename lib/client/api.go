@@ -1808,7 +1808,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// find the session ID on the site:
-	sessions, err := site.GetSessions(namespace)
+	sessions, err := site.GetSessions(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

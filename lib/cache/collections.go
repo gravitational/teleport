@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -260,6 +261,13 @@ type resourceKind struct {
 	kind    string
 	subkind string
 	version string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
 type accessRequest struct {
