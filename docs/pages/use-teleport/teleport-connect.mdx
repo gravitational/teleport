@@ -112,5 +112,6 @@ menu item.
 
 ### Updating local shell environment
 
-Teleport Connect updates the environment variables on app restart and not when starting a new shell
-session.
+Teleport Connect updates and caches the local shell environment on app restart and not when starting
+a new shell session. If you add new environment variables to your shell startup files, Connect will
+see them only after you restart the app.
