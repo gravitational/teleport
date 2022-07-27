@@ -58,32 +58,32 @@ func artifactMigrationPipeline() []pipeline {
 		"v8.3.12",
 		"v8.3.14",
 		"v8.3.15",
-		"v9.0.0",
-		"v9.0.1",
-		"v9.0.2",
-		"v9.0.3",
-		"v9.0.4",
-		"v9.1.0",
-		"v9.1.1",
-		"v9.1.2",
-		"v9.1.3",
-		"v9.2.0",
-		"v9.2.1",
-		"v9.2.2",
-		"v9.2.3",
-		"v9.2.4",
-		"v9.3.0",
-		"v9.3.2",
-		"v9.3.4",
-		"v9.3.5",
-		"v9.3.6",
-		"v9.3.7",
-		"v9.3.9",
-		"v9.3.10",
-		"v9.3.12",
-		"v10.0.0",
-		"v10.0.1",
-		"v10.0.2",
+		// "v9.0.0",
+		// "v9.0.1",
+		// "v9.0.2",
+		// "v9.0.3",
+		// "v9.0.4",
+		// "v9.1.0",
+		// "v9.1.1",
+		// "v9.1.2",
+		// "v9.1.3",
+		// "v9.2.0",
+		// "v9.2.1",
+		// "v9.2.2",
+		// "v9.2.3",
+		// "v9.2.4",
+		// "v9.3.0",
+		// "v9.3.2",
+		// "v9.3.4",
+		// "v9.3.5",
+		// "v9.3.6",
+		// "v9.3.7",
+		// "v9.3.9",
+		// "v9.3.10",
+		// "v9.3.12",
+		// "v10.0.0",
+		// "v10.0.1",
+		// "v10.0.2",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
@@ -184,8 +184,9 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	pipelineName := fmt.Sprintf("publish-%s", optpb.pipelineNameSuffix)
 	checkoutPath := "/go/src/github.com/gravitational/teleport"
 	commitName := "${DRONE_TAG}"
+	checkoutStepName := "Check out code"
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
@@ -209,7 +210,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 			},
 		},
 	)
-	steps = append(steps, optpb.getDroneTagVersionSteps(checkoutPath)...)
+	steps = append(steps, optpb.getDroneTagVersionSteps(checkoutPath, checkoutStepName)...)
 	p.Steps = steps
 
 	return p
@@ -221,13 +222,14 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	// DRONE_TAG is not available outside of promotion pipelines and will cause drone to fail with a
 	// "migrate-apt-new-repos: bad substitution" error if used here
 	commitName := "${DRONE_COMMIT}"
+	checkoutStepName := "Check out code"
 
 	// If migrations are not configured then don't run
 	if triggerBranch == "" || len(migrationVersions) == 0 {
 		return buildNeverTriggerPipeline(pipelineName)
 	}
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
 	p.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 		Event:  triggerRef{Include: []string{"push"}},
@@ -235,7 +237,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	}
 
 	for _, migrationVersion := range migrationVersions {
-		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion)...)
+		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion, checkoutStepName)...)
 	}
 
 	setStepResourceLimits(p.Steps)
@@ -269,7 +271,7 @@ func buildNeverTriggerPipeline(pipelineName string) pipeline {
 // Functions that use this method should add at least:
 // * a Trigger
 // * Steps for checkout
-func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutPath, commit string) pipeline {
+func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commit string) pipeline {
 	p := newKubePipeline(pipelineName)
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
@@ -283,7 +285,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 	}
 	p.Steps = []step{
 		{
-			Name:     "Check out code",
+			Name:     checkoutStepName,
 			Image:    "alpine/git:latest",
 			Commands: toolCheckoutCommands(checkoutPath, commit),
 		},
@@ -321,13 +323,13 @@ func toolCheckoutCommands(checkoutPath, commit string) []string {
 	return commands
 }
 
-func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {
-	return optpb.getVersionSteps(codePath, "${DRONE_TAG}")
+func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath, checkoutStepName string) []step {
+	return optpb.getVersionSteps(codePath, "${DRONE_TAG}", checkoutStepName)
 }
 
 // Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
 // i.e. ${DRONE_TAG}
-func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string) []step {
+func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version, checkoutStepName string) []step {
 	var bucketFolder string
 	switch version[0:1] {
 	// If environment var
@@ -352,9 +354,11 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 	}
 	toolSetupCommands = append(toolSetupCommands, optpb.setupCommands...)
 
+	downloadStepName := fmt.Sprintf("Download artifacts for %q", version)
+
 	return []step{
 		{
-			Name:  fmt.Sprintf("Download artifacts for %q", version),
+			Name:  downloadStepName,
 			Image: "amazon/aws-cli",
 			Environment: map[string]value{
 				"AWS_S3_BUCKET": {
@@ -390,11 +394,10 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 		},
 		{
 			Name: fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
-			// TODO set this if drongen `step` supports https://docs.drone.io/pipeline/ssh/syntax/parallelism/ in the future
-			// DependsOn: []string {
-			// 	"Check out code",
-			// 	"Download artifacts",
-			// },
+			DependsOn: []string{
+				checkoutStepName,
+				downloadStepName,
+			},
 			Image:       "golang:1.18.4-bullseye",
 			Environment: optpb.environmentVars,
 			Commands: append(

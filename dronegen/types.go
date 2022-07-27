@@ -171,6 +171,7 @@ type step struct {
 	When        *condition          `yaml:"when,omitempty"`
 	Failure     string              `yaml:"failure,omitempty"`
 	Resources   *containerResources `yaml:"resources,omitempty"`
+	DependsOn   []string            `yaml:"depends_on,omitempty"`
 }
 
 type condition struct {

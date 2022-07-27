@@ -5421,7 +5421,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:273
+# Generated at dronegen/os_repos.go:275
 ################################################
 
 kind: pipeline
@@ -5509,6 +5509,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "${DRONE_TAG}"
 volumes:
 - name: apt-persistence
   claim:
@@ -5521,7 +5524,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:273
+# Generated at dronegen/os_repos.go:275
 ################################################
 
 kind: pipeline
@@ -5599,6 +5602,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v8.3.10"
 - name: Download artifacts for "v8.3.11"
   image: amazon/aws-cli
   commands:
@@ -5649,6 +5655,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v8.3.11"
 - name: Download artifacts for "v8.3.12"
   image: amazon/aws-cli
   commands:
@@ -5699,6 +5708,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v8.3.12"
 - name: Download artifacts for "v8.3.14"
   image: amazon/aws-cli
   commands:
@@ -5749,6 +5761,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v8.3.14"
 - name: Download artifacts for "v8.3.15"
   image: amazon/aws-cli
   commands:
@@ -5799,6 +5814,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v8.3.15"
 - name: Download artifacts for "v9.0.0"
   image: amazon/aws-cli
   commands:
@@ -5849,6 +5867,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.0.0"
 - name: Download artifacts for "v9.0.1"
   image: amazon/aws-cli
   commands:
@@ -5899,6 +5920,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.0.1"
 - name: Download artifacts for "v9.0.2"
   image: amazon/aws-cli
   commands:
@@ -5949,6 +5973,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.0.2"
 - name: Download artifacts for "v9.0.3"
   image: amazon/aws-cli
   commands:
@@ -5999,6 +6026,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.0.3"
 - name: Download artifacts for "v9.0.4"
   image: amazon/aws-cli
   commands:
@@ -6049,6 +6079,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.0.4"
 - name: Download artifacts for "v9.1.0"
   image: amazon/aws-cli
   commands:
@@ -6099,6 +6132,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.1.0"
 - name: Download artifacts for "v9.1.1"
   image: amazon/aws-cli
   commands:
@@ -6149,6 +6185,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.1.1"
 - name: Download artifacts for "v9.1.2"
   image: amazon/aws-cli
   commands:
@@ -6199,6 +6238,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.1.2"
 - name: Download artifacts for "v9.1.3"
   image: amazon/aws-cli
   commands:
@@ -6249,6 +6291,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.1.3"
 - name: Download artifacts for "v9.2.0"
   image: amazon/aws-cli
   commands:
@@ -6299,6 +6344,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.2.0"
 - name: Download artifacts for "v9.2.1"
   image: amazon/aws-cli
   commands:
@@ -6349,6 +6397,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.2.1"
 - name: Download artifacts for "v9.2.2"
   image: amazon/aws-cli
   commands:
@@ -6399,6 +6450,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.2.2"
 - name: Download artifacts for "v9.2.3"
   image: amazon/aws-cli
   commands:
@@ -6449,6 +6503,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.2.3"
 - name: Download artifacts for "v9.2.4"
   image: amazon/aws-cli
   commands:
@@ -6499,6 +6556,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.2.4"
 - name: Download artifacts for "v9.3.0"
   image: amazon/aws-cli
   commands:
@@ -6549,6 +6609,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.0"
 - name: Download artifacts for "v9.3.2"
   image: amazon/aws-cli
   commands:
@@ -6599,6 +6662,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.2"
 - name: Download artifacts for "v9.3.4"
   image: amazon/aws-cli
   commands:
@@ -6649,6 +6715,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.4"
 - name: Download artifacts for "v9.3.5"
   image: amazon/aws-cli
   commands:
@@ -6699,6 +6768,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.5"
 - name: Download artifacts for "v9.3.6"
   image: amazon/aws-cli
   commands:
@@ -6749,6 +6821,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.6"
 - name: Download artifacts for "v9.3.7"
   image: amazon/aws-cli
   commands:
@@ -6799,6 +6874,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.7"
 - name: Download artifacts for "v9.3.9"
   image: amazon/aws-cli
   commands:
@@ -6849,6 +6927,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.9"
 - name: Download artifacts for "v9.3.10"
   image: amazon/aws-cli
   commands:
@@ -6899,6 +6980,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.10"
 - name: Download artifacts for "v9.3.12"
   image: amazon/aws-cli
   commands:
@@ -6949,6 +7033,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v9.3.12"
 - name: Download artifacts for "v10.0.0"
   image: amazon/aws-cli
   commands:
@@ -6999,6 +7086,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v10.0.0"
 - name: Download artifacts for "v10.0.1"
   image: amazon/aws-cli
   commands:
@@ -7049,6 +7139,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v10.0.1"
 - name: Download artifacts for "v10.0.2"
   image: amazon/aws-cli
   commands:
@@ -7099,6 +7192,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "v10.0.2"
 volumes:
 - name: yum-persistence
   claim:
@@ -7111,7 +7207,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:273
+# Generated at dronegen/os_repos.go:275
 ################################################
 
 kind: pipeline
@@ -7200,6 +7296,9 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Check out code
+  - Download artifacts for "${DRONE_TAG}"
 volumes:
 - name: yum-persistence
   claim:
@@ -7768,6 +7867,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 9d163147106bfc66e9e8106b0baf30d21e46e35cdf3ca74c2fdc06abdbc402e0
+hmac: 8c5dcdde7416cb236e5fadec6f1896c334fbd01ea79ce2076ff805153d7965de
 
 ...
