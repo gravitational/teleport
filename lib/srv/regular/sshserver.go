@@ -64,6 +64,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const sftpSubsystem = "sftp"
+
 var (
 	log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentNode,
@@ -1973,13 +1975,17 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
 	}
-	if s.proxyMode && strings.HasPrefix(r.Name, "proxy:") {
+
+	switch {
+	case s.proxyMode && strings.HasPrefix(r.Name, "proxy:"):
 		return parseProxySubsys(r.Name, s, ctx)
-	}
-	if s.proxyMode && strings.HasPrefix(r.Name, "proxysites") {
+	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	case r.Name == sftpSubsystem:
+		return newSFTPSubsys()
+	default:
+		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}
-	return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 }
 
 func writeStderr(ch ssh.Channel, msg string) {
