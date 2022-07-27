@@ -473,16 +473,17 @@ func TestAuthenticate(t *testing.T) {
 			ap.kubeServices = tt.kubeServices
 			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					KubeUsers:  tt.roleKubeUsers,
-					KubeGroups: tt.roleKubeGroups,
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubeUsers:        tt.roleKubeUsers,
+					KubeGroups:       tt.roleKubeGroups,
 				},
 			})
 			require.NoError(t, err)
 			authCtx := auth.Context{
 				User: user,
-				Checker: services.NewAccessChecker(&services.AccessInfo{
-					RoleSet: roles,
-				}, "local"),
+				Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+					Roles: roles.RoleNames(),
+				}, "local", roles),
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
