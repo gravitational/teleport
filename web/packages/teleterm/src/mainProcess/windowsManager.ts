@@ -11,6 +11,7 @@ export class WindowsManager {
   private storageKey = 'windowState';
   private selectionContextMenu: Menu;
   private inputContextMenu: Menu;
+  private window?: BrowserWindow;
 
   constructor(
     private fileStorage: FileStorage,
@@ -72,6 +73,20 @@ export class WindowsManager {
         return callback(false);
       }
     );
+
+    this.window = window;
+  }
+
+  focusWindow(): void {
+    if (!this.window) {
+      return;
+    }
+
+    if (this.window.isMinimized()) {
+      this.window.restore();
+    }
+
+    this.window.focus();
   }
 
   private saveWindowState(window: BrowserWindow): void {
