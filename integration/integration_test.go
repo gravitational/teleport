@@ -6605,7 +6605,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 
 		return tconf
 	}
-	_, err := main.StartNodeWithTargetPort(nodeConfig(), main.GetPortReverseTunnel())
+	_, err := main.StartNodeWithTargetPort(nodeConfig(), helpers.PortStr(t, main.ReverseTunnel))
 	require.NoError(t, err)
 }
 
