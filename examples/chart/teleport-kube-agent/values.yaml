@@ -118,15 +118,14 @@ highAvailability:
     minAvailable: 1
 
 ################################################################
-# Values that must be provided if using persistent storage for Teleport state.
+# Values that must be provided if using persistent storage for Teleport.
 #
 # Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted. 
-# For fresh installs, the security association between the agent and Teleport is stored in a Kubernetes Secret and no longer
-# requires a persistent volume.
-# If upgrading from previous version, the agent continues to use the persistent volume for credentials storage.
+# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret 
+# so that the agent does not need PV to survive restarts and rotations while using short-lived joining tokens.
 #
 # Fields:
-#   enabled: Set to true to enable the use of StatefulSets and Persistent volumes.
+#   enabled: Set to true to enable the use of Persistent volumes.
 #   storageClassName: The name of the kubernetes storage class to use when creating volumes. See https://kubernetes.io/docs/concepts/storage/storage-classes/
 #   requests: The size of the volume to request from the persistent storage system
 ################################################################

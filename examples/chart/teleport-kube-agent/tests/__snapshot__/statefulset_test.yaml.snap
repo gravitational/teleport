@@ -302,6 +302,17 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1014,6 +1025,17 @@ should not add emptyDir for data when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2016,6 +2038,17 @@ should set storage.requests when set in values and action is an Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2071,6 +2104,17 @@ should set storage.storageClassName when set in values and action is an Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_REPLICA_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
       image: quay.io/gravitational/teleport:11.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:

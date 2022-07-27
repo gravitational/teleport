@@ -1,5 +1,3 @@
-
-{{- if or .Release.IsInstall ( not (include "teleport.kube.agent.isUpgrade" .)) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -14,4 +12,3 @@ rules:
   # objects is "secrets"
   resources: ["secrets"]
   verbs: ["create", "get", "update","patch"]
-{{- end}}

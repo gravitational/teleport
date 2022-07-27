@@ -2,14 +2,16 @@ suite: RoleBinding
 templates:
   - rolebinding.yaml
 tests:
-  - it: Doesn't create a RoleBinding when upgrading
+  - it: Create a RoleBinding when upgrading
     release:
       isupgrade: true
     set:
       unitTestUpgrade: true
     asserts:
       - hasDocuments:
-          count: 0
+          count: 1
+      - isKind:
+          of: RoleBinding
 
   - it: creates a RoleBinding
     asserts:

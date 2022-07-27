@@ -2,14 +2,16 @@ suite: Role
 templates:
   - role.yaml
 tests:
-  - it: Doesn't create a Role when upgrading
+  - it: Create a Role when upgrading
     release:
       isupgrade: true
     set:
       unitTestUpgrade: true
     asserts:
       - hasDocuments:
-          count: 0
+          count: 1
+      - isKind:
+          of: Role
 
   - it: creates a Role
     asserts:
