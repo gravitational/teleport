@@ -36,10 +36,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/net/http/httpproxy"
 )
 
 // Config specifies information when building requests with the
@@ -97,7 +98,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		}
 	}
 	return &http.Client{
-		Transport: proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+		Transport: otelhttp.NewTransport(proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure)),
 		Timeout:   cfg.Timeout,
 	}, nil
 }
@@ -208,7 +209,7 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil

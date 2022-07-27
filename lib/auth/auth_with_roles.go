@@ -187,10 +187,10 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 // actionForKindSSHSession is a special checker that grants access to active SSH
 // sessions.  It can allow access to a specific session based on the `where`
 // section of the user's access rule for kind `ssh_session`.
-func (a *ServerWithRoles) actionForKindSSHSession(namespace, verb string, sid session.ID) error {
-	extendContext := func(ctx *services.Context) error {
-		session, err := a.sessions.GetSession(namespace, sid)
-		ctx.SSHSession = session
+func (a *ServerWithRoles) actionForKindSSHSession(ctx context.Context, namespace, verb string, sid session.ID) error {
+	extendContext := func(serviceContext *services.Context) error {
+		session, err := a.sessions.GetSession(ctx, namespace, sid)
+		serviceContext.SSHSession = session
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
@@ -388,33 +388,33 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
-func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
-	return a.authServer.AuthenticateWebUser(req)
+	return a.authServer.AuthenticateWebUser(ctx, req)
 }
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (a *ServerWithRoles) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
-	return a.authServer.AuthenticateSSHUser(req)
+	return a.authServer.AuthenticateSSHUser(ctx, req)
 }
 
-func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, error) {
+func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
 	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := a.sessions.GetSessions(namespace)
+	sessions, err := a.sessions.GetSessions(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,33 +435,33 @@ func (a *ServerWithRoles) GetSessions(namespace string) ([]session.Session, erro
 	return filteredSessions, nil
 }
 
-func (a *ServerWithRoles) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if err := a.actionForKindSSHSession(namespace, types.VerbRead, id); err != nil {
+func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
+	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbRead, id); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.sessions.GetSession(namespace, id)
+	return a.sessions.GetSession(ctx, namespace, id)
 }
 
-func (a *ServerWithRoles) CreateSession(s session.Session) error {
+func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) error {
 	if err := a.action(s.Namespace, types.KindSSHSession, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.CreateSession(s)
+	return a.sessions.CreateSession(ctx, s)
 }
 
-func (a *ServerWithRoles) UpdateSession(req session.UpdateRequest) error {
-	if err := a.actionForKindSSHSession(req.Namespace, types.VerbUpdate, req.ID); err != nil {
+func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
+	if err := a.actionForKindSSHSession(ctx, req.Namespace, types.VerbUpdate, req.ID); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.UpdateSession(req)
+	return a.sessions.UpdateSession(ctx, req)
 }
 
 // DeleteSession removes an active session from the backend.
-func (a *ServerWithRoles) DeleteSession(namespace string, id session.ID) error {
-	if err := a.actionForKindSSHSession(namespace, types.VerbDelete, id); err != nil {
+func (a *ServerWithRoles) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
+	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbDelete, id); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.sessions.DeleteSession(namespace, id)
+	return a.sessions.DeleteSession(ctx, namespace, id)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -1439,8 +1439,12 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context, opts ...services.Marsha
 }
 
 func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	// The Proxy has permission to look up tokens by name in order to validate
+	// attempts to use the node join script.
+	if isProxy := a.hasBuiltinRole(types.RoleProxy); !isProxy {
+		if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.GetToken(ctx, token)
 }

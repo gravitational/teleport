@@ -19,7 +19,7 @@ Database Access, including:
 
 ## teleport db start
 
-Starts Teleport Database Service agent.
+Starts Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -114,7 +114,8 @@ $ teleport db configure create \
 
 ## teleport db configure bootstrap
 
-Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.
+Bootstrap the necessary configuration for the Database Service. It reads the
+provided configuration to determine what will be bootstrapped.
 
 ```code
 $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
