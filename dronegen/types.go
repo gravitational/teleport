@@ -215,8 +215,9 @@ func (v *value) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type containerResources struct {
-	Limits   *resourceSet `yaml:"limits,omitempty"`
-	Requests *resourceSet `yaml:"requests,omitempty"`
+	Limits *resourceSet `yaml:"limits,omitempty"`
+	// Not currently supported
+	// Requests *resourceSet `yaml:"requests,omitempty"`
 }
 
 type resourceSet struct {

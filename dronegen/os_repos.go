@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"path"
 	"strings"
-
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func promoteBuildOsRepoPipelines() []pipeline {
@@ -296,19 +294,20 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 }
 
 func setStepResourceLimits(steps []step) {
-	for i := range steps {
-		step := &steps[i]
-		if step.Resources == nil {
-			step.Resources = &containerResources{}
-		}
+	// Not currently supported
+	// for i := range steps {
+	// 	step := &steps[i]
+	// 	if step.Resources == nil {
+	// 		step.Resources = &containerResources{}
+	// 	}
 
-		if step.Resources.Requests == nil {
-			step.Resources.Requests = &resourceSet{}
-		}
+	// 	if step.Resources.Requests == nil {
+	// 		step.Resources.Requests = &resourceSet{}
+	// 	}
 
-		step.Resources.Requests.Cpu = 100
-		step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
-	}
+	// 	step.Resources.Requests.Cpu = 100
+	// 	step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
+	// }
 }
 
 // Note that tags are also valid here as a tag refers to a specific commit
