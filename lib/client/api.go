@@ -4330,5 +4330,5 @@ func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, ev
 	end := events[len(events)-1].GetTimestamp()
 	duration := end.Sub(start)
 
-	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d\n", proxyHost, cluster, sid, duration/time.Millisecond)
+	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
 }
