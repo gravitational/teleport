@@ -2065,7 +2065,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
 			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
 			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play the sessions." +
+				" Please use the browser to play this session." +
 				" Click on the URL to view the session in the browser:"
 			return trace.BadParameter("%s\n%s", message, url)
 		}
