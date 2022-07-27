@@ -218,6 +218,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
+// HandleConnection handles connections from plain TCP applications.
+func (h *APIHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+	return h.appHandler.HandleConnection(ctx, conn)
+}
+
 func (h *APIHandler) Close() error {
 	return h.handler.Close()
 }
@@ -836,12 +841,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := h.cfg.ProxyClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
+		LicenseWarnings:  pr.LicenseWarnings,
 	}, nil
 }
 

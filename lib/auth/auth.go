@@ -154,6 +154,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Enforcer == nil {
+		cfg.Enforcer = local.NewNoopEnforcer()
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
@@ -204,6 +207,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Events:                cfg.Events,
 			WindowsDesktops:       cfg.WindowsDesktops,
 			SessionTrackerService: cfg.SessionTrackerService,
+			Enforcer:              cfg.Enforcer,
 		},
 		keyStore:     keyStore,
 		getClaimsFun: getClaims,
@@ -232,6 +236,7 @@ type Services struct {
 	services.Databases
 	services.WindowsDesktops
 	services.SessionTrackerService
+	services.Enforcer
 	types.Events
 	events.IAuditLog
 }
@@ -608,6 +613,11 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
+}
+
+// SetEnforcer sets the server's enforce service
+func (a *Server) SetEnforcer(enforcer services.Enforcer) {
+	a.Enforcer = enforcer
 }
 
 // GetAuthPreference gets AuthPreference from the cache.
@@ -2006,12 +2016,11 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 
 // GenerateToken generates multi-purpose authentication token.
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	expires := a.clock.Now().UTC()
+	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {
-		expires.Add(req.TTL.Get())
-	} else {
-		expires.Add(defaults.ProvisioningTokenTTL)
+		ttl = req.TTL.Get()
 	}
+	expires := a.clock.Now().UTC().Add(ttl)
 
 	if req.Token == "" {
 		token, err := utils.CryptoRandomHex(TokenLenBytes)
