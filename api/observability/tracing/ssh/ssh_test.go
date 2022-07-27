@@ -309,8 +309,6 @@ func TestClient(t *testing.T) {
 			require.Equal(t, handler.tracingSupported, client.capability)
 
 			ctx, span := tp.Tracer("test").Start(context.Background(), "test")
-			t.Cleanup(func() { span.End() })
-
 			ok, resp, err := client.SendRequest(ctx, "test", true, []byte("test"))
 			span.End()
 			require.True(t, ok)
