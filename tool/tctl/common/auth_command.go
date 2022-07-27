@@ -473,6 +473,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputCanOverwrite:  a.signOverwrite,
 		OutputLocation:      a.output,
 		TTL:                 a.genTTL,
+		Key:                 key,
 		HelperMessageWriter: os.Stdout,
 	}
 	_, err := srv.GenerateMTLSFiles(ctx, genMTLSReq)

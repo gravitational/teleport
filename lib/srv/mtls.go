@@ -40,11 +40,12 @@ type GenerateMTLSFilesRequest struct {
 	OutputLocation      string
 	IdentityFileWriter  identityfile.ConfigWriter
 	TTL                 time.Duration
+	Key                 *client.Key
 	HelperMessageWriter io.Writer
 }
 
 func GenerateMTLSFiles(ctx context.Context, req GenerateMTLSFilesRequest) ([]string, error) {
-	if req.OutputFormat == identityfile.FormatSnowflake && len(req.Principals) == 1 && req.Principals[0] == "" {
+	if req.OutputFormat != identityfile.FormatSnowflake && len(req.Principals) == 1 && req.Principals[0] == "" {
 		return nil, trace.BadParameter("at least one hostname must be specified")
 	}
 
@@ -77,12 +78,15 @@ func GenerateMTLSFiles(ctx context.Context, req GenerateMTLSFilesRequest) ([]str
 		subject.Organization = []string{clusterNameType.GetClusterName()}
 	}
 
-	key, err := client.NewKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.Key == nil {
+		key, err := client.NewKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.Key = key
 	}
 
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.Key.Priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,11 +107,11 @@ func GenerateMTLSFiles(ctx context.Context, req GenerateMTLSFilesRequest) ([]str
 		return nil, trace.Wrap(err)
 	}
 
-	key.TLSCert = resp.Cert
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
+	req.Key.TLSCert = resp.Cert
+	req.Key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
-		Key:                  key,
+		Key:                  req.Key,
 		Format:               req.OutputFormat,
 		OverwriteDestination: req.OutputCanOverwrite,
 		Writer:               req.IdentityFileWriter,
