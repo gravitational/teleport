@@ -11,6 +11,13 @@ export const appearanceConfigProvider: ConfigServiceProvider<AppearanceConfig> =
   {
     getDefaults(platform) {
       switch (platform) {
+        case 'win32':
+          return {
+            fonts: {
+              sansSerif: "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif",
+              mono: "'Consolas', 'Courier New', monospace",
+            },
+          };
         case 'linux':
           return {
             fonts: {

@@ -38,6 +38,7 @@ export class WindowsManager {
       backgroundColor: theme.colors.primary.darker,
       minWidth: 400,
       minHeight: 300,
+      autoHideMenuBar: true,
       title: 'Teleport Connect Preview',
       icon: getAssetPath('icon.png'),
       webPreferences: {

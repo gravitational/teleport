@@ -178,5 +178,7 @@ async function getWorkingDirectory(pid: number): Promise<string> {
     case 'linux':
       const asyncReadlink = promisify(readlink);
       return await asyncReadlink(`/proc/${pid}/cwd`);
+    case 'win32':
+      return undefined;
   }
 }

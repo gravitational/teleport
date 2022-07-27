@@ -95,7 +95,7 @@ async function initState(
     const cwd = await ptyProcess.getCwd();
     docsService.update(doc.uri, {
       cwd,
-      title: `${cwd} · ${getClusterActualName()}`,
+      title: `${cwd || 'Terminal'} · ${getClusterActualName()}`,
     });
   };
 
