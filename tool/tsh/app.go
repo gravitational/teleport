@@ -100,6 +100,11 @@ func onAppLogin(cf *CLIConf) error {
 			"awsCmd":     "s3 ls",
 		})
 	}
+	if app.IsTCP() {
+		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
+			"appName": app.GetName(),
+		})
+	}
 	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster)
 	if err != nil {
 		return trace.Wrap(err)
@@ -110,18 +115,30 @@ func onAppLogin(cf *CLIConf) error {
 	})
 }
 
-// appLoginTpl is the message that gets printed to a user upon successful app login.
+// appLoginTpl is the message that gets printed to a user upon successful login
+// into an HTTP application.
 var appLoginTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Example curl command:
 
 {{.curlCmd}}
 `))
 
-// awsCliTpl is the message that gets printed to a user upon successful aws app login.
-var awsCliTpl = template.Must(template.New("").Parse(
-	`Logged into AWS app {{.awsAppName}}. Example AWS cli command:
+// appLoginTCPTpl is the message that gets printed to a user upon successful
+// login into a TCP application.
+var appLoginTCPTpl = template.Must(template.New("").Parse(
+	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
 
-tsh aws {{.awsCmd}}
+  tsh proxy app {{.appName}}
+
+Then connect to the application through this proxy.
+`))
+
+// awsCliTpl is the message that gets printed to a user upon successful login
+// into an AWS Console application.
+var awsCliTpl = template.Must(template.New("").Parse(
+	`Logged into AWS app {{.awsAppName}}. Example AWS CLI command:
+
+  tsh aws {{.awsCmd}}
 `))
 
 // getRegisteredApp returns the registered application with the specified name.
