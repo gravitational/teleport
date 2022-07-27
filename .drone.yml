@@ -5285,7 +5285,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:138
+# Generated at dronegen/misc.go:134
 ################################################
 
 kind: pipeline
@@ -5313,7 +5313,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:162
+# Generated at dronegen/misc.go:158
 ################################################
 
 kind: pipeline
@@ -5966,6 +5966,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 084a8ac6cb415c7919799b27ceef13812c37faacc14093bb46b79908051b0a2c
+hmac: 2c27017c6da93586d19f8240ab74b793a8c64ac27619e093045cab0848424ddb
 
 ...
