@@ -251,7 +251,7 @@ func TestSendEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &AuditDClient{
+			client := &Client{
 				conn:         nil,
 				execName:     "teleport",
 				hostname:     "?",

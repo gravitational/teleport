@@ -286,15 +286,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	auditdMsg := auditd.Message{
-		SystemUser: c.Username,
-		TTYName:    c.TerminalName,
-	}
-
-	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
-	}
-
 	// If we're planning on changing credentials, we should first park an
 	// innocuous process with the same UID and then check the user database
 	// again, to avoid it getting deleted under our nose.
@@ -372,6 +363,27 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
+	auditdMsg := auditd.Message{
+		SystemUser:   localUser.Username,
+		TeleportUser: c.Username,
+		TTYName:      c.TerminalName,
+	}
+
+	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
+	}
+
+	defer func(err *error) {
+		result := auditd.Success
+		if err != nil {
+			result = auditd.Failed
+		}
+
+		if err := auditd.SendEvent(auditd.AUDIT_USER_END, result, auditdMsg); err != nil {
+			log.WithError(err).Errorf("failed to login user end: %v", err)
+		}
+	}(&err)
+
 	// Start the command.
 	err = cmd.Start()
 	if err != nil {
@@ -392,10 +404,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if uaccErr != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
 		}
-	}
-
-	if err := auditd.SendEvent(auditd.AUDIT_USER_END, auditd.Success, auditdMsg); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user end: %v", err)
 	}
 
 	return io.Discard, exitCode(err), trace.Wrap(err)
