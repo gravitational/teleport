@@ -170,6 +170,9 @@ type InitConfig struct {
 	WindowsDesktops services.WindowsDesktops
 
 	SessionTrackerService services.SessionTrackerService
+
+	// Enforcer is used to enforce Teleport Enterprise license compliance.
+	Enforcer services.Enforcer
 }
 
 // Init instantiates and configures an instance of AuthServer

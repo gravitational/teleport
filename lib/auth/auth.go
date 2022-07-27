@@ -154,6 +154,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Enforcer == nil {
+		cfg.Enforcer = local.NewNoopEnforcer()
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
@@ -189,6 +192,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Events:                cfg.Events,
 		WindowsDesktops:       cfg.WindowsDesktops,
 		SessionTrackerService: cfg.SessionTrackerService,
+		Enforcer:              cfg.Enforcer,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -237,6 +241,7 @@ type Services struct {
 	services.Databases
 	services.WindowsDesktops
 	services.SessionTrackerService
+	services.Enforcer
 	types.Events
 	events.IAuditLog
 }
@@ -596,6 +601,11 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.Uncached.IAuditLog = auditLog
+}
+
+// SetEnforcer sets the server's enforce service
+func (a *Server) SetEnforcer(enforcer services.Enforcer) {
+	a.Uncached.Enforcer = enforcer
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
