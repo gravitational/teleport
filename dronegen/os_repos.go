@@ -350,6 +350,8 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			},
 			Commands: []string{
 				"mkdir -pv \"$ARTIFACT_PATH\"",
+				// Clear out old versions from previous steps
+				"rm -rf \"${ARTIFACT_PATH}/*\"",
 				strings.Join(
 					[]string{
 						"aws s3 sync",
