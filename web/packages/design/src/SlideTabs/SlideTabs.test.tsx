@@ -64,4 +64,48 @@ describe('design/SlideTabs', () => {
     // index 0 and calls the callback as such.
     expect(cb.mock.calls).toEqual([[0], [2]]);
   });
+
+  it('supports a square xlarge appearance (default)', () => {
+    const { container } = render(
+      <SlideTabs
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+      />
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
+
+  it('supports a round xlarge appearance', () => {
+    const { container } = render(
+      <SlideTabs
+        appearance="round"
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+      />
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
+
+  it('supports a square medium size', () => {
+    const { container } = render(
+      <SlideTabs
+        size="medium"
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+      />
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
+
+  it('supports a round medium size', () => {
+    const { container } = render(
+      <SlideTabs
+        size="medium"
+        appearance="round"
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+      />
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
 });

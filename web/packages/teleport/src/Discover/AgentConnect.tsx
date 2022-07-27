@@ -15,9 +15,8 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex, ButtonPrimary, ButtonSecondary, Text, Box } from 'design';
-import * as Icons from 'design/Icon';
+
+import { ButtonPrimary, ButtonSecondary, Text, Box } from 'design';
 
 import { LoginTrait } from './LoginTrait';
 
@@ -49,46 +48,6 @@ export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
   kube: [],
   node: [GatherReqsNode, DownloadScript, LoginTrait, InstallTeleport],
 };
-
-export function SelectAgent(props) {
-  return (
-    <Box width="700px">
-      <Text mb={4} typography="h4" bold>
-        Connect a Resource
-      </Text>
-      <Text mb={2} bold>
-        Select Resource Type
-      </Text>
-      <Flex
-        alignItems="center"
-        css={`
-          margin: 0 auto;
-        `}
-      >
-        <AgentButton
-          as="button"
-          onClick={() => props.onClick('node')}
-          disabled={props.agentKind === 'node'}
-        >
-          <Icons.Apple fontSize="50px" my={2} />
-          <Text typography="h6" bold mt={1}>
-            Server
-          </Text>
-        </AgentButton>
-        <AgentButton
-          as="button"
-          onClick={() => props.onClick('app')}
-          disabled={props.agentKind === 'app'}
-        >
-          <Icons.Apple fontSize="50px" my={2} />
-          <Text typography="h6" bold mt={1}>
-            Application
-          </Text>
-        </AgentButton>
-      </Flex>
-    </Box>
-  );
-}
 
 function GatherReqs(props: AgentStepProps) {
   return (
@@ -178,30 +137,3 @@ function RoleConfig(props: AgentStepProps) {
     </Box>
   );
 }
-
-const AgentButton = styled(Flex)(
-  props => `
-   align-items: center;
-   flex-direction: column;
-   transition: all 0.3s;
-   border-radius: 4px;
-   width: 160px;
-   border: none;
-   padding: 24px 32px;
-   margin-right: 16px;
-   margin-bottom: 16px;
-   background-color: ${props.theme.colors.primary.light};
-   &:disabled {
-     border: 2px solid ${props.theme.colors.secondary.main};
-     background: ${props.theme.colors.primary.lighter};
-     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
-   }
-   &:hover {
-     background: ${props.theme.colors.primary.lighter};
-   }
-   color: inherit;
-   cursor: pointer;
-   font-family: inherit;
-   text-align: center;
- `
-);

@@ -16,7 +16,13 @@ limitations under the License.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-function SlideTabs({ tabs, name = 'slide-tab', onChange }: props) {
+function SlideTabs({
+  tabs,
+  name = 'slide-tab',
+  onChange,
+  size = 'xlarge',
+  appearance = 'square',
+}: props) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -25,32 +31,51 @@ function SlideTabs({ tabs, name = 'slide-tab', onChange }: props) {
 
   return (
     <Wrapper>
-      <TabNav>
-        {tabs.map((tabName, tabIndex) => (
-          <TabLabel
-            htmlFor={`${name}-${tabName}`}
-            onClick={() => setActiveIndex(tabIndex)}
-            itemCount={tabs.length}
-            key={`${tabName}-${tabIndex}`}
-          >
-            {tabName}
-            <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
-          </TabLabel>
-        ))}
+      <TabNav appearance={appearance} size={size}>
+        {tabs.map((tabData, tabIndex) => {
+          const tabDataType = typeof tabData === 'string';
+          const tabName = tabDataType ? tabData : tabData.name;
+          const tabContent = tabDataType ? tabData : tabData.component;
+          return (
+            <TabLabel
+              htmlFor={`${name}-${tabName}`}
+              onClick={() => setActiveIndex(tabIndex)}
+              itemCount={tabs.length}
+              key={`${tabName}-${tabIndex}`}
+            >
+              {tabContent}
+              <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
+            </TabLabel>
+          );
+        })}
       </TabNav>
-      <TabSlider itemCount={tabs.length} activeIndex={activeIndex} />
+      <TabSlider
+        itemCount={tabs.length}
+        activeIndex={activeIndex}
+        appearance={appearance}
+        size={size}
+      />
     </Wrapper>
   );
 }
 
 type props = {
   // A list of tab names that you'd like displayed in the list of tabs.
-  tabs: string[];
+  tabs: string[] | TabComponent[];
+  // To be notified when the selected tab changes supply it with this fn.
+  onChange: (selectedTab: number) => void;
   // The name you'd like to use for the form if using multiple tabs on the page.
   // Default: "slide-tab"
   name?: string;
-  // To be notified when the selected tab changes supply it with this fn.
-  onChange: (selectedTab: number) => void;
+  // The style to render the selector in.
+  appearance?: 'square' | 'round';
+  // The size to render the selector in.
+  size?: 'xlarge' | 'medium';
+};
+
+export type TabComponent = {
+  name: string;
+  component: React.ReactNode;
 };
 
 const Wrapper = styled.div`
@@ -71,12 +96,13 @@ const TabInput = styled.input`
 `;
 
 const TabSlider = styled.div`
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 60px;
+  background-color: #512fc9;
+  border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
-  height: 40px;
+  height: ${props => (props.size === 'xlarge' ? '56px' : '40px')};
   left: calc(${props => (100 / props.itemCount) * props.activeIndex}% + 8px);
-  margin: 8px 8px 8px 0;
+  margin: ${props =>
+    props.size === 'xlarge' ? '12px 12px 12px 0' : '4px 4px 4px 0'};
   position: absolute;
   top: 0;
   transition: all 0.3s ease;
@@ -86,9 +112,9 @@ const TabSlider = styled.div`
 const TabNav = styled.nav`
   align-items: center;
   background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 60px;
+  border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   display: flex;
-  height: 56px;
+  height: ${props => (props.size === 'xlarge' ? '80px' : '47px')};
   justify-content: space-around;
 `;
 
