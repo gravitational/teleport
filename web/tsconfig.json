@@ -21,7 +21,7 @@
     "types": [
       "node",
       "@emotion/core",
-      "@types/wicg-native-file-system"
+      "@types/wicg-file-system-access"
     ],
     "paths": {
       "grpc": [

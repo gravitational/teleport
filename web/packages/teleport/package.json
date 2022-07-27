@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
-    "@types/wicg-native-file-system": "^2020.6.0",
+    "@types/wicg-file-system-access": "^2020.9.5",
     "jest-canvas-mock": "^2.3.1",
     "ts-loader": "^9.3.1"
   }

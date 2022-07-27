@@ -41,6 +41,7 @@ export enum MessageType {
   SHARED_DIRECTORY_ACKNOWLEDGE = 12,
   SHARED_DIRECTORY_INFO_REQUEST = 13,
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
+  SHARED_DIRECTORY_LIST_REQUEST = 25,
   __LAST, // utility value
 }
 
@@ -114,6 +115,13 @@ export type SharedDirectoryInfoResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
+};
+
+// | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
+export type SharedDirectoryListRequest = {
+  completionId: number;
+  directoryId: number;
+  path: string;
 };
 
 // | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
@@ -635,6 +643,13 @@ export default class Codec {
       directoryId,
       path,
     };
+  }
+
+  // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
+  decodeSharedDirectoryListRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryListRequest {
+    return this.decodeSharedDirectoryInfoRequest(buffer);
   }
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
