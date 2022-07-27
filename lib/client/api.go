@@ -1913,25 +1913,21 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		for _, fp := range tc.Config.LocalForwardPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+	for _, fp := range tc.Config.LocalForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.listenAndForward(ctx, socket, addr, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 	}
-	if len(tc.Config.DynamicForwardedPorts) > 0 {
-		for _, fp := range tc.Config.DynamicForwardedPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.dynamicListenAndForward(ctx, socket)
+	for _, fp := range tc.Config.DynamicForwardedPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
 	return nil
 }
@@ -1973,7 +1969,10 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 
 	// Session joining is not supported in proxy recording mode
 	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
-		return trace.Wrap(err)
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return trace.Wrap(err)
+		}
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
 		return trace.BadParameter("session joining is not supported in proxy recording mode")
 	}
@@ -2802,7 +2801,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 
 const unconfiguredPublicAddrMsg = `WARNING:
 
-The following error has occurred as Teleport does not recognise the address
+The following error has occurred as Teleport does not recognize the address
 that is being used to connect to it. This usually indicates that the
 'public_addr' configuration option of the 'proxy_service' has not been
 set to match the address you are hosting the proxy on.

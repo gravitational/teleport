@@ -376,7 +376,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	handler.handler.sshPort = sshPort
 
 	t.Cleanup(func() {
-		// In particular close the lock watchers by cancelling the context.
+		// In particular close the lock watchers by canceling the context.
 		s.cancel()
 
 		s.webServer.Close()
@@ -543,110 +543,134 @@ func Test_clientMetaFromReq(t *testing.T) {
 	}, got)
 }
 
-func TestSAMLSuccess(t *testing.T) {
+func TestSAML(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	s := newWebSuite(t)
-	input := fixtures.SAMLOktaConnectorV2
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-	var raw services.UnknownResource
-	err := decoder.Decode(&raw)
-	require.NoError(t, err)
-
-	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-	err = services.ValidateSAMLConnector(connector)
-	require.NoError(t, err)
-
-	role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
+	tests := []struct {
+		name                string
+		rawConnector        string
+		validSession        bool
+		expectedRedirectURL string
+	}{
+		{
+			name:                "success",
+			rawConnector:        fixtures.SAMLOktaConnectorV2,
+			validSession:        true,
+			expectedRedirectURL: "/after",
 		},
-		Allow: types.RoleConditions{
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Namespaces: []string{apidefaults.Namespace},
-			Rules: []types.Rule{
-				types.NewRule(types.Wildcard, services.RW()),
-			},
+		{
+			name:                "fail to map claims to roles",
+			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
+			validSession:        false,
+			expectedRedirectURL: client.LoginFailedUnauthorizedRedirectURL,
 		},
-	})
-	require.NoError(t, err)
-	role.SetLogins(types.Allow, []string{s.user})
-	err = s.server.Auth().UpsertRole(s.ctx, role)
-	require.NoError(t, err)
+	}
 
-	err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
-	require.NoError(t, err)
-	s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
-	clt := s.clientNoRedirects()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := newWebSuite(t)
+			input := tc.rawConnector
 
-	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			var raw services.UnknownResource
+			err := decoder.Decode(&raw)
+			require.NoError(t, err)
 
-	baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
-	require.NoError(t, err)
-	req, err := http.NewRequest("GET", baseURL.String(), nil)
-	require.NoError(t, err)
-	addCSRFCookieToReq(req, csrfToken)
-	re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
-	require.NoError(t, err)
+			connector, err := services.UnmarshalSAMLConnector(raw.Raw)
+			require.NoError(t, err)
 
-	// we got a redirect
-	urlPattern := regexp.MustCompile(`URL='([^']*)'`)
-	locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
-	u, err := url.Parse(locationURL)
-	require.NoError(t, err)
-	require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
-	data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
-	require.NoError(t, err)
-	buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
-	require.NoError(t, err)
-	doc := etree.NewDocument()
-	err = doc.ReadFromBytes(buf)
-	require.NoError(t, err)
-	id := doc.Root().SelectAttr("ID")
-	require.NotNil(t, id)
+			role, err := types.NewRoleV3(connector.GetAttributesToRoles()[0].Roles[0], types.RoleSpecV5{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.NewDuration(apidefaults.MaxCertDuration),
+				},
+				Allow: types.RoleConditions{
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces: []string{apidefaults.Namespace},
+					Rules: []types.Rule{
+						types.NewRule(types.Wildcard, services.RW()),
+					},
+				},
+			})
+			require.NoError(t, err)
+			role.SetLogins(types.Allow, []string{s.user})
+			err = s.server.Auth().UpsertRole(s.ctx, role)
+			require.NoError(t, err)
 
-	authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
-	require.NoError(t, err)
+			err = s.server.Auth().UpsertSAMLConnector(ctx, connector)
+			require.NoError(t, err)
+			s.server.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
+			clt := s.clientNoRedirects()
 
-	// now swap the request id to the hardcoded one in fixtures
-	authRequest.ID = fixtures.SAMLOktaAuthRequestID
-	authRequest.CSRFToken = csrfToken
-	err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
-	require.NoError(t, err)
+			csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
 
-	// now respond with pre-recorded request to the POST url
-	in := &bytes.Buffer{}
-	fw, err := flate.NewWriter(in, flate.DefaultCompression)
-	require.NoError(t, err)
+			baseURL, err := url.Parse(clt.Endpoint("webapi", "saml", "sso") + `?connector_id=` + connector.GetName() + `&redirect_url=http://localhost/after`)
+			require.NoError(t, err)
+			req, err := http.NewRequest("GET", baseURL.String(), nil)
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, csrfToken)
+			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+			require.NoError(t, err)
 
-	_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
-	require.NoError(t, err)
-	err = fw.Close()
-	require.NoError(t, err)
-	encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
-	require.NotNil(t, encodedResponse)
+			// we got a redirect
+			urlPattern := regexp.MustCompile(`URL='([^']*)'`)
+			locationURL := urlPattern.FindStringSubmatch(string(re.Bytes()))[1]
+			u, err := url.Parse(locationURL)
+			require.NoError(t, err)
+			require.Equal(t, fixtures.SAMLOktaSSO, u.Scheme+"://"+u.Host+u.Path)
+			data, err := base64.StdEncoding.DecodeString(u.Query().Get("SAMLRequest"))
+			require.NoError(t, err)
+			buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(data)))
+			require.NoError(t, err)
+			doc := etree.NewDocument()
+			err = doc.ReadFromBytes(buf)
+			require.NoError(t, err)
+			id := doc.Root().SelectAttr("ID")
+			require.NotNil(t, id)
 
-	// now send the response to the server to exchange it for auth session
-	form := url.Values{}
-	form.Add("SAMLResponse", encodedResponse)
-	req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	addCSRFCookieToReq(req, csrfToken)
-	require.NoError(t, err)
-	authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-		return clt.Client.HTTPClient().Do(req)
-	})
+			authRequest, err := s.server.Auth().GetSAMLAuthRequest(context.Background(), id.Value)
+			require.NoError(t, err)
 
-	require.NoError(t, err)
-	require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
-	// we have got valid session
-	require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
-	// we are being redirected to original URL
-	require.Equal(t, "/after", authRe.Headers().Get("Location"))
+			// now swap the request id to the hardcoded one in fixtures
+			authRequest.ID = fixtures.SAMLOktaAuthRequestID
+			authRequest.CSRFToken = csrfToken
+			err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
+			require.NoError(t, err)
+
+			// now respond with pre-recorded request to the POST url
+			in := &bytes.Buffer{}
+			fw, err := flate.NewWriter(in, flate.DefaultCompression)
+			require.NoError(t, err)
+
+			_, err = fw.Write([]byte(fixtures.SAMLOktaAuthnResponseXML))
+			require.NoError(t, err)
+			err = fw.Close()
+			require.NoError(t, err)
+			encodedResponse := base64.StdEncoding.EncodeToString(in.Bytes())
+			require.NotNil(t, encodedResponse)
+
+			// now send the response to the server to exchange it for auth session
+			form := url.Values{}
+			form.Add("SAMLResponse", encodedResponse)
+			req, err = http.NewRequest("POST", clt.Endpoint("webapi", "saml", "acs"), strings.NewReader(form.Encode()))
+			req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			addCSRFCookieToReq(req, csrfToken)
+			require.NoError(t, err)
+			authRe, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
+			if tc.validSession {
+				// we have got valid session
+				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
+			}
+			require.Equal(t, tc.expectedRedirectURL, authRe.Headers().Get("Location"))
+		})
+	}
 }
 
 func TestWebSessionsCRUD(t *testing.T) {
@@ -745,8 +769,8 @@ func TestValidateBearerToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack1 := proxy.authPack(t, "user1")
-	pack2 := proxy.authPack(t, "user2")
+	pack1 := proxy.authPack(t, "user1", nil /* roles */)
+	pack2 := proxy.authPack(t, "user2", nil /* roles */)
 
 	// Swap pack1's session token with pack2's sessionToken
 	jar, err := cookiejar.New(nil)
@@ -833,7 +857,7 @@ func TestClusterNodesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 	clusterName := env.server.ClusterName()
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
@@ -1180,7 +1204,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "llama")
+	pack := proxy.authPack(t, "llama", nil /* roles */)
 
 	clt, err := env.server.NewClient(auth.TestUser("llama"))
 	require.NoError(t, err)
@@ -1366,7 +1390,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			ctx := context.Background()
 			env := newWebPack(t, 1)
 			proxy := env.proxies[0]
-			pack := proxy.authPack(t, "llama")
+			pack := proxy.authPack(t, "llama", nil /* roles */)
 
 			clt, err := env.server.NewClient(auth.TestUser("llama"))
 			require.NoError(t, err)
@@ -1540,7 +1564,7 @@ func TestCreateSession(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	user := "test-user@example.com"
-	pack := proxy.authPack(t, user)
+	pack := proxy.authPack(t, user, nil /* roles */)
 
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
@@ -2060,6 +2084,18 @@ func TestGetClusterDetails(t *testing.T) {
 }
 
 func TestTokenGeneration(t *testing.T) {
+	const username = "test-user@example.com"
+	// Users should be able to create Tokens even if they can't update them
+	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindToken,
+					[]string{types.VerbCreate, types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	tt := []struct {
 		name       string
 		roles      types.SystemRoles
@@ -2114,7 +2150,7 @@ func TestTokenGeneration(t *testing.T) {
 			env := newWebPack(t, 1)
 
 			proxy := env.proxies[0]
-			pack := proxy.authPack(t, "test-user@example.com")
+			pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
 
 			endpoint := pack.clt.Endpoint("webapi", "token")
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
@@ -2153,7 +2189,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2205,7 +2241,7 @@ func TestClusterKubesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2259,7 +2295,7 @@ func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com")
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
 		Items      []ui.App `json:"items"`
@@ -2324,7 +2360,7 @@ func TestApplicationAccessDisabled(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Register an application.
 	app, err := types.NewAppV3(types.Metadata{
@@ -2355,7 +2391,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Register multiple applications.
 	applications := []struct {
@@ -2480,7 +2516,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	proxy := env.proxies[0]
 
 	// Create a user with second factor totp.
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Get a totp code.
 	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
@@ -2503,7 +2539,7 @@ func TestAddMFADevice(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2603,7 +2639,7 @@ func TestDeleteMFA(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	// setting up client manually because we need sanitizer off
 	jar, err := cookiejar.New(nil)
@@ -2649,7 +2685,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo@example.com")
+	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
 
 	endpoint := pack.clt.Endpoint("webapi", "mfa", "devices")
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
@@ -2669,7 +2705,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	// Create a user with a TOTP device.
 	username := "llama"
-	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret")
+	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret", nil /* roles */)
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2723,7 +2759,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	proxy := env.proxies[0]
 
 	// Create a user with a TOTP device, with second factor preference to OTP only.
-	authPack := proxy.authPack(t, "llama@example.com")
+	authPack := proxy.authPack(t, "llama@example.com", nil /* roles */)
 
 	// Authenticated client for private endpoints.
 	authnClt := authPack.clt
@@ -3030,7 +3066,7 @@ func TestNewSessionResponseWithRenewSession(t *testing.T) {
 	require.NoError(t, env.server.Auth().SetClusterNetworkingConfig(context.Background(), cfg))
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo")
+	pack := proxy.authPack(t, "foo", nil /* roles */)
 
 	var ns *CreateSessionResponse
 	resp := pack.renewSession(context.Background(), t)
@@ -3053,7 +3089,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 
 	proxy1, proxy2 := env.proxies[0], env.proxies[1]
 	// Connect to both proxies
-	pack1 := proxy1.authPack(t, "foo")
+	pack1 := proxy1.authPack(t, "foo", nil /* roles */)
 	pack2 := proxy2.authPackFromPack(t, pack1)
 
 	ws := proxy2.makeTerminal(t, pack2, session.NewID())
@@ -3090,7 +3126,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "foo")
+	pack := proxy.authPack(t, "foo", nil /* roles */)
 
 	delta := 30 * time.Second
 	// Advance the time before renewing the session.
@@ -3318,7 +3354,7 @@ func TestGetUserOrResetToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	pack := env.proxies[0].authPack(t, "foo")
+	pack := env.proxies[0].authPack(t, "foo", nil /* roles */)
 
 	// the default roles of foo don't have users read but we need it on our tests
 	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
@@ -3940,7 +3976,7 @@ type proxy struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (r *proxy) authPack(t *testing.T, user string) *authPack {
+func (r *proxy) authPack(t *testing.T, user string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
 		loginUser = "user"
@@ -3958,7 +3994,7 @@ func (r *proxy) authPack(t *testing.T, user string) *authPack {
 	err = r.auth.Auth().SetAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret)
+	r.createUser(context.Background(), t, user, loginUser, pass, otpSecret, roles)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
@@ -4031,19 +4067,30 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 	}
 }
 
-func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string) {
-	teleUser, err := types.NewUser(user)
-	require.NoError(t, err)
-
+func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(types.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
-	err = r.auth.Auth().UpsertRole(ctx, role)
+	return role
+}
+
+func (r *proxy) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string, roles []types.Role) {
+	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 
-	teleUser.AddRole(role.GetName())
+	if len(roles) == 0 {
+		roles = []types.Role{defaultRoleForNewUser(teleUser, login)}
+	}
+
+	for _, role := range roles {
+		err = r.auth.Auth().UpsertRole(ctx, role)
+		require.NoError(t, err)
+
+		teleUser.AddRole(role.GetName())
+	}
+
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})

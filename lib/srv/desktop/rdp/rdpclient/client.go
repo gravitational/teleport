@@ -582,6 +582,8 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 	})
 }
 
+// sharedDirectoryAcknowledge is sent by the TDP server to the client
+// to acknowledge that a SharedDirectoryAnnounce was received.
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(ack); err != nil {
@@ -603,6 +605,8 @@ func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoReques
 	})
 }
 
+// sharedDirectoryInfoRequest is sent from the TDP server to the client
+// to request information about a file or directory at a given path.
 func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
@@ -625,6 +629,8 @@ func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRe
 	})
 }
 
+// sharedDirectoryCreateRequest is sent by the TDP server to
+// the client to request the creation of a new file or directory.
 func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
@@ -646,6 +652,8 @@ func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRe
 	})
 }
 
+// sharedDirectoryDeleteRequest is sent by the TDP server to the client
+// to request the deletion of a file or directory at path.
 func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
@@ -667,6 +675,8 @@ func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListReques
 	})
 }
 
+// sharedDirectoryListRequest is sent by the TDP server to the client
+// to request the contents of a directory.
 func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
@@ -691,6 +701,8 @@ func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadReques
 	})
 }
 
+// SharedDirectoryReadRequest is sent by the TDP server to the client
+// to request the contents of a file.
 func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
@@ -715,6 +727,8 @@ func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequ
 	})
 }
 
+// SharedDirectoryWriteRequest is sent by the TDP server to the client
+// to write to a file.
 func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
