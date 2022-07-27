@@ -287,7 +287,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}); err != nil {
 			h.log.WithError(err).Warn("Failed to emit failed login audit event.")
 		}
-		h.log.Warnf("auditd event error: %v", err)
 
 		auditdMsg := auditd.Message{
 			SystemUser:   conn.User(),
@@ -296,7 +295,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 
 		if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, auditd.Failed, auditdMsg); err != nil {
-			log.Warnf("failed to auditd log: %v", err)
+			log.Warnf("failed to send an event to auditd: %v", err)
 		}
 	}
 
