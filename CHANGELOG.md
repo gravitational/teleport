@@ -12,8 +12,9 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Fixed issue with redirect URL not being preserved after application access login. [#14205](https://github.com/gravitational/teleport/pull/14205)
 * Fixed `--cluster` flag for `tsh db ls` command. [#14396](https://github.com/gravitational/teleport/pull/14396)
 * Fixed issue with resource listing pagination when there are denied resources. [#14544](https://github.com/gravitational/teleport/pull/14544)
-* Added ability to set AWS database name via `teleport.dev/database-name` tag. [#14827](https://github.com/gravitational/teleport/pull/14827)
+* Added ability to set AWS database name via `teleport.dev/database_name` tag. [#14827](https://github.com/gravitational/teleport/pull/14827)
 * Added ability to call `tsh proxy db` without `tsh db login`. [#14838](https://github.com/gravitational/teleport/pull/14838)
+* Added support for external IDs in AWS Console Access. [#14897](https://github.com/gravitational/teleport/pull/14897)
 * Improved `tsh db ls` performance for users with many roles. [#14288](https://github.com/gravitational/teleport/pull/14288)
 * Improved internal cache efficiency. [#14305](https://github.com/gravitational/teleport/pull/14305)
 
