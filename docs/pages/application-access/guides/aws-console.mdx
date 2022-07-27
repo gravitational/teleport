@@ -222,10 +222,22 @@ app_service:
     labels:
       aws_account_id: "0987654321"
       env: prod
+  - name: "awsconsole-third-party"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+    labels:
+      aws_account_id: "1234554321"
+    aws:
+      external_id: "example-external-id"
 ```
 
 When showing available IAM roles, Teleport will display only role ARNs that
 belong to the specific account.
+
+<Admonition type="tip" title="AWS External ID">
+For AWS accounts that require external IDs for accessing their resources, set
+the `external_id` field which will be used when assuming the AWS roles in these
+accounts.
+</Admonition>
 
 ## Step 6. Connect to AWS console with assumed IAM role
 
