@@ -148,7 +148,7 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	// Open PTY and corresponding TTY.
 	t.pty, t.tty, err = pty.Open()
 	if err != nil {
-		log.Warnf("Could not start PTY %v", err)
+		log.Warnf("Could not start PTY: %v", err)
 		return nil, err
 	}
 

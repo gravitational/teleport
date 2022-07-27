@@ -282,6 +282,11 @@ message UserCertsRequest {
     // UseRoleRequests is used to ensure a certificate request is intended to
     // use role impersonation, even if the list of role requests is empty.
     bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
+
+    // DropAccessRequests is an optional list of request IDs indicating requests
+    // whose escalated privileges should be removed from the certificate.
+    repeated string DropAccessRequests = 15
+        [ (gogoproto.jsontag) = "drop_access_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -462,6 +467,8 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
+    // LicenseWarnings is a list of license compliance warnings.
+    repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
 }
 
 // Features are auth server features.
@@ -2019,6 +2026,8 @@ service AuthService {
     // GetCurrentUser returns current user as seen by the server.
     // Useful especially in the context of remote clusters which perform role and trait mapping.
     rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+    // GetCurrentUserRoles returns current user's roles.
+    rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV5);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
@@ -2273,6 +2282,8 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // CreateToken creates a token in a backend.
+    rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // GenerateToken generates a new auth token.
     rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.

@@ -32,6 +32,9 @@ type Client interface {
 	// RequestReviewers is used to assign reviewers to a Pull Request.
 	RequestReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
 
+	// DismissReviewers is used to remove the review request from a Pull Request.
+	DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error
+
 	// ListReviews is used to list all submitted reviews for a PR.
 	ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error)
 
