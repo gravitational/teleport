@@ -151,7 +151,7 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 	}
 
 	return ui.ConnectionDiagnostic{
-		Name:    connectionDiagnostic.GetName(),
+		ID:      connectionDiagnostic.GetName(),
 		Labels:  uiLabels,
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),

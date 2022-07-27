@@ -154,8 +154,8 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 
 // ConnectionDiagnostic describes a connection diagnostic.
 type ConnectionDiagnostic struct {
-	// Name is the name of the connection diagnostic.
-	Name string `json:"name"`
+	// ID is the identifier of the connection diagnostic.
+	ID string `json:"id"`
 	// Labels is a map of static and dynamic labels associated with the connection diagnostic.
 	Labels []Label `json:"labels"`
 	// Success is whether the connection was successful

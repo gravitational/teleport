@@ -3415,7 +3415,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.Name, diagName)
+	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
 	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
 }
 
