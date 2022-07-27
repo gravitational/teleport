@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -63,9 +64,26 @@ type ClientConfig struct {
 	// configurable for testing purposes.
 	getConfigForServer func() (*tls.Config, error)
 
+	// connShuffler determines the order client connections will be used.
+	connShuffler connShuffler
+
 	// sync runs proxy and connection syncing operations
 	// configurable for testing purposes
 	sync func()
+}
+
+type connShuffler func([]*clientConn)
+
+func randomConnShuffler() connShuffler {
+	return func(conns []*clientConn) {
+		rand.Shuffle(len(conns), func(i, j int) {
+			conns[i], conns[j] = conns[j], conns[i]
+		})
+	}
+}
+
+func noOpConnShuffler() connShuffler {
+	return func([]*clientConn) {}
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -109,6 +127,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 	if len(c.TLSConfig.Certificates) == 0 {
 		return trace.BadParameter("missing tls certificate")
+	}
+
+	if c.connShuffler == nil {
+		c.connShuffler = randomConnShuffler()
 	}
 
 	if c.getConfigForServer == nil {
@@ -315,42 +337,20 @@ func (c *Client) DialNode(
 	dst net.Addr,
 	tunnelType types.TunnelType,
 ) (net.Conn, error) {
-	stream, _, err := c.dial(proxyIDs)
+	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
+		NodeID:     nodeID,
+		TunnelType: tunnelType,
+		Source: &clientapi.NetAddr{
+			Addr:    src.String(),
+			Network: src.Network(),
+		},
+		Destination: &clientapi.NetAddr{
+			Addr:    dst.String(),
+			Network: dst.Network(),
+		},
+	})
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s", proxyIDs)
-	}
-
-	// send dial request as the first frame
-	if err = stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_DialRequest{
-			DialRequest: &clientapi.DialRequest{
-				NodeID:     nodeID,
-				TunnelType: tunnelType,
-				Source: &clientapi.NetAddr{
-					Addr:    src.String(),
-					Network: src.Network(),
-				},
-				Destination: &clientapi.NetAddr{
-					Addr:    dst.String(),
-					Network: dst.Network(),
-				},
-			},
-		},
-	}); err != nil {
-		return nil, trace.ConnectionProblem(err, "error sending dial frame")
-	}
-
-	msg, err := stream.Recv()
-	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error receiving dial response")
-	}
-
-	if msg.GetConnectionEstablished() == nil {
-		err := stream.CloseSend()
-		if err != nil {
-			c.config.Log.Debugf("error closing stream: %w", err)
-		}
-		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
 	}
 
 	return newStreamConn(stream, src, dst), nil
@@ -429,11 +429,13 @@ func (c *Client) stopConn(conn *clientConn) error {
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient, bool, error) {
+func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (clientapi.ProxyService_DialNodeClient, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
 		return nil, existing, trace.Wrap(err)
 	}
+
+	c.config.connShuffler(conns)
 
 	var errs []error
 	for _, conn := range conns {
@@ -441,6 +443,28 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
+			errs = append(errs, err)
+			continue
+		}
+		err = stream.Send(&clientapi.Frame{
+			Message: &clientapi.Frame_DialRequest{
+				DialRequest: dialRequest,
+			},
+		})
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		msg, err := stream.Recv()
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if msg.GetConnectionEstablished() == nil {
+			err := stream.CloseSend()
+			if err != nil {
+				c.config.Log.Debugf("error closing stream: %w", err)
+			}
 			errs = append(errs, err)
 			continue
 		}
