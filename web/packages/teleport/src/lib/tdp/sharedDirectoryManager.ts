@@ -35,11 +35,7 @@ export class SharedDirectoryManager {
   // Gets the information for the file or directory
   // at path where path is the relative path from the
   // root directory.
-  async getInfo(path: string): Promise<{
-    size: number; // bytes
-    lastModified: number; // ms since unix epoch
-    kind: 'file' | 'directory';
-  }> {
+  async getInfo(path: string): Promise<FileOrDirInfo> {
     this.checkReady();
 
     const fileOrDir = await this.walkPath(path);
@@ -47,7 +43,7 @@ export class SharedDirectoryManager {
     if (fileOrDir.kind === 'directory') {
       // Magic numbers are the values for directories where the true
       // value is unavailable, according to the TDP spec.
-      return { size: 4096, lastModified: 0, kind: fileOrDir.kind };
+      return { size: 4096, lastModified: 0, kind: fileOrDir.kind, path };
     }
 
     let file = await fileOrDir.getFile();
@@ -55,7 +51,34 @@ export class SharedDirectoryManager {
       size: file.size,
       lastModified: file.lastModified,
       kind: fileOrDir.kind,
+      path,
     };
+  }
+
+  // Gets the FileOrDirInfo for all the children of the
+  // directory at path.
+  async listContents(path: string): Promise<FileOrDirInfo[]> {
+    this.checkReady();
+
+    // Get the directory whose contents we want to list.
+    const dir = await this.walkPath(path);
+    if (dir.kind !== 'directory') {
+      throw new Error('cannot list the contents of a file');
+    }
+
+    let infos: FileOrDirInfo[] = [];
+    for await (const entry of dir.values()) {
+      // Create the full relative path to the entry
+      let entryPath = path;
+      if (entryPath !== '') {
+        entryPath = [entryPath, entry.name].join('/');
+      } else {
+        entryPath = entry.name;
+      }
+      infos.push(await this.getInfo(entryPath));
+    }
+
+    return infos;
   }
 
   // walkPath walks a pathstr (assumed to be in the qualified Unix format specified
@@ -117,3 +140,10 @@ export class PathDoesNotExistError extends Error {
     super(message);
   }
 }
+
+export type FileOrDirInfo = {
+  size: number; // bytes
+  lastModified: number; // ms since unix epoch
+  kind: 'file' | 'directory';
+  path: string;
+};

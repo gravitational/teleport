@@ -42,6 +42,7 @@ export enum MessageType {
   SHARED_DIRECTORY_INFO_REQUEST = 13,
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
+  SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
 }
 
@@ -122,6 +123,13 @@ export type SharedDirectoryListRequest = {
   completionId: number;
   directoryId: number;
   path: string;
+};
+
+// | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
+export type SharedDirectoryListResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
+  fsoList: FileSystemObject[];
 };
 
 // | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
@@ -506,6 +514,35 @@ export default class Codec {
       ...new Uint8Array(bufferSansFso),
       ...new Uint8Array(fsoBuffer),
     ]).buffer;
+  }
+
+  // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
+    const bufLenSansFsoList = byteLength + 3 * uint32Length;
+    const bufferSansFsoList = new ArrayBuffer(bufLenSansFsoList);
+    const view = new DataView(bufferSansFsoList);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_LIST_RESPONSE);
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
+    offset += uint32Length;
+    view.setUint32(offset, res.fsoList.length);
+    offset += uint32Length;
+
+    let withFsoList = new Uint8Array(bufferSansFsoList);
+    res.fsoList.forEach(fso => {
+      const fsoBuffer = this.encodeFileSystemObject(fso);
+
+      // https://gist.github.com/72lions/4528834?permalink_comment_id=2395442#gistcomment-2395442
+      withFsoList = new Uint8Array([
+        ...withFsoList,
+        ...new Uint8Array(fsoBuffer),
+      ]);
+    });
+
+    return withFsoList.buffer;
   }
 
   // | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |

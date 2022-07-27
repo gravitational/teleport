@@ -28,10 +28,13 @@ import Codec, {
   FileType,
   SharedDirectoryErrCode,
   SharedDirectoryInfoResponse,
+  SharedDirectoryListResponse,
+  FileSystemObject,
 } from './codec';
 import {
   PathDoesNotExistError,
   SharedDirectoryManager,
+  FileOrDirInfo,
 } from './sharedDirectoryManager';
 
 export enum TdpClientEvent {
@@ -227,12 +230,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.sendSharedDirectoryInfoResponse({
         completionId: req.completionId,
         errCode: SharedDirectoryErrCode.Nil,
-        fso: {
-          lastModified: BigInt(info.lastModified),
-          fileType: info.kind === 'file' ? FileType.File : FileType.Directory,
-          size: BigInt(info.size),
-          path: path,
-        },
+        fso: this.toFso(info),
       });
     } catch (e) {
       if (e.constructor === PathDoesNotExistError) {
@@ -252,13 +250,33 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
-    const req = this.codec.decodeSharedDirectoryListRequest(buffer);
-    // TODO(isaiah): remove this once we handle SharedDirectoryListResponse
-    this.logger.debug(
-      'Received SharedDirectoryListRequest: ' + JSON.stringify(req)
-    );
-    // TODO(isaiah): here's where we'll send back a SharedDirectoryListResponse
+  async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
+    try {
+      const req = this.codec.decodeSharedDirectoryListRequest(buffer);
+      const path = req.path;
+
+      const infoList: FileOrDirInfo[] = await this.sdManager.listContents(path);
+      const fsoList: FileSystemObject[] = infoList.map(info =>
+        this.toFso(info)
+      );
+
+      this.sendSharedDirectoryListResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+        fsoList,
+      });
+    } catch (e) {
+      this.handleError(e);
+    }
+  }
+
+  private toFso(info: FileOrDirInfo): FileSystemObject {
+    return {
+      lastModified: BigInt(info.lastModified),
+      fileType: info.kind === 'file' ? FileType.File : FileType.Directory,
+      size: BigInt(info.size),
+      path: info.path,
+    };
   }
 
   protected send(
@@ -332,6 +350,10 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse) {
     this.send(this.codec.encodeSharedDirectoryInfoResponse(res));
+  }
+
+  sendSharedDirectoryListResponse(res: SharedDirectoryListResponse) {
+    this.send(this.codec.encodeSharedDirectoryListResponse(res));
   }
 
   resize(spec: ClientScreenSpec) {
