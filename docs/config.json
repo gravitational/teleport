@@ -795,6 +795,10 @@
 		{
 		    "title": "Slack",
 		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		},
+		{
+		    "title": "Email",
+		    "slug": "/access-controls/access-request-plugins/ssh-approval-email/"
 		}
 	    ]
 	},
