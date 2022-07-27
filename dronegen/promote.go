@@ -17,10 +17,9 @@ package main
 import "fmt"
 
 func promoteBuildPipelines() []pipeline {
-	aptPipeline := promoteAptPipeline()
 	dockerPipelineECR := buildDockerPromotionPipelineECR()
 	dockerPipelineQuay := buildDockerPromotionPipelineQuay()
-	return []pipeline{aptPipeline, dockerPipelineECR, dockerPipelineQuay}
+	return []pipeline{dockerPipelineECR, dockerPipelineQuay}
 }
 
 func buildDockerPromotionPipelineECR() pipeline {

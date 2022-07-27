@@ -43,6 +43,12 @@ var (
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
 	}
 
+	triggerPromote = trigger{
+		Event:  triggerRef{Include: []string{"promote"}},
+		Target: triggerRef{Include: []string{"production"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
+
 	volumeDocker = volume{
 		Name: "dockersock",
 		Temp: &volumeTemp{},
