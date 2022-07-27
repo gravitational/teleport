@@ -61,6 +61,7 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 		// the agent reads them from SQLite and dumps into Kubernetes Secret.
 		// TODO(tigrato): remove this once the compatibility layer between local
 		// storage and Kube secret storage is no longer required!
+		// DELETE IN: 12.0.0
 		if !kubeStorage.Exists(ctx) {
 			if err := copyLocalStorageIntoKubernetes(ctx, kubeStorage, litebk); err != nil {
 				return nil, trace.Wrap(err)

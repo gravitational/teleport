@@ -70,14 +70,29 @@ type Config struct {
 	KubeClient kubernetes.Interface
 }
 
+func (c Config) Check() error {
+	if len(c.Namespace) == 0 {
+		return trace.BadParameter("missing namespace")
+	}
+
+	if len(c.SecretName) == 0 {
+		return trace.BadParameter("missing secret name")
+	}
+
+	if len(c.ReplicaName) == 0 {
+		return trace.BadParameter("missing replica name")
+	}
+
+	if c.KubeClient == nil {
+		return trace.BadParameter("missing Kubernetes client")
+	}
+
+	return nil
+}
+
 // Backend uses Kubernetes Secrets to store identities.
 type Backend struct {
-	// kubernetes client
-	k8sClientSet kubernetes.Interface
-	namespace    string
-	secretName   string
-	replicaName  string
-	releaseName  string
+	Config
 
 	// Mutex is used to limit the number of concurrent operations per agent to 1 so we do not need
 	// to handle retries locally.
@@ -99,7 +114,7 @@ func New() (*Backend, error) {
 func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 	for _, env := range []string{teleportReplicaNameEnv, namespaceEnv} {
 		if len(os.Getenv(env)) == 0 {
-			return nil, trace.BadParameter("environment variable \"%s\" not set or empty", env)
+			return nil, trace.BadParameter("environment variable %q not set or empty", env)
 		}
 	}
 
@@ -120,17 +135,13 @@ func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 
 // NewWithConfig returns a new instance of Kubernetes Secret identity backend storage with the provided config.
 func NewWithConfig(conf Config) (*Backend, error) {
-	if err := validateConfig(conf); err != nil {
-		return nil, err
+	if err := conf.Check(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &Backend{
-		k8sClientSet: conf.KubeClient,
-		namespace:    conf.Namespace,
-		replicaName:  conf.ReplicaName,
-		secretName:   conf.SecretName,
-		releaseName:  conf.ReleaseName,
-		mu:           sync.Mutex{},
+		Config: conf,
+		mu:     sync.Mutex{},
 	}, nil
 }
 
@@ -182,18 +193,18 @@ func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
 	defer b.mu.Unlock()
 
 	_, err := b.updateSecretContent(ctx, items...)
-	return err
+	return trace.Wrap(err)
 }
 
 // getSecret reads the secret from K8S API.
 func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
-	secret, err := b.k8sClientSet.
+	secret, err := b.KubeClient.
 		CoreV1().
-		Secrets(b.namespace).
-		Get(ctx, b.secretName, metav1.GetOptions{})
+		Secrets(b.Namespace).
+		Get(ctx, b.SecretName, metav1.GetOptions{})
 
 	if kubeerrors.IsNotFound(err) {
-		return nil, trace.NotFound("secret %v not found", b.secretName)
+		return nil, trace.NotFound("secret %v not found", b.SecretName)
 	}
 
 	return secret, trace.Wrap(err)
@@ -209,7 +220,7 @@ func (b *Backend) readSecretData(ctx context.Context, key []byte) (*backend.Item
 
 	data, ok := secret.Data[backendKeyToSecret(key)]
 	if !ok || len(data) == 0 {
-		return nil, trace.NotFound("key [%s] not found in secret %s", string(key), b.secretName)
+		return nil, trace.NotFound("key [%s] not found in secret %s", string(key), b.SecretName)
 	}
 
 	return &backend.Item{
@@ -243,7 +254,7 @@ func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item
 }
 
 func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error {
-	secretApply := applyconfigv1.Secret(b.secretName, b.namespace).
+	secretApply := applyconfigv1.Secret(b.SecretName, b.Namespace).
 		WithData(secret.Data).
 		WithLabels(secret.GetLabels()).
 		WithAnnotations(secret.GetAnnotations())
@@ -253,10 +264,10 @@ func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error
 		secretApply = secretApply.WithResourceVersion(secret.ResourceVersion)
 	}
 
-	_, err := b.k8sClientSet.
+	_, err := b.KubeClient.
 		CoreV1().
-		Secrets(b.namespace).
-		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.replicaName})
+		Secrets(b.Namespace).
+		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.ReplicaName})
 
 	return trace.Wrap(err)
 }
@@ -265,9 +276,9 @@ func (b *Backend) genSecretObject() *corev1.Secret {
 	return &corev1.Secret{
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        b.secretName,
-			Namespace:   b.namespace,
-			Annotations: generateSecretAnnotations(b.namespace, b.releaseName),
+			Name:        b.SecretName,
+			Namespace:   b.Namespace,
+			Annotations: generateSecretAnnotations(b.Namespace, b.ReleaseName),
 		},
 		Data: map[string][]byte{},
 	}
@@ -302,24 +313,4 @@ func updateDataMap(data map[string][]byte, items ...backend.Item) {
 	for _, item := range items {
 		data[backendKeyToSecret(item.Key)] = item.Value
 	}
-}
-
-func validateConfig(c Config) error {
-	if len(c.Namespace) == 0 {
-		return trace.BadParameter("missing namespace")
-	}
-
-	if len(c.SecretName) == 0 {
-		return trace.BadParameter("missing secret name")
-	}
-
-	if len(c.ReplicaName) == 0 {
-		return trace.BadParameter("missing replica name")
-	}
-
-	if c.KubeClient == nil {
-		return trace.BadParameter("missing Kubernetes client")
-	}
-
-	return nil
 }
