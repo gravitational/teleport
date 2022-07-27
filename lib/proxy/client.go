@@ -72,8 +72,10 @@ type ClientConfig struct {
 	sync func()
 }
 
+// connShuffler shuffles the order of client connections.
 type connShuffler func([]*clientConn)
 
+// randomConnShuffler returns a conn shuffler that randomizes the order of connections.
 func randomConnShuffler() connShuffler {
 	return func(conns []*clientConn) {
 		rand.Shuffle(len(conns), func(i, j int) {
@@ -82,7 +84,8 @@ func randomConnShuffler() connShuffler {
 	}
 }
 
-func noOpConnShuffler() connShuffler {
+// noopConnShutffler returns a conn shuffler that keeps the original connection ordering.
+func noopConnShuffler() connShuffler {
 	return func([]*clientConn) {}
 }
 
@@ -443,7 +446,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
-			errs = append(errs, err)
+			errs = append(errs, trace.ConnectionProblem(err, "error starting stream"))
 			continue
 		}
 		err = stream.Send(&clientapi.Frame{
@@ -452,12 +455,12 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 			},
 		})
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame"))
 			continue
 		}
 		msg, err := stream.Recv()
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response"))
 			continue
 		}
 		if msg.GetConnectionEstablished() == nil {
@@ -465,7 +468,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 			if err != nil {
 				c.config.Log.Debugf("error closing stream: %w", err)
 			}
-			errs = append(errs, err)
+			errs = append(errs, trace.ConnectionProblem(nil, "received malformed connection established frame"))
 			continue
 		}
 
