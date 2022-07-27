@@ -41,6 +41,7 @@ export enum MessageType {
   SHARED_DIRECTORY_ACKNOWLEDGE = 12,
   SHARED_DIRECTORY_INFO_REQUEST = 13,
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
+  SHARED_DIRECTORY_READ_REQUEST = 19,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -116,6 +117,16 @@ export type SharedDirectoryInfoResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
+};
+
+// | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
+export type SharedDirectoryReadRequest = {
+  completionId: number;
+  directoryId: number;
+  path: string;
+  pathLength: number;
+  offset: bigint;
+  length: number;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -679,6 +690,37 @@ export default class Codec {
       completionId,
       directoryId,
       path,
+    };
+  }
+
+  // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
+  decodeSharedDirectoryReadRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryReadRequest {
+    const dv = new DataView(buffer);
+    let bufOffset = 0;
+    bufOffset += byteLength; // eat message type
+    let completionId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat completion_id
+    let directoryId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat path_length
+    let path = this.decoder.decode(
+      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+    );
+    bufOffset += pathLength; // eat path
+    let offset = dv.getBigUint64(bufOffset);
+    bufOffset += uint64Length; // eat offset
+    let length = dv.getUint32(bufOffset);
+
+    return {
+      completionId,
+      directoryId,
+      pathLength,
+      path,
+      offset,
+      length,
     };
   }
 
