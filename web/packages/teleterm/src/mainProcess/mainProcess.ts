@@ -1,7 +1,13 @@
 import { ChildProcess, fork, spawn } from 'child_process';
 import path from 'path';
 
-import { app, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
+import {
+  app,
+  ipcMain,
+  shell,
+  Menu,
+  MenuItemConstructorOptions,
+} from 'electron';
 
 import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -153,12 +159,7 @@ export default class MainProcess {
       },
       {
         role: 'help',
-        submenu: [
-          {
-            label: 'Learn More',
-            click: () => {}, // TODO: add link to Connect docs
-          },
-        ],
+        submenu: [{ label: 'Learn More', click: openDocsUrl }],
       },
     ];
 
@@ -170,14 +171,8 @@ export default class MainProcess {
       {
         role: 'help',
         submenu: [
-          {
-            label: 'Learn More',
-            click: () => {}, // TODO: add link to Connect docs
-          },
-          {
-            label: 'About',
-            role: 'about',
-          },
+          { label: 'Learn More', click: openDocsUrl },
+          { label: 'About Teleport Connect', role: 'about' },
         ],
       },
     ];
@@ -185,4 +180,10 @@ export default class MainProcess {
     const menu = Menu.buildFromTemplate(isMac ? macTemplate : otherTemplate);
     Menu.setApplicationMenu(menu);
   }
+}
+
+const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
+
+function openDocsUrl() {
+  shell.openExternal(DOCS_URL);
 }
