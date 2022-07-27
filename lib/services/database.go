@@ -468,7 +468,7 @@ const (
 	// rdsEndpointSuffix is the RDS/Aurora endpoint suffix.
 	rdsEndpointSuffix = ".rds.amazonaws.com"
 	// labelTeleportDBName is the label key containing the database name override.
-	labelTeleportDBName = "teleport.dev/database-name"
+	labelTeleportDBName = "teleport.dev/database_name"
 )
 
 const (
