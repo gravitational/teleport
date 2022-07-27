@@ -81,6 +81,26 @@ export class SharedDirectoryManager {
     return infos;
   }
 
+  // Reads length bytes starting at offset from a file at path.
+  async readFile(
+    path: string,
+    offset: bigint,
+    length: number
+  ): Promise<Uint8Array> {
+    this.checkReady();
+
+    const fileHandle = await this.walkPath(path);
+    if (fileHandle.kind !== 'file') {
+      throw new Error('cannot read the bytes of a directory');
+    }
+
+    const file = await fileHandle.getFile();
+
+    return new Uint8Array(
+      await file.slice(Number(offset), Number(offset) + length).arrayBuffer()
+    );
+  }
+
   // walkPath walks a pathstr (assumed to be in the qualified Unix format specified
   // in the TDP spec), returning the FileSystemDirectoryHandle | FileSystemFileHandle
   // it finds at its end. If the pathstr isn't a valid path in the shared directory,

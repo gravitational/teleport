@@ -42,6 +42,7 @@ export enum MessageType {
   SHARED_DIRECTORY_INFO_REQUEST = 13,
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
   SHARED_DIRECTORY_READ_REQUEST = 19,
+  SHARED_DIRECTORY_READ_RESPONSE = 20,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -127,6 +128,14 @@ export type SharedDirectoryReadRequest = {
   pathLength: number;
   offset: bigint;
   length: number;
+};
+
+// | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
+export type SharedDirectoryReadResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
+  readDataLength: number;
+  readData: Uint8Array;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -525,6 +534,29 @@ export default class Codec {
       ...new Uint8Array(bufferSansFso),
       ...new Uint8Array(fsoBuffer),
     ]).buffer;
+  }
+
+  // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
+    const bufLen =
+      byteLength + 3 * uint32Length + byteLength * res.readDataLength;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.SHARED_DIRECTORY_READ_RESPONSE);
+    offset += byteLength;
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
+    offset += uint32Length;
+    view.setUint32(offset, res.readDataLength);
+    offset += uint32Length;
+    res.readData.forEach(byte => {
+      view.setUint8(offset++, byte);
+    });
+
+    return buffer;
   }
 
   // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |

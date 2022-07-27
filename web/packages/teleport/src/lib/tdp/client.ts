@@ -29,6 +29,7 @@ import Codec, {
   SharedDirectoryErrCode,
   SharedDirectoryInfoResponse,
   SharedDirectoryListResponse,
+  SharedDirectoryReadResponse,
   FileSystemObject,
 } from './codec';
 import {
@@ -253,12 +254,23 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
-    // TODO(isaiah): delete debug logs
-    this.logger.debug('Received SharedDirectoryReadRequest:');
-    this.logger.debug(req);
-    // TODO(isaiah): here's where we'll handle the SharedDirectoryReadResponse.
+    try {
+      const readData = await this.sdManager.readFile(
+        req.path,
+        req.offset,
+        req.length
+      );
+      this.sendSharedDirectoryReadResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+        readDataLength: readData.length,
+        readData,
+      });
+    } catch (e) {
+      this.handleError(e);
+    }
   }
 
   async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
@@ -365,6 +377,10 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendSharedDirectoryListResponse(res: SharedDirectoryListResponse) {
     this.send(this.codec.encodeSharedDirectoryListResponse(res));
+  }
+
+  sendSharedDirectoryReadResponse(response: SharedDirectoryReadResponse) {
+    this.send(this.codec.encodeSharedDirectoryReadResponse(response));
   }
 
   resize(spec: ClientScreenSpec) {
