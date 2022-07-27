@@ -8,7 +8,7 @@ other resources such as Kubernetes clusters and applications coming in the futur
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster.png)
 
-## Installation & Upgrade
+## Installation & upgrade
 
 Head over to the [Downloads](https://goteleport.com/download/) page to download the most recent
 version of Teleport Connect. As of now, Teleport Connect supports macOS only. Double-click the
@@ -16,9 +16,9 @@ downloaded `.dmg` file and drag the Teleport Connect icon to the Applications fo
 
 To upgrade Teleport Connect to a newer version, drag the new version to the Applications folder.
 
-## Interface Overview
+## User interface
 
-![interface overview of Teleport Connect](../../img/use-teleport/connect-ui-overview.png)
+![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview.png)
 
 The top bar of Teleport Connect consists of:
 
@@ -42,7 +42,7 @@ The top bar of Teleport Connect consists of:
 Alternatively, you can type `tsh ssh` into the command bar and the autocompletion will help you
 connect to a server.
 
-## Connecting to a Database
+## Connecting to a database
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
    can also press `Cmd + T` to achieve the same result.
@@ -56,18 +56,18 @@ This connection will remain active until you click the Close Connection button o
 Connect. The port number will persist between app restarts – you can set up your favorite client
 without worrying about the port suddenly changing.
 
-### With a GUI Client
+### With a GUI client
 
 To connect with a GUI client, follow the instructions in the database connection tab under the
 Connect with GUI section.
 
-### With a CLI Client
+### With a CLI client
 
 The database connection tab shows the command that can be used to connect to the database. You can
 modify the database name of the connection and then click the Run button to open a new
 terminal tab with that command executed.
 
-## Connecting to Multiple Clusters
+## Connecting to multiple clusters
 
 After you add your first cluster, you can keep adding more by opening the profile selector in the
 top right and clicking at the *+ Add another cluster* button.
@@ -75,7 +75,7 @@ top right and clicking at the *+ Add another cluster* button.
 At the moment Teleport Connect supports only one user per cluster. To log in as a different user,
 log out of the cluster first.
 
-## Restarting and Reconnecting
+## Restarting and reconnecting
 
 Before closing, Teleport Connect will remember the tabs that you had open at the end of the session.
 Next time you open the app, Connect will ask you if you want to reopen those tabs. If you agree,
@@ -93,7 +93,7 @@ To force the app to log you out of all clusters, close the app and remove the `~
 Support/Teleport Connect/tsh` folder. Removing the file under `~/Library/Application
 Support/Teleport Connect/app_state.json` will clear all remembered tabs and connections.
 
-### Submitting an Issue
+### Submitting an issue
 
 To submit an issue, click the Submit Feedback button at the bottom right (the speech bubble symbol)
 and follow the *Submit a Bug* link.
