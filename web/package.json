@@ -23,7 +23,8 @@
     "eslint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check 'packages/**/*.{ts,tsx,js,jsx,md}'",
-    "prettier-write": "yarn prettier --write 'packages/**/*.{ts,tsx,js,jsx,md}'"
+    "prettier-write": "yarn prettier --write 'packages/**/*.{ts,tsx,js,jsx,md}'",
+    "nop": "exit 0"
   },
   "private": true,
   "resolutions": {
