@@ -102,8 +102,10 @@ type InstanceMetadataClient struct {
 	c *imds.Client
 }
 
+// InstanceMetadataClientOption allows setting options as functional arguments to an InstanceMetadataClient.
 type InstanceMetadataClientOption func(client *InstanceMetadataClient) error
 
+// WithIMDSClient adds a custom internal imds.Client to an InstanceMetadataClient.
 func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
 	return func(clt *InstanceMetadataClient) error {
 		clt.c = client
