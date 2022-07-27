@@ -122,6 +122,9 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+
+	Cert            []byte `json:"cert,omitempty"`
+	AttestationCert []byte `json:"attestation_cert,omitempty"`
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -178,6 +181,9 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+
+	Cert            []byte
+	AttestationCert []byte
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
@@ -350,6 +356,8 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
+		Cert:              login.Cert,
+		AttestationCert:   login.AttestationCert,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

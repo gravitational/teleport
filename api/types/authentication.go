@@ -80,6 +80,11 @@ type AuthPreference interface {
 	// SetWebauthn sets the Webauthn configuration settings.
 	SetWebauthn(*Webauthn)
 
+	// GetYubikeyLogin returns the YubikeyLogin configuration settings.
+	GetYubikeyLogin() *YubikeyLogin
+	// SetYubikeyLogin sets the YubikeyLogin configuration settings.
+	SetYubikeyLogin(*YubikeyLogin)
+
 	// GetAllowPasswordless returns if passwordless is allowed by cluster
 	// settings.
 	GetAllowPasswordless() bool
@@ -327,6 +332,14 @@ func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
 
 func (c *AuthPreferenceV2) SetWebauthn(w *Webauthn) {
 	c.Spec.Webauthn = w
+}
+
+func (c *AuthPreferenceV2) GetYubikeyLogin() *YubikeyLogin {
+	return c.Spec.YubikeyLogin
+}
+
+func (c *AuthPreferenceV2) SetYubikeyLogin(w *YubikeyLogin) {
+	c.Spec.YubikeyLogin = w
 }
 
 func (c *AuthPreferenceV2) GetAllowPasswordless() bool {

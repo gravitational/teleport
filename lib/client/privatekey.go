@@ -49,6 +49,7 @@ type PrivateKey interface {
 
 	AsAgentKeys(*ssh.Certificate) []agent.AddedKey
 	TLSCertificate(tlsCert []byte) (tls.Certificate, error)
+	AttestationCerts() (cert []byte, attestationCert []byte, err error)
 
 	// TODO: nontrivial to remove these remaining usages
 	PrivateKeyPEMTODO() []byte
@@ -101,6 +102,11 @@ func (r *RSAPrivateKey) TLSCertificate(certRaw []byte) (cert tls.Certificate, er
 		return cert, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+func (r *RSAPrivateKey) AttestationCerts() ([]byte, []byte, error) {
+	//noop
+	return nil, nil, nil
 }
 
 func (r *RSAPrivateKey) Equal(other crypto.PrivateKey) bool {

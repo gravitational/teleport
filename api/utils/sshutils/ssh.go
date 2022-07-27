@@ -52,6 +52,14 @@ type HandshakePayload struct {
 	TracingContext map[string]string `json:"tracingContext,omitempty"`
 }
 
+func MarshalPublicKeyForSSH(pub crypto.PublicKey) ([]byte, error) {
+	sshPublicKey, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ssh.MarshalAuthorizedKey(sshPublicKey), nil
+}
+
 // ParseCertificate parses an SSH certificate from the authorized_keys format.
 func ParseCertificate(buf []byte) (*ssh.Certificate, error) {
 	k, _, _, _, err := ssh.ParseAuthorizedKey(buf)

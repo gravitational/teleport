@@ -32,6 +32,40 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+const (
+	YubikeyPolicyNever  = "never"
+	YubikeyPolicyOnce   = "once"
+	YubikeyPolicyAlways = "always"
+)
+
+var YubikeyPolicyOptions = []string{YubikeyPolicyNever, YubikeyPolicyOnce, YubikeyPolicyAlways}
+
+func ParseYubikeyPinPolicy(policy string) (piv.PINPolicy, error) {
+	switch policy {
+	case YubikeyPolicyNever:
+		return piv.PINPolicyNever, nil
+	case YubikeyPolicyOnce:
+		return piv.PINPolicyOnce, nil
+	case YubikeyPolicyAlways:
+		return piv.PINPolicyAlways, nil
+	default:
+		return 0, trace.BadParameter("invalid yubikey pin policy  %q, must be one of %v", policy, YubikeyPolicyOptions)
+	}
+}
+
+func ParseYubikeyTouchPolicy(policy string) (piv.TouchPolicy, error) {
+	switch policy {
+	case YubikeyPolicyNever:
+		return piv.TouchPolicyNever, nil
+	case YubikeyPolicyOnce:
+		return piv.TouchPolicyCached, nil
+	case YubikeyPolicyAlways:
+		return piv.TouchPolicyAlways, nil
+	default:
+		return 0, trace.BadParameter("invalid yubikey touch policy %q, must be one of %v", policy, YubikeyPolicyOptions)
+	}
+}
+
 // YkPrivateKey is a keypair generated and held on a yubikey
 type YkPrivateKey struct {
 	card        string
@@ -39,8 +73,6 @@ type YkPrivateKey struct {
 	pinPolicy   piv.PINPolicy
 	touchPolicy piv.TouchPolicy
 }
-
-const yubikeyKeyDataPrefix = "yubikey-key"
 
 // GetYkPrivateKey connects to a yubikey to get private key information
 // that can be used for subsequent key operations.
@@ -50,7 +82,7 @@ const yubikeyKeyDataPrefix = "yubikey-key"
 // yubikey key (not imported). If verified, we take the public key from
 // the cert for further key operations.
 func GetYkPrivateKey() (*YkPrivateKey, error) {
-	card, err := getFirstYubikeyCard()
+	card, err := GetYubikeyCard()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,8 +116,8 @@ func GetYkPrivateKey() (*YkPrivateKey, error) {
 	}, nil
 }
 
-func GenerateYkPrivateKey(keyOpts piv.Key) (*YkPrivateKey, error) {
-	card, err := getFirstYubikeyCard()
+func GenerateYkPrivateKey(pinPolicy piv.PINPolicy, touchPolicy piv.TouchPolicy) (*YkPrivateKey, error) {
+	card, err := GetYubikeyCard()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +128,10 @@ func GenerateYkPrivateKey(keyOpts piv.Key) (*YkPrivateKey, error) {
 	}
 	defer yk.Close()
 
-	// TODO: check if slot is in use and prompt user to overwrite
+	// TODO: slot key is already set, do we want to overwrite? prompt user?
+	// if _, err := yk.Attest(piv.SlotAuthentication); err == nil {
+	// 	// slot in use
+	// }
 
 	// TODO: prompt user to set pin and management key
 	// yk.SetPIN()
@@ -106,13 +141,17 @@ func GenerateYkPrivateKey(keyOpts piv.Key) (*YkPrivateKey, error) {
 	managementKey := piv.DefaultManagementKey
 
 	fmt.Println("generating yubikey private key")
-	pub, err := yk.GenerateKey(managementKey, piv.SlotAuthentication, keyOpts)
+	pub, err := yk.GenerateKey(managementKey, piv.SlotAuthentication, piv.Key{
+		Algorithm:   piv.AlgorithmEC256,
+		PINPolicy:   pinPolicy,
+		TouchPolicy: touchPolicy,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Cache the user's touch now by performing a fake signature.
-	if keyOpts.TouchPolicy == piv.TouchPolicyCached {
+	if touchPolicy == piv.TouchPolicyCached {
 		// TODO: use pin set above
 		auth := piv.KeyAuth{PIN: piv.DefaultPIN}
 
@@ -128,10 +167,34 @@ func GenerateYkPrivateKey(keyOpts piv.Key) (*YkPrivateKey, error) {
 	return &YkPrivateKey{
 		card:        card,
 		pub:         pub,
-		pinPolicy:   keyOpts.PINPolicy,
-		touchPolicy: keyOpts.TouchPolicy,
+		pinPolicy:   pinPolicy,
+		touchPolicy: touchPolicy,
 	}, nil
 }
+
+func (pk *YkPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	yk, err := openYubikey(pk.card)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	// TODO: prompt user for pin
+	auth := piv.KeyAuth{PIN: piv.DefaultPIN}
+
+	privateKey, err := yk.PrivateKey(piv.SlotAuthentication, pk.pub, auth)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if pk.touchPolicy == piv.TouchPolicyAlways {
+		fmt.Printf("\ntap your yubikey\n")
+	}
+
+	return privateKey.(crypto.Signer).Sign(rand, digest, opts)
+}
+
+const yubikeyKeyDataPrefix = "yubikey-key"
 
 func (pk *YkPrivateKey) PrivateKeyData() []byte {
 	return []byte(fmt.Sprintf("%s %s", yubikeyKeyDataPrefix, pk.card))
@@ -158,26 +221,24 @@ func (pk *YkPrivateKey) TLSCertificate(cert []byte) (tls.Certificate, error) {
 	}, nil
 }
 
-func (pk *YkPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+func (pk *YkPrivateKey) AttestationCerts() ([]byte, []byte, error) {
 	yk, err := openYubikey(pk.card)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer yk.Close()
 
-	// TODO: prompt user for pin
-	auth := piv.KeyAuth{PIN: piv.DefaultPIN}
-
-	privateKey, err := yk.PrivateKey(piv.SlotAuthentication, pk.pub, auth)
+	cert, err := yk.Attest(piv.SlotAuthentication)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	if pk.touchPolicy == piv.TouchPolicyAlways {
-		fmt.Printf("\ntap your yubikey\n")
+	attestationCert, err := yk.AttestationCertificate()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return privateKey.(crypto.Signer).Sign(rand, digest, opts)
+	return cert.Raw, attestationCert.Raw, nil
 }
 
 func (pk *YkPrivateKey) AsAgentKeys(cert *ssh.Certificate) []agent.AddedKey {
@@ -209,17 +270,25 @@ func openYubikey(card string) (yk *piv.YubiKey, err error) {
 	return nil, trace.Wrap(err)
 }
 
-func getFirstYubikeyCard() (string, error) {
+func GetYubikeyCard() (string, error) {
 	cards, err := piv.Cards()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
+	var yubikeyCards []string
 	for _, card := range cards {
 		if strings.Contains(strings.ToLower(card), "yubikey") {
-			return card, nil
+			yubikeyCards = append(yubikeyCards, card)
 		}
 	}
 
-	return "", trace.NotFound("no yubikey devices available")
+	switch len(yubikeyCards) {
+	case 0:
+		return "", trace.NotFound("no yubikey device detected")
+	case 1:
+		return yubikeyCards[0], nil
+	default:
+		return "", trace.BadParameter("more than one yubikey device detected, please connect one yubikey you wish to use")
+	}
 }

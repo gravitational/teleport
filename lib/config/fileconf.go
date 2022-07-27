@@ -842,6 +842,8 @@ type AuthenticationConfig struct {
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
 	Passwordless *types.BoolOption `yaml:"passwordless"`
+
+	YubikeyLogin *YubikeyLogin `yaml:"yubikey_login,omitempty"`
 }
 
 // Parse returns a types.AuthPreference (type, second factor, U2F).
@@ -864,6 +866,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var y *types.YubikeyLogin
+	if a.YubikeyLogin != nil {
+		y, err = a.YubikeyLogin.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -874,6 +884,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
+		YubikeyLogin:      y,
 	})
 }
 
@@ -960,6 +971,32 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	return string(data), nil // OK, valid PEM file
+}
+
+type YubikeyLogin struct {
+	Required    bool   `yaml:"required,omitempty"`
+	PinPolicy   string `yaml:"pin_policy,omitempty"`
+	TouchPolicy string `yaml:"touch_policy,omitempty"`
+}
+
+func (y *YubikeyLogin) Parse() (*types.YubikeyLogin, error) {
+	if y.PinPolicy != "" {
+		if _, err := client.ParseYubikeyPinPolicy(y.PinPolicy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if y.TouchPolicy != "" {
+		if _, err := client.ParseYubikeyTouchPolicy(y.TouchPolicy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &types.YubikeyLogin{
+		Required:    y.Required,
+		PinPolicy:   y.PinPolicy,
+		TouchPolicy: y.TouchPolicy,
+	}, nil
 }
 
 // SSH is 'ssh_service' section of the config file

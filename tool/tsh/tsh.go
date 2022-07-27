@@ -285,6 +285,10 @@ type CLIConf struct {
 	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
 
+	YubikeyLogin       bool
+	YubikeyPINPolicy   string
+	YubikeyTouchPolicy string
+
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
 	// command/shell execution. This also requires stdin to be an interactive
 	// terminal.
@@ -511,6 +515,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
+	// TODO: yubikey options should be settable through tsh config/envvar
+	app.Flag("yubikey", "Use yubikey PIV to private key data.").Short('y').BoolVar(&cf.YubikeyLogin)
+	app.Flag("yubikey-pin-policy", fmt.Sprintf("Control how often you need to enter your yubikey PIN to access the yubikey private key data. Valid values are %v.", client.YubikeyPolicyOptions)).Default(client.YubikeyPolicyAlways).StringVar(&cf.YubikeyPINPolicy)
+	app.Flag("yubikey-touch-policy", fmt.Sprintf("Control how often you need to touch your yubikey to access the yubikey private key data. Valid values are %v.", client.YubikeyPolicyOptions)).Default(client.YubikeyPolicyAlways).StringVar(&cf.YubikeyTouchPolicy)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
@@ -3043,6 +3051,16 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c.AddKeysToAgent = cf.AddKeysToAgent
 	if !cf.UseLocalSSHAgent {
 		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
+	c.YubikeyLogin = cf.YubikeyLogin
+	c.YubikeyPINPolicy, err = client.ParseYubikeyPinPolicy(cf.YubikeyPINPolicy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.YubikeyTouchPolicy, err = client.ParseYubikeyTouchPolicy(cf.YubikeyTouchPolicy)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	c.EnableEscapeSequences = cf.EnableEscapeSequences

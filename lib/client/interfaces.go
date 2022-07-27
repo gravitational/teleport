@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -92,28 +91,14 @@ type Key struct {
 	TrustedCA []auth.TrustedCerts
 }
 
-var defaultKeyOpts = piv.Key{
-	Algorithm:   piv.AlgorithmEC256,
-	PINPolicy:   piv.PINPolicyNever,
-	TouchPolicy: piv.TouchPolicyNever,
-}
-
 // GenerateKey generates a new unsigned key. Such key must be signed by a
 // Teleport CA (auth server) before it becomes useful.
 func GenerateKey() (*Key, error) {
-	// Attempt to generate a yubikey private key.
-	if pk, err := GenerateYkPrivateKey(defaultKeyOpts); err == nil {
-		return newKey(pk), nil
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// If no yubikey card is found, generate a lone RSA key.
 	pk, err := GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newKey(pk), nil
+	return NewKey(pk), nil
 }
 
 // ParsePrivateKey returns a new KeyPair for the given private key data and public key PEM.
@@ -127,9 +112,9 @@ func ParsePrivateKey(privateKeyData, pubPEM []byte) (PrivateKey, error) {
 	return ParseRSAPrivateKey(privateKeyData, pubPEM), nil
 }
 
-func newKey(kp PrivateKey) (key *Key) {
+func NewKey(pk PrivateKey) (key *Key) {
 	return &Key{
-		PrivateKey:          kp,
+		PrivateKey:          pk,
 		KubeTLSCerts:        make(map[string][]byte),
 		DBTLSCerts:          make(map[string][]byte),
 		AppTLSCerts:         make(map[string][]byte),

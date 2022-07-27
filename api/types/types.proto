@@ -1151,6 +1151,8 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "allow_passwordless,omitempty",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    YubikeyLogin YubikeyLogin = 12 [ (gogoproto.jsontag) = "yubikey_login,omitempty" ];
 }
 
 // U2F defines settings for U2F device.
@@ -1168,6 +1170,12 @@ message U2F {
     // DELETE IN 11.0, time to sunset U2F (codingllama).
     repeated string DeviceAttestationCAs = 3
         [ (gogoproto.jsontag) = "device_attestation_cas,omitempty" ];
+}
+
+message YubikeyLogin {
+    bool Required = 1 [ (gogoproto.jsontag) = "required,omitempty" ];
+    string PinPolicy = 2 [ (gogoproto.jsontag) = "pin_policy,omitempty" ];
+    string TouchPolicy = 3 [ (gogoproto.jsontag) = "touch_policy,omitempty" ];
 }
 
 // Webauthn defines user-visible settings for server-side Web Authentication

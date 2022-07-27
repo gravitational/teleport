@@ -18,9 +18,12 @@ package auth
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"errors"
 	"time"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -31,6 +34,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -356,6 +360,9 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
+	Cert            []byte `json:"cert,omitempty"`
+	AttestationCert []byte `json:"attestation_cert,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -503,6 +510,43 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if ykl := authPref.GetYubikeyLogin(); ykl != nil && ykl.Required {
+		if req.Cert == nil || req.AttestationCert == nil {
+			return nil, trace.AccessDenied("yubikey login is requried")
+		}
+
+		cert, err := x509.ParseCertificate(req.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		reqPublicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPublicKey, ok := cert.PublicKey.(interface{ Equal(x crypto.PublicKey) bool })
+		if !ok {
+			return nil, trace.BadParameter("invalid cert")
+		} else if !certPublicKey.Equal(reqPublicKey) {
+			return nil, trace.BadParameter("attestation certificate signed by a different key than the one being attested")
+		}
+
+		attestationCert, err := x509.ParseCertificate(req.AttestationCert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, err = piv.Verify(attestationCert, cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		log.Debug("Successful attestation")
+
+		// TODO: check pin/touch policies
+	}
+
 	UserLoginCount.Inc()
 	return &SSHLoginResponse{
 		Username:    username,
