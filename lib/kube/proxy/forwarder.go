@@ -1527,12 +1527,11 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:             req.Context(),
-		authCtx:         ctx,
-		dial:            sess.DialWithContext,
-		tlsConfig:       sess.tlsConfig,
-		followRedirects: true,
-		pingPeriod:      f.cfg.ConnPingPeriod,
+		ctx:        req.Context(),
+		authCtx:    ctx,
+		dial:       sess.DialWithContext,
+		tlsConfig:  sess.tlsConfig,
+		pingPeriod: f.cfg.ConnPingPeriod,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -1547,12 +1546,11 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:             req.Context(),
-		authCtx:         ctx,
-		dial:            sess.DialWithContext,
-		tlsConfig:       sess.tlsConfig,
-		followRedirects: true,
-		pingPeriod:      f.cfg.ConnPingPeriod,
+		ctx:        req.Context(),
+		authCtx:    ctx,
+		dial:       sess.DialWithContext,
+		tlsConfig:  sess.tlsConfig,
+		pingPeriod: f.cfg.ConnPingPeriod,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
