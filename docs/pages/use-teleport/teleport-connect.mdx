@@ -92,8 +92,10 @@ progress when the app was closed. It will only restore the working directory for
 
 ## Troubleshooting
 
-In an attempt to resolve issues with a cluster you can try logging out of it, closing the app and
-logging in again.
+Logging out of a cluster, closing the app and logging in again resets all app state related to that
+cluster. This can help if you encounter a bug which renders the user interface partially unusable.
+It might also help if you have issues with connecting to an active cluster that don't happen in the
+Web UI.
 
 To force the app to log you out of all clusters, close the app and remove the `~/Library/Application
 Support/Teleport Connect/tsh` folder. Removing the file under `~/Library/Application
