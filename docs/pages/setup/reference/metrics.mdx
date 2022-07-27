@@ -99,9 +99,12 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `backend_batch_write_seconds` | histogram | cache | Latency for backend batch write operations. |
 | `backend_read_requests_total` | counter | cache | Number of read requests to the backend. |
 | `backend_read_seconds` | histogram | cache | Latency for read operations. |
-| `backend_requests` | counter | cache | Number of write requests to the backend. |
+| `backend_write_requests_total` | counter | cache | Number of write requests to the backend. |
 | `backend_write_seconds` | histogram | cache | Latency for backend write operations. |
 | `cluster_name_not_found_total` | counter | Teleport Auth | Number of times a cluster was not found. |
+| `dynamo_requests_total` | counter | dynamodb | Number of requests to the DynamoDB API. |
+| `dynamo_requests` | counter | dynamodb |  Number of failed requests to the DynamoDB API. |
+| `dynamo_requests_seconds` | histogram | dynamodb | Latency of DynamoDB api requests. |
 | `etcd_backend_batch_read_requests` | counter | etcd | Number of read requests to the etcd database. |
 | `etcd_backend_batch_read_seconds` | histogram | etcd | Latency for etcd read operations. |
 | `etcd_backend_read_requests` | counter | etcd | Number of read requests to the etcd database. |
@@ -114,6 +117,8 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `firestore_events_backend_batch_read_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch read operations. |
 | `firestore_events_backend_batch_write_requests` | counter | GCP Cloud Firestore | Number of batch write requests to Cloud Firestore events. |
 | `firestore_events_backend_batch_write_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch write operations. |
+| `firestore_events_backend_write_requests` | counter | GCP Cloud Firestore | Number of write requests to Cloud Firestore events. |
+| `firestore_events_backend_write_seconds` | histogram | GCP Cloud Firestore |  Latency for Cloud Firestore events write operations. |
 | `gcs_event_storage_downloads_seconds` | histogram | GCP GCS | Latency for GCS download operations. |
 | `gcs_event_storage_downloads` | counter | GCP GCS | Number of downloads from the GCS backend. |
 | `gcs_event_storage_uploads_seconds` | histogram | GCP GCS | Latency for GCS upload operations. |
@@ -122,7 +127,7 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `grpc_server_handled_total` | counter | Teleport Auth | Total number of RPCs completed on the server, regardless of success or failure. |
 | `grpc_server_msg_received_total` | counter | Teleport Auth | Total number of RPC stream messages received on the server. |
 | `grpc_server_msg_sent_total` | counter | Teleport Auth | Total number of gRPC stream messages sent by the server. |
-| `heartbeats_missed_total` | counter | Teleport Auth | Number of times the Auth Service did not receive a heartbeat from a Node. |
+| `heartbeat_connections_missed_total` | counter | Teleport Auth | Number of times the Auth Service did not receive a heartbeat from a Node. |
 | `heartbeat_connections_received_total` | counter | Teleport Auth | Number of times the Auth Service received a heartbeat connection. |
 | `s3_requests_total` | counter | Amazon S3 | Total number of requests to the S3 API. |
 | `s3_requests` | counter | Amazon S3 |  Number of requests to the S3 API by result. |
@@ -134,6 +139,13 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `watcher_event_sizes` | histogram | cache | Overall size of events emitted. |
 | `watcher_events` | histogram | cache | Per resource size of events emitted. |
 
+## Enhanced Session Recording / BPF
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `bpf_lost_command_events` | counter | BPF | Number of lost command events. |
+| `bpf_lost_disk_events` | counter | BPF | Number of lost disk events. |
+| `bpf_lost_network_events` | counter | BPF | Number of lost network events. |
 
 ## Proxy Service
 
@@ -147,6 +159,7 @@ Teleport Cloud does not expose monitoring endpoints for the Auth Service and Pro
 | `grpc_client_msg_sent_total` | counter | Teleport Proxy | Total number of gRPC stream messages sent by the client. |
 | `proxy_connection_limit_exceeded_total` | counter | Teleport Proxy | Number of connections that exceeded the proxy connection limit. |
 | `proxy_missing_ssh_tunnels` | gauge | Teleport Proxy | Number of missing SSH tunnels. Used to debug if nodes have discovered all proxies. |
+| `proxy_ssh_sessions_total` | gauge | Teleport Proxy | Number of active sessions through this proxy. |
 | `teleport_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate. |
 | `teleport_reverse_tunnels_connected` | gauge | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances. |
 
