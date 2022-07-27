@@ -271,10 +271,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
 		"DRONE_RESOURCE_REQUEST_CPU": {
-			raw: "100",
+			raw: "50",
 		},
 		"DRONE_RESOURCE_REQUEST_MEMORY": {
-			raw: "100MiB",
+			raw: "50MiB",
 		},
 	}
 	p.Workspace = workspace{Path: "/go"}

@@ -5428,8 +5428,8 @@ kind: pipeline
 type: kubernetes
 name: publish-apt-new-repos
 environment:
-  DRONE_RESOURCE_REQUEST_CPU: "100"
-  DRONE_RESOURCE_REQUEST_MEMORY: 100MiB
+  DRONE_RESOURCE_REQUEST_CPU: "50"
+  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -5531,8 +5531,8 @@ kind: pipeline
 type: kubernetes
 name: migrate-yum-new-repos
 environment:
-  DRONE_RESOURCE_REQUEST_CPU: "100"
-  DRONE_RESOURCE_REQUEST_MEMORY: 100MiB
+  DRONE_RESOURCE_REQUEST_CPU: "50"
+  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -7124,8 +7124,8 @@ kind: pipeline
 type: kubernetes
 name: publish-yum-new-repos
 environment:
-  DRONE_RESOURCE_REQUEST_CPU: "100"
-  DRONE_RESOURCE_REQUEST_MEMORY: 100MiB
+  DRONE_RESOURCE_REQUEST_CPU: "50"
+  DRONE_RESOURCE_REQUEST_MEMORY: 50MiB
 trigger:
   event:
     include:
@@ -7777,6 +7777,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 5bfab4cb86a87794b60e759fefa2d64c33d2ad0301785fa956ff18fc8f45bc62
+hmac: e537efb3b22712a42b9b4e8be40c0e507a48ff773ff45168c9e59c2b5c80bc89
 
 ...
