@@ -1593,6 +1593,8 @@ func (process *TeleportProcess) initAuthService() error {
 		MetadataGetter: uploadHandler,
 	}
 
+	// Auth initialization is done (including creation/updating of all singleton
+	// configuration resources) so now we can start the cache.
 	if c, ok := authServer.Cache.(*cache.Cache); ok {
 		if err := c.Start(); err != nil {
 			return trace.Wrap(err)

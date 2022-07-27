@@ -584,7 +584,8 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
-	// Unstarted indicates that the cache should not be started during New
+	// Unstarted indicates that the cache should not be started during New. The
+	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
 }
 

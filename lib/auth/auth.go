@@ -248,13 +248,13 @@ type Services struct {
 
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return r.Identity.WebSessions().Get(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
 }
 
@@ -356,6 +356,11 @@ type Server struct {
 	*Services
 
 	// Cache should either be the same as Services, or a caching layer over it.
+	// As it's an interface (and thus directly implementing all of its methods)
+	// its embedding takes priority over Services (which only indirectly
+	// implements its methods), thus any implemented GetFoo method on both Cache
+	// and Services will call the one from Cache. To bypass the cache, call the
+	// method on Services instead.
 	Cache
 
 	// privateKey is used in tests to use pre-generated private keys
@@ -1804,8 +1809,16 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	return dev, trace.Wrap(err)
 }
 
+// GetWebSession returns existing web session described by req. Explicitly
+// delegating to Cache as it's directly implemented by *Services as well.
 func (a *Server) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return a.Cache.GetWebSession(ctx, req)
+}
+
+// GetWebToken returns existing web token described by req. Explicitly
+// delegating to Cache as it's directly implemented by *Services as well.
+func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	return a.Cache.GetWebToken(ctx, req)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
