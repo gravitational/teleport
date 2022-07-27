@@ -190,29 +190,46 @@ export default class MainProcess {
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
 
-    const template: MenuItemConstructorOptions[] = [
-      ...(isMac ? ([{ role: 'appMenu' }] as const) : []),
-      ...(isMac ? [] : ([{ role: 'fileMenu' }] as const)),
+    const macTemplate: MenuItemConstructorOptions[] = [
+      { role: 'appMenu' },
       { role: 'editMenu' },
       { role: 'viewMenu' },
-      isMac
-        ? { role: 'windowMenu' }
-        : {
-            label: 'Window',
-            submenu: [{ role: 'minimize' }, { role: 'zoom' }],
-          },
+      {
+        label: 'Window',
+        submenu: [{ role: 'minimize' }, { role: 'zoom' }],
+      },
       {
         role: 'help',
         submenu: [
           {
             label: 'Learn More',
-            click: () => {},
+            click: () => {}, // TODO: add link to Connect docs
           },
         ],
       },
     ];
 
-    const menu = Menu.buildFromTemplate(template);
+    const otherTemplate: MenuItemConstructorOptions[] = [
+      { role: 'fileMenu' },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+      {
+        role: 'help',
+        submenu: [
+          {
+            label: 'Learn More',
+            click: () => {}, // TODO: add link to Connect docs
+          },
+          {
+            label: 'About',
+            role: 'about',
+          },
+        ],
+      },
+    ];
+
+    const menu = Menu.buildFromTemplate(isMac ? macTemplate : otherTemplate);
     Menu.setApplicationMenu(menu);
   }
 }
