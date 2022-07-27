@@ -912,15 +912,15 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
 	}
-	if len(fc.Proxy.PeerPublicAddr) != 0 {
+	if fc.Proxy.PeerPublicAddr != "" {
 		if fc.Proxy.PeerAddr == "" {
-			return trace.BadParameter("peer_listen_addr must be set when peer_listen_public_addr is set")
+			return trace.BadParameter("peer_listen_addr must be set when peer_public_addr is set")
 		}
-		addrs, err := utils.AddrsFromStrings(fc.Proxy.PeerPublicAddr, defaults.ProxyPeeringListenPort)
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerPublicAddr, int(defaults.ProxyPeeringListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Proxy.PeerPublicAddrs = addrs
+		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
 	acme, err := fc.Proxy.ACME.Parse()

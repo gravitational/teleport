@@ -699,6 +699,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
+	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 

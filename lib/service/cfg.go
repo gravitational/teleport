@@ -425,9 +425,9 @@ type ProxyConfig struct {
 	// advertises for Mongo clients.
 	MongoPublicAddrs []utils.NetAddr
 
-	// PeerPublicAddrs is a list of the public addresses the proxy
-	// advertises for proxy peering clients.
-	PeerPublicAddrs []utils.NetAddr
+	// PeerPublicAddrs is the public addresse the proxy advertises for proxy
+	// peering clients.
+	PeerPublicAddr utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -483,11 +483,8 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 
 // publicPeerAddr attempts to returns the public address the proxy advertises
 // for proxy peering clients if available. It falls back to PeerAddr othewise.
-func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
-	var addr *utils.NetAddr
-	if len(c.PeerPublicAddrs) > 0 {
-		addr = &c.PeerPublicAddrs[0]
-	}
+func (c ProxyConfig) publicPeerAddr() (utils.NetAddr, error) {
+	addr := c.PeerPublicAddr
 	if addr.IsEmpty() || addr.IsHostUnspecified() {
 		return c.peerAddr()
 	}
@@ -495,10 +492,10 @@ func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
 }
 
 // peerAddr returns the address the proxy advertises for proxy peering clients.
-func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
-	addr := &c.PeerAddr
+func (c ProxyConfig) peerAddr() (utils.NetAddr, error) {
+	addr := c.PeerAddr
 	if addr.IsEmpty() {
-		addr = defaults.ProxyPeeringListenAddr()
+		addr = *defaults.ProxyPeeringListenAddr()
 	}
 	if !addr.IsHostUnspecified() {
 		return addr, nil
@@ -506,16 +503,16 @@ func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
 
 	ip, err := utils.GuessHostIP()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return utils.NetAddr{}, trace.Wrap(err)
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	hostAddr, err := utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return utils.NetAddr{}, trace.Wrap(err)
 	}
 
-	return addr, nil
+	return *hostAddr, nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service

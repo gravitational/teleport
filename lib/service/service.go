@@ -2782,7 +2782,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 		addrs = append(addrs, process.Config.Proxy.PostgresPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.MySQLPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
-		addrs = append(addrs, process.Config.Proxy.PeerPublicAddrs...)
+		addrs = append(addrs, process.Config.Proxy.PeerPublicAddr)
 		// Automatically add wildcards for every proxy public address for k8s SNI routing
 		if process.Config.Proxy.Kube.Enabled {
 			for _, publicAddr := range utils.JoinAddrSlices(process.Config.Proxy.PublicAddrs, process.Config.Proxy.Kube.PublicAddrs) {
@@ -3439,7 +3439,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
-	var peerAddr *utils.NetAddr
+	var peerAddr utils.NetAddr
 	var proxyServer *proxy.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
 		peerAddr, err = process.Config.Proxy.publicPeerAddr()
