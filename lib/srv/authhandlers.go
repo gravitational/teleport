@@ -146,7 +146,10 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
-	identity.AccessChecker = services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	identity.AccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
 
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
@@ -447,9 +450,13 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, h.c.AccessPoint)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessInfo.RoleSet) {
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
 		return nil
 	}
 
@@ -464,7 +471,6 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	accessChecker := services.NewAccessChecker(accessInfo, clusterName)
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
 		mfaParams,
@@ -484,9 +490,9 @@ func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAutho
 	var accessInfo *services.AccessInfo
 	var err error
 	if clusterName == ca.GetClusterName() {
-		accessInfo, err = services.AccessInfoFromLocalCertificate(cert, h.c.AccessPoint)
+		accessInfo, err = services.AccessInfoFromLocalCertificate(cert)
 	} else {
-		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, h.c.AccessPoint, ca.CombinedMapping())
+		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
 	}
 	return accessInfo, trace.Wrap(err)
 }
