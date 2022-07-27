@@ -1,5 +1,22 @@
 # Changelog
 
+## 8.3.16
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed X11 forwarding issues on Windows and Mac. [#14438](https://github.com/gravitational/teleport/pull/14438)
+* Fixed issues with CAs not being propagated during CA rotation. [#14045](https://github.com/gravitational/teleport/pull/14045)
+* Fixed agent reconnect issues after proxy restart. [#14509](https://github.com/gravitational/teleport/pull/14509)
+* Fixed issue with PostgreSQL listener not starting when proxy is started in non-TLS mode. [#14330](https://github.com/gravitational/teleport/pull/14330)
+* Fixed issue with connection through a jump host when root cluster is offline. [#13929](https://github.com/gravitational/teleport/pull/13929)
+* Fixed issue with redirect URL not being preserved after application access login. [#14205](https://github.com/gravitational/teleport/pull/14205)
+* Fixed `--cluster` flag for `tsh db ls` command. [#14396](https://github.com/gravitational/teleport/pull/14396)
+* Fixed issue with resource listing pagination when there are denied resources. [#14544](https://github.com/gravitational/teleport/pull/14544)
+* Added ability to set AWS database name via `teleport.dev/database-name` tag. [#14827](https://github.com/gravitational/teleport/pull/14827)
+* Added ability to call `tsh proxy db` without `tsh db login`. [#14838](https://github.com/gravitational/teleport/pull/14838)
+* Improved `tsh db ls` performance for users with many roles. [#14288](https://github.com/gravitational/teleport/pull/14288)
+* Improved internal cache efficiency. [#14305](https://github.com/gravitational/teleport/pull/14305)
+
 ## 8.3.15
 
 This release of Teleport contains multiple improvements and bug fixes.
