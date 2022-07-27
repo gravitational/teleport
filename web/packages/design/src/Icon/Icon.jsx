@@ -111,6 +111,7 @@ export const ClipboardUser = makeFontIcon(
   'ClipboardUser',
   'icon-clipboard-user'
 );
+export const Clock = makeFontIcon('Clock', 'icon-clock3');
 export const Close = makeFontIcon('Close', 'icon-close');
 export const Cloud = makeFontIcon('Cloud', 'icon-cloud');
 export const CloudSync = makeFontIcon('CloudSync', 'icon-cloud-sync');

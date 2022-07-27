@@ -146,6 +146,7 @@ export const eventCodes = {
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
+  UPGRADE_WINDOW_UPDATED: 'TUW01I',
 } as const;
 
 /**
@@ -728,6 +729,12 @@ export type RawEvents = {
     {
       cert_type: 'user';
       identity: { user: string };
+    }
+  >;
+  [eventCodes.UPGRADE_WINDOW_UPDATED]: RawEvent<
+    typeof eventCodes.UPGRADE_WINDOW_UPDATED,
+    {
+      upgrade_window_start: string;
     }
   >;
 };

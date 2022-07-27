@@ -15,8 +15,8 @@
  */
 
 import React from 'react';
-import * as Icons from 'design/Icon';
 import { Card, Box, Text, Flex } from 'design';
+import * as Icons from 'design/Icon';
 
 import styled from 'styled-components';
 
@@ -24,7 +24,11 @@ import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 
-export default function Container() {
+export default function Container({
+  children,
+}: {
+  children?: React.ReactNode;
+}) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
@@ -34,6 +38,7 @@ export default function Container() {
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
+      children={children}
     />
   );
 }
@@ -45,6 +50,7 @@ export const Support = ({
   isEnterprise,
   tunnelPublicAddress,
   isCloud,
+  children,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -104,29 +110,38 @@ export const Support = ({
           </Box>
         </Flex>
       </Card>
-      <Box
-        border="1px solid"
-        borderColor="primary.light"
-        mt={4}
-        mb={10}
-        borderRadius={3}
-        px={5}
-        py={4}
-      >
-        <Text as="h5" mb={4} fontWeight="bold" caps>
-          Cluster Information
-        </Text>
-        <ClusterData title="Cluster Name" data={clusterId} />
-        <ClusterData title="Teleport Version" data={authVersion} />
-        <ClusterData title="Public Address" data={publicURL} />
+      <DataContainer title="Cluster Information">
+        <DataItem title="Cluster Name" data={clusterId} />
+        <DataItem title="Teleport Version" data={authVersion} />
+        <DataItem title="Public Address" data={publicURL} />
         {tunnelPublicAddress && (
-          <ClusterData title="Public SSH Tunnel" data={tunnelPublicAddress} />
+          <DataItem title="Public SSH Tunnel" data={tunnelPublicAddress} />
         )}
-      </Box>
+      </DataContainer>
+
+      {children}
     </FeatureBox>
   );
 };
 
+export const DataContainer: React.FC<{ title: string }> = ({
+  title,
+  children,
+}) => (
+  <Box
+    border="1px solid"
+    borderColor="primary.light"
+    mt={4}
+    borderRadius={3}
+    px={5}
+    py={4}
+  >
+    <Text as="h5" mb={4} fontWeight="bold" caps>
+      {title}
+    </Text>
+    {children}
+  </Box>
+);
 /**
  * getDocUrls returns an object of URL's appended with
  * UTM, version, and type of teleport.
@@ -189,7 +204,7 @@ const StyledSupportLink = styled.a.attrs({
   }
 `;
 
-const ClusterData = ({ title = '', data = null }) => (
+export const DataItem = ({ title = '', data = null }) => (
   <Flex mb={3}>
     <Text typography="body2" bold style={{ width: '130px' }}>
       {title}:
@@ -217,11 +232,12 @@ const Header = ({ title = '', icon = null }) => (
   </Flex>
 );
 
-type Props = {
+export type Props = {
   clusterId: string;
   authVersion: string;
   publicURL: string;
   isEnterprise: boolean;
   isCloud: boolean;
   tunnelPublicAddress?: string;
+  children?: React.ReactNode;
 };

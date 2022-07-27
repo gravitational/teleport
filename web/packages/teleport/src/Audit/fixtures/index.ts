@@ -1204,6 +1204,13 @@ export const events = [
     time: '2022-05-23T08:29:14.126Z',
     uid: '6fa08495-170a-4de9-884f-9931fbdb5982',
   },
+  {
+    code: 'TUW01I',
+    time: '2022-04-13T20:00:04.000Z',
+    user: 'alice@example.com',
+    event: 'upgradewindowstart.update',
+    upgrade_window_start: '23:00',
+  },
 ].map(makeEvent);
 
 export const eventsSample = [
