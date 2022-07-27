@@ -2006,12 +2006,11 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 
 // GenerateToken generates multi-purpose authentication token.
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	expires := a.clock.Now().UTC()
+	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {
-		expires = expires.Add(req.TTL.Get())
-	} else {
-		expires = expires.Add(defaults.ProvisioningTokenTTL)
+		ttl = req.TTL.Get()
 	}
+	expires := a.clock.Now().UTC().Add(ttl)
 
 	if req.Token == "" {
 		token, err := utils.CryptoRandomHex(TokenLenBytes)
