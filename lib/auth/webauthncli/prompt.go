@@ -37,9 +37,7 @@ type DefaultPrompt struct {
 	ctx context.Context
 	out io.Writer
 
-	// Count is the number of times a user was
-	// prompted with a touch message.
-	Count int
+	count int
 }
 
 // NewDefaultPrompt creates a new default prompt.
@@ -64,8 +62,8 @@ func (p *DefaultPrompt) PromptPIN() (string, error) {
 // PromptTouch prompts the user for a security key touch, using different
 // messages for first and second prompts. Error is always nil.
 func (p *DefaultPrompt) PromptTouch() error {
-	if p.Count == 0 {
-		p.Count++
+	if p.count == 0 {
+		p.count++
 		if p.FirstTouchMessage != "" {
 			fmt.Fprintln(p.out, p.FirstTouchMessage)
 		}

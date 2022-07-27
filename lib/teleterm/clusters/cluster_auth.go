@@ -323,21 +323,20 @@ func (c *Cluster) PwdlessLogin(ctx context.Context, stream api.TerminalService_L
 
 // pwdlessLoginPrompt is a implementation for wancli.LoginPrompt for teleterm passwordless logins.
 type pwdlessLoginPrompt struct {
-	DefaultPrompt *wancli.DefaultPrompt
-	Stream        api.TerminalService_LoginPasswordlessServer
+	Stream api.TerminalService_LoginPasswordlessServer
 }
 
 func newPwdlessLoginPrompt(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
-	df := wancli.NewDefaultPrompt(ctx, nil)
 	return &pwdlessLoginPrompt{
-		DefaultPrompt: df,
-		Stream:        stream,
+		Stream: stream,
 	}
 }
 
 // PromptPIN prompts the user for a PIN.
 func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
-	if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN}); err != nil {
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+		Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN,
+	}); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -346,43 +345,45 @@ func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	pin := req.GetPin()
-	if pin == "" {
+	pinRes := req.GetPin()
+	if pinRes == nil || pinRes.GetPin() == "" {
 		return "", trace.BadParameter("pin is required")
 	}
 
-	return pin, nil
+	return pinRes.GetPin(), nil
 }
 
 // PromptTouch prompts the user for a security key touch.
 func (p *pwdlessLoginPrompt) PromptTouch() error {
-	if p.DefaultPrompt.Count == 0 {
-		p.DefaultPrompt.Count++
-		return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
-	}
-	return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_RETAP}))
+	return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
 }
 
 // PromptCredential prompts the user to select a login name in the list of logins.
-func (p *pwdlessLoginPrompt) PromptCredential(creds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
+func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
 	// Shouldn't happen, but let's check just in case.
-	if len(creds) == 0 {
+	if len(deviceCreds) == 0 {
 		return nil, errors.New("attempted to prompt credential with empty credentials")
 	}
 
 	// Sorts in place.
-	sort.Slice(creds, func(i, j int) bool {
-		c1 := creds[i]
-		c2 := creds[j]
+	sort.Slice(deviceCreds, func(i, j int) bool {
+		c1 := deviceCreds[i]
+		c2 := deviceCreds[j]
 		return c1.User.Name < c2.User.Name
 	})
 
-	users := make([]string, len(creds))
-	for i, cred := range creds {
-		users[i] = cred.User.Name
+	// Convert to grpc message.
+	creds := make([]*api.WebauthnCredentialInfo, len(deviceCreds))
+	for i, cred := range deviceCreds {
+		creds[i] = &api.WebauthnCredentialInfo{
+			Username: cred.User.Name,
+		}
 	}
 
-	if err := p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL, Usernames: users}); err != nil {
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+		Prompt:      api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL,
+		Credentials: creds,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -391,15 +392,16 @@ func (p *pwdlessLoginPrompt) PromptCredential(creds []*wancli.CredentialInfo) (*
 		return nil, trace.Wrap(err)
 	}
 
-	res, ok := req.GetRequest().(*api.LoginPasswordlessRequest_UsernameIndex)
-	if !ok {
+	credRes := req.GetCredential()
+	if credRes == nil {
 		return nil, trace.BadParameter("login name must be selected")
 	}
 
 	// Test for out of range index values.
-	if res.UsernameIndex < 0 || res.UsernameIndex > int64(len(creds))-1 {
+	selectedIndex := credRes.GetIndex()
+	if selectedIndex < 0 || selectedIndex > int64(len(creds))-1 {
 		return nil, trace.BadParameter("invalid login name")
 	}
 
-	return creds[res.UsernameIndex], nil
+	return deviceCreds[selectedIndex], nil
 }

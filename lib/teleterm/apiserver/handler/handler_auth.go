@@ -60,12 +60,12 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.Wrap(err)
 	}
 
-	clusterURI := req.GetClusterUri()
-	if clusterURI == "" {
+	initReq := req.GetInit()
+	if initReq == nil || initReq.GetClusterUri() == "" {
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, err := s.DaemonService.ResolveCluster(clusterURI)
+	cluster, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -103,7 +103,6 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		PreferredMfa:       string(preferences.PreferredLocalMFA),
 		SecondFactor:       string(preferences.SecondFactor),
 		LocalAuthEnabled:   preferences.LocalAuthEnabled,
-		AuthProviders:      []*api.AuthProvider{},
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
 		LocalConnectorName: preferences.LocalConnectorName,
