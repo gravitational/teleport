@@ -491,6 +491,8 @@ message AppSpecV3 {
     bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+    // AWS contains additional options for AWS applications.
+    AppAWS AWS = 6 [ (gogoproto.jsontag) = "aws,omitempty" ];
 }
 
 // App is a specific application that a server proxies.
@@ -545,6 +547,12 @@ message CommandLabelV2 {
     repeated string Command = 2 [ (gogoproto.jsontag) = "command" ];
     // Result captures standard output
     string Result = 3 [ (gogoproto.jsontag) = "result" ];
+}
+
+// AppAWS contains additional options for AWS applications.
+message AppAWS {
+    // ExternalID is the AWS External ID used when assuming roles in this app.
+    string ExternalID = 1 [ (gogoproto.jsontag) = "external_id,omitempty" ];
 }
 
 // PrivateKeyType is the storage type of a private key.
