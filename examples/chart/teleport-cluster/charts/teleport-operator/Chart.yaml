@@ -1,4 +1,4 @@
-.version: &version "10.0.2"
+.version: &version "10.0.3-justinas.2"
 
 name: teleport-operator
 apiVersion: v2
