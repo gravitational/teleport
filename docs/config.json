@@ -288,6 +288,10 @@
         {
           "title": "Using tsh",
           "slug": "/use-teleport/tsh/"
+        },
+        {
+          "title": "Using Teleport Connect",
+          "slug": "/use-teleport/teleport-connect/"
         }
       ]
     },
