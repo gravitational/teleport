@@ -306,7 +306,7 @@ func setStepResourceLimits(steps []step) {
 			step.Resources.Requests = &resourceSet{}
 		}
 
-		step.Resources.Requests.Cpu = (*resourceQuantity)(resource.NewMilliQuantity(100, resource.DecimalSI))
+		step.Resources.Requests.Cpu = 100
 		step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
 	}
 }

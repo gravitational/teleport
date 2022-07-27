@@ -5456,7 +5456,7 @@ steps:
   - git checkout "${DRONE_TAG}"
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Check if tag is prerelease
   image: golang:1.17-alpine
@@ -5555,7 +5555,7 @@ steps:
   - git checkout "${DRONE_COMMIT}"
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v8.3.10"
   image: amazon/aws-cli
@@ -5574,7 +5574,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v8.3.10"
   image: golang:1.18.4-bullseye
@@ -5613,7 +5613,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v8.3.11"
   image: amazon/aws-cli
@@ -5632,7 +5632,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v8.3.11"
   image: golang:1.18.4-bullseye
@@ -5671,7 +5671,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v8.3.12"
   image: amazon/aws-cli
@@ -5690,7 +5690,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v8.3.12"
   image: golang:1.18.4-bullseye
@@ -5729,7 +5729,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v8.3.14"
   image: amazon/aws-cli
@@ -5748,7 +5748,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v8.3.14"
   image: golang:1.18.4-bullseye
@@ -5787,7 +5787,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v8.3.15"
   image: amazon/aws-cli
@@ -5806,7 +5806,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v8.3.15"
   image: golang:1.18.4-bullseye
@@ -5845,7 +5845,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.0.0"
   image: amazon/aws-cli
@@ -5864,7 +5864,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.0.0"
   image: golang:1.18.4-bullseye
@@ -5903,7 +5903,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.0.1"
   image: amazon/aws-cli
@@ -5922,7 +5922,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.0.1"
   image: golang:1.18.4-bullseye
@@ -5961,7 +5961,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.0.2"
   image: amazon/aws-cli
@@ -5980,7 +5980,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.0.2"
   image: golang:1.18.4-bullseye
@@ -6019,7 +6019,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.0.3"
   image: amazon/aws-cli
@@ -6038,7 +6038,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.0.3"
   image: golang:1.18.4-bullseye
@@ -6077,7 +6077,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.0.4"
   image: amazon/aws-cli
@@ -6096,7 +6096,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.0.4"
   image: golang:1.18.4-bullseye
@@ -6135,7 +6135,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.1.0"
   image: amazon/aws-cli
@@ -6154,7 +6154,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.1.0"
   image: golang:1.18.4-bullseye
@@ -6193,7 +6193,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.1.1"
   image: amazon/aws-cli
@@ -6212,7 +6212,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.1.1"
   image: golang:1.18.4-bullseye
@@ -6251,7 +6251,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.1.2"
   image: amazon/aws-cli
@@ -6270,7 +6270,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.1.2"
   image: golang:1.18.4-bullseye
@@ -6309,7 +6309,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.1.3"
   image: amazon/aws-cli
@@ -6328,7 +6328,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.1.3"
   image: golang:1.18.4-bullseye
@@ -6367,7 +6367,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.2.0"
   image: amazon/aws-cli
@@ -6386,7 +6386,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.2.0"
   image: golang:1.18.4-bullseye
@@ -6425,7 +6425,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.2.1"
   image: amazon/aws-cli
@@ -6444,7 +6444,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.2.1"
   image: golang:1.18.4-bullseye
@@ -6483,7 +6483,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.2.2"
   image: amazon/aws-cli
@@ -6502,7 +6502,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.2.2"
   image: golang:1.18.4-bullseye
@@ -6541,7 +6541,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.2.3"
   image: amazon/aws-cli
@@ -6560,7 +6560,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.2.3"
   image: golang:1.18.4-bullseye
@@ -6599,7 +6599,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.2.4"
   image: amazon/aws-cli
@@ -6618,7 +6618,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.2.4"
   image: golang:1.18.4-bullseye
@@ -6657,7 +6657,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.0"
   image: amazon/aws-cli
@@ -6676,7 +6676,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.0"
   image: golang:1.18.4-bullseye
@@ -6715,7 +6715,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.2"
   image: amazon/aws-cli
@@ -6734,7 +6734,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.2"
   image: golang:1.18.4-bullseye
@@ -6773,7 +6773,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.4"
   image: amazon/aws-cli
@@ -6792,7 +6792,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.4"
   image: golang:1.18.4-bullseye
@@ -6831,7 +6831,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.5"
   image: amazon/aws-cli
@@ -6850,7 +6850,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.5"
   image: golang:1.18.4-bullseye
@@ -6889,7 +6889,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.6"
   image: amazon/aws-cli
@@ -6908,7 +6908,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.6"
   image: golang:1.18.4-bullseye
@@ -6947,7 +6947,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.7"
   image: amazon/aws-cli
@@ -6966,7 +6966,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.7"
   image: golang:1.18.4-bullseye
@@ -7005,7 +7005,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.9"
   image: amazon/aws-cli
@@ -7024,7 +7024,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.9"
   image: golang:1.18.4-bullseye
@@ -7063,7 +7063,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.10"
   image: amazon/aws-cli
@@ -7082,7 +7082,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.10"
   image: golang:1.18.4-bullseye
@@ -7121,7 +7121,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v9.3.12"
   image: amazon/aws-cli
@@ -7140,7 +7140,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v9.3.12"
   image: golang:1.18.4-bullseye
@@ -7179,7 +7179,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v10.0.0"
   image: amazon/aws-cli
@@ -7198,7 +7198,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v10.0.0"
   image: golang:1.18.4-bullseye
@@ -7237,7 +7237,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v10.0.1"
   image: amazon/aws-cli
@@ -7256,7 +7256,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v10.0.1"
   image: golang:1.18.4-bullseye
@@ -7295,7 +7295,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Download artifacts for "v10.0.2"
   image: amazon/aws-cli
@@ -7314,7 +7314,7 @@ steps:
       from_secret: AWS_SECRET_ACCESS_KEY
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Publish rpms to YUM repos for "v10.0.2"
   image: golang:1.18.4-bullseye
@@ -7353,7 +7353,7 @@ steps:
     path: /tmpfs
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 volumes:
 - name: yum-persistence
@@ -7402,7 +7402,7 @@ steps:
   - git checkout "${DRONE_TAG}"
   resources:
     requests:
-      cpu: 100m
+      cpu: 100
       memory: 100Mi
 - name: Check if tag is prerelease
   image: golang:1.17-alpine
@@ -8028,6 +8028,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 222159c7112ae0097d946f1f263cbad538e6192df2fc74a72839f7959f140400
+hmac: 9664fb7572e2e19de05d27b4f9c429582e23f6863224c600a74f9f93bd865fe1
 
 ...

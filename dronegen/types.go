@@ -220,10 +220,16 @@ type containerResources struct {
 }
 
 type resourceSet struct {
-	Cpu    *resourceQuantity `yaml:"cpu,omitempty"`
+	// Drone does not strictly follow the k8s CRD format for resources here
+	// See link for details:
+	// https://docs.drone.io/pipeline/kubernetes/syntax/steps/#resources
+	// Cpu    *resourceQuantity `yaml:"cpu,omitempty"`
+
+	Cpu    float64           `yaml:"cpu,omitempty"`
 	Memory *resourceQuantity `yaml:"memory,omitempty"`
 }
 
+// This is a workaround to get resource.Quantity to unmarshal correctly
 type resourceQuantity resource.Quantity
 
 func (rq *resourceQuantity) MarshalYAML() (interface{}, error) {
