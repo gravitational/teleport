@@ -18,9 +18,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc/connectivity"
 
 	"github.com/stretchr/testify/require"
 )
@@ -172,4 +175,40 @@ func TestCAChange(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	stream.CloseSend()
+}
+
+func TestBackupClient(t *testing.T) {
+	ca := newSelfSignedCA(t)
+	client := setupClient(t, ca, ca, types.RoleProxy)
+	dialCalled := false
+
+	// Force the first client connection to fail.
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, func(c *ServerConfig) {
+		c.service = &mockProxyService{
+			mockDialNode: func(stream proto.ProxyService_DialNodeServer) error {
+				dialCalled = true
+				return trace.NotFound("tunnel not found")
+			},
+		}
+	})
+	_, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+
+	err := client.updateConnections([]types.Server{def1, def2})
+	require.NoError(t, err)
+	waitForConns(t, client.conns, time.Second*2)
+
+	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, &proto.DialRequest{})
+	require.NoError(t, err)
+	require.True(t, dialCalled)
+}
+
+func waitForConns(t *testing.T, conns map[string]*clientConn, d time.Duration) {
+	require.Eventually(t, func() bool {
+		for _, conn := range conns {
+			if conn.GetState() != connectivity.Ready {
+				return false
+			}
+		}
+		return true
+	}, d, time.Millisecond*5)
 }
