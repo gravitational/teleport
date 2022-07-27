@@ -2064,9 +2064,10 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if len(sessionEvents) > 0 {
 		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
 			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
-			return trace.BadParameter(("Desktop sessions cannot be viewed with tsh." +
+			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play the sessions." +
-				" Click on the URL to view the session in the browser:\n%s"), url)
+				" Click on the URL to view the session in the browser:"
+			return trace.BadParameter("%s\n%s", message, url)
 		}
 	}
 
@@ -4322,7 +4323,7 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 // getDesktopEventWebURL returns the web UI URL users can access to
 // watch a desktop session recording in the browser
 func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
-	if len(events) > 1 {
+	if events == nil || len(events) < 1 {
 		return ""
 	}
 	start := events[0].GetTimestamp()
