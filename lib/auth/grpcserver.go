@@ -2102,7 +2102,7 @@ func addMFADeviceInit(gctx *grpcContext, stream proto.AuthService_AddMFADeviceSe
 	if initReq == nil {
 		return nil, trace.BadParameter("expected AddMFADeviceRequestInit, got %T", req)
 	}
-	devs, err := gctx.authServer.Uncached.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
+	devs, err := gctx.authServer.Services.GetMFADevices(stream.Context(), gctx.User.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2155,7 +2155,7 @@ func addMFADeviceRegisterChallenge(gctx *grpcContext, stream proto.AuthService_A
 
 	// Keep Webauthn session data in memory, we can afford that for the streaming
 	// RPCs.
-	webIdentity := wanlib.WithInMemorySessionData(auth.Uncached)
+	webIdentity := wanlib.WithInMemorySessionData(auth.Services)
 
 	// Send registration challenge for the requested device type.
 	regChallenge := new(proto.MFARegisterChallenge)

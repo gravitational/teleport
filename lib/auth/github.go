@@ -56,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Uncached.CreateGithubAuthRequest(ctx, req)
+	err = a.Services.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +274,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.Uncached.GetGithubAuthRequest(ctx, state)
+			req, err := a.Services.GetGithubAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -298,7 +298,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.Uncached.GetGithubAuthRequest(ctx, stateToken)
+	req, err := a.Services.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -513,7 +513,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.Uncached.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

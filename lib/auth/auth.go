@@ -210,7 +210,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
 		unstable:        local.NewUnstableService(cfg.Backend),
-		Uncached:        services,
+		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
@@ -245,9 +245,6 @@ type Services struct {
 	types.Events
 	events.IAuditLog
 }
-
-// type alias to embed Services in Server with a different name
-type Uncached = Services
 
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
@@ -354,11 +351,11 @@ type Server struct {
 	// for inclusion in Services.
 	unstable local.UnstableService
 
-	// Uncached encapsulate services - provisioner, trust, etc. used by the auth
-	// server in a separate structure. Reads through Uncached hit the backend.
-	*Uncached
+	// Services encapsulate services - provisioner, trust, etc. used by the auth
+	// server in a separate structure. Reads through Services hit the backend.
+	*Services
 
-	// Cache should either be the same as Uncached, or a caching layer over it.
+	// Cache should either be the same as Services, or a caching layer over it.
 	Cache
 
 	// privateKey is used in tests to use pre-generated private keys
@@ -600,12 +597,12 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.Uncached.IAuditLog = auditLog
+	a.Services.IAuditLog = auditLog
 }
 
 // SetEnforcer sets the server's enforce service
 func (a *Server) SetEnforcer(enforcer services.Enforcer) {
-	a.Uncached.Enforcer = enforcer
+	a.Services.Enforcer = enforcer
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -1477,7 +1474,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 
 		identity := req.webIdentityOverride
 		if identity == nil {
-			identity = a.Uncached
+			identity = a.Services
 		}
 
 		webRegistration := &wanlib.RegistrationFlow{
@@ -1526,7 +1523,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		}
 	}
 
-	devs, err := a.Uncached.GetMFADevices(ctx, username, false)
+	devs, err := a.Services.GetMFADevices(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1554,7 +1551,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 // deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
 // for clusters that require second factors, which prevents users from being locked out of their account.
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
-	devs, err := a.Uncached.GetMFADevices(ctx, user, true)
+	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1791,7 +1788,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	}
 	identity := req.webIdentityOverride // Override Identity, if supplied.
 	if identity == nil {
-		identity = a.Uncached
+		identity = a.Services
 	}
 	webRegistration := &wanlib.RegistrationFlow{
 		Webauthn: webConfig,
@@ -2368,7 +2365,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 		return nil
 	}
 	// delete node token:
-	if err = a.Uncached.DeleteToken(ctx, token); err == nil {
+	if err = a.Services.DeleteToken(ctx, token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -2378,7 +2375,7 @@ func (a *Server) DeleteToken(ctx context.Context, token string) (err error) {
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
 func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) (tokens []types.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = a.Uncached.GetTokens(ctx)
+	tokens, err = a.Services.GetTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2508,7 +2505,7 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	if len(nodes) != 0 {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
-	return a.Uncached.DeleteNamespace(namespace)
+	return a.Services.DeleteNamespace(namespace)
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
@@ -2547,7 +2544,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		return nil
 	}
 
-	if err := a.Uncached.CreateAccessRequest(ctx, req); err != nil {
+	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
@@ -2572,7 +2569,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
-	if err := a.Uncached.DeleteAccessRequest(ctx, name); err != nil {
+	if err := a.Services.DeleteAccessRequest(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestDelete{
@@ -2589,7 +2586,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 }
 
 func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
-	req, err := a.Uncached.SetAccessRequestState(ctx, params)
+	req, err := a.Services.SetAccessRequestState(ctx, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2839,7 +2836,7 @@ func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
 
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
-	if err := a.Uncached.CreateApp(ctx, app); err != nil {
+	if err := a.Services.CreateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppCreate{
@@ -2865,7 +2862,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := a.Uncached.UpdateApp(ctx, app); err != nil {
+	if err := a.Services.UpdateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppUpdate{
@@ -2891,7 +2888,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 
 // DeleteApp deletes an application resource.
 func (a *Server) DeleteApp(ctx context.Context, name string) error {
-	if err := a.Uncached.DeleteApp(ctx, name); err != nil {
+	if err := a.Services.DeleteApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{
@@ -2920,12 +2917,12 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 		}
 	}
 
-	return a.Uncached.CreateSessionTracker(ctx, tracker)
+	return a.Services.CreateSessionTracker(ctx, tracker)
 }
 
 // CreateDatabase creates a new database resource.
 func (a *Server) CreateDatabase(ctx context.Context, database types.Database) error {
-	if err := a.Uncached.CreateDatabase(ctx, database); err != nil {
+	if err := a.Services.CreateDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseCreate{
@@ -2955,7 +2952,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 
 // UpdateDatabase updates an existing database resource.
 func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) error {
-	if err := a.Uncached.UpdateDatabase(ctx, database); err != nil {
+	if err := a.Services.UpdateDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseUpdate{
@@ -2985,7 +2982,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 
 // DeleteDatabase deletes a database resource.
 func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
-	if err := a.Uncached.DeleteDatabase(ctx, name); err != nil {
+	if err := a.Services.DeleteDatabase(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.DatabaseDelete{
@@ -3229,7 +3226,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		}
 		webLogin := &wanlib.PasswordlessFlow{
 			Webauthn: webConfig,
-			Identity: a.Uncached,
+			Identity: a.Services,
 		}
 		assertion, err := webLogin.Begin(ctx)
 		if err != nil {
@@ -3245,7 +3242,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		return nil, trace.BadParameter("user required")
 	}
 
-	devs, err := a.Uncached.GetMFADevices(ctx, user, true /* withSecrets */)
+	devs, err := a.Services.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3262,7 +3259,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
-			Identity: wanlib.WithDevices(a.Uncached, groupedDevs.Webauthn),
+			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
 		assertion, err := webLogin.Begin(ctx, user)
 		if err != nil {
@@ -3336,14 +3333,14 @@ func (a *Server) validateMFAAuthResponse(
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
-				Identity: a.Uncached,
+				Identity: a.Services,
 			}
 			dev, user, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
 				Webauthn: webConfig,
-				Identity: a.Uncached,
+				Identity: a.Services,
 			}
 			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
@@ -3421,7 +3418,7 @@ func (a *Server) addAddtionalTrustedKeysAtomic(
 		}
 		// else trace.IsCompareFailed(err) == true (CA was concurrently updated)
 
-		currentCA, err = a.Uncached.GetCertAuthority(ctx, currentCA.GetID(), true)
+		currentCA, err = a.Services.GetCertAuthority(ctx, currentCA.GetID(), true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3510,7 +3507,7 @@ func (a *Server) createSelfSignedCA(caID types.CertAuthID) error {
 // deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
 // auth server which are not currently used in any CAs.
 func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.Uncached.GetClusterName()
+	clusterName, err := a.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3518,7 +3515,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	var usedKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Uncached.GetCertAuthority(ctx, caID, true)
+		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}

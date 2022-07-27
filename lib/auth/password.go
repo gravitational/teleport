@@ -238,7 +238,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.Uncached.GetMFADevices(ctx, user, true)
+		devs, err := s.Services.GetMFADevices(ctx, user, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

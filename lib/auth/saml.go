@@ -45,7 +45,7 @@ var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappin
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := a.Uncached.UpsertSAMLConnector(ctx, connector); err != nil {
+	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
@@ -66,7 +66,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // DeleteSAMLConnector deletes a SAML connector by name.
 func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := a.Uncached.DeleteSAMLConnector(ctx, connectorName); err != nil {
+	if err := a.Services.DeleteSAMLConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
@@ -118,7 +118,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.Uncached.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
+	err = a.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,7 +270,7 @@ func (a *Server) createSAMLUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Uncached.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

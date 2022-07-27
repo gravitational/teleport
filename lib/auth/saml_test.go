@@ -486,7 +486,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	err = a.UpsertSAMLConnector(ctx, conn)
 	require.NoError(t, err)
 
-	err = a.Uncached.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+	err = a.Services.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
 		ID:                "_4f256462-6c2d-466d-afc0-6ee36602b6f2",
 		ConnectorID:       "saml-test-conn",
 		SSOTestFlow:       true,

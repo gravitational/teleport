@@ -268,7 +268,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Uncached.GetCertAuthority(ctx, types.CertAuthID{
+	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -318,7 +318,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Uncached.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -410,7 +410,7 @@ func (a *Server) getAllCertificatesForRotation(ctx context.Context, clusterName 
 	certs := make(CertAuthorityMap)
 
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Uncached.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName,
 		}, true)

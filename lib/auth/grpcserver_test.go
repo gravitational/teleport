@@ -799,7 +799,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
 	// Fetch MFA device IDs.
-	devs, err := srv.Auth().Uncached.GetMFADevices(ctx, user.GetName(), false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	var webDevID string
 	for _, dev := range devs {

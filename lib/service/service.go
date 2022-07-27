@@ -1514,7 +1514,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  as.Uncached,
+			services:  as.Services,
 			setup:     cache.ForAuth,
 			cacheName: []string{teleport.ComponentAuth},
 			events:    true,
@@ -1539,7 +1539,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
 			Log:       log,
-			Client:    authServer.Uncached,
+			Client:    authServer.Services,
 		},
 	})
 	if err != nil {
@@ -1556,7 +1556,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
-			SessionTracker: authServer.Uncached,
+			SessionTracker: authServer.Services,
 			// DELETE IN 11.0.0
 			// Provide a grace period so that Auth does not prematurely upload
 			// sessions which don't have a session tracker (v9.2 and earlier)

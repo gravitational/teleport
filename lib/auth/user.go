@@ -47,7 +47,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 	// TODO: ctx is being swallowed here because the current implementation of
 	// s.Uncached.CreateUser is an older implementation that does not curently
 	// accept a context.
-	if err := s.Uncached.CreateUser(user); err != nil {
+	if err := s.Services.CreateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -79,7 +79,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
-	if err := s.Uncached.UpdateUser(ctx, user); err != nil {
+	if err := s.Services.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -111,7 +111,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 
 // UpsertUser updates a user.
 func (s *Server) UpsertUser(user types.User) error {
-	err := s.Uncached.UpsertUser(user)
+	err := s.Services.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -147,7 +147,7 @@ func (s *Server) UpsertUser(user types.User) error {
 // CompareAndSwapUser updates a user but fails if the value on the backend does
 // not match the expected value.
 func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
-	err := s.Uncached.CompareAndSwapUser(ctx, new, existing)
+	err := s.Services.CompareAndSwapUser(ctx, new, existing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,7 +183,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
-	role, err := s.Uncached.GetRole(ctx, services.RoleNameForUser(user))
+	role, err := s.Services.GetRole(ctx, services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -196,7 +196,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		}
 	}
 
-	err = s.Uncached.DeleteUser(ctx, user)
+	err = s.Services.DeleteUser(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
