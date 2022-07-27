@@ -354,6 +354,10 @@ type CLIConf struct {
 
 	// disableAccessRequest disables automatic resource access requests.
 	disableAccessRequest bool
+
+	// command is the selected command (and subcommands) parsed from command
+	// line args. command does not contain the binary (e.g. tsh).
+	command string
 }
 
 // Stdout returns the stdout writer.
@@ -370,6 +374,11 @@ func (c *CLIConf) Stderr() io.Writer {
 		return c.overrideStderr
 	}
 	return os.Stderr
+}
+
+// CommandWithBinary returns the current/selected command with the binary.
+func (c *CLIConf) CommandWithBinary() string {
+	return fmt.Sprintf("%s %s", teleport.ComponentTSH, c.command)
 }
 
 type exitCodeError struct {
@@ -775,6 +784,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		app.Usage(args)
 		return trace.Wrap(err)
 	}
+	cf.command = command
 	// Did we initially get the Username from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
 

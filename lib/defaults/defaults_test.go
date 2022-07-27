@@ -16,19 +16,18 @@ limitations under the License.
 package defaults
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMakeAddr(t *testing.T) {
 	addr := makeAddr("example.com", 3022)
-	if addr == nil {
-		t.Fatal("makeAddr failed")
-	}
-	if addr.FullAddress() != "tcp://example.com:3022" {
-		t.Fatalf("makeAddr did not make a correct address. Got: %v", addr.FullAddress())
-	}
+	require.NotNil(t, addr)
+	require.Equal(t, "tcp://example.com:3022", addr.FullAddress())
 }
 
 func TestDefaultAddresses(t *testing.T) {
@@ -41,10 +40,12 @@ func TestDefaultAddresses(t *testing.T) {
 		"tcp://0.0.0.0:3024":   ReverseTunnelListenAddr(),
 	}
 	for expected, actual := range table {
-		if actual == nil {
-			t.Fatalf("Expected '%v' got nil", expected)
-		} else if actual.FullAddress() != expected {
-			t.Errorf("Expected '%v' got '%v'", expected, actual.FullAddress())
-		}
+		require.NotNil(t, actual)
+		require.Equal(t, expected, actual.FullAddress())
 	}
+}
+
+func TestReadableDatabaseProtocol(t *testing.T) {
+	require.Equal(t, "Microsoft SQL Server", fmt.Sprint(ReadableDatabaseProtocol(ProtocolSQLServer)))
+	require.Equal(t, "unknown", fmt.Sprint(ReadableDatabaseProtocol("unknown")))
 }

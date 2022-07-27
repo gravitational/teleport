@@ -399,12 +399,20 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if tc.TLSRoutingEnabled {
+		return trace.BadParameter(errDBCmdUnsupportedTLSRouting, cf.CommandWithBinary())
+	}
+
 	database, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if isLocalProxyRequiredForDatabase(tc, database) {
-		return formatLocalProxyRequiredForDatabaseError(tc, database, "tsh db env")
+
+	if !dbprofile.IsSupported(*database) {
+		return trace.BadParameter(errDBCmdUnsupportedDBProtocol,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
 	}
 
 	env, err := dbprofile.Env(tc, *database)
@@ -448,6 +456,9 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if tc.TLSRoutingEnabled {
+		return trace.BadParameter(errDBCmdUnsupportedTLSRouting, cf.CommandWithBinary())
+	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -455,9 +466,6 @@ func onDatabaseConfig(cf *CLIConf) error {
 	database, err := pickActiveDatabase(cf)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if isLocalProxyRequiredForDatabase(tc, database) {
-		return formatLocalProxyRequiredForDatabaseError(tc, database, "tsh db config")
 	}
 	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
@@ -472,8 +480,13 @@ func onDatabaseConfig(cf *CLIConf) error {
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSQLServer, defaults.ProtocolSnowflake:
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake:
 		host, port = tc.WebProxyHostPort()
+	case defaults.ProtocolSQLServer:
+		return trace.BadParameter(errDBCmdUnsupportedDBProtocol,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
 	default:
 		return trace.BadParameter("unknown database protocol: %q", database)
 	}
@@ -990,25 +1003,6 @@ func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteT
 	return tc.TLSRoutingEnabled || db.Protocol == defaults.ProtocolSQLServer
 }
 
-// formatLocalProxyRequiredForDatabaseError creates an error message when local
-// proxy is required for legacy commands like "tsh db env" and "tsh db config".
-func formatLocalProxyRequiredForDatabaseError(tc *client.TeleportClient, db *tlsca.RouteToDatabase, command string) error {
-	if db.Protocol == defaults.ProtocolSQLServer {
-		return trace.BadParameter(`"%v" is not supported for Microsoft SQL Server databases.
-
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`,
-			command,
-		)
-	}
-
-	return trace.BadParameter(`"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
-
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`,
-		command,
-	)
-
-}
-
 const (
 	// dbFormatText prints database configuration in text format.
 	dbFormatText = "text"
@@ -1018,6 +1012,20 @@ const (
 	dbFormatJSON = "json"
 	// dbFormatYAML prints database info as YAML.
 	dbFormatYAML = "yaml"
+)
+
+const (
+	// errDBCmdUnsupportedTLSRouting is the error message printed when some
+	// database subcommands are not supported because TLS routing is enabled.
+	errDBCmdUnsupportedTLSRouting = `"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
+
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+
+	// errDBCmdUnsupportedDBProtocol is the error message printed when some
+	// database subcommands are run against unsupported database protocols.
+	errDBCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
+
+Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
 )
 
 var (

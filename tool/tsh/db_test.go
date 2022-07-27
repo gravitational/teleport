@@ -85,10 +85,6 @@ func TestDatabaseLogin(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// Fetch the active profile.
-	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
-	require.NoError(t, err)
-
 	testCases := []struct {
 		databaseName       string
 		expectCertsLen     int
@@ -125,6 +121,10 @@ func TestDatabaseLogin(t *testing.T) {
 				}, setHomePath(tmpHomePath))
 				require.NoError(t, err)
 
+				// Fetch the active profile.
+				profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+				require.NoError(t, err)
+
 				// Verify certificates.
 				certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 				require.NoError(t, err)
@@ -139,6 +139,7 @@ func TestDatabaseLogin(t *testing.T) {
 
 				if test.expectErrForConfig {
 					require.Error(t, err)
+					t.Log(err)
 				} else {
 					require.NoError(t, err)
 				}
@@ -152,6 +153,7 @@ func TestDatabaseLogin(t *testing.T) {
 
 				if test.expectErrForEnv {
 					require.Error(t, err)
+					t.Log(err)
 				} else {
 					require.NoError(t, err)
 				}
@@ -391,14 +393,12 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	}
 
 	// Wait for all databases to register to avoid races.
-	for _, database := range dbs {
-		waitForDatabase(t, auth, database)
-	}
+	waitForDatabases(t, auth, dbs)
 
 	return db
 }
 
-func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -406,13 +406,22 @@ func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Dat
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			for _, a := range all {
-				if a.GetName() == db.Name {
-					return
+
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered += 1
+						break
+					}
 				}
 			}
+
+			if registered == len(dbs) {
+				return
+			}
 		case <-ctx.Done():
-			t.Fatal("database not registered after 10s")
+			t.Fatal("databases not registered after 10s")
 		}
 	}
 }

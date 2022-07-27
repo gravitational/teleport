@@ -249,9 +249,7 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	waitForEvents(t, process, serviceReadyEvents...)
 
 	if cfg.Databases.Enabled {
-		for _, database := range cfg.Databases.Databases {
-			waitForDatabase(t, process, database)
-		}
+		waitForDatabases(t, process, cfg.Databases.Databases)
 	}
 	return process
 }
