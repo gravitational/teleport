@@ -155,7 +155,7 @@ function Session(props: PropsWithChildren<State>) {
       .showDirectoryPicker()
       .then(sharedDirHandle => {
         setIsSharingDirectory(true);
-        tdpClient.sharedDirectory = sharedDirHandle;
+        tdpClient.addSharedDirectory(sharedDirHandle);
         tdpClient.sendSharedDirectoryAnnounce();
       })
       .catch(() => {

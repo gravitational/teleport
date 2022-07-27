@@ -40,6 +40,7 @@ export enum MessageType {
   SHARED_DIRECTORY_ANNOUNCE = 11,
   SHARED_DIRECTORY_ACKNOWLEDGE = 12,
   SHARED_DIRECTORY_INFO_REQUEST = 13,
+  SHARED_DIRECTORY_INFO_RESPONSE = 14,
   __LAST, // utility value
 }
 
@@ -95,7 +96,7 @@ export type SharedDirectoryAnnounce = {
   name: string;
 };
 
-// | message type (12) | errCode error | directory_id uint32 |
+// | message type (12) | err_code error | directory_id uint32 |
 export type SharedDirectoryAcknowledge = {
   errCode: SharedDirectoryErrCode;
   directoryId: number;
@@ -108,6 +109,21 @@ export type SharedDirectoryInfoRequest = {
   path: string;
 };
 
+// | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
+export type SharedDirectoryInfoResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
+  fso: FileSystemObject;
+};
+
+// | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+export type FileSystemObject = {
+  lastModified: bigint;
+  size: bigint;
+  fileType: FileType;
+  path: string;
+};
+
 export enum SharedDirectoryErrCode {
   // nil (no error, operation succeeded)
   Nil = 0,
@@ -117,6 +133,11 @@ export enum SharedDirectoryErrCode {
   DoesNotExist = 2,
   // resource already exists
   AlreadyExists = 3,
+}
+
+export enum FileType {
+  File = 0,
+  Directory = 1,
 }
 
 function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
@@ -457,6 +478,51 @@ export default class Codec {
     return buffer;
   }
 
+  // | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
+    const bufLenSansFso = byteLength + 2 * uint32Length;
+    const bufferSansFso = new ArrayBuffer(bufLenSansFso);
+    const view = new DataView(bufferSansFso);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_INFO_RESPONSE);
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
+    offset += uint32Length;
+
+    const fsoBuffer = this.encodeFileSystemObject(res.fso);
+
+    // https://gist.github.com/72lions/4528834?permalink_comment_id=2395442#gistcomment-2395442
+    return new Uint8Array([
+      ...new Uint8Array(bufferSansFso),
+      ...new Uint8Array(fsoBuffer),
+    ]).buffer;
+  }
+
+  // | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+  encodeFileSystemObject(fso: FileSystemObject): Message {
+    const dataUtf8array = this.encoder.encode(fso.path);
+
+    const bufLen = 2 * uint64Length + 2 * uint32Length + dataUtf8array.length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+    view.setBigUint64(offset, fso.lastModified);
+    offset += uint64Length;
+    view.setBigUint64(offset, fso.size);
+    offset += uint64Length;
+    view.setUint32(offset, fso.fileType);
+    offset += uint32Length;
+    view.setUint32(offset, dataUtf8array.length);
+    offset += uint32Length;
+    dataUtf8array.forEach(byte => {
+      view.setUint8(offset++, byte);
+    });
+
+    return buffer;
+  }
+
   // decodeClipboardData decodes clipboard data
   decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
     return {
@@ -533,7 +599,7 @@ export default class Codec {
     return pngFrame;
   }
 
-  // | message type (12) | errCode error | directory_id uint32 |
+  // | message type (12) | err_code error | directory_id uint32 |
   decodeSharedDirectoryAcknowledge(
     buffer: ArrayBuffer
   ): SharedDirectoryAcknowledge {
@@ -541,7 +607,7 @@ export default class Codec {
     let offset = 0;
     offset += byteLength; // eat message type
     const errCode = toSharedDirectoryErrCode(dv.getUint32(offset));
-    offset += uint32Length; // eat errCode
+    offset += uint32Length; // eat err_code
     const directoryId = dv.getUint32(5);
 
     return {
@@ -579,3 +645,4 @@ export default class Codec {
 
 const byteLength = 1;
 const uint32Length = 4;
+const uint64Length = uint32Length * 2;

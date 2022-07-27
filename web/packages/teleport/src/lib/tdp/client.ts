@@ -25,8 +25,14 @@ import Codec, {
   ClientScreenSpec,
   PngFrame,
   ClipboardData,
+  FileType,
   SharedDirectoryErrCode,
+  SharedDirectoryInfoResponse,
 } from './codec';
+import {
+  PathDoesNotExistError,
+  SharedDirectoryManager,
+} from './sharedDirectoryManager';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -45,7 +51,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
   protected socket: WebSocket | undefined;
   private socketAddr: string;
-  sharedDirectory: FileSystemDirectoryHandle | undefined;
+  private sdManager: SharedDirectoryManager;
 
   private logger = Logger.create('TDPClient');
 
@@ -53,6 +59,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
+    this.sdManager = new SharedDirectoryManager();
   }
 
   // Connect to the websocket and register websocket event handlers.
@@ -206,23 +213,51 @@ export default class Client extends EventEmitterWebAuthnSender {
       return;
     }
 
-    this.logger.info('Started sharing directory: ' + this.sharedDirectory.name);
+    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
-  handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
-    // TODO(isaiah): remove debug once message is handled.
-    this.logger.debug(
-      'Received SharedDirectoryInfoRequest: ' + JSON.stringify(req)
-    );
-    // TODO(isaiah): here's where we'll respond with SharedDirectoryInfoResponse
+    const path = req.path;
+    try {
+      const info = await this.sdManager.getInfo(path);
+      this.sendSharedDirectoryInfoResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+        fso: {
+          lastModified: BigInt(info.lastModified),
+          fileType: info.kind === 'file' ? FileType.File : FileType.Directory,
+          size: BigInt(info.size),
+          path: path,
+        },
+      });
+    } catch (e) {
+      if (e.constructor === PathDoesNotExistError) {
+        this.sendSharedDirectoryInfoResponse({
+          completionId: req.completionId,
+          errCode: SharedDirectoryErrCode.DoesNotExist,
+          fso: {
+            lastModified: BigInt(0),
+            fileType: FileType.File,
+            size: BigInt(0),
+            path: path,
+          },
+        });
+      } else {
+        this.handleError(e);
+      }
+    }
   }
 
   protected send(
     data: string | ArrayBufferLike | Blob | ArrayBufferView
   ): void {
     if (this.socket && this.socket.readyState === 1) {
-      this.socket.send(data);
+      try {
+        this.socket.send(data);
+      } catch (e) {
+        this.handleError(e);
+      }
       return;
     }
 
@@ -263,30 +298,28 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(msg);
   }
 
-  private sharedDirectoryReady() {
-    if (!this.sharedDirectory) {
-      this.handleError(
-        new Error(
-          'attempted to use a shared directory before one was initialized'
-        )
-      );
-      return false;
+  addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
+    try {
+      this.sdManager.add(sharedDirectory);
+    } catch (err) {
+      this.handleError(err);
     }
-
-    return true;
   }
 
   sendSharedDirectoryAnnounce() {
-    if (!this.sharedDirectoryReady()) return;
-    this.socket.send(
+    this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         completionId: 0, // This is always the first request.
         // Hardcode directoryId for now since we only support sharing 1 directory.
         // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
         directoryId: 2,
-        name: this.sharedDirectory.name,
+        name: this.sdManager.getName(),
       })
     );
+  }
+
+  sendSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse) {
+    this.send(this.codec.encodeSharedDirectoryInfoResponse(res));
   }
 
   resize(spec: ClientScreenSpec) {
