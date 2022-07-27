@@ -32,12 +32,15 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}
 
 	// Test valid pin.
-	stream.mockSend = func(res *api.LoginPasswordlessResponse) error {
+	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
 		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN, res.Prompt)
 		return nil
 	}
-	stream.mockRecv = func() (*api.LoginPasswordlessRequest, error) {
-		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{Pin: "1234"}}, nil
+	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
+			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
+				Pin: "1234"},
+		}}, nil
 	}
 
 	prompt := newPwdlessLoginPrompt(context.Background(), stream)
@@ -46,8 +49,11 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	require.Equal(t, "1234", pin)
 
 	// Test invalid pin.
-	stream.mockRecv = func() (*api.LoginPasswordlessRequest, error) {
-		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{Pin: ""}}, nil
+	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Pin{
+			Pin: &api.LoginPasswordlessRequest_LoginPasswordlessPINResponse{
+				Pin: ""},
+		}}, nil
 	}
 
 	_, err = prompt.PromptPIN()
@@ -57,25 +63,13 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 func TestPwdlessLoginPrompt_PromptTouch(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}
 
-	// Test count 0.
-	stream.mockSend = func(res *api.LoginPasswordlessResponse) error {
+	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
 		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP, res.Prompt)
 		return nil
 	}
 
 	prompt := newPwdlessLoginPrompt(context.Background(), stream)
 	err := prompt.PromptTouch()
-	require.NoError(t, err)
-
-	// Test count++.
-	stream.mockSend = func(res *api.LoginPasswordlessResponse) error {
-		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_RETAP, res.Prompt)
-		return nil
-	}
-
-	err = prompt.PromptTouch()
-	require.NoError(t, err)
-	err = prompt.PromptTouch()
 	require.NoError(t, err)
 }
 
@@ -89,14 +83,24 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 		{User: wancli.UserInfo{Name: "llama"}},
 	}
 
+	expectedCredResponse := []*api.WebauthnCredentialInfo{
+		{Username: "ape"},
+		{Username: "bar"},
+		{Username: "foo"},
+		{Username: "llama"},
+	}
+
 	// Test valid index.
-	stream.mockSend = func(res *api.LoginPasswordlessResponse) error {
+	stream.assertResp = func(res *api.LoginPasswordlessResponse) error {
 		require.Equal(t, api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL, res.Prompt)
-		require.Equal(t, []string{"ape", "bar", "foo", "llama"}, res.Usernames)
+		require.Equal(t, expectedCredResponse, res.GetCredentials())
 		return nil
 	}
-	stream.mockRecv = func() (*api.LoginPasswordlessRequest, error) {
-		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_UsernameIndex{UsernameIndex: 2}}, nil
+	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
+			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
+				Index: 2},
+		}}, nil
 	}
 
 	prompt := newPwdlessLoginPrompt(context.Background(), stream)
@@ -105,8 +109,11 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 	require.Equal(t, "foo", cred.User.Name)
 
 	// Test invalid index.
-	stream.mockRecv = func() (*api.LoginPasswordlessRequest, error) {
-		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_UsernameIndex{UsernameIndex: 4}}, nil
+	stream.serverReq = func() (*api.LoginPasswordlessRequest, error) {
+		return &api.LoginPasswordlessRequest{Request: &api.LoginPasswordlessRequest_Credential{
+			Credential: &api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{
+				Index: 4},
+		}}, nil
 	}
 	_, err = prompt.PromptCredential(unsortedCreds)
 	require.True(t, trace.IsBadParameter(err))
@@ -114,20 +121,20 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 
 type mockLoginPwdlessStream struct {
 	grpc.ServerStream
-	mockSend func(resp *api.LoginPasswordlessResponse) error
-	mockRecv func() (*api.LoginPasswordlessRequest, error)
+	assertResp func(resp *api.LoginPasswordlessResponse) error
+	serverReq  func() (*api.LoginPasswordlessRequest, error)
 }
 
 func (m *mockLoginPwdlessStream) Send(resp *api.LoginPasswordlessResponse) error {
-	if m.mockSend != nil {
-		return m.mockSend(resp)
+	if m.assertResp != nil {
+		return m.assertResp(resp)
 	}
-	return trace.NotImplemented("mockSend not implemented")
+	return trace.NotImplemented("assertResp not implemented")
 }
 
 func (m *mockLoginPwdlessStream) Recv() (*api.LoginPasswordlessRequest, error) {
-	if m.mockRecv != nil {
-		return m.mockRecv()
+	if m.serverReq != nil {
+		return m.serverReq()
 	}
-	return nil, trace.NotImplemented("mockRecv not implemented")
+	return nil, trace.NotImplemented("serverReq not implemented")
 }

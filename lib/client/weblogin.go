@@ -229,17 +229,15 @@ type SSHLoginMFA struct {
 // SSHLoginPasswordless contains SSH login parameters for passwordless login.
 type SSHLoginPasswordless struct {
 	SSHLogin
-	Stderr io.Writer
+
+	// StderrOverride will override the default os.Stderr if provided.
+	StderrOverride io.Writer
 
 	// User is the login username.
 	User string
 
 	// AuthenticatorAttachment is the authenticator attachment for passwordless prompts.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
-
-	// ExplicitUsername is true if username was initially set by the end-user
-	// (for example, using command-line flags).
-	ExplicitUsername bool
 
 	// CustomPrompt defines a custom webauthn login prompt.
 	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
@@ -386,10 +384,10 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 }
 
 // SSHAgentPwdlessLogin requests a passwordless MFA challenge via the proxy.
-// If the credentials are valid, the proxy will return a challenge. We then
-// prompt the user to touch a device and if user wasn't explicitly defined,
-// also prompts the user to select a login name. If the authentication succeeds,
-// we will get a temporary certificate back.
+// weblogin.CustomPrompt (or a default prompt) is used for interaction with the
+// end user.
+//
+// Returns the SSH certificate if authn is successful or an error.
 func SSHAgentPwdlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
@@ -416,19 +414,18 @@ func SSHAgentPwdlessLogin(ctx context.Context, login SSHLoginPasswordless) (*aut
 		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
 	}
 
-	// Only pass on the user if explicitly set, otherwise let the credential
-	// picker kick in.
-	user := ""
-	if login.ExplicitUsername {
-		user = login.User
+	stderr := login.StderrOverride
+	if stderr == nil {
+		stderr = os.Stderr
 	}
 
 	prompt := login.CustomPrompt
 	if prompt == nil {
-		prompt = wancli.NewDefaultPrompt(ctx, login.Stderr)
+		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
+
 	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
-		User:                    user,
+		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
 	if err != nil {

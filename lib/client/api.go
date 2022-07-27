@@ -3287,6 +3287,13 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+
 	response, err := SSHAgentPwdlessLogin(ctx, SSHLoginPasswordless{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
@@ -3298,10 +3305,9 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
 		},
-		User:                    tc.Username,
+		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		ExplicitUsername:        tc.ExplicitUsername,
-		Stderr:                  tc.Stderr,
+		StderrOverride:          tc.Stderr,
 	})
 
 	return response, trace.Wrap(err)

@@ -32,7 +32,7 @@ message AuthSettings {
     // banner text that must be retrieved, displayed and acknowledged by
     // the user.
     bool has_message_of_the_day = 5;
-    // auth_type is the authentication type.
+    // auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
     string auth_type = 6;
     // allow_passwordless is true if passwordless logins are allowed.
     bool allow_passwordless = 7;

@@ -115,34 +115,47 @@ enum PasswordlessPrompt {
     // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
     PASSWORDLESS_PROMPT_TAP = 2;
 
-    // PASSWORDLESS_PROMPT_RETAP is used when we require a user to re-tap their device.
-    PASSWORDLESS_PROMPT_RETAP = 3;
-
-    // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a usernamer
+    // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
     // associated with their account.
-    PASSWORDLESS_PROMPT_CREDENTIAL = 4;
+    PASSWORDLESS_PROMPT_CREDENTIAL = 3;
 }
+
+// WebauthnCredentialInfo holds fields related to a user's WebAuthn credential.
+message WebauthnCredentialInfo { string Username = 1; }
 
 // LoginPasswordlessResponse is a message sent by the server during the
 // passwordless login flow.
 message LoginPasswordlessResponse {
     PasswordlessPrompt prompt = 1;
-    // usernames is a list of usernames associated with a passwordless device.
-    // Sent during the webauthncli.PromptCredential step.
-    repeated string usernames = 2;
+    repeated WebauthnCredentialInfo credentials = 2;
 }
 
 // LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
 message LoginPasswordlessRequest {
     oneof request {
-        // cluster_uri required for init request to resolve cluster by its uri.
+        LoginPasswordlessRequestInit init = 1;
+        LoginPasswordlessPINResponse pin = 2;
+        LoginPasswordlessCredentialResponse credential = 3;
+    }
+
+    // LoginPasswordlessRequestInit contains fields needed to init the stream request.
+    message LoginPasswordlessRequestInit {
+        // cluster_uri is needed to resolve cluster by its uri.
         string cluster_uri = 1;
-        // pin is the device's pin number provided by user sent during the webauthncli.PromptPIN
-        // step.
-        string pin = 2;
-        // usernameIndex is the index of the username the user selected from the list of usernames
-        // sent during the webauthncli.PromptCredential step.
-        int64 usernameIndex = 3;
+    }
+
+    // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
+    message LoginPasswordlessPINResponse {
+        // pin is the user's device's pin number
+        string pin = 1;
+    }
+
+    // LoginPasswordlessPINResponse contains fields related to request from
+    // webauthncli.PromptCredential.
+    message LoginPasswordlessCredentialResponse {
+        // index is the associated number in the list of credentials that the user selected to log
+        // in as.
+        int64 index = 3;
     }
 }
 
