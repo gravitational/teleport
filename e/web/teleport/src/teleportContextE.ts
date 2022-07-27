@@ -6,12 +6,15 @@ import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import CloudService from 'e-teleport/services/cloud';
 import RecoveryService from 'e-teleport/services/recovery';
 
+import { upgradeWindowService } from './services/upgradeWindow';
+
 class TeleportEContext extends TeleportContext {
   storeAccessRequests = new StoreAccessRequests();
   workflowService = new WorkflowService();
   resourceService = new ResourceService();
   cloudService = new CloudService();
   recoveryService = new RecoveryService();
+  upgradeWindowService = upgradeWindowService;
 }
 
 export default TeleportEContext;

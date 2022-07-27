@@ -46,6 +46,8 @@ const cfg = {
     recoveryNewCredentialsPath: '/v1/enterprise/cloud/recovery/newcredentials',
     recoveryTokenPath: '/v1/enterprise/cloud/recovery/token/:tokenId',
     recoveryCodesPath: '/v1/enterprise/cloud/recovery/codes',
+
+    upgradeWindowStartPath: '/v1/enterprise/cloud/upgradewindowstart',
   },
 
   getAccessRequestRoute(requestId?: string) {

@@ -8,6 +8,7 @@ import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
 import Billing from 'e-teleport/Billing';
 import AccountE from 'e-teleport/Account';
+import { SupportE } from 'e-teleport/Support';
 
 class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   route = {
@@ -108,6 +109,15 @@ class FeatureAccount extends OSS.FeatureAccount {
   };
 }
 
+class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
+  route = {
+    title: 'Help & Support',
+    path: cfg.oss.routes.support,
+    exact: true,
+    component: SupportE,
+  };
+}
+
 export default function getFeatures() {
   return [
     new OSS.FeatureNodes(),
@@ -125,7 +135,7 @@ export default function getFeatures() {
     new FeatureAuthConnectors(),
     new OSS.FeatureClusters(),
     new OSS.FeatureTrust(),
-    new OSS.FeatureHelpAndSupport(),
+    new FeatureHelpAndSupport(),
     new FeatureAccount(),
     new FeatureBilling(),
   ];
