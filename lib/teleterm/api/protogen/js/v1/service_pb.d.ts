@@ -77,14 +77,35 @@ export namespace LogoutRequest {
     }
 }
 
+export class WebauthnCredentialInfo extends jspb.Message { 
+    getUsername(): string;
+    setUsername(value: string): WebauthnCredentialInfo;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WebauthnCredentialInfo.AsObject;
+    static toObject(includeInstance: boolean, msg: WebauthnCredentialInfo): WebauthnCredentialInfo.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WebauthnCredentialInfo, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WebauthnCredentialInfo;
+    static deserializeBinaryFromReader(message: WebauthnCredentialInfo, reader: jspb.BinaryReader): WebauthnCredentialInfo;
+}
+
+export namespace WebauthnCredentialInfo {
+    export type AsObject = {
+        username: string,
+    }
+}
+
 export class LoginPasswordlessResponse extends jspb.Message { 
     getPrompt(): PasswordlessPrompt;
     setPrompt(value: PasswordlessPrompt): LoginPasswordlessResponse;
 
-    clearUsernamesList(): void;
-    getUsernamesList(): Array<string>;
-    setUsernamesList(value: Array<string>): LoginPasswordlessResponse;
-    addUsernames(value: string, index?: number): string;
+    clearCredentialsList(): void;
+    getCredentialsList(): Array<WebauthnCredentialInfo>;
+    setCredentialsList(value: Array<WebauthnCredentialInfo>): LoginPasswordlessResponse;
+    addCredentials(value?: WebauthnCredentialInfo, index?: number): WebauthnCredentialInfo;
 
 
     serializeBinary(): Uint8Array;
@@ -100,28 +121,28 @@ export class LoginPasswordlessResponse extends jspb.Message {
 export namespace LoginPasswordlessResponse {
     export type AsObject = {
         prompt: PasswordlessPrompt,
-        usernamesList: Array<string>,
+        credentialsList: Array<WebauthnCredentialInfo.AsObject>,
     }
 }
 
 export class LoginPasswordlessRequest extends jspb.Message { 
 
-    hasClusterUri(): boolean;
-    clearClusterUri(): void;
-    getClusterUri(): string;
-    setClusterUri(value: string): LoginPasswordlessRequest;
+    hasInit(): boolean;
+    clearInit(): void;
+    getInit(): LoginPasswordlessRequest.LoginPasswordlessRequestInit | undefined;
+    setInit(value?: LoginPasswordlessRequest.LoginPasswordlessRequestInit): LoginPasswordlessRequest;
 
 
     hasPin(): boolean;
     clearPin(): void;
-    getPin(): string;
-    setPin(value: string): LoginPasswordlessRequest;
+    getPin(): LoginPasswordlessRequest.LoginPasswordlessPINResponse | undefined;
+    setPin(value?: LoginPasswordlessRequest.LoginPasswordlessPINResponse): LoginPasswordlessRequest;
 
 
-    hasUsernameindex(): boolean;
-    clearUsernameindex(): void;
-    getUsernameindex(): number;
-    setUsernameindex(value: number): LoginPasswordlessRequest;
+    hasCredential(): boolean;
+    clearCredential(): void;
+    getCredential(): LoginPasswordlessRequest.LoginPasswordlessCredentialResponse | undefined;
+    setCredential(value?: LoginPasswordlessRequest.LoginPasswordlessCredentialResponse): LoginPasswordlessRequest;
 
 
     getRequestCase(): LoginPasswordlessRequest.RequestCase;
@@ -138,19 +159,84 @@ export class LoginPasswordlessRequest extends jspb.Message {
 
 export namespace LoginPasswordlessRequest {
     export type AsObject = {
-        clusterUri: string,
-        pin: string,
-        usernameindex: number,
+        init?: LoginPasswordlessRequest.LoginPasswordlessRequestInit.AsObject,
+        pin?: LoginPasswordlessRequest.LoginPasswordlessPINResponse.AsObject,
+        credential?: LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.AsObject,
     }
+
+
+    export class LoginPasswordlessRequestInit extends jspb.Message { 
+        getClusterUri(): string;
+        setClusterUri(value: string): LoginPasswordlessRequestInit;
+
+
+        serializeBinary(): Uint8Array;
+        toObject(includeInstance?: boolean): LoginPasswordlessRequestInit.AsObject;
+        static toObject(includeInstance: boolean, msg: LoginPasswordlessRequestInit): LoginPasswordlessRequestInit.AsObject;
+        static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+        static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+        static serializeBinaryToWriter(message: LoginPasswordlessRequestInit, writer: jspb.BinaryWriter): void;
+        static deserializeBinary(bytes: Uint8Array): LoginPasswordlessRequestInit;
+        static deserializeBinaryFromReader(message: LoginPasswordlessRequestInit, reader: jspb.BinaryReader): LoginPasswordlessRequestInit;
+    }
+
+    export namespace LoginPasswordlessRequestInit {
+        export type AsObject = {
+            clusterUri: string,
+        }
+    }
+
+    export class LoginPasswordlessPINResponse extends jspb.Message { 
+        getPin(): string;
+        setPin(value: string): LoginPasswordlessPINResponse;
+
+
+        serializeBinary(): Uint8Array;
+        toObject(includeInstance?: boolean): LoginPasswordlessPINResponse.AsObject;
+        static toObject(includeInstance: boolean, msg: LoginPasswordlessPINResponse): LoginPasswordlessPINResponse.AsObject;
+        static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+        static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+        static serializeBinaryToWriter(message: LoginPasswordlessPINResponse, writer: jspb.BinaryWriter): void;
+        static deserializeBinary(bytes: Uint8Array): LoginPasswordlessPINResponse;
+        static deserializeBinaryFromReader(message: LoginPasswordlessPINResponse, reader: jspb.BinaryReader): LoginPasswordlessPINResponse;
+    }
+
+    export namespace LoginPasswordlessPINResponse {
+        export type AsObject = {
+            pin: string,
+        }
+    }
+
+    export class LoginPasswordlessCredentialResponse extends jspb.Message { 
+        getIndex(): number;
+        setIndex(value: number): LoginPasswordlessCredentialResponse;
+
+
+        serializeBinary(): Uint8Array;
+        toObject(includeInstance?: boolean): LoginPasswordlessCredentialResponse.AsObject;
+        static toObject(includeInstance: boolean, msg: LoginPasswordlessCredentialResponse): LoginPasswordlessCredentialResponse.AsObject;
+        static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+        static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+        static serializeBinaryToWriter(message: LoginPasswordlessCredentialResponse, writer: jspb.BinaryWriter): void;
+        static deserializeBinary(bytes: Uint8Array): LoginPasswordlessCredentialResponse;
+        static deserializeBinaryFromReader(message: LoginPasswordlessCredentialResponse, reader: jspb.BinaryReader): LoginPasswordlessCredentialResponse;
+    }
+
+    export namespace LoginPasswordlessCredentialResponse {
+        export type AsObject = {
+            index: number,
+        }
+    }
+
 
     export enum RequestCase {
         REQUEST_NOT_SET = 0,
     
-    CLUSTER_URI = 1,
+    INIT = 1,
 
     PIN = 2,
 
-    USERNAMEINDEX = 3,
+    CREDENTIAL = 3,
 
     }
 
@@ -774,6 +860,5 @@ export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,
     PASSWORDLESS_PROMPT_TAP = 2,
-    PASSWORDLESS_PROMPT_RETAP = 3,
-    PASSWORDLESS_PROMPT_CREDENTIAL = 4,
+    PASSWORDLESS_PROMPT_CREDENTIAL = 3,
 }
