@@ -33,12 +33,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// sshd
-// type=USER_LOGIN msg=audit(1657493525.955:466): pid=16059 uid=0 auid=4294967295 ses=4294967295 subj==unconfined msg='op=login acct="jnyckowski" exe="/usr/sbin/sshd" hostname=? addr=127.0.0.1 terminal=sshd res=failed'UID="root" AUID="unset"
-// type=USER_START msg=audit(1657493584.668:474): pid=16059 uid=0 auid=1000 ses=11 subj==unconfined msg='op=PAM:session_open grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct="jnyckowski" exe="/usr/sbin/sshd" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID="root" AUID="jnyckowski"
-// type=USER_END msg=audit(1657744078.476:5916): pid=275303 uid=0 auid=1000 ses=118 subj==unconfined msg='op=PAM:session_close grantors=pam_selinux,pam_loginuid,pam_keyinit,pam_permit,pam_umask,pam_unix,pam_systemd,pam_mail,pam_limits,pam_env,pam_env,pam_selinux,pam_tty_audit acct="jnyckowski" exe="/usr/sbin/sshd" hostname=127.0.0.1 addr=127.0.0.1 terminal=ssh res=success'UID="root" AUID="jnyckowski"
-
-type AuditDClient struct {
+type Client struct {
 	conn NetlinkConnecter
 
 	execName     string
@@ -68,13 +63,20 @@ type auditStatus struct {
 }
 
 func SendEvent(event EventType, result ResultType, msg Message) error {
+	if os.Getuid() != 0 {
+		// Disable Auditd when not running as a root.
+		return nil
+	}
+
 	msg.SetDefaults()
 
-	auditd, err := NewAuditDClient(msg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer auditd.Close()
+	auditd := NewAuditDClient(msg)
+	defer func() {
+		err := auditd.Close()
+		if err != nil {
+			log.WithError(err).Error("failed to close auditd client")
+		}
+	}()
 
 	if err := auditd.SendMsg(event, result); err != nil {
 		return trace.Wrap(err)
@@ -83,7 +85,7 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	return nil
 }
 
-func (c *AuditDClient) connect() error {
+func (c *Client) connect() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -100,9 +102,6 @@ func (c *AuditDClient) connect() error {
 
 	status, err := c.getAuditStatus()
 	if err != nil {
-		//if errors.Is(err, syscall.EPERM) {
-		//	return nil, trace.ConvertSystemError()
-		//}
 		return trace.Errorf("failed to get audutd state: %v", trace.ConvertSystemError(err))
 	}
 
@@ -111,12 +110,11 @@ func (c *AuditDClient) connect() error {
 	if status.Enabled != 1 {
 		return ErrAuditdDisabled
 	}
-	log.Warnf("auditd is enabled")
 
 	return nil
 }
 
-func NewAuditDClient(msg Message) (*AuditDClient, error) { //TODO consider removing error
+func NewAuditDClient(msg Message) *Client {
 	msg.SetDefaults()
 
 	execName, err := os.Executable()
@@ -128,7 +126,7 @@ func NewAuditDClient(msg Message) (*AuditDClient, error) { //TODO consider remov
 	// Match sshd
 	const hostname = "?"
 
-	return &AuditDClient{
+	return &Client{
 		execName:     execName,
 		hostname:     hostname,
 		systemUser:   msg.SystemUser,
@@ -140,11 +138,11 @@ func NewAuditDClient(msg Message) (*AuditDClient, error) { //TODO consider remov
 			return netlink.Dial(family, config)
 		},
 		mtx: &sync.Mutex{},
-	}, nil
+	}
 }
 
-func (c *AuditDClient) getAuditStatus() (*auditStatus, error) {
-	resp, err := c.conn.Execute(netlink.Message{
+func (c *Client) getAuditStatus() (*auditStatus, error) {
+	_, err := c.conn.Execute(netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType(AUDIT_GET),
 			Flags: netlink.Request | netlink.Acknowledge,
@@ -155,14 +153,10 @@ func (c *AuditDClient) getAuditStatus() (*auditStatus, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Warnf("AuditGetResp: %v\n", resp)
-
 	msgs, err := c.conn.Receive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	log.Warnf("msgs: %v\n", msgs)
 
 	if len(msgs) != 1 {
 		return nil, trace.Errorf("returned wrong messages number, expected 1, got: %d", len(msgs))
@@ -176,12 +170,10 @@ func (c *AuditDClient) getAuditStatus() (*auditStatus, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log.Warnf("status: %+v\n", status)
-
 	return status, nil
 }
 
-func (c *AuditDClient) SendMsg(event EventType, result ResultType) error {
+func (c *Client) SendMsg(event EventType, result ResultType) error {
 	extraData := ""
 
 	if c.teleportUser != "" {
@@ -197,7 +189,7 @@ func (c *AuditDClient) SendMsg(event EventType, result ResultType) error {
 	return trace.Wrap(c.sendMsg(netlink.HeaderType(event), msgData))
 }
 
-func (c *AuditDClient) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
+func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
 	if err := c.connect(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -218,11 +210,10 @@ func (c *AuditDClient) sendMsg(eventType netlink.HeaderType, MsgData []byte) err
 	if len(resp) != 1 {
 		return fmt.Errorf("unexpected number of responses from kernel for status request: %d, %v", len(resp), resp)
 	}
-	log.Infof("reply: %v", resp)
 
 	return nil
 }
 
-func (c *AuditDClient) Close() error {
+func (c *Client) Close() error {
 	return c.conn.Close()
 }

@@ -290,7 +290,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.log.Warnf("auditd event error: %v", err)
 
 		auditdMsg := auditd.Message{
-			SystemUser: conn.User(),
+			SystemUser:   conn.User(),
+			TeleportUser: teleportUser,
+			ConnAddress:  conn.RemoteAddr().String(),
 		}
 
 		if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, auditd.Failed, auditdMsg); err != nil {
