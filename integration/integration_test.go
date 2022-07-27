@@ -41,6 +41,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -71,12 +76,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/common"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -3314,7 +3313,8 @@ func waitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	var conns []types.TunnelConnection
 	for i := 0; i < 30; i++ {
-		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
+		// to speed things up a bit, bypass the auth cache
+		conns, err := authServer.Services.GetTunnelConnections(clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return
