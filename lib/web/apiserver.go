@@ -367,7 +367,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// Sign required files to setup mTLS in other services (eg DBs)
 	// POST /webapi/sites/:site/sign
-	h.POST("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair))
+	h.POST("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair, types.RoleDatabase))
 
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
@@ -2706,7 +2706,7 @@ type ProvisionTokenAuthedHandler func(w http.ResponseWriter, r *http.Request, p 
 // WithProvisionTokenAuth ensures that request is authenticated with a provision token.
 // Provision tokens, when used like this are invalidated as soon as used.
 // Doesn't matter if the underlying response was a success or an error.
-func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler) httprouter.Handle {
+func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler, requiredRole types.SystemRole) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx := r.Context()
 		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
@@ -2717,7 +2717,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler) httprou
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		if err := h.consumeTokenForAPICall(ctx, creds.Password); err != nil {
+		if err := h.consumeTokenForAPICall(ctx, creds.Password, requiredRole); err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
 		}
@@ -2732,10 +2732,14 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler) httprou
 	})
 }
 
-func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) error {
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string, requiredRole types.SystemRole) error {
 	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if !token.GetRoles().Include(requiredRole) {
+		return trace.AccessDenied("invalid auth")
 	}
 
 	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
