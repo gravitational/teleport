@@ -187,6 +187,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 		GracefulShutdownTimeout: time.Second,
 		getConfigForServer:      getConfigForServer,
 		sync:                    func() {},
+		connShuffler:            noOpConnShuffler(),
 	})
 	require.NoError(t, err)
 
@@ -237,19 +238,6 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	})
 
 	return server, ts
-}
-
-func sendDialRequest(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
-	err := stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_DialRequest{
-			DialRequest: &clientapi.DialRequest{},
-		},
-	})
-	require.NoError(t, err)
-
-	frame, err := stream.Recv()
-	require.NoError(t, err)
-	require.NotNil(t, frame.GetConnectionEstablished())
 }
 
 func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
