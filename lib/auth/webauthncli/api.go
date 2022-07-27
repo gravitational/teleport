@@ -57,12 +57,6 @@ type LoginPrompt interface {
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (PIN-protected
 	// devices, passwordless flows, etc).
-	//
-	// Error can always be nil depending on who is implementing
-	// this interface e.g:
-	//  - implementation by 'DefaultPrompt' (auth/webauthn/prompt) will never return an error.
-	//  - implementation by 'pwdlessLoginPrompt' (teleterm/clusters/cluster_auth) will return
-	//    stream errors if any.
 	PromptTouch() error
 	// PromptCredential prompts the user to choose a credential, in case multiple
 	// credentials are available.
@@ -168,10 +162,6 @@ type RegisterPrompt interface {
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (eg, PIN-protected
 	// devices)
-	//
-	// Error can always be nil depending on who is implementing
-	// this interface e.g:
-	//  - implementation by 'DefaultPrompt' (auth/webauthn/prompt) will never return an error.
 	PromptTouch() error
 }
 
