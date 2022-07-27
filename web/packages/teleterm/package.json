@@ -96,6 +96,7 @@
       "target": [
         "nsis"
       ],
+      "artifactName": "${productName} Setup-${version}.${ext}",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh.exe",
