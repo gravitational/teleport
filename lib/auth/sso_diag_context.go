@@ -49,6 +49,6 @@ func (c *ssoDiagContext) writeToBackend(ctx context.Context) {
 func (a *Server) newSSODiagContext(authKind string) *ssoDiagContext {
 	return &ssoDiagContext{
 		authKind:                authKind,
-		createSSODiagnosticInfo: a.Identity.CreateSSODiagnosticInfo,
+		createSSODiagnosticInfo: a.CreateSSODiagnosticInfo,
 	}
 }
