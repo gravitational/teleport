@@ -284,7 +284,7 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 				}
 
 				repoFilePath := filepath.Join(repoPath, "teleport.repo")
-				err = yrt.createRepoFile(repoFilePath, os, relativeGpgPublicKeyPath)
+				err = yrt.createRepoFile(repoFilePath, os, osVersion, arch, relativeGpgPublicKeyPath)
 				if err != nil {
 					return trace.Wrap(err, "failed to create repo file for os %q at %q", os, repoFilePath)
 				}
@@ -402,7 +402,7 @@ func (yrt *YumRepoTool) signRepoMetadata(repoPath string) error {
 
 // Creates an os-specific ".repo" file for yum-config-manager akin to
 // https://rpm.releases.teleport.dev/teleport.repo
-func (yrt *YumRepoTool) createRepoFile(filePath, osName, relativeGpgPublicKeyPath string) error {
+func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relativeGpgPublicKeyPath string) error {
 	// Future work: maybe move domain name to config?
 	domainName := "yum.releases.teleport.dev"
 	sectionName := "teleport"
@@ -417,9 +417,9 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, relativeGpgPublicKeyPat
 			Path: strings.Join(
 				[]string{
 					osName,
-					"$releasever",
+					osVersion,
 					"Teleport",
-					"$basearch",
+					arch,
 					yrt.config.releaseChannel,
 					semver.Major(yrt.config.artifactVersion),
 				},
