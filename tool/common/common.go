@@ -48,7 +48,7 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 			return nil, trace.Wrap(err)
 		}
 		sessions = append(sessions, nextEvents...)
-		if eventKey == "" || len(sessions) > max {
+		if eventKey == "" || len(sessions) >= max {
 			break
 		}
 		prevEventKey = eventKey
