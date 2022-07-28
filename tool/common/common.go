@@ -39,6 +39,9 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 	prevEventKey := ""
 	sessions := []events.AuditEvent{}
 	for {
+		if remaining := max - len(sessions); remaining > pageSize {
+			pageSize = remaining
+		}
 		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
 			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
 		if err != nil {
