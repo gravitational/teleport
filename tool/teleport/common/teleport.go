@@ -74,6 +74,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDatabaseAWSCreateFlags configureDatabaseAWSCreateFlags
 		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
 		dbConfigCreateFlags             createDatabaseConfigFlags
+		systemdInstallFlags             installSystemdFlags
 	)
 
 	// define commands:
@@ -284,6 +285,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
 
+	// "teleport install" command and its subcommands
+	installCmd := app.Command("install", "Teleport install commands.")
+	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
+	systemdInstall.Flag("env-file", "Full path to the environment file.").StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
+	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
+
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
 	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpFlags.Sink)
@@ -401,6 +412,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
 		err = onConfigureDatabaseBootstrap(configureDatabaseBootstrapFlags)
+	case systemdInstall.FullCommand():
+		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	}
 	if err != nil {
 		utils.FatalError(err)
