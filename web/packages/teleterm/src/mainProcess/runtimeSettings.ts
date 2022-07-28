@@ -134,8 +134,8 @@ function requestChildProcessesAddresses(): ChildProcessAddresses {
   switch (process.platform) {
     case 'win32': {
       return {
-        tsh: 'localhost:0',
-        shared: 'localhost:0',
+        tsh: 'tcp://localhost:0',
+        shared: 'tcp://localhost:0',
       };
     }
     case 'linux':

@@ -48,9 +48,12 @@ async function initializeServer(
   // @ts-expect-error we have a typed service
   server.addService(PtyHostService, createPtyHostService());
 
+  // grpc-js requires us to pass localhost:port for TCP connections,
+  const grpcServerAddress = address.replace('tcp://', '');
+
   try {
     server.bindAsync(
-      address,
+      grpcServerAddress,
       (await getServerCredentials(runtimeSettings)).shared,
       (error, port) => {
         sendBoundNetworkPortToStdout(port);
