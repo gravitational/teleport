@@ -226,8 +226,13 @@ export default class Client extends EventEmitterWebAuthnSender {
     if (!this.wasSuccessful(ack.errCode)) {
       return;
     }
-
-    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
+    try {
+      this.logger.info(
+        'Started sharing directory: ' + this.sdManager.getName()
+      );
+    } catch (e) {
+      this.handleError(e);
+    }
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {

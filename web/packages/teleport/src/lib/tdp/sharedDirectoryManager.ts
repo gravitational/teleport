@@ -18,6 +18,9 @@
 export class SharedDirectoryManager {
   private dir: FileSystemDirectoryHandle | undefined;
 
+  /**
+   * @throws Will throw an error if a directory is already being shared.
+   */
   add(sharedDirectory: FileSystemDirectoryHandle) {
     if (this.dir) {
       throw new Error(
@@ -27,14 +30,19 @@ export class SharedDirectoryManager {
     this.dir = sharedDirectory;
   }
 
+  /**
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   */
   getName(): string {
     this.checkReady();
     return this.dir.name;
   }
 
-  // Gets the information for the file or directory
-  // at path where path is the relative path from the
-  // root directory.
+  /**
+   * Gets the information for the file or directory at path where path is the relative path from the root directory.
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
   async getInfo(path: string): Promise<FileOrDirInfo> {
     this.checkReady();
 
@@ -55,8 +63,11 @@ export class SharedDirectoryManager {
     };
   }
 
-  // Gets the FileOrDirInfo for all the children of the
-  // directory at path.
+  /**
+   * Gets the FileOrDirInfo for all the children of the directory at path.
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
   async listContents(path: string): Promise<FileOrDirInfo[]> {
     this.checkReady();
 
@@ -81,7 +92,11 @@ export class SharedDirectoryManager {
     return infos;
   }
 
-  // Reads length bytes starting at offset from a file at path.
+  /**
+   * Reads length bytes starting at offset from a file at path.
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
   async readFile(
     path: string,
     offset: bigint,
@@ -101,7 +116,11 @@ export class SharedDirectoryManager {
     );
   }
 
-  // Writes the bytes in writeData to the file at path starting at offset.
+  /**
+   * Writes the bytes in writeData to the file at path starting at offset.
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
   async writeFile(
     path: string,
     offset: bigint,
@@ -124,10 +143,12 @@ export class SharedDirectoryManager {
     return writeData.length;
   }
 
-  // walkPath walks a pathstr (assumed to be in the qualified Unix format specified
-  // in the TDP spec), returning the FileSystemDirectoryHandle | FileSystemFileHandle
-  // it finds at its end. If the pathstr isn't a valid path in the shared directory,
-  // it throws an error.
+  /**
+   * walkPath walks a pathstr (assumed to be in the qualified Unix format specified
+   * in the TDP spec), returning the FileSystemDirectoryHandle | FileSystemFileHandle
+   * it finds at its end.
+   * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
+   */
   private async walkPath(
     pathstr: string
   ): Promise<FileSystemDirectoryHandle | FileSystemFileHandle> {
@@ -169,6 +190,9 @@ export class SharedDirectoryManager {
     return walkIt(this.dir, path);
   }
 
+  /**
+   * @throws Will throw an error if a directory has not already been initialized via add().
+   */
   private checkReady() {
     if (!this.dir) {
       throw new Error(
