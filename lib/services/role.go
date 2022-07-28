@@ -1974,7 +1974,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchLabels {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied. User does not have Teleport role permissions for this access. %v",
+			return trace.AccessDenied("access to %v denied. User does not have permissions.%v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 
@@ -1987,7 +1987,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if matchMatchers {
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied. User does not have Teleport role permissions for this access.%v",
+			return trace.AccessDenied("access to %v denied. User does not have permissions.%v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
@@ -2056,7 +2056,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied. User does not have Teleport role permissions for this access.%v",
+	return trace.AccessDenied("access to %v denied. User does not have permissions.%v",
 		r.GetKind(), additionalDeniedMessage)
 }
 
