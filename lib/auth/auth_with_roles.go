@@ -43,8 +43,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	v11 "go.opentelemetry.io/proto/otlp/common/v1"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -329,7 +329,7 @@ const (
 //  2) Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
 //
 // This allows upstream consumers of the spans to be able to identify forwarded spans and act on them accordingly.
-func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracepb.ExportTraceServiceRequest) (*collectortracepb.ExportTraceServiceResponse, error) {
+func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
 	var sb strings.Builder
 
 	sb.WriteString(a.context.User.GetName())
@@ -344,30 +344,53 @@ func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracepb.Expo
 		}
 	}
 
-	forwardedFor := sb.String()
+	// the forwarded attribute to add
+	value := &otlpcommonv1.KeyValue{
+		Key: forwardedTag,
+		Value: &otlpcommonv1.AnyValue{
+			Value: &otlpcommonv1.AnyValue_StringValue{
+				StringValue: sb.String(),
+			},
+		},
+	}
+
+	// returns true if the attributes don't already contain
+	// the forwardedTag
+	tagNeeded := func(attrs []*otlpcommonv1.KeyValue) bool {
+		for _, attr := range attrs {
+			if attr.Key == forwardedTag {
+				return false
+			}
+		}
+
+		return true
+	}
 
 	for _, resourceSpans := range req.ResourceSpans {
+		// if there is a resource, tag it with the
+		// forwarded attribute instead of each of tagging
+		// each span
+		if resourceSpans.Resource != nil && tagNeeded(resourceSpans.Resource.Attributes) {
+			resourceSpans.Resource.Attributes = append(resourceSpans.Resource.Attributes, value)
+			continue
+		}
+
+		// there was no resource, so we must now tag all the
+		// individual spans with the forwarded tag
 		for _, scopeSpans := range resourceSpans.ScopeSpans {
 			for _, span := range scopeSpans.Spans {
-				span.Attributes = append(span.Attributes,
-					&v11.KeyValue{
-						Key: forwardedTag,
-						Value: &v11.AnyValue{
-							Value: &v11.AnyValue_StringValue{
-								StringValue: forwardedFor,
-							},
-						},
-					},
-				)
+				if tagNeeded(span.Attributes) {
+					span.Attributes = append(span.Attributes, value)
+				}
 			}
 		}
 	}
 
 	if err := a.authServer.traceClient.UploadTraces(ctx, req.ResourceSpans); err != nil {
-		return &collectortracepb.ExportTraceServiceResponse{}, trace.Wrap(err)
+		return &collectortracev1.ExportTraceServiceResponse{}, trace.Wrap(err)
 	}
 
-	return &collectortracepb.ExportTraceServiceResponse{}, nil
+	return &collectortracev1.ExportTraceServiceResponse{}, nil
 }
 
 // GetSessionTracker returns the current state of a session tracker for an active session.

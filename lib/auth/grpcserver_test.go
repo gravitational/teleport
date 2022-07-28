@@ -35,8 +35,9 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	v11 "go.opentelemetry.io/proto/otlp/common/v1"
-	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -2230,7 +2231,7 @@ func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
 
 type mockTraceClient struct {
 	err   error
-	spans []*tracepb.ResourceSpans
+	spans []*otlptracev1.ResourceSpans
 }
 
 func (m mockTraceClient) Start(ctx context.Context) error {
@@ -2241,7 +2242,7 @@ func (m mockTraceClient) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) error {
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlptracev1.ResourceSpans) error {
 	m.spans = protoSpans
 
 	return m.err
@@ -2251,23 +2252,57 @@ func TestExport(t *testing.T) {
 	t.Parallel()
 	uploadErr := trace.AccessDenied("failed to upload")
 
-	const user = "user"
+	const (
+		user          = "user"
+		alreadyTagged = "already-tagged"
+	)
+
+	validateResource := func(forwardedFor string, resourceSpan *otlptracev1.ResourceSpans) {
+		var forwarded []string
+		for _, attribute := range resourceSpan.Resource.Attributes {
+			if attribute.Key == forwardedTag {
+				forwarded = append(forwarded, attribute.Value.GetStringValue())
+			}
+		}
+
+		require.Len(t, forwarded, 1)
+		require.Equal(t, forwardedFor, forwarded[0])
+
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+				for _, attribute := range span.Attributes {
+					require.NotEqual(t, forwardedTag, attribute.Key)
+				}
+			}
+		}
+	}
 
 	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
 		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
 			require.NotEmpty(t, i)
-			resourceSpans, ok := i.([]*tracepb.ResourceSpans)
+			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
 			require.True(t, ok)
 
 			for _, resourceSpan := range resourceSpans {
+				if resourceSpan.Resource != nil {
+					validateResource(forwardedFor, resourceSpan)
+					return
+				}
+
 				for _, scopeSpan := range resourceSpan.ScopeSpans {
-					var foundForwardedTag bool
 					for _, span := range scopeSpan.Spans {
+						var foundForwardedTag bool
 						for _, attribute := range span.Attributes {
 							if attribute.Key == forwardedTag {
+								require.False(t, foundForwardedTag)
 								foundForwardedTag = true
-								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
-								break
+
+								expected := forwardedFor
+								if span.Name == alreadyTagged {
+									expected = user
+								}
+
+								require.Equal(t, expected, attribute.Value.GetStringValue())
 							}
 						}
 						require.True(t, foundForwardedTag)
@@ -2277,26 +2312,46 @@ func TestExport(t *testing.T) {
 		}
 	}
 
-	testSpans := []*tracepb.ResourceSpans{
+	testSpans := []*otlptracev1.ResourceSpans{
 		{
-			ScopeSpans: []*tracepb.ScopeSpans{
+			Resource: &otlpresourcev1.Resource{
+				Attributes: []*otlpcommonv1.KeyValue{
+					{
+						Key: "test",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_IntValue{
+								IntValue: 1,
+							},
+						},
+					},
+					{
+						Key: "key",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_StringValue{
+								StringValue: user,
+							},
+						},
+					},
+				},
+			},
+			ScopeSpans: []*otlptracev1.ScopeSpans{
 				{
-					Spans: []*tracepb.Span{
+					Spans: []*otlptracev1.Span{
 						{
 							Name: "with-attributes",
-							Attributes: []*v11.KeyValue{
+							Attributes: []*otlpcommonv1.KeyValue{
 								{
 									Key: "test",
-									Value: &v11.AnyValue{
-										Value: &v11.AnyValue_IntValue{
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
 											IntValue: 1,
 										},
 									},
 								},
 								{
 									Key: "key",
-									Value: &v11.AnyValue{
-										Value: &v11.AnyValue_DoubleValue{
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
 											DoubleValue: 5.0,
 										},
 									},
@@ -2310,6 +2365,56 @@ func TestExport(t *testing.T) {
 				},
 			},
 		},
+		{
+			ScopeSpans: []*otlptracev1.ScopeSpans{
+				{
+					Spans: []*otlptracev1.Span{
+						{
+							Name: "more-with-attributes",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: "test2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
+											IntValue: 11,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: alreadyTagged,
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: forwardedTag,
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_StringValue{
+											StringValue: user,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	cases := []struct {
@@ -2317,7 +2422,7 @@ func TestExport(t *testing.T) {
 		identity          TestIdentity
 		errAssertion      require.ErrorAssertionFunc
 		uploadedAssertion require.ValueAssertionFunc
-		spans             []*tracepb.ResourceSpans
+		spans             []*otlptracev1.ResourceSpans
 		authorizer        Authorizer
 		mockTraceClient   mockTraceClient
 	}{
@@ -2326,7 +2431,7 @@ func TestExport(t *testing.T) {
 			identity:          TestNop(),
 			errAssertion:      require.Error,
 			uploadedAssertion: require.Empty,
-			spans:             make([]*tracepb.ResourceSpans, 1),
+			spans:             make([]*otlptracev1.ResourceSpans, 1),
 			authorizer:        &mockAuthorizer{err: trace.AccessDenied("unauthorized")},
 		},
 		{
@@ -2346,7 +2451,7 @@ func TestExport(t *testing.T) {
 				require.NotNil(t, i)
 				require.Len(t, i, 1)
 			},
-			spans:           make([]*tracepb.ResourceSpans, 1),
+			spans:           make([]*otlptracev1.ResourceSpans, 1),
 			mockTraceClient: mockTraceClient{err: uploadErr},
 		},
 		{
