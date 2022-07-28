@@ -5,8 +5,8 @@ description: Values that can be set using the teleport-cluster Helm chart
 
 The `teleport-cluster` Helm chart deploys the `teleport` daemon on Kubernetes.
 You can use our preset configurations to deploy the Auth Service and Proxy
-Service, or a custom configuration to deploy agent services such as the Teleport
-Kubernetes Service or Database Service.
+Service, or a custom configuration to deploy resource services such as the
+Teleport Kubernetes Service or Database Service.
 
 You can
 [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
@@ -15,17 +15,17 @@ The `teleport-cluster` chart runs two Teleport services:
 
 | Teleport service | Purpose | Documentation |
 | - | - | - |
-| `auth_service` | Authenticates users and hosts, and issues certificates | [Auth documentation](../../../architecture/authentication.mdx)
-| `proxy_service`| Runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service | [Proxy documentation](../../../architecture/proxy.mdx) |
+| `auth_service` | Authenticates users and hosts, and issues certificates | [Auth documentation](../../architecture/authentication.mdx)
+| `proxy_service`| Runs the externally-facing parts of a Teleport cluster, such as the web UI, SSH proxy and reverse tunnel service | [Proxy documentation](../../architecture/proxy.mdx) |
 
 The `teleport-cluster` chart can be deployed in four different modes. Get started with a guide for each mode:
 
 | `chartMode` | Guide |
 | - | - |
-| `standalone` | [Getting started with Kubernetes Access](../../../getting-started.mdx) |
-| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx) |
-| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
-| `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
+| `standalone` | [Getting Started - Kubernetes with SSO](../../kubernetes-access/getting-started/cluster.mdx) |
+| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../../kubernetes-access/helm/guides/aws.mdx) |
+| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../kubernetes-access/helm/guides/gcp.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](../../kubernetes-access/helm/guides/custom.mdx) |
 
 This reference details available values for the `teleport-cluster` chart.
 
@@ -87,7 +87,7 @@ the FQDN which is used to access the Teleport cluster.
 
 ### `authenticationSecondFactor.webauthn`
 
-See [Second Factor - WebAuthn](../../../access-controls/guides/webauthn.mdx) for more details.
+See [Second Factor - WebAuthn](../../access-controls/guides/webauthn.mdx) for more details.
 
 #### `authenticationSecondFactor.webauthn.attestationAllowedCas`
 
@@ -252,8 +252,8 @@ You can optionally override this to use a different published Teleport Docker im
 
 See these links for information on Docker image versions:
 
-- [Community Docker image information](../../../setup/guides/docker.mdx#step-14-pick-your-image)
-- [Enterprise Docker image information](../../../enterprise/getting-started.mdx#run-teleport-enterprise-using-docker)
+- [Community Docker image information](../guides/docker.mdx#step-14-pick-your-image)
+- [Enterprise Docker image information](../../enterprise/getting-started.mdx#run-teleport-enterprise-using-docker)
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -394,10 +394,10 @@ Teleport's RBAC policies to define access rules for the cluster.
 
 | `chartMode` | Guide |
 | - | - |
-| `standalone` | [Getting started with Kubernetes Access](../../../getting-started.mdx) |
-| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx) |
-| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx) |
-| `custom` | [Running a Teleport cluster with a custom config](../guides/custom.mdx) |
+| `standalone` | [Getting Started - Kubernetes with SSO](../../kubernetes-access/getting-started/cluster.mdx) |
+| `aws` | [Running an HA Teleport cluster using an AWS EKS Cluster](../../kubernetes-access/helm/guides/aws.mdx) |
+| `gcp` | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../kubernetes-access/helm/guides/gcp.mdx) |
+| `custom` | [Running a Teleport cluster with a custom config](../../kubernetes-access/helm/guides/custom.mdx) |
 
 ## `persistence`
 
@@ -477,17 +477,17 @@ You can set `volumeSize` to request a different size of persistent volume when i
 
 | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
-| ❌ | See [Using DynamoDB](../../../setup/reference/backends.mdx#dynamodb) and [Using Amazon S3](../../../setup/reference/backends.mdx#s3) for details |
+| ❌ | See [Using DynamoDB](../reference/backends.mdx#dynamodb) and [Using Amazon S3](../reference/backends.mdx#s3) for details |
 
-`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../guides/aws.mdx)
+`aws` settings are described in the AWS guide: [Running an HA Teleport cluster using an AWS EKS Cluster](../../kubernetes-access/helm/guides)
 
 ## `gcp`
 
 | Can be used in `custom` mode? | `teleport.yaml` equivalent |
 | - | - |
-| ❌ | See [Using Firestore](../../../setup/reference/backends.mdx#dynamodb) and [Using GCS](../../../setup/reference/backends.mdx#gcs) for details |
+| ❌ | See [Using Firestore](../reference/backends.mdx#dynamodb) and [Using GCS](../reference/backends.mdx#gcs) for details |
 
-`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../guides/gcp.mdx)
+`gcp` settings are described in the GCP guide: [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../kubernetes-access/helm/guides/gcp.mdx)
 
 ### `highAvailability`
 
@@ -515,7 +515,7 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
 <Admonition type="warning">
   When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB or Firestore) for multiple replicas to be supported.
 
-  [Information on supported Teleport storage backends](../../../architecture/authentication.mdx#storage-back-ends)
+  [Information on supported Teleport storage backends](../reference/backends.mdx)
 
   Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT** supported for an HA deployment and will result in errors.
 </Admonition>
@@ -639,7 +639,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../guides/aws.mdx#step-4a-install-and-configure-cert-manager-to-handle-tls) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../kubernetes-access/helm/guides/aws.mdx#step-47-tls-certificates-for-teleport) and [GCP](../../kubernetes-access/helm/guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -654,7 +654,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../guides/aws.mdx#step-4a-install-and-configure-cert-manager-to-handle-tls) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../kubernetes-access/helm/guides/aws.mdx#step-47-tls-certificates-for-teleport) and [GCP](../../kubernetes-access/helm/guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -688,7 +688,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../guides/aws.mdx#step-4a-install-and-configure-cert-manager-to-handle-tls) and [GCP](../guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../kubernetes-access/helm/guides/aws.mdx#step-47-tls-certificates-for-teleport) and [GCP](../../kubernetes-access/helm/guides/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -961,7 +961,7 @@ Possible values are `text` (default) or `json`.
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
-See the [Teleport config file reference](../../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+See the [Teleport config file reference](../reference/config.mdx) for more details on possible values for `extra_fields`.
 
 <Tabs>
   <TabItem label="values.yaml">

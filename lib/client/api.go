@@ -1759,25 +1759,21 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		for _, fp := range tc.Config.LocalForwardPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+	for _, fp := range tc.Config.LocalForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.listenAndForward(ctx, socket, addr, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 	}
-	if len(tc.Config.DynamicForwardedPorts) > 0 {
-		for _, fp := range tc.Config.DynamicForwardedPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.dynamicListenAndForward(ctx, socket)
+	for _, fp := range tc.Config.DynamicForwardedPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
 	return nil
 }
@@ -1808,7 +1804,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// find the session ID on the site:
-	sessions, err := site.GetSessions(namespace)
+	sessions, err := site.GetSessions(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}

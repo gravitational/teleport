@@ -1437,14 +1437,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass)
 	case constants.SecondFactorOTP, constants.SecondFactorOn:
-		webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken)
 	case constants.SecondFactorOptional:
 		if req.SecondFactorToken == "" {
-			webSession, err = h.auth.AuthWithoutOTP(req.User, req.Pass)
+			webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass)
 		} else {
-			webSession, err = h.auth.AuthWithOTP(req.User, req.Pass, req.SecondFactorToken)
+			webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken)
 		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
@@ -1469,7 +1469,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -1487,7 +1487,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 // {"message": "ok"}
 //
 func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	err := h.logout(w, ctx)
+	err := h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1495,8 +1495,8 @@ func (h *Handler) deleteSession(w http.ResponseWriter, r *http.Request, _ httpro
 	return OK(), nil
 }
 
-func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
-	if err := ctx.Invalidate(); err != nil {
+func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, scx *SessionContext) error {
+	if err := scx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	ClearSession(w)
@@ -1527,7 +1527,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
 	}
 
-	newSession, err := ctx.extendWebSession(req.AccessRequestID, req.Switchback)
+	newSession, err := ctx.extendWebSession(r.Context(), req.AccessRequestID, req.Switchback)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1597,7 +1597,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1755,7 +1755,7 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := h.auth.AuthenticateSSHUser(*req)
+	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1779,14 +1779,14 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := h.auth.AuthenticateWebUser(req)
+	session, err := h.auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 	if err := SetSessionCookie(w, req.User, session.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, err := h.auth.newSessionContext(req.User, session.GetName())
+	ctx, err := h.auth.newSessionContext(r.Context(), req.User, session.GetName())
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -2019,7 +2019,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	sessions, err := clt.GetSessions(apidefaults.Namespace)
+	sessions, err := clt.GetSessions(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2060,7 +2060,7 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := clt.GetSession(apidefaults.Namespace, *sessionID)
+	sess, err := clt.GetSession(r.Context(), apidefaults.Namespace, *sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2429,13 +2429,13 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(*req)
+		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 		// convert legacy requests to new parameter here. remove once migration to TOTP is complete.
 		if req.HOTPToken != "" {
 			req.OTPToken = req.HOTPToken
 		}
-		cert, err = h.auth.GetCertificateWithOTP(*req)
+		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}

@@ -608,13 +608,16 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// Set session recording configuration from file configuration.
-	cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode:                fc.Auth.SessionRecording,
-		ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	// Only override session recording configuration if either field is
+	// specified in file configuration.
+	if fc.Auth.SessionRecording != "" || fc.Auth.ProxyChecksHostKeys != nil {
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+			Mode:                fc.Auth.SessionRecording,
+			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := applyKeyStoreConfig(fc, cfg); err != nil {
@@ -1212,6 +1215,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
 				Headers:  headers,
+			}
+		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
 			}
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {

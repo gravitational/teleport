@@ -6,7 +6,7 @@ description: Getting started with Teleport. Let's deploy Teleport in a Kubernete
 <ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
 This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
 
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service agent to an existing Teleport cluster:
+Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
 
 </ScopedBlock>
 
@@ -72,11 +72,12 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     # Create a namespace for a deployment.
     $ kubectl create namespace teleport-cluster-ent
 
-    # Set kubectl context to the namespace to save some typing
+    # Set the kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
 
-    # Get a license from Teleport and create a secret "license" in the namespace teleport-cluster-ent
-    $ kubectl -n teleport-cluster-ent create secret generic license --from-file=license.pem
+    # Get a license from Teleport and create a secret called "license" in the
+    # namespace you created
+    $ kubectl create secret generic license --from-file=license.pem
 
     # Install Teleport
     $ helm install teleport-cluster teleport/teleport-cluster --namespace=teleport-cluster-ent \

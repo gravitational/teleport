@@ -1,5 +1,26 @@
 # Changelog
 
+## 9.3.13
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with incorrect time being set on session.upload events. [#14560](https://github.com/gravitational/teleport/pull/14560)
+* Fixed issue with Teleport components not becoming ready when desktop access is enabled. [#14858](https://github.com/gravitational/teleport/pull/14858)
+* Fixed issue with token not being validated when generating a join script. [#14946](https://github.com/gravitational/teleport/pull/14946)
+* Added ability to override AWS database name via `teleport.dev/database_name` tag. [#14826](https://github.com/gravitational/teleport/pull/14826)
+* Added ability to call `tsh proxy db` without calling `tsh db login` first. [#14801](https://github.com/gravitational/teleport/pull/14801)
+* Added additional Prometheus metrics for DynamoDB. [#14761](https://github.com/gravitational/teleport/pull/14761)
+* Added support for external IDs in AWS Console access. [#14895](https://github.com/gravitational/teleport/pull/14895)
+
+## 9.3.12
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added ability to set session recording configuration from a resource. [#14612](https://github.com/gravitational/teleport/pull/14612)
+* Fixed an issue where `tsh` would shell out to `ssh`. [#14222](https://github.com/gravitational/teleport/pull/14222)
+* Improved error messages for Database Access. [#13902](https://github.com/gravitational/teleport/pull/13902) [#14476](https://github.com/gravitational/teleport/pull/14476)
+* Fixed issue with Ctrl-C hanging when the session is paused. [#14512](https://github.com/gravitational/teleport/pull/14512)
+
 ## 9.3.10
 
 This release of Teleport contains multiple improvements and bug fixes.
