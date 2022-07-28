@@ -20,18 +20,21 @@ ERROR: failed direct dial to auth server: auth API: access denied [00]
 "\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
 ```
 
-In particular, note the message `auth API: access denied`. The Teleport Auth
-Service will provide some additional context:
+In particular, note the message `auth API: access denied`.
+
+<ScopedBlock scope={["oss","enterprise"]}>
+The Teleport Auth Service will also provide some additional context:
 ```text
 [AUTH]      WARN lock targeting User:"bot-example" is in force: The bot user "bot-example" has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate. auth/apiserver.go:224
 ```
+</ScopedBlock>
 
 ### Explanation
 
 Machine ID (with token-based joining) uses a certificate generation counter to
 detect potentially stolen renewable certificates. Each time a bot fetches a new
-renewable certificate, the counter is incremented and stored on the Teleport
-Auth Server and embedded in the certificate itself.
+renewable certificate, the Auth Service increments the counter, stores it on the
+backend, and embeds a copy of the counter in the certificate.
 
 If the counter embedded in your bot certificate doesn't match the counter
 stored in Teleport's Auth Server, the renewal will fail and the bot user will
@@ -56,9 +59,11 @@ Otherwise, first ensure only one bot instance is using the internal data
 directory. Multiple bots can be run on a single system, but separate data
 directories must be configured for each.
 
-Additionally, ensure the internal data is not being copied to any other nodes.
-If you'd like to share certificates between nodes, only copy content from
-destination directories.
+Additionally, ensure the internal data is not being shared with or copied to any
+other nodes, for example via a shared NFS volume. If you'd like to share
+certificates between nodes, only copy or share content from destination
+directories (usually `/opt/machine-id`) rather than the internal data directory
+(by default, `/var/lib/teleport/bot`).
 
 Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
@@ -115,15 +120,15 @@ fail."
 
 ### Explanation
 
-Token-joined bots are unable to reauthenticate to the Teleport server once their
-certificates have expired. Tokens in token-based joining (as opposed to AWS IAM
-joining) can only be used once, so when the bot's internal certificates expire, it
-will not be able to connect.
+Token-joined bots are unable to reauthenticate to the Teleport Auth Service once
+their certificates have expired. Tokens in token-based joining (as opposed to
+AWS IAM joining) can only be used once, so when the bot's internal certificates
+expire, it will not be able to connect.
 
-When a bot's identity expires, certain server-side parameters like the
-certificate generation counter must be reset. The simplest way to accomplish
-this is by removing and recreating the bot, which purges all server-side data
-and issues a new joining token.
+When a bot's identity expires, certain parameters associated with the bot on the
+Auth Service must be reset and a new joining token must be issued. The simplest
+way to accomplish this is by removing and recreating the bot, which purges all
+server-side data and issues a new joining token.
 
 ### Resolution
 
@@ -146,7 +151,7 @@ When attempting to connect to a node via SSH, connections fail with an error
 like the following:
 
 ```code
-$ ssh -F /opt/machine-id/ssh_config bob@node.example.com                                                                                                                           timothyb89/v10/machine-id-app-access 
+$ ssh -F /opt/machine-id/ssh_config bob@node.example.com
 ERROR: ssh: handshake failed: ssh: unable to authenticate, attempted methods [none publickey], no supported methods remain
 
 ERROR: unable to execute tsh
@@ -191,6 +196,9 @@ renewal immediately by either restarting the `tbot` process or sending it a
 reload signal:
 
 ```code
+## If using systemd, you can restart the process:
+$ systemctl restart machine-id
+## Alternatively, you can send `tbot` a reload signal directly:
 $ pkill -sigusr1 tbot
 ```
 
@@ -220,8 +228,7 @@ example                [alice]       env=dev
 Unlike regular Teleport users, Machine ID bot users are granted only minimal
 Teleport [RBAC permissions](../access-controls/reference.mdx) and are not
 allowed to view or list databases by default unless granted permission via one
-or more roles. Users should grant these permissions to the bot via a role at
-first setup.
+or more roles.
 
 ### Resolution
 
@@ -229,17 +236,7 @@ Per the [Machine ID Database Access Guide](./guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
 destination listed in the error.
 
-<Notice type="note">
-By default, destinations are granted all roles provided to the bot via
-`tctl bots add --roles=...`, but it's possible to grant only a subset of these
-roles using the `roles: ...` parameter in `tbot.yaml`.
-
-If permissions are unexpectedly missing, ensure `tbot.yaml` requests the
-database role, either by relying on default behavior or adding the role to the
-`roles: ...` list.
-</Notice>
-
-An example role might look like the following:
+For example, note the `rules` section in the following example role:
 ```yaml
 kind: role
 version: v5
@@ -256,8 +253,9 @@ spec:
         verbs: [read, list]
 ```
 
-Ensure the bot has been granted a similar role. If desired you can examine bot
-roles with `tctl` to ensure the necessary `rules` have been granted:
+Ensure the bot has a role that grants it at least these RBAC rules. If desired
+you can examine bot roles with `tctl` to ensure the necessary `rules` have been
+granted:
 
 ```code
 $ tctl get role/machine-id-db
@@ -272,6 +270,16 @@ $ nano db-role.yaml
 ## replace the existing role with the modified copy
 $ tctl create -f db-role.yaml
 ```
+
+<Notice type="note">
+By default, destinations (like `/opt/machine-id`) are granted all roles provided
+to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
+subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
+
+If permissions are unexpectedly missing, ensure `tbot.yaml` requests your
+database role, either by relying on default behavior or adding the role to the
+`roles: ...` list.
+</Notice>
 
 Once fixed, restart or reload the `tbot` clients for the updated role to take
 effect.
