@@ -438,8 +438,6 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 		return nil, existing, trace.Wrap(err)
 	}
 
-	c.config.connShuffler(conns)
-
 	var errs []error
 	for _, conn := range conns {
 		stream, err := c.startStream(conn)
@@ -490,6 +488,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 	ids := make(map[string]struct{})
 	var conns []*clientConn
+	defer c.config.connShuffler(conns)
 
 	// look for existing matching connections.
 	c.RLock()
