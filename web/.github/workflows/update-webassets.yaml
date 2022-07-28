@@ -43,15 +43,22 @@ jobs:
           git config --global user.email github-goteleport-core-svc@goteleport.com
           git config --global user.name "$GITHUB_ACTOR"
 
+          echo "Updating webassets.e"
           cd dist/e
+          git stash save
+          git checkout $GITHUB_REF_NAME
+          git pull
+          git stash pop
           git add -A
           git status
           git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA" --allow-empty
           git push origin HEAD:$GITHUB_REF_NAME
 
+          echo "Updating webassets"
           cd ..
           git stash save
           git checkout $GITHUB_REF_NAME
+          git pull
           git stash pop
           git add -A
           git status
