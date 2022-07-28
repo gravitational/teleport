@@ -483,14 +483,10 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 // takes action if necessary
 func (process *TeleportProcess) periodicSyncRotationState() error {
 	// start rotation only after teleport process has started
-	eventC := make(chan Event, 1)
-	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.GracefulExitContext().Done():
+	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return nil
 	}
+	process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,
