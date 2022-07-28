@@ -353,7 +353,7 @@ func (c *Client) DialNode(
 		},
 	})
 	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s", proxyIDs)
+		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
 
 	return newStreamConn(stream, src, dst), nil
