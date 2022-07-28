@@ -12,4 +12,4 @@ keywords:
 dependencies:
   - name: teleport-operator
     version: *version
-    condition: installCRDs
+    condition: installCRDs,operator.enabled
