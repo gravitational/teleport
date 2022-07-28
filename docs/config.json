@@ -326,8 +326,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web Apps Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP Apps Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
