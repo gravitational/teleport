@@ -357,13 +357,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			Code:        events.TerminalResizeCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.Srv.GetNamespace(),
-			ServerHostname:  s.Srv.GetInfo().GetHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: session.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
@@ -498,6 +492,9 @@ type session struct {
 	// an ongoing lingerAndDie goroutine. This is used by joining parties
 	// to cancel the goroutine and prevent the session from closing prematurely.
 	lingerAndDieCancel func()
+
+	// serverMeta contains metadata about the target node of this session.
+	serverMeta apievents.ServerMetadata
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -577,6 +574,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteError
@@ -689,7 +687,7 @@ func (s *session) Close() error {
 
 	// Remove the session from the backend.
 	if s.scx.srv.GetSessionServer() != nil {
-		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.getNamespace(), s.id)
+		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.scx.srv.GetNamespace(), s.id)
 		if err != nil {
 			s.log.Errorf("Failed to remove active session: %v: %v. "+
 				"Access to backend may be degraded, check connectivity to backend.",
@@ -727,13 +725,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			ClusterName: ctx.ClusterName,
 			ID:          uuid.New().String(),
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-			ServerNamespace: ctx.srv.GetNamespace(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -769,13 +761,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 			Code:        events.SessionJoinCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(ctx.SessionID()),
 		},
@@ -821,13 +807,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 			Code:        events.SessionLeaveCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -876,13 +856,7 @@ func (s *session) emitSessionEndEvent() {
 			Code:        events.SessionEndCode,
 			ClusterName: ctx.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
-			ServerNamespace: s.getNamespace(),
-			ServerHostname:  s.getHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(s.id),
 		},
@@ -925,7 +899,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 // Must be called under session Lock.
 func (s *session) launch(ctx *ServerContext) error {
 	s.log.Debugf("Launching session %v.", s.id)
-	s.BroadcastMessage("Connecting to %v over SSH", ctx.srv.GetInfo().GetHostname())
+	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
 	s.io.On()
 
@@ -1138,8 +1112,8 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		Streamer:     streamer,
 		SessionID:    s.id,
 		Clock:        s.registry.clock,
-		Namespace:    ctx.srv.GetNamespace(),
-		ServerID:     ctx.srv.HostUUID(),
+		Namespace:    s.serverMeta.ServerNamespace,
+		ServerID:     s.serverMeta.ServerID,
 		RecordOutput: ctx.SessionRecordingConfig.GetMode() != types.RecordOff,
 		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		ClusterName:  ctx.ClusterName,
@@ -1416,14 +1390,6 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	}
 }
 
-func (s *session) getNamespace() string {
-	return s.registry.Srv.GetNamespace()
-}
-
-func (s *session) getHostname() string {
-	return s.registry.Srv.GetInfo().GetHostname()
-}
-
 // exportPartyMembers exports participants in the in-memory map of party
 // members.
 func (s *session) exportPartyMembers() []rsession.Party {
@@ -1476,7 +1442,7 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 			partyList := s.exportPartyMembers()
 
 			err := sessionServer.UpdateSession(ctx, rsession.UpdateRequest{
-				Namespace: s.getNamespace(),
+				Namespace: scx.srv.GetNamespace(),
 				ID:        s.id,
 				Parties:   &partyList,
 			})
@@ -1760,8 +1726,8 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 		SessionID:    s.id.String(),
 		Kind:         string(types.SSHSessionKind),
 		State:        types.SessionState_SessionStatePending,
-		Hostname:     s.registry.Srv.GetInfo().GetHostname(),
-		Address:      s.scx.srv.ID(),
+		Hostname:     s.serverMeta.ServerHostname,
+		Address:      s.serverMeta.ServerID,
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
 		HostUser:     teleportUser,
