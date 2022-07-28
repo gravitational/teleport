@@ -253,7 +253,8 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	}
 
 	for _, migrationVersion := range migrationVersions {
-		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion)...)
+		// Not enabling parallelism here so that multiple migrations don't run at once
+		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion, false)...)
 	}
 
 	setStepResourceLimits(p.Steps)
@@ -340,12 +341,12 @@ func toolCheckoutCommands(checkoutPath, commit string) []string {
 }
 
 func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {
-	return optpb.getVersionSteps(codePath, "${DRONE_TAG}")
+	return optpb.getVersionSteps(codePath, "${DRONE_TAG}", true)
 }
 
 // Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
 // i.e. ${DRONE_TAG}
-func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string) []step {
+func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string, enableParallelism bool) []step {
 	var bucketFolder string
 	switch version[0:1] {
 	// If environment var
@@ -371,6 +372,10 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 	toolSetupCommands = append(toolSetupCommands, optpb.setupCommands...)
 
 	downloadStepName := fmt.Sprintf("Download artifacts for %q", version)
+	buildStepDependencies := []string{}
+	if enableParallelism {
+		buildStepDependencies = append(buildStepDependencies, downloadStepName)
+	}
 
 	return []step{
 		{
@@ -447,9 +452,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 				},
 				volumeRefTmpfs,
 			},
-			DependsOn: []string{
-				downloadStepName,
-			},
+			DependsOn: buildStepDependencies,
 		},
 	}
 }

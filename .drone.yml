@@ -5421,7 +5421,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:291
+# Generated at dronegen/os_repos.go:292
 ################################################
 
 kind: pipeline
@@ -5530,7 +5530,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:291
+# Generated at dronegen/os_repos.go:292
 ################################################
 
 kind: pipeline
@@ -5608,8 +5608,6 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-  depends_on:
-  - Download artifacts for "v8.3.10"
 - name: Download artifacts for "v8.3.11"
   image: amazon/aws-cli
   commands:
@@ -5660,8 +5658,6 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-  depends_on:
-  - Download artifacts for "v8.3.11"
 - name: Download artifacts for "v8.3.12"
   image: amazon/aws-cli
   commands:
@@ -5712,8 +5708,6 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-  depends_on:
-  - Download artifacts for "v8.3.12"
 - name: Download artifacts for "v8.3.14"
   image: amazon/aws-cli
   commands:
@@ -5764,8 +5758,6 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-  depends_on:
-  - Download artifacts for "v8.3.14"
 - name: Download artifacts for "v8.3.15"
   image: amazon/aws-cli
   commands:
@@ -5816,8 +5808,6 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-  depends_on:
-  - Download artifacts for "v8.3.15"
 volumes:
 - name: yum-persistence
   claim:
@@ -5830,7 +5820,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:291
+# Generated at dronegen/os_repos.go:292
 ################################################
 
 kind: pipeline
@@ -6496,6 +6486,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: bfad58b3a5615221ea1937dceac484f1455d1f7a61ffef31dce517e1874d42e0
+hmac: cc179c7c83c70175ed0ce7cb3818a6fbf7cdb47408b5b861afb6bbfc4d9995da
 
 ...
