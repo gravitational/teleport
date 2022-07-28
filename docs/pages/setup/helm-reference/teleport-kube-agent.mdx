@@ -364,6 +364,33 @@ You can specify multiple databases by adding additional list elements.
   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference/configuration.mdx).
 </Admonition>
 
+<Admonition type="tip" title="Trusting Database CA">
+  Database CAs can be trusted on a per-database basis.
+  You must create a secret containing the database CA certificate in the same namespace as Teleport using a command like:
+
+  ```code
+  $ kubectl create secret generic my-postgres-ca --from-file=ca.pem=/path/to/database-ca.pem
+  ```
+
+  Then, deploy the Helm chart with the following values:
+
+  ```yaml
+  databases:
+  - name: my-postgres
+    uri: postgres.example.com:5432
+    protocol: postgres
+    tls:
+      ca_cert_file: "/etc/teleport-tls-db/my-postgres/ca.pem"
+  extraVolumes:
+    - name: my-postgres-ca
+      secret:
+        secretName: my-postgres-ca
+  extraVolumeMounts:
+    - name: my-postgres-ca
+      mountPath: /etc/teleport-tls-db/my-postgres
+      readOnly: true
+  ```
+
 ## `dbResources`
 
 | Type | Default value | Required? |
@@ -507,7 +534,12 @@ This can be used for joining a Teleport instance to a Teleport cluster which doe
 
 `tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
 This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
-The injected CA will be used to validate TLS communicationsx, with the Proxy Service or with upstream applications.
+The injected CA will be used to validate TLS communications, with the Proxy Service, with upstream applications or databases.
+
+<Admonition type="note">
+The recommended way to trust a database CA is to do it per-database instead of adding the CA to the global Teleport trust store.
+It allows to trust multiple CAs while limiting the trust scope to their specific databases. See [the `databases` section](#databases).
+</Admonition>
 
 You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
 
