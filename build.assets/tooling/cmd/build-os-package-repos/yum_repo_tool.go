@@ -237,6 +237,7 @@ func getBaseArchForArch(arch string) (string, error) {
 			"armv5",
 			"armv6",
 			"armv7",
+			"arm",
 		},
 		"aarch64": {
 			"arm64",
