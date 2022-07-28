@@ -41,33 +41,33 @@ $ tsh db login postgres
 $ tsh db connect postgres
 ```
 
-When connecting, Teleport will randomly pick the service to connect through to
-provide some load balancing. If the selected agent is down (e.g. in case of AZ
-outage), Teleport will try to connect via other agents.
+When connecting, Teleport will randomly pick the Database Service instance to
+connect through to provide some load balancing. If the selected instance is down
+(e.g. in case of AZ outage), Teleport will try to connect via other instances.
 
 ## Separate replicas
 
-With separate replicas, each Database Service agent proxying the database
+With separate replicas, each Database Service instance proxying the database
 assigns it a different name. This allows you to explicitly pick the agent
 you want to connect to the database over:
 
 ```yaml
-# Database service agent #1.
+# Database service instance #1.
 db_service:
   enabled: "yes"
   databases:
-  # Note the name is different than agent #2 but URI is the same.
+  # Note the name is different than instance #2 but the URI is the same.
   - name: "postgres-us-east-1a"
     protocol: "postgres"
     uri: "postgres.example.com:5432"
 ```
 
 ```yaml
-# Database service agent #2.
+# Database service instance #2.
 db_service:
   enabled: "yes"
   databases:
-  # Note the name is different than agent #1 but URI is the same.
+  # Note the name is different than instance #1 but the URI is the same.
   - name: "postgres-us-east-1b"
     protocol: "postgres"
     uri: "postgres.example.com:5432"
