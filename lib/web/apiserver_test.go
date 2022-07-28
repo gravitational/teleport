@@ -636,7 +636,7 @@ func TestSAML(t *testing.T) {
 			// now swap the request id to the hardcoded one in fixtures
 			authRequest.ID = fixtures.SAMLOktaAuthRequestID
 			authRequest.CSRFToken = csrfToken
-			err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
+			err = s.server.Auth().Services.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
 			require.NoError(t, err)
 
 			// now respond with pre-recorded request to the POST url
@@ -2725,7 +2725,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	approvedToken.SetUser(username)
 	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
 	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	_, err = env.server.Auth().CreateUserToken(ctx, approvedToken)
 	require.NoError(t, err)
 
 	// Call the getter endpoint.
@@ -2773,7 +2773,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	startToken.SetUser(authPack.user)
 	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
 	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	_, err = env.server.Auth().CreateUserToken(ctx, startToken)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2852,7 +2852,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	token.SetUser("llama")
 	token.SetSubKind(auth.UserTokenTypePrivilege)
 	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
+	_, err = env.server.Auth().CreateUserToken(ctx, token)
 	require.NoError(t, err)
 
 	tests := []struct {
