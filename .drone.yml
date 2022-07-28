@@ -5421,7 +5421,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:275
+# Generated at dronegen/os_repos.go:291
 ################################################
 
 kind: pipeline
@@ -5475,6 +5475,10 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 - name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -5510,8 +5514,10 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 volumes:
 - name: apt-persistence
   claim:
@@ -5524,7 +5530,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:275
+# Generated at dronegen/os_repos.go:291
 ################################################
 
 kind: pipeline
@@ -5603,7 +5609,6 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "v8.3.10"
 - name: Download artifacts for "v8.3.11"
   image: amazon/aws-cli
@@ -5656,7 +5661,6 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "v8.3.11"
 - name: Download artifacts for "v8.3.12"
   image: amazon/aws-cli
@@ -5709,7 +5713,6 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "v8.3.12"
 - name: Download artifacts for "v8.3.14"
   image: amazon/aws-cli
@@ -5762,7 +5765,6 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "v8.3.14"
 - name: Download artifacts for "v8.3.15"
   image: amazon/aws-cli
@@ -5815,7 +5817,6 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "v8.3.15"
 volumes:
 - name: yum-persistence
@@ -5829,7 +5830,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:275
+# Generated at dronegen/os_repos.go:291
 ################################################
 
 kind: pipeline
@@ -5883,6 +5884,10 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 - name: Publish rpms to YUM repos for "${DRONE_TAG}"
   image: golang:1.18.4-bullseye
   commands:
@@ -5919,8 +5924,10 @@ steps:
   - name: tmpfs
     path: /tmpfs
   depends_on:
-  - Check out code
   - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 volumes:
 - name: yum-persistence
   claim:
@@ -6489,6 +6496,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: a1269997ad234fdc21f43aed4a34a64882cd50104ca98761ee4930edc2fae774
+hmac: bfad58b3a5615221ea1937dceac484f1455d1f7a61ffef31dce517e1874d42e0
 
 ...

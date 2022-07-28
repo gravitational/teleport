@@ -190,7 +190,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	steps := []step{
+	setupSteps := []step{
 		{
 			Name:  "Verify build is tagged",
 			Image: "alpine:latest",
@@ -199,8 +199,8 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 			},
 		},
 	}
-	steps = append(steps, p.Steps...)
-	steps = append(steps,
+	setupSteps = append(setupSteps, p.Steps...)
+	setupSteps = append(setupSteps,
 		step{
 			Name:  "Check if tag is prerelease",
 			Image: "golang:1.17-alpine",
@@ -210,8 +210,24 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 			},
 		},
 	)
-	steps = append(steps, optpb.getDroneTagVersionSteps(checkoutPath, checkoutStepName)...)
-	p.Steps = steps
+
+	setupStepNames := make([]string, 0, len(setupSteps))
+	for _, setupStep := range setupSteps {
+		setupStepNames = append(setupStepNames, setupStep.Name)
+	}
+
+	versionSteps := optpb.getDroneTagVersionSteps(checkoutPath)
+	for i := range versionSteps {
+		versionStep := &versionSteps[i]
+		if versionStep.DependsOn == nil {
+			versionStep.DependsOn = setupStepNames
+			continue
+		}
+
+		versionStep.DependsOn = append(versionStep.DependsOn, setupStepNames...)
+	}
+
+	p.Steps = append(setupSteps, versionSteps...)
 
 	return p
 }
@@ -237,7 +253,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	}
 
 	for _, migrationVersion := range migrationVersions {
-		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion, checkoutStepName)...)
+		p.Steps = append(p.Steps, optpb.getVersionSteps(checkoutPath, migrationVersion)...)
 	}
 
 	setStepResourceLimits(p.Steps)
@@ -323,13 +339,13 @@ func toolCheckoutCommands(checkoutPath, commit string) []string {
 	return commands
 }
 
-func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath, checkoutStepName string) []step {
-	return optpb.getVersionSteps(codePath, "${DRONE_TAG}", checkoutStepName)
+func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {
+	return optpb.getVersionSteps(codePath, "${DRONE_TAG}")
 }
 
 // Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
 // i.e. ${DRONE_TAG}
-func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version, checkoutStepName string) []step {
+func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version string) []step {
 	var bucketFolder string
 	switch version[0:1] {
 	// If environment var
@@ -393,11 +409,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version, ch
 			},
 		},
 		{
-			Name: fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
-			DependsOn: []string{
-				checkoutStepName,
-				downloadStepName,
-			},
+			Name:        fmt.Sprintf("Publish %ss to %s repos for %q", optpb.packageType, strings.ToUpper(optpb.packageManagerName), version),
 			Image:       "golang:1.18.4-bullseye",
 			Environment: optpb.environmentVars,
 			Commands: append(
@@ -434,6 +446,9 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version, ch
 					Path: optpb.pvcMountPoint,
 				},
 				volumeRefTmpfs,
+			},
+			DependsOn: []string{
+				downloadStepName,
 			},
 		},
 	}
