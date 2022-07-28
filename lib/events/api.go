@@ -278,6 +278,10 @@ const (
 	SCPActionUpload   = "upload"
 	SCPActionDownload = "download"
 
+	// SFTPEvent means a user attempted a file operation
+	SFTPEvent = "sftp"
+	SFTPPath  = "path"
+
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'
@@ -380,6 +384,8 @@ const (
 
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
+	// AppSessionEndEvent is emitted when a user connects to a TCP application.
+	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
