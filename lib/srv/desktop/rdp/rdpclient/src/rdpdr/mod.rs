@@ -701,66 +701,44 @@ impl Client {
         let rdp_req = ServerDriveQueryVolumeInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
         if let Some(dir) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            match rdp_req.fs_info_class_lvl {
+            let buffer = match rdp_req.fs_info_class_lvl {
                 FileSystemInformationClassLevel::FileFsVolumeInformation => {
-                    let buffer = Some(FileSystemInformationClass::FileFsVolumeInformation(
+                    Some(FileSystemInformationClass::FileFsVolumeInformation(
                         FileFsVolumeInformation::new(dir.fso.last_modified as i64),
-                    ));
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer,
-                    );
+                    ))
                 }
                 FileSystemInformationClassLevel::FileFsAttributeInformation => {
-                    let buffer = Some(FileSystemInformationClass::FileFsAttributeInformation(
+                    Some(FileSystemInformationClass::FileFsAttributeInformation(
                         FileFsAttributeInformation::new(),
-                    ));
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer,
-                    );
+                    ))
                 }
                 FileSystemInformationClassLevel::FileFsFullSizeInformation => {
-                    let buffer = Some(FileSystemInformationClass::FileFsFullSizeInformation(
+                    Some(FileSystemInformationClass::FileFsFullSizeInformation(
                         FileFsFullSizeInformation::new(),
-                    ));
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer,
-                    );
+                    ))
                 }
                 FileSystemInformationClassLevel::FileFsDeviceInformation => {
-                    let buffer = Some(FileSystemInformationClass::FileFsDeviceInformation(
+                    Some(FileSystemInformationClass::FileFsDeviceInformation(
                         FileFsDeviceInformation::new(),
-                    ));
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer,
-                    );
+                    ))
                 }
-                FileSystemInformationClassLevel::FileFsSizeInformation => {
-                    let buffer = Some(FileSystemInformationClass::FileFsSizeInformation(
-                        FileFsSizeInformation::new(),
-                    ));
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_SUCCESS,
-                        buffer,
-                    );
-                }
-                _ => {
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L574-L577
-                    return self.prep_query_vol_info_response(
-                        &rdp_req.device_io_request,
-                        NTSTATUS::STATUS_UNSUCCESSFUL,
-                        None,
-                    );
-                }
-            }
+                FileSystemInformationClassLevel::FileFsSizeInformation => Some(
+                    FileSystemInformationClass::FileFsSizeInformation(FileFsSizeInformation::new()),
+                ),
+                _ => None,
+            };
+
+            let io_status = if buffer.is_some() {
+                NTSTATUS::STATUS_SUCCESS
+            } else {
+                NTSTATUS::STATUS_UNSUCCESSFUL
+            };
+
+            return self.prep_query_vol_info_response(
+                &rdp_req.device_io_request,
+                io_status,
+                buffer,
+            );
         }
 
         // File not found in cache
@@ -1212,8 +1190,10 @@ impl Client {
                     }
 
                     let file_id = cli.generate_file_id();
-                    cli.file_cache
-                        .insert(file_id, FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), fso));
+                    cli.file_cache.insert(
+                        file_id,
+                        FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), fso),
+                    );
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
