@@ -77,22 +77,22 @@ export namespace LogoutRequest {
     }
 }
 
-export class WebauthnCredentialInfo extends jspb.Message { 
+export class CredentialInfo extends jspb.Message { 
     getUsername(): string;
-    setUsername(value: string): WebauthnCredentialInfo;
+    setUsername(value: string): CredentialInfo;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): WebauthnCredentialInfo.AsObject;
-    static toObject(includeInstance: boolean, msg: WebauthnCredentialInfo): WebauthnCredentialInfo.AsObject;
+    toObject(includeInstance?: boolean): CredentialInfo.AsObject;
+    static toObject(includeInstance: boolean, msg: CredentialInfo): CredentialInfo.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: WebauthnCredentialInfo, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): WebauthnCredentialInfo;
-    static deserializeBinaryFromReader(message: WebauthnCredentialInfo, reader: jspb.BinaryReader): WebauthnCredentialInfo;
+    static serializeBinaryToWriter(message: CredentialInfo, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CredentialInfo;
+    static deserializeBinaryFromReader(message: CredentialInfo, reader: jspb.BinaryReader): CredentialInfo;
 }
 
-export namespace WebauthnCredentialInfo {
+export namespace CredentialInfo {
     export type AsObject = {
         username: string,
     }
@@ -103,9 +103,9 @@ export class LoginPasswordlessResponse extends jspb.Message {
     setPrompt(value: PasswordlessPrompt): LoginPasswordlessResponse;
 
     clearCredentialsList(): void;
-    getCredentialsList(): Array<WebauthnCredentialInfo>;
-    setCredentialsList(value: Array<WebauthnCredentialInfo>): LoginPasswordlessResponse;
-    addCredentials(value?: WebauthnCredentialInfo, index?: number): WebauthnCredentialInfo;
+    getCredentialsList(): Array<CredentialInfo>;
+    setCredentialsList(value: Array<CredentialInfo>): LoginPasswordlessResponse;
+    addCredentials(value?: CredentialInfo, index?: number): CredentialInfo;
 
 
     serializeBinary(): Uint8Array;
@@ -121,7 +121,7 @@ export class LoginPasswordlessResponse extends jspb.Message {
 export namespace LoginPasswordlessResponse {
     export type AsObject = {
         prompt: PasswordlessPrompt,
-        credentialsList: Array<WebauthnCredentialInfo.AsObject>,
+        credentialsList: Array<CredentialInfo.AsObject>,
     }
 }
 

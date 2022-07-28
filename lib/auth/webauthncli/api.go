@@ -51,6 +51,8 @@ type UserInfo struct {
 }
 
 // LoginPrompt is the user interface for FIDO2Login.
+//
+// Prompts can have remote implementations, thus all methods may error.
 type LoginPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
@@ -156,6 +158,8 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, p
 }
 
 // RegisterPrompt is the user interface for FIDO2Register.
+//
+// Prompts can have remote implementations, thus all methods may error.
 type RegisterPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
