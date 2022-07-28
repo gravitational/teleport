@@ -70,7 +70,7 @@ spec:
           out: ["prod"]
   allow:
     logins:
-      # variables can be reference as `vars.<role_name>.<variable_name>`
+      # variables can be referenced as `vars.<role_name>.<variable_name>`
       - "{{vars.node_users.logins}}"
     node_labels:
       env: ["{{vars.node_users.allow_env}}"]
