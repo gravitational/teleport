@@ -51,6 +51,33 @@ Linux Debian Packages              | [amd64](https://get.gravitational.com/telep
 Linux RPM Packages                 | [amd64](https://get.gravitational.com/teleport-ent-(=cloud.version=)-1.x86_64.rpm) | [arm64](https://get.gravitational.com/teleport-ent-(=cloud.version=)-1.arm64.rpm) | [armv7](https://get.gravitational.com/teleport-ent-(=cloud.version=)-1.arm.rpm) | [i386](https://get.gravitational.com/teleport-ent-(=cloud.version=)-1.i386.rpm) |
 macOS Packages                     | [amd64](https://get.gravitational.com/teleport-ent-(=cloud.version=).pkg) |
 
+## Teleport package repositories
+
+Teleport currently maintains DEB repositories for Debian compatible systems.
+
+<Tabs>
+    <TabItem label="Debian/Ubuntu (DEB)">
+        ```code
+        # Download Teleport's PGP public key
+        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+          -o /usr/share/keyrings/teleport-archive-keyring.asc
+        # Source variables about OS version
+        $ source /etc/os-release
+        # Add the Teleport APT repository for v(=cloud.major_version=). You'll need to update this
+        # file for each major (breaking) release of Teleport.
+        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
+        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
+        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+
+        $ sudo apt-get update
+        $ sudo apt-get install teleport
+        ```
+    </TabItem>
+</Tabs>
+
 ## Teleport client-only packages
 
 Client-only packages contain only binaries that need to be deployed to users'
