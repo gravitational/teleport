@@ -373,9 +373,9 @@ func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialIn
 	})
 
 	// Convert to grpc message.
-	creds := make([]*api.WebauthnCredentialInfo, len(deviceCreds))
+	creds := make([]*api.CredentialInfo, len(deviceCreds))
 	for i, cred := range deviceCreds {
-		creds[i] = &api.WebauthnCredentialInfo{
+		creds[i] = &api.CredentialInfo{
 			Username: cred.User.Name,
 		}
 	}
