@@ -45,6 +45,7 @@ export enum MessageType {
   SHARED_DIRECTORY_READ_RESPONSE = 20,
   SHARED_DIRECTORY_WRITE_REQUEST = 21,
   SHARED_DIRECTORY_WRITE_RESPONSE = 22,
+  SHARED_DIRECTORY_MOVE_REQUEST = 23,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -155,6 +156,16 @@ export type SharedDirectoryWriteResponse = {
   completionId: number;
   errCode: number;
   bytesWritten: number;
+};
+
+// | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
+export type SharedDirectoryMoveRequest = {
+  completionId: number;
+  directoryId: number;
+  originalPathLength: number;
+  originalPath: string;
+  newPathLength: number;
+  newPath: string;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -677,7 +688,7 @@ export default class Codec {
   // decodeMfaChallenge decodes a raw tdp MFA challenge message and returns it as a string (of a json).
   // | message type (10) | mfa_type byte | message_length uint32 | json []byte
   decodeMfaJson(buffer: ArrayBuffer): MfaJson {
-    let dv = new DataView(buffer);
+    const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type
     const mfaType = String.fromCharCode(dv.getUint8(offset));
@@ -771,19 +782,19 @@ export default class Codec {
     const dv = new DataView(buffer);
     let bufOffset = 0;
     bufOffset += byteLength; // eat message type
-    let completionId = dv.getUint32(bufOffset);
+    const completionId = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat completion_id
-    let directoryId = dv.getUint32(bufOffset);
+    const directoryId = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat directory_id
-    let pathLength = dv.getUint32(bufOffset);
+    const pathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat path_length
-    let path = this.decoder.decode(
+    const path = this.decoder.decode(
       new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
     );
     bufOffset += pathLength; // eat path
-    let offset = dv.getBigUint64(bufOffset);
+    const offset = dv.getBigUint64(bufOffset);
     bufOffset += uint64Length; // eat offset
-    let length = dv.getUint32(bufOffset);
+    const length = dv.getUint32(bufOffset);
 
     return {
       completionId,
@@ -799,24 +810,23 @@ export default class Codec {
   decodeSharedDirectoryWriteRequest(
     buffer: ArrayBuffer
   ): SharedDirectoryWriteRequest {
-    let dv = new DataView(buffer);
-    let bufOffset = byteLength;
-
-    let completionId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length;
-    let directoryId = dv.getUint32(bufOffset);
-    bufOffset += uint32Length;
-    let offset = dv.getBigUint64(bufOffset);
-    bufOffset += uint64Length;
-    let pathLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length;
-    let path = this.decoder.decode(
+    const dv = new DataView(buffer);
+    let bufOffset = byteLength; // eat message type
+    const completionId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat completion_id
+    const directoryId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat directory_id
+    const offset = dv.getBigUint64(bufOffset);
+    bufOffset += uint64Length; // eat offset
+    const pathLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat path_length
+    const path = this.decoder.decode(
       new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
     );
-    bufOffset += pathLength;
-    let writeDataLength = dv.getUint32(bufOffset);
-    bufOffset += uint32Length;
-    let writeData = new Uint8Array(
+    bufOffset += pathLength; // eat path
+    const writeDataLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat write_data_length
+    const writeData = new Uint8Array(
       buffer.slice(bufOffset, bufOffset + writeDataLength)
     );
 
@@ -827,6 +837,38 @@ export default class Codec {
       path,
       offset,
       writeData,
+    };
+  }
+
+  // | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
+  decodeSharedDirectoryMoveRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryMoveRequest {
+    const dv = new DataView(buffer);
+    let bufOffset = byteLength; // eat message type
+    const completionId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat completion_id
+    const directoryId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat directory_id
+    const originalPathLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat original_path_length
+    const originalPath = this.decoder.decode(
+      new Uint8Array(buffer.slice(bufOffset, bufOffset + originalPathLength))
+    );
+    bufOffset += originalPathLength; // eat original_path
+    const newPathLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length; // eat new_path_length
+    const newPath = this.decoder.decode(
+      new Uint8Array(buffer.slice(bufOffset, bufOffset + newPathLength))
+    );
+
+    return {
+      completionId,
+      directoryId,
+      originalPathLength,
+      originalPath,
+      newPathLength,
+      newPath,
     };
   }
 

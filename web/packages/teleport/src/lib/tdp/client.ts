@@ -135,6 +135,9 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
           this.handleSharedDirectoryWriteRequest(buffer);
           break;
+        case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
+          this.handleSharedDirectoryMoveRequest(buffer);
+          break;
         case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
           this.handleSharedDirectoryListRequest(buffer);
           break;
@@ -301,6 +304,14 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
+  handleSharedDirectoryMoveRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryMoveRequest(buffer);
+    // TODO(isaiah): delete debug logs
+    this.logger.debug('Received SharedDirectoryMoveRequest:');
+    this.logger.debug(req);
+    // TODO(isaiah): here's where we'll respond with a SharedDirectoryMoveResponse
+  }
+
   async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
     try {
       const req = this.codec.decodeSharedDirectoryListRequest(buffer);
@@ -388,13 +399,19 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendSharedDirectoryAnnounce() {
+    let name: string;
+    try {
+      name = this.sdManager.getName();
+    } catch (e) {
+      this.handleError(e);
+    }
     this.send(
       this.codec.encodeSharedDirectoryAnnounce({
         completionId: 0, // This is always the first request.
         // Hardcode directoryId for now since we only support sharing 1 directory.
         // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
         directoryId: 2,
-        name: this.sdManager.getName(),
+        name,
       })
     );
   }
