@@ -336,7 +336,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			// wait until the sess is running
-			sess := waitForSessionToBeEstablished(ctx, t, site)
+			sess := waitForSessionToBeEstablished(ctx, t, site, Host)
 			sid := sess.GetSessionID()
 
 			// the session should have one party
@@ -1161,7 +1161,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	}()
 
 	// wait for the session to become available
-	sess := waitForSessionToBeEstablished(ctx, t, site)
+	sess := waitForSessionToBeEstablished(ctx, t, site, Host)
 	sid := sess.GetSessionID()
 
 	// PersonB: join the session
@@ -1410,7 +1410,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err)
 				require.Len(t, sems, 1)
 
-				waitForSessionToBeEstablished(ctx, t, site)
+				waitForSessionToBeEstablished(ctx, t, site, Host)
 				require.Nil(t, teleport.StopAuth(false))
 			},
 		},
@@ -3729,7 +3729,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	}()
 
 	// wait until the session is ready
-	sess := waitForSessionToBeEstablished(ctx, t, site)
+	sess := waitForSessionToBeEstablished(ctx, t, site, Host)
 	sid := sess.GetSessionID()
 
 	// the session should have one party
@@ -4582,7 +4582,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	// joinSession will join the existing session on a server.
 	joinSession := func() {
 		// wait until the session is ready
-		sess := waitForSessionToBeEstablished(ctx, t, site)
+		sess := waitForSessionToBeEstablished(ctx, t, site, Host)
 		sid := sess.GetSessionID()
 
 		cl, err := teleport.NewClient(helpers.ClientConfig{

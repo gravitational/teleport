@@ -47,18 +47,24 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, t *testing.T, site auth.ClientI) (tracker types.SessionTracker) {
+// Wait for a session to be established on the given host by checking for a running session tracker.
+func waitForSessionToBeEstablished(ctx context.Context, t *testing.T, site auth.ClientI, hostName string) types.SessionTracker {
 	t.Helper()
+	var tracker types.SessionTracker
 	sessionEstablished := func() bool {
 		trackers, err := site.GetActiveSessionTrackers(ctx)
 		if err != nil || len(trackers) == 0 {
 			return false
 		}
-		tracker = trackers[0]
-		return tracker.GetState() == types.SessionState_SessionStateRunning
+		for _, tracker = range trackers {
+			if tracker.GetHostname() == hostName {
+				return tracker.GetState() == types.SessionState_SessionStateRunning
+			}
+		}
+		return false
 	}
 	require.Eventually(t, sessionEstablished, time.Second*10, time.Millisecond*250)
-	return
+	return tracker
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
@@ -142,7 +148,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			go cl.SSH(sshSessionCtx, []string{}, false)
 			defer sshSessionCancel()
 
-			waitForSessionToBeEstablished(ctx, t, site)
+			waitForSessionToBeEstablished(ctx, t, site, Host)
 
 			// When everything is *finally* set up, and I attempt to use the
 			// forwarded connection
