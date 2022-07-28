@@ -101,6 +101,29 @@ export class SharedDirectoryManager {
     );
   }
 
+  // Writes the bytes in writeData to the file at path starting at offset.
+  async writeFile(
+    path: string,
+    offset: bigint,
+    writeData: Uint8Array
+  ): Promise<number> {
+    this.checkReady();
+
+    const fileHandle = await this.walkPath(path);
+    if (fileHandle.kind !== 'file') {
+      throw new Error('cannot read the bytes of a directory');
+    }
+
+    const file = await fileHandle.createWritable();
+    if (offset > 0) {
+      file.seek(Number(offset));
+    }
+    file.write(writeData);
+    file.close(); // Needed to actually write data to disk.
+
+    return writeData.length;
+  }
+
   // walkPath walks a pathstr (assumed to be in the qualified Unix format specified
   // in the TDP spec), returning the FileSystemDirectoryHandle | FileSystemFileHandle
   // it finds at its end. If the pathstr isn't a valid path in the shared directory,

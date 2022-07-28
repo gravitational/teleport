@@ -44,6 +44,7 @@ export enum MessageType {
   SHARED_DIRECTORY_READ_REQUEST = 19,
   SHARED_DIRECTORY_READ_RESPONSE = 20,
   SHARED_DIRECTORY_WRITE_REQUEST = 21,
+  SHARED_DIRECTORY_WRITE_RESPONSE = 22,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -147,6 +148,13 @@ export type SharedDirectoryWriteRequest = {
   path: string;
   offset: bigint;
   writeData: Uint8Array;
+};
+
+// | message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
+export type SharedDirectoryWriteResponse = {
+  completionId: number;
+  errCode: number;
+  bytesWritten: number;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -566,6 +574,26 @@ export default class Codec {
     res.readData.forEach(byte => {
       view.setUint8(offset++, byte);
     });
+
+    return buffer;
+  }
+
+  encodeSharedDirectoryWriteResponse(
+    res: SharedDirectoryWriteResponse
+  ): Message {
+    const bufLen = byteLength + 3 * uint32Length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.SHARED_DIRECTORY_WRITE_RESPONSE);
+    offset += byteLength;
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
+    offset += uint32Length;
+    view.setUint32(offset, res.bytesWritten);
+    offset += uint32Length;
 
     return buffer;
   }
