@@ -73,7 +73,7 @@ func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.Cl
 	return true, trace.Wrap(err)
 }
 
-func (c *SessionsCommand) ListSessions(tc auth.ClientI) error {
+func (c *SessionsCommand) ListSessions(ctx context.Context, tc auth.ClientI) error {
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.fromUTC, c.toUTC)
 	if err != nil {
 		return trace.Wrap(err)
