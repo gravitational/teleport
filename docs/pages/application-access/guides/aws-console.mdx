@@ -233,11 +233,9 @@ app_service:
 When showing available IAM roles, Teleport will display only role ARNs that
 belong to the specific account.
 
-<Admonition type="tip" title="AWS External ID">
 For AWS accounts that require external IDs for accessing their resources, set
-the `external_id` field which will be used when assuming the AWS roles in these
-accounts.
-</Admonition>
+the `external_id` field, which the Application Service uses when assuming the
+AWS roles in these accounts.
 
 ## Step 6. Connect to AWS console with assumed IAM role
 
