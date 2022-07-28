@@ -747,7 +747,7 @@ add_headers:
 
 #### Aliases
 
-You can define custom `tsh` command aliases using the `aliases` section. It also allows for changing of the default flag values for existing commands.
+Aliases allow you to define custom commands or change the default flag values for existing commands.
 
 New command `tsh l`:
 
@@ -763,7 +763,7 @@ aliases:
     "status": "tsh status --format=json"
 ```
 
-Define custom command using with `bash`. The `$0` and `$1` variables will be substituted by command arguments.
+Define custom command using `bash`. The `$0` and `$1` variables will be substituted with command arguments.
 
 ```yaml
 aliases:
