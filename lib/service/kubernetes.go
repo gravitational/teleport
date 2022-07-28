@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -114,16 +115,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	case conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
 	case !conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
-		// TODO(awly): if this process runs auth, proxy and kubernetes
-		// services, the proxy should be able to route requests to this
-		// kubernetes service. This means either always connecting over a
-		// reverse tunnel (with a performance penalty), or somehow passing the
-		// connections in-memory between proxy and kubernetes services.
-		//
-		// For now, as a lazy shortcut, kuberentes_service.listen_addr is
-		// always required when running in the same process with a proxy.
-		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
-
+		cfg.Kube.ListenAddr = defaults.KubeProxyListenAddr()
+		fallthrough
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		log.Debug("Turning on Kubernetes service listening address.")

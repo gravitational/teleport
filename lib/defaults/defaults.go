@@ -597,6 +597,11 @@ func KubeProxyListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, KubeListenPort)
 }
 
+// WindowsDesktopProxyListenAddr returns the default listening address for the Desktop Proxy service
+func WindowsDesktopProxyListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, WindowsDesktopListenPort)
+}
+
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service
 func ProxyWebListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, HTTPListenPort)
