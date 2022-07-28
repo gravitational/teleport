@@ -24,11 +24,12 @@ jobs:
       - name: Checkout webassets
         uses: actions/checkout@v3
         with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
           repository: gravitational/webassets-fork # TODO(zmb3): switch off the fork
-          submodules: recursive
           path: dist
           ref: ${{ github.ref_name }}
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          submodules: recursive
+          fetch-depth: 0
 
       # This workflow only runs on push to a protected branch, so the code
       # has already been reviewed and is trusted. This means it is safe to
@@ -44,10 +45,15 @@ jobs:
 
           cd dist/e
           git add -A
-          git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA"
+          git status
+          git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA" --allow-empty
           git push origin HEAD:$GITHUB_REF_NAME
 
           cd ..
+          git stash save
+          git checkout $GITHUB_REF_NAME
+          git stash pop
           git add -A
-          git commit -m "Update webassets from gravitational/webapps@$GITHUB_SHA"
+          git status
+          git commit -m "Update webassets from gravitational/webapps@$GITHUB_SHA" --allow-empty
           git push origin HEAD:$GITHUB_REF_NAME
