@@ -367,6 +367,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				} else {
 					h.log.WithError(err).Debug("Could not authenticate.")
 				}
+			} else {
+				h.log.WithError(err).Debug("Could not authenticate.")
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {

@@ -3158,7 +3158,11 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, li
 		return trace.Wrap(err)
 	}
 	listeners.reverseTunnel = listeners.reverseTunnelMux.SSH()
-	go listeners.reverseTunnelMux.Serve()
+	go func() {
+		if err := listeners.reverseTunnelMux.Serve(); err != nil {
+			process.Config.Log.WithError(err).Debug("Minimal reverse tunnel mux exited with error")
+		}
+	}()
 	return nil
 }
 
