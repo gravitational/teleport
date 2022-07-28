@@ -79,7 +79,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	return OK(), nil
+	return nil, nil
 }
 
 type fileTransfer struct {
