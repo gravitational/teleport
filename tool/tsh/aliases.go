@@ -96,10 +96,13 @@ func findAliasCommand(args []string) (string, []string) {
 }
 
 // numVarRegex is a regex for variables such as $0, $1 ...  $100 ... that can be used in alias definitions.
-var numVarRegex = regexp.MustCompile(`\$\d+`)
+var numVarRegex = regexp.MustCompile(`(\$\d+)|(\$TSH)`)
 
-// expandAliasDefinition expands $0, $1, ... within alias definition. Arguments not referenced in alias are appended at the end.
-func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []string) ([]string, error) {
+// expandAliasDefinition expands variables within alias definition.
+// Typically these are $0, $1, ... corresponding to runtime arguments given.
+// Arguments not referenced in alias are appended at the end.
+// As a special case, we also support $TSH variable: it is replaced with path to the current tsh executable.
+func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeArgs []string) ([]string, error) {
 	// prepare maps for all arguments
 	varMap := map[string]string{}
 	unusedVars := map[string]int{}
@@ -108,6 +111,8 @@ func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []stri
 		varMap[variable] = value
 		unusedVars[variable] = i
 	}
+
+	varMap["$TSH"] = executablePath
 
 	// keep count of maximum missing variable
 	maxMissing := -1
@@ -223,7 +228,7 @@ func (ar *aliasRunner) runAlias(ctx context.Context, aliasCommand, aliasDefiniti
 		return trace.Wrap(err)
 	}
 
-	newArgs, err := expandAliasDefinition(aliasCommand, aliasDefinition, runtimeArgs)
+	newArgs, err := expandAliasDefinition(executablePath, aliasCommand, aliasDefinition, runtimeArgs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
