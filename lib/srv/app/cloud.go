@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
@@ -52,6 +53,8 @@ type AWSSigninRequest struct {
 	TargetURL string
 	// Issuer is the application public URL.
 	Issuer string
+	// ExternalID is the AWS external ID.
+	ExternalID string
 }
 
 // CheckAndSetDefaults validates the request.
@@ -192,6 +195,10 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 		// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 		if temporarySession {
 			creds.Duration = duration
+		}
+
+		if req.ExternalID != "" {
+			creds.ExternalID = aws.String(req.ExternalID)
 		}
 	})
 	stsCredentials, err := stscreds.NewCredentials(c.cfg.Session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()

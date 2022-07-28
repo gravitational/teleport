@@ -35,8 +35,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -191,7 +191,7 @@ func (b *Bot) generateIdentity(
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	client := b.client()
+	client := b.Client()
 	certs, err := client.GenerateUserCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -265,7 +265,7 @@ func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.D
 	return databases[0], nil
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.DatabaseConfig) (proto.RouteToDatabase, error) {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.Database) (proto.RouteToDatabase, error) {
 	if dbCfg.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -290,6 +290,69 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg
 		Protocol:    db.GetProtocol(),
 		Database:    dbCfg.Database,
 		Username:    username,
+	}, nil
+}
+
+func getApp(ctx context.Context, client auth.ClientI, appName string) (types.Application, error) {
+	res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(res.Resources).AsAppServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var apps []types.Application
+	for _, server := range servers {
+		apps = append(apps, server.GetApp())
+	}
+	apps = types.DeduplicateApps(apps)
+
+	if len(apps) == 0 {
+		return nil, trace.BadParameter("app %q not found", appName)
+	}
+
+	return apps[0], nil
+}
+
+func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
+	if appCfg.App == "" {
+		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
+	}
+
+	app, err := getApp(ctx, client, appCfg.App)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	// TODO: AWS?
+	ident := b.ident()
+	ws, err := client.CreateAppSession(ctx, types.CreateAppSessionRequest{
+		ClusterName: ident.ClusterName,
+		Username:    ident.X509Cert.Subject.CommonName,
+		PublicAddr:  app.GetPublicAddr(),
+	})
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), client)
+	if err != nil {
+		return proto.RouteToApp{}, trace.Wrap(err)
+	}
+
+	return proto.RouteToApp{
+		Name:        app.GetName(),
+		SessionID:   ws.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: ident.ClusterName,
 	}, nil
 }
 
@@ -332,6 +395,40 @@ func (b *Bot) generateImpersonatedIdentity(
 		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
 
 		return newIdent, trace.Wrap(err)
+	} else if destCfg.KubernetesCluster != nil {
+		// Note: the Teleport server does attempt to verify k8s cluster names
+		// and will fail to generate certs if the cluster doesn't exist or is
+		// offline.
+		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
+		})
+
+		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
+
+		return newIdent, trace.Wrap(err)
+	} else if destCfg.App != nil {
+		impClient, err := b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		defer impClient.Close()
+
+		routeToApp, err := b.getRouteToApp(ctx, impClient, destCfg.App)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.RouteToApp = routeToApp
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		b.log.Infof("Generated identity for app %q", *destCfg.App)
+
+		return newIdent, nil
 	}
 
 	return ident, nil
@@ -401,7 +498,7 @@ func (b *Bot) renewIdentityViaAuth(
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	ident := b.ident()
-	certs, err := b.client().GenerateUserCerts(ctx, proto.UserCertsRequest{
+	certs, err := b.Client().GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: ident.PublicKeyBytes,
 		Username:  ident.X509Cert.Subject.CommonName,
 		Expires:   time.Now().Add(b.cfg.CertificateTTL),
@@ -436,7 +533,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 
 // renew performs a single renewal
 func (b *Bot) renew(
-	ctx context.Context, botDestination destination.Destination,
+	ctx context.Context, botDestination bot.Destination,
 ) error {
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
@@ -532,11 +629,15 @@ func (b *Bot) renew(
 				return trace.Wrap(err)
 			}
 
-			if err := template.Render(ctx, b.client(), impersonatedIdent, dest); err != nil {
+			if err := template.Render(ctx, b, impersonatedIdent, dest); err != nil {
 				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 			}
 		}
 	}
+
+	// Purge the CA cache. We could be smarter about this in the future if
+	// desired, since generally CAs don't change that often.
+	b.clearCertAuthorities()
 
 	b.log.Infof("Persisted new certificates to disk. Next renewal in approximately %s", b.cfg.RenewalInterval)
 	return nil

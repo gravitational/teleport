@@ -357,11 +357,11 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.AuthServer)
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, a.ClusterName)
 	certs, err := a.AuthServer.generateUserCert(certRequest{
 		user:          user,
 		ttl:           ttl,
@@ -415,11 +415,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo, err := services.AccessInfoFromUser(user, authServer)
+		accessInfo := services.AccessInfoFromUser(user)
+		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}

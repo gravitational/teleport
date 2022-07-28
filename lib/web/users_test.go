@@ -141,11 +141,11 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "DB",
 			updateReq: saveUserRequest{
-				Name:    "setdb",
-				Roles:   defaultRoles,
-				Logins:  &defaultLogins,
-				DBUsers: &[]string{"dbuser1", "dbuser2"},
-				DBNames: &[]string{"dbname1", "dbname2"},
+				Name:          "setdb",
+				Roles:         defaultRoles,
+				Logins:        &defaultLogins,
+				DatabaseUsers: &[]string{"dbuser1", "dbuser2"},
+				DatabaseNames: &[]string{"dbname1", "dbname2"},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitDBUsers: {"dbuser1", "dbuser2"},
@@ -243,6 +243,18 @@ func TestUpdateUser_setTraits(t *testing.T) {
 
 			// Other fields dont't change
 			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
+
+			// We can read back the user traits
+			uiUser, err := getUser(tt.name, m)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, uiUser.Logins, tt.expectedTraits[constants.TraitLogins])
+			require.ElementsMatch(t, uiUser.DatabaseUsers, tt.expectedTraits[constants.TraitDBUsers])
+			require.ElementsMatch(t, uiUser.DatabaseNames, tt.expectedTraits[constants.TraitDBNames])
+			require.ElementsMatch(t, uiUser.KubeUsers, tt.expectedTraits[constants.TraitKubeUsers])
+			require.ElementsMatch(t, uiUser.KubeGroups, tt.expectedTraits[constants.TraitKubeGroups])
+			require.ElementsMatch(t, uiUser.WindowsLogins, tt.expectedTraits[constants.TraitWindowsLogins])
+			require.ElementsMatch(t, uiUser.AWSRoleARNs, tt.expectedTraits[constants.TraitAWSRoleARNs])
 		})
 	}
 }
