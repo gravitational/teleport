@@ -4323,7 +4323,7 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 // getDesktopEventWebURL returns the web UI URL users can access to
 // watch a desktop session recording in the browser
 func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
-	if events == nil || len(events) < 1 {
+	if len(events) < 1 {
 		return ""
 	}
 	start := events[0].GetTimestamp()
