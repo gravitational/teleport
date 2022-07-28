@@ -801,7 +801,5 @@ The example above also demonstrates the usage of variables `$0` and `$1`. They r
 
 The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To debug aliases, set the `TELEPORT_DEBUG=1` environment variable instead.
 
-If you want to temporarily disable an alias, set the `TSH_ALIAS` environment variable. `tsh` understands the value of that flag to be a comma-separated list of aliases it should ignore. For example, `TSH_ALIAS=connect,status` will make it behave as if those two aliases were not set. This environment variable is also used to prevent infinite alias loops from occurring.
-
 ## Further reading
 - [CLI Reference](../setup/reference/cli.mdx).
