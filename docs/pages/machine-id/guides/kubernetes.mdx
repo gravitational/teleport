@@ -95,14 +95,15 @@ $ kubectl create role example-role \
 
 Next, create a role binding to connect the bot to the new role. You may bind
 either the bot's mapped `User` or mapped `Group` to a role, however it must have
-been granted the matching `User` or `Group` via a Teleport role.
+been granted the matching `User` or `Group` via a Teleport role above.
+
 ```code
 ## This binds the new role to the group `example`
 $ kubectl create rolebinding example-rolebinding-group \
   --namespace=demo \
   --role=example-role \
   --group=example
-## This binds the new role to the user `alice`
+## Alternatively, this binds the new role to the user `alice`
 $ kubectl create rolebinding example-rolebinding-user \
   --namespace=demo \
   --role=example-role \
