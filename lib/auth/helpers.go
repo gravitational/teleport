@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -46,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -358,7 +359,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUser(user)
-	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
+	checker, err := services.NewAccessChecker(context.Background(), accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -416,7 +417,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			return nil, nil, trace.Wrap(err)
 		}
 		accessInfo := services.AccessInfoFromUser(user)
-		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
+		checker, err := services.NewAccessChecker(context.Background(), accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

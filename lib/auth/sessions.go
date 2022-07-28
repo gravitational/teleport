@@ -238,7 +238,7 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 	return session, nil
 }
 
-func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
+func (s *Server) createSessionCert(ctx context.Context, user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
@@ -247,7 +247,7 @@ func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, pu
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.Access)
+	checker, err := services.NewAccessChecker(ctx, accessInfo, clusterName.GetClusterName(), s.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

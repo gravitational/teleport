@@ -214,8 +214,8 @@ type accessChecker struct {
 //   clusters.
 // - `access RoleGetter` should be a RoleGetter which will be used to fetch the
 //   full RoleSet
-func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
-	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+func NewAccessChecker(ctx context.Context, info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	roleSet, err := FetchRoles(ctx, info.Roles, access, info.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

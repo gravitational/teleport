@@ -155,7 +155,7 @@ func (h *AuthHandlers) CreateIdentityContext(ctx context.Context, sconn *ssh.Ser
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
-	identity.AccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
+	identity.AccessChecker, err = services.NewAccessChecker(ctx, accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -459,7 +459,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, h.c.AccessPoint)
+	accessChecker, err := services.NewAccessChecker(context.TODO(), accessInfo, clusterName, h.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}

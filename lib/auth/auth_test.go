@@ -1169,7 +1169,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.NoError(t, err)
 
 	accessInfo := services.AccessInfoFromUser(user)
-	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	accessChecker, err := services.NewAccessChecker(ctx, accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
 	keygen := testauthority.New()
@@ -1200,7 +1200,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUser(user)
-	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	accessChecker, err := services.NewAccessChecker(ctx, accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
 	requestID := "test-access-request"

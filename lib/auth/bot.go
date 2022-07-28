@@ -493,7 +493,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	checker, err := services.NewAccessChecker(ctx, accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -355,7 +354,7 @@ func (c *SessionContext) GetUserAccessChecker(ctx context.Context) (services.Acc
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), c.unsafeCachedAuthClient)
+	accessChecker, err := services.NewAccessChecker(ctx, accessInfo, clusterName.GetClusterName(), c.unsafeCachedAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

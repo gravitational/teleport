@@ -846,7 +846,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(context.Background(), accessInfo, clusterName.GetClusterName(), a.Access)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -896,7 +896,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(context.Background(), accessInfo, clusterName.GetClusterName(), a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -954,7 +954,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a.Access)
+	checker, err := services.NewAccessChecker(context.Background(), accessInfo, clusterName.GetClusterName(), a.Access)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2444,7 +2444,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
+	checker, err := services.NewAccessChecker(ctx, &services.AccessInfo{
 		Roles:              req.Roles,
 		Traits:             req.Traits,
 		AllowedResourceIDs: req.RequestedResourceIDs,
