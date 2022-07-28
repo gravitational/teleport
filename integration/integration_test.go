@@ -281,7 +281,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
-			nodeProcess, err := teleport.StartNode(nodeConf)
+			_, err := teleport.StartNode(nodeConf)
 			require.NoError(t, err)
 
 			// get access to a authClient for the cluster
@@ -484,15 +484,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, 0, start.GetInt("bytes"))
 			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
-
-			// If session are being recorded at nodes, the SessionServerID should contain
-			// the ID of the node. If sessions are being recorded at the proxy, then
-			// SessionServerID should be that of the proxy.
-			expectedServerID := nodeProcess.Config.HostUUID
-			if services.IsRecordAtProxy(tt.inRecordLocation) {
-				expectedServerID = teleport.Process.Config.HostUUID
-			}
-			require.Equal(t, expectedServerID, start.GetString(events.SessionServerID))
 
 			// make sure data is recorded properly
 			out := &bytes.Buffer{}
