@@ -45,9 +45,9 @@ jobs:
           cd dist/e
           git add -A
           git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA"
-          git push
+          git push origin HEAD:$GITHUB_REF_NAME
 
           cd ..
           git add -A
           git commit -m "Update webassets from gravitational/webapps@$GITHUB_SHA"
-          git push
+          git push origin HEAD:$GITHUB_REF_NAME
