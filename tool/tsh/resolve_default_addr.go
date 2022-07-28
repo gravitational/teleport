@@ -156,7 +156,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
-	errors := []error{}
+	var errors []error
 	for {
 		select {
 		case <-ctx.Done():
