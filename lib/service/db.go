@@ -17,6 +17,8 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -27,8 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -49,22 +49,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	eventsCh := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), DatabasesIdentityEvent, eventsCh)
-
-	var event Event
-	select {
-	case event = <-eventsCh:
-		log.Debugf("Received event %q.", event.Name)
-	case <-process.ExitContext().Done():
-		log.Debug("Process is exiting.")
-		return nil
+	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	if conn == nil {
+		return trace.Wrap(err)
 	}
 
-	conn, ok := (event.Payload).(*Connector)
-	if !ok {
-		return trace.BadParameter("unsupported event payload type %q", event.Payload)
-	}
 	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
