@@ -195,17 +195,64 @@ func sortArtifactsByArch(artifactPaths []string) (map[string][]string, error) {
 		}
 
 		arch := rpmPackage.Architecture()
-		logrus.Debugf("Found %q with ISA %q", artifactPath, arch)
-		if rpmPackagePaths, ok := archPackageMap[arch]; ok {
-			archPackageMap[arch] = append(rpmPackagePaths, artifactPath)
+		baseArch, err := getBaseArchForArch(arch)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to determine base architecture for artifact %q", artifactPath)
+		}
+
+		logrus.Debugf("Found %q with ISA %q and base ISA %q", artifactPath, arch, baseArch)
+		if rpmPackagePaths, ok := archPackageMap[baseArch]; ok {
+			archPackageMap[baseArch] = append(rpmPackagePaths, artifactPath)
 		} else {
-			archPackageMap[arch] = []string{artifactPath}
+			archPackageMap[baseArch] = []string{artifactPath}
 		}
 	}
 
 	logrus.Infof("Found %d ISAs: %v", len(archPackageMap), archPackageMap)
 
 	return archPackageMap, nil
+}
+
+// Implementation pulled from https://github.com/rpm-software-management/yum/blob/master/rpmUtils/arch.py#L429
+func getBaseArchForArch(arch string) (string, error) {
+	archTypes := map[string][]string{
+		"i386": {
+			"athlon",
+			"geode",
+			"i686",
+			"i586",
+			"i486",
+			"i386",
+		},
+		"x86_64": {
+			"amd64",
+			"ia32e",
+			"x86_64",
+		},
+		// This does not cover ARMv8 and above which have several strange corner cases
+		"arm": {
+			"armv2",
+			"armv3",
+			"armv4",
+			"armv5",
+			"armv6",
+			"armv7",
+		},
+		"aarch64": {
+			"arm64",
+			"aarch64",
+		},
+	}
+
+	for baseArch, archTypes := range archTypes {
+		for _, archType := range archTypes {
+			if strings.HasPrefix(arch, archType) {
+				return baseArch, nil
+			}
+		}
+	}
+
+	return "", trace.Errorf("failed to determine base arch for architecture %q", arch)
 }
 
 func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPublicKeyPath string) error {
