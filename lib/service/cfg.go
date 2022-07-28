@@ -301,7 +301,9 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		}
 		filteredPins = append(filteredPins, strings.Split(pins, "\n")...)
 	}
-	cfg.CAPins = filteredPins
+	if len(filteredPins) > 0 {
+		cfg.CAPins = filteredPins
+	}
 	return nil
 }
 
@@ -599,6 +601,9 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
+
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -940,6 +945,9 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite
+
+	// AWS contains additional options for AWS applications.
+	AWS *AppAWS `yaml:"aws,omitempty"`
 }
 
 // CheckAndSetDefaults validates an application.
@@ -1209,6 +1217,12 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 		headersOut = append(headersOut, *h)
 	}
 	return headersOut, nil
+}
+
+// AppAWS contains additional options for AWS applications.
+type AppAWS struct {
+	// ExternalID is the AWS External ID used when assuming roles in this app.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

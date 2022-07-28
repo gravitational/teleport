@@ -22,24 +22,18 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 
-	"gopkg.in/check.v1"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
-
-type PresenceSuite struct {
-}
-
-var _ = check.Suite(&PresenceSuite{})
-
-func (s *PresenceSuite) TestServerLabels(c *check.C) {
+func TestServerLabels(t *testing.T) {
 	emptyLabels := make(map[string]string)
 	// empty
 	server := &types.ServerV2{}
-	c.Assert(server.GetAllLabels(), check.DeepEquals, emptyLabels)
-	c.Assert(server.LabelsString(), check.Equals, "")
-	c.Assert(server.MatchAgainst(emptyLabels), check.Equals, true)
-	c.Assert(server.MatchAgainst(map[string]string{"a": "b"}), check.Equals, false)
+	require.Empty(t, cmp.Diff(server.GetAllLabels(), emptyLabels))
+	require.Equal(t, server.LabelsString(), "")
+	require.Equal(t, server.MatchAgainst(emptyLabels), true)
+	require.Equal(t, server.MatchAgainst(map[string]string{"a": "b"}), false)
 
 	// more complex
 	server = &types.ServerV2{
@@ -59,14 +53,15 @@ func (s *PresenceSuite) TestServerLabels(c *check.C) {
 		},
 	}
 
-	c.Assert(server.GetAllLabels(), check.DeepEquals, map[string]string{
+	require.Empty(t, cmp.Diff(server.GetAllLabels(), map[string]string{
 		"role": "database",
 		"time": "now",
-	})
-	c.Assert(server.LabelsString(), check.Equals, "role=database,time=now")
-	c.Assert(server.MatchAgainst(emptyLabels), check.Equals, true)
-	c.Assert(server.MatchAgainst(map[string]string{"a": "b"}), check.Equals, false)
-	c.Assert(server.MatchAgainst(map[string]string{"role": "database"}), check.Equals, true)
-	c.Assert(server.MatchAgainst(map[string]string{"time": "now"}), check.Equals, true)
-	c.Assert(server.MatchAgainst(map[string]string{"time": "now", "role": "database"}), check.Equals, true)
+	}))
+
+	require.Equal(t, server.LabelsString(), "role=database,time=now")
+	require.Equal(t, server.MatchAgainst(emptyLabels), true)
+	require.Equal(t, server.MatchAgainst(map[string]string{"a": "b"}), false)
+	require.Equal(t, server.MatchAgainst(map[string]string{"role": "database"}), true)
+	require.Equal(t, server.MatchAgainst(map[string]string{"time": "now"}), true)
+	require.Equal(t, server.MatchAgainst(map[string]string{"time": "now", "role": "database"}), true)
 }
