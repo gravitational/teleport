@@ -83,18 +83,18 @@ func artifactMigrationPipeline() []pipeline {
 		// "v9.3.10",
 		// "v9.3.12",
 		// "v9.3.13",
-		"v10.0.0",
-		"v10.0.1",
-		"v10.0.2",
+		// "v10.0.0",
+		// "v10.0.1",
+		// "v10.0.2",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
-	migrationBranch := "fred/rfd-0058-YUM-implementation" // "rfd/0058-package-distribution"
+	migrationBranch := "" // "rfd/0058-package-distribution"
 
-	// aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
+	aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
 	yumPipeline := migrateYumPipeline(migrationBranch, migrationVersions)
 	return []pipeline{
-		// aptPipeline,
+		aptPipeline,
 		yumPipeline,
 	}
 }
