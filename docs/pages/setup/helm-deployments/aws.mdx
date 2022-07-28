@@ -535,49 +535,37 @@ Here's an example where we set the chart to use 3 replicas:
 ### Autoscaling
 
 In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
-This can be done manually or delegated to Teleport.
-
 This step is usually done after a successful Teleport deployment, once you have gathered some data
 about Teleport's DynamoDB usage and know what regular usage looks like and how autoscaling should be tuned.
-See [the DynamoDB autoscaling section](../reference/backends.mdx#dynamodb-autoscaling) for more details.
+You must know the desired read/write minimum, maximum and target capacity.
 
-To go further you have to know the desired read/write minimum, maximum and target capacity.
-If you decide to let Teleport set up the autoscaling, proceed as follows:
+Autoscaling configuration can be delegated to Teleport or managed by an AWS Application Auto Scaling policy you create.
+The following steps will set up Teleport-configured DynamoDB autoscaling.
 
-<Tabs>
-  <TabItem label="Using values.yaml">
-  Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
+You must grant autoscaling configuration rights to Teleport, as documented in
+[the DynamoDB autoscaling section](../reference/backends.mdx#dynamodb-autoscaling).
 
-  ```yaml
-  aws:
-    # [...] already present values under `aws`
-    dynamoAutoScaling: true
-    readMinCapacity: 5     # integer
-    readMaxCapacity: 100   # integer
-    readTargetValue: 50.0  # float
-    writeMinCapacity: 5    # integer
-    writeMaxCapacity: 100  # integer
-    writeTargetValue: 50.0 # float
+Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
 
-  Then perform [a cluster upgrade](#upgrading-the-cluster-after-deployment) with the new values.
+```yaml
+aws:
+  # [...] already present values under `aws`
+  dynamoAutoScaling: true
+  readMinCapacity: 5     # integer
+  readMaxCapacity: 100   # integer
+  readTargetValue: 50.0  # float
+  writeMinCapacity: 5    # integer
+  writeMaxCapacity: 100  # integer
+  writeTargetValue: 50.0 # float
+```
 
-  </TabItem>
-  <TabItem label="Using --set via CLI">
-  Run this command, editing your command line parameters as appropriate:
+Then perform a cluster upgrade with the new values:
 
-  ```code
-  $ helm upgrade teleport teleport/teleport-cluster \
-    --namespace teleport \
-    --set aws.dynamoAutoScaling=true \
-    --set aws.readMinCapacity=5          `# integer` \
-    --set aws.readMaxCapacity=100        `# integer` \
-    --set aws.readTargetValue=50.0       `# float` \
-    --set aws.writeMinCapacity=5         `# integer` \
-    --set aws.writeMaxCapacity=100       `# integer` \
-    --set aws.writeTargetValue=50.0      `# float`
-  ```
-  </TabItem>
-</Tabs>
+```code
+$ helm upgrade teleport teleport/teleport-cluster \
+  --namespace teleport \
+  -f aws-values.yaml
+```
 
 ## Uninstalling Teleport
 
