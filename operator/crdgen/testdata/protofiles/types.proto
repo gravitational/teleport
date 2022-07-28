@@ -436,7 +436,7 @@ message ServerV2List {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
-    reserved 8;
+    reserved 8, 9;
 
     // Addr is server host:port address
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
@@ -455,10 +455,6 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
-    // Apps is a list of applications this server is proxying.
-    //
-    // DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
-    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty", deprecated = true ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
     //
@@ -543,31 +539,6 @@ message AppSpecV3 {
     bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
-}
-
-// App is a specific application that a server proxies.
-//
-// DELETE IN 9.0. Deprecated, use AppV3.
-message App {
-    // Name is the name of the application.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-    // URI is the internal address the application is available at.
-    string URI = 2 [ (gogoproto.jsontag) = "uri" ];
-    // PublicAddr is the public address the application is accessible at.
-    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
-    // StaticLabels is map of static labels associated with an application.
-    // Used for RBAC.
-    map<string, string> StaticLabels = 4 [ (gogoproto.jsontag) = "labels,omitempty" ];
-    // DynamicLabels is map of dynamic labels associated with an application.
-    // Used for RBAC.
-    map<string, CommandLabelV2> DynamicLabels = 5
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
-    // InsecureSkipVerify disables app's TLS certificate verification.
-    bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
-    // Rewrite is a list of rewriting rules to apply to requests and responses.
-    Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
-    // Description is an optional free-form app description.
-    string Description = 8 [ (gogoproto.jsontag) = "description,omitempty" ];
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

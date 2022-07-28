@@ -1727,15 +1727,6 @@ func TestApplicationServersCRUD(t *testing.T) {
 	server2, err := types.NewAppServerV3FromApp(app2, "server-2", "server-2")
 	require.NoError(t, err)
 
-	// Create a legacy app server.
-	app3, err := types.NewAppV3(types.Metadata{Name: "app-3"},
-		types.AppSpecV3{URI: "localhost"})
-	require.NoError(t, err)
-	server3Legacy, err := types.NewLegacyAppServer(app3, "server-3", "server-3")
-	require.NoError(t, err)
-	server3, err := types.NewAppServerV3FromApp(app3, "server-3", "server-3")
-	require.NoError(t, err)
-
 	// Initially we expect no app servers.
 	out, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -1746,13 +1737,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = clt.UpsertApplicationServer(ctx, server2)
 	require.NoError(t, err)
-	_, err = clt.UpsertAppServer(ctx, server3Legacy)
-	require.NoError(t, err)
 
 	// Fetch all app servers.
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
+	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -1762,7 +1751,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2, server3}, out,
+	require.Empty(t, cmp.Diff([]types.AppServer{server1, server2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -1771,18 +1760,16 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server2, server3}, out,
+	require.Empty(t, cmp.Diff([]types.AppServer{server2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Delete all app servers.
 	err = clt.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	err = clt.DeleteAllAppServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 // TestAppsCRUD tests application resource operations.

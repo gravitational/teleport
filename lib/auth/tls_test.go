@@ -1075,22 +1075,6 @@ func TestServersCRUD(t *testing.T) {
 	suite.ServerCRUD(t)
 }
 
-// TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
-func TestAppServerCRUD(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestBuiltin(types.RoleApp))
-	require.NoError(t, err)
-
-	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-	}
-	suite.AppServerCRUD(t)
-}
-
 func TestReverseTunnelsCRUD(t *testing.T) {
 	t.Parallel()
 

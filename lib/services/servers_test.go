@@ -257,40 +257,6 @@ func TestOnlyTimestampsDifferent(t *testing.T) {
 			},
 			expect: OnlyTimestampsDifferent,
 		},
-		{
-			desc: "Apps change returns Different",
-			a: &types.ServerV2{
-				Spec: types.ServerSpecV2{Apps: []*types.App{}},
-				Metadata: types.Metadata{
-					Expires: &now,
-				},
-			},
-			b: &types.ServerV2{
-				Spec: types.ServerSpecV2{Apps: []*types.App{{
-					Name: "test-app",
-				}}},
-				Metadata: types.Metadata{
-					Expires: &later,
-				},
-			},
-			expect: Different,
-		},
-		{
-			desc: "No apps change returns OnlyTimestampsDifferent",
-			a: &types.ServerV2{
-				Spec: types.ServerSpecV2{Apps: []*types.App{}},
-				Metadata: types.Metadata{
-					Expires: &now,
-				},
-			},
-			b: &types.ServerV2{
-				Spec: types.ServerSpecV2{Apps: []*types.App{}},
-				Metadata: types.Metadata{
-					Expires: &later,
-				},
-			},
-			expect: OnlyTimestampsDifferent,
-		},
 	}
 
 	for _, tc := range tests {

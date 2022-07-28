@@ -486,8 +486,6 @@ func (h *Heartbeat) announce() error {
 			var keepAlive *types.KeepAlive
 			var err error
 			switch current := h.current.(type) {
-			case types.Server:
-				keepAlive, err = h.Announcer.UpsertAppServer(h.cancelCtx, current)
 			case types.AppServer:
 				keepAlive, err = h.Announcer.UpsertApplicationServer(h.cancelCtx, current)
 			default:

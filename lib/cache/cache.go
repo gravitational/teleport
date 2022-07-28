@@ -1852,21 +1852,6 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	return rg.apps.GetApp(ctx, name)
 }
 
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAppServers")
-	defer span.End()
-
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.presence.GetAppServers(ctx, namespace, opts...)
-}
-
 // GetAppSession gets an application web session.
 func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")

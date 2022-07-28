@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
@@ -66,12 +65,6 @@ type Server interface {
 	SetPublicAddr(string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	GetApps() []*App
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	SetApps([]*App)
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.
 	GetKubernetesClusters() []*KubernetesCluster
@@ -269,16 +262,6 @@ func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
 }
 
-// GetApps gets the list of applications this server is proxying.
-func (s *ServerV2) GetApps() []*App {
-	return s.Spec.Apps
-}
-
-// SetApps sets the list of applications this server is proxying.
-func (s *ServerV2) SetApps(apps []*App) {
-	s.Spec.Apps = apps
-}
-
 func (s *ServerV2) String() string {
 	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
@@ -431,16 +414,6 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return proto.Clone(s).(*ServerV2)
-}
-
-// IsAWSConsole returns true if this app is AWS management console.
-func (a *App) IsAWSConsole() bool {
-	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
-}
-
-// GetAWSAccountID returns value of label containing AWS account ID on this app.
-func (a *App) GetAWSAccountID() string {
-	return a.StaticLabels[constants.AWSAccountIDLabel]
 }
 
 // CommandLabel is a label that has a value as a result of the
