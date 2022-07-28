@@ -281,7 +281,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
-			nodeProcess, err := teleport.StartNode(nodeConf)
+			_, err := teleport.StartNode(nodeConf)
 			require.NoError(t, err)
 
 			// get access to a authClient for the cluster
@@ -484,7 +484,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, 0, start.GetInt("bytes"))
 			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
-			require.Equal(t, nodeProcess.Config.HostUUID, start.GetString(events.SessionServerID))
 
 			// make sure data is recorded properly
 			out := &bytes.Buffer{}
