@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded.
+// tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded, and should not be expanded again.
 // This is primarily to avoid infinite loops with ill-defined aliases, but can also be used to disable a particular alias on demand.
-const tshAliasEnvKey = "TSH_ALIAS"
+const tshAliasEnvKey = "TSH_UNALIAS"
 
 // aliasRunner coordinates alias running as well as provides a suitable testing target.
 type aliasRunner struct {
@@ -154,7 +154,7 @@ func expandAliasDefinition(aliasName string, aliasDef string, runtimeArgs []stri
 
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
 func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
-	// ignore aliases found in TSH_ALIAS list
+	// ignore aliases found in TSH_UNALIAS list
 	for _, usedAlias := range ar.getSeenAliases() {
 		if usedAlias == aliasCmd {
 			return "", false
@@ -172,7 +172,7 @@ func (ar *aliasRunner) markAliasSeen(alias string) error {
 	return ar.setEnv(tshAliasEnvKey, strings.Join(aliasesSeen, ","))
 }
 
-// getSeenAliases fetches TSH_ALIAS env variable and parses it, to produce the list of already executed aliases.
+// getSeenAliases fetches TSH_UNALIAS env variable and parses it, to produce the list of already executed aliases.
 func (ar *aliasRunner) getSeenAliases() []string {
 	var aliasesSeen []string
 
