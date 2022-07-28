@@ -450,6 +450,9 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, relativeGpgPublicKeyPat
 		return trace.Wrap(err, "failed to create repo file at %q", filePath)
 	}
 
+	logrus.Infof("Created repo file at %q", filePath)
+	logrus.Debugf("Repo file contents:\n%s", repoFileContent)
+
 	return nil
 }
 
