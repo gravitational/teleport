@@ -1,9 +1,9 @@
 ---
-authors: Roman Tkachenko (roman@goteleport.com)
+authors: Roman Tkachenko (roman@goteleport.com), Xin Ding (xin@goteleport.com)
 state: draft
 ---
 
-# RFD 73 - Teleport Discover
+# RFD 73 - Teleport Discover "Day 1" and "Day 2" Experiences
 
 ## Required approvers
 
@@ -26,12 +26,12 @@ connect their resources such as SSH servers, databases and Kubernetes clusters
 to a Teleport cluster.
 
 Over the past few releases Teleport has been adding automatic discovery
-capabilities allowing it to find and register AWS databases, EC2 instances
-and (WIP as of this writing) EKS clusters. Despite providing an improved UX
-compared to registering the resources manually, connecting resources to cluster
-and setting up auto-discovery remains cumbersome with multiple different
-`teleport configure` CLI commands to run, configuration files to update and
-so on.
+capabilities allowing it to find and register AWS databases, EC2 instances and
+(WIP as of this writing) EKS clusters. Despite providing an improved UX compared
+to registering the resources manually, connecting resources to cluster and
+setting up auto-discovery remains cumbersome with multiple different
+`teleport configure` CLI commands to run, configuration files to update and so
+on.
 
 Improvements proposed in thie RFD aim to take advantage of the existing auto
 discovery mechanisms Teleport has and provide a unified approach for users to
@@ -42,7 +42,8 @@ connect their resources.
 - Works with both self-hosted edition and Teleport Cloud.
 - Works with the environments we currently support: AWS and self-hosted.
 - Phase 1 will focus on the "Day 1" experience described below.
-- Phase 2 and beyond will focus on "Day 2" and further tweaks to "Day 1" experience.
+- Phase 2 and beyond will focus on "Day 2" and further tweaks to "Day 1"
+  experience.
 
 ## UX
 
@@ -59,96 +60,98 @@ connecting their resources to a Teleport cluster in 2 main scenarios:
    They would like to have Teleport automatically discover and connect their
    cloud resources.
 
-Let's explore in more detail what the flow for both of these user personas
-would look like.
+As much as possible, we want Teleport Discover users to remain in the Web UI,
+meaning we don't want to ask them to download `tsh` or `Teleport Connect` or
+visit https://goteleport.com/docs/. There are few reasons for this:
+
+1. We want to encourage users to finish the "Day 1" and "Day 2" workflow. A good
+   way to do this is limit distractions.
+
+2. We want the least number of dependencies because more dependencies equals
+   more potential blockers for users. For example, what if users have trouble
+   downloading or installing `tsh`? We just introduced a class of possible
+   failure modes.
+
+Below, let's explore in more detail what the flow for both of these user
+personas would look like.
 
 ## Day 1
 
-Day 1 users should be greeted by a wizard-style dialog upon logging into the
-web UI of a cluster that does not have any connected resources. The wizard
-will guide the user through the flow of connecting their first resource.
+Day 1 users should be greeted by a wizard-style dialog upon logging into the web
+UI of a cluster that does not have any connected resources. The wizard will
+guide the user through the flow of connecting their first resource.
 
 Teleport web UI already provides some of the building blocks for the wizard in
 the form of "Add server", "Add database", etc. pop-up dialogs but their
-instructions are not friendly for newcomers and make it almost impossible to
-use successfully without referring to the documentation.
+instructions are not friendly for newcomers and make it almost impossible to use
+successfully without referring to the documentation.
 
 Instead of separate dialogs, Teleport Discover wizard will provide a unified
 experience to enable the flow described below.
 
-Users should be able to navigate between the dialog steps back and forth to
-connect multiple resource if needed. The unified "Add resource" wizard should
+Users should be able to add exactly 1 resource at a time. Users can exit the
+wizard at any time but a confirmation modal should be presented to users so they
+don't accidentally leave the workflow. The unified "Add resource" wizard should
 also be available and prominently visible in the web UI allowing users to go
 through the same flow in a non-empty cluster.
 
-### Step 1. Gather information
+### Step 0. Initiate Teleport Discover workflow or skip
 
-Ask the user what type of resource they would like to connect: an SSH server,
-a database, an application, etc.
+Ask the user if they want to initiate the Teleport Discover workflow or go
+straight to the "dashboard" (i.e. the "servers" screen). This helps users
+establish a mental model of Access Manager vs. Access Provider.
 
-Then ask the user where the resource is located: self-hosted or AWS. For
-databases, also present the supported protocol options. For self-hosted:
-PostgreSQL, MySQL, MongoDB, Redis, SQL Server. For AWS: RDS PostgreSQL, RDS
-MySQL, RDS SQL Server, Elasticache, MemoryDB.
+### Step 1. Select resource type
 
-### Step 2. Install Teleport
+Ask the user what type of resource they would like to connect: an SSH server, a
+database, an application, etc.
 
-For SSH, instruct the user to download and install `teleport` binary on the
-server they're intending to connect. Use tabs to display per-distro install
-instructions similar to [the docs](https://goteleport.com/docs/server-access/getting-started/#step-14-install-teleport-on-your-linux-host).
+For SSH Servers, since the automatic installation script auto discovers the OS
+and installs the correct binary, we don't need to ask users to provide any
+additional information. Some helper text to let users know all supports OSes
+would be beneficial
 
-For a database, display the same instructions making it clear that Teleport
-should be installed on a node that can reach the database.
+For Databases, since there are many options, we should allow users to further
+filter down by deployment type: self-hosted or AWS. Once a deployment selection
+has been made, present all support database types to the user.
 
-### Step 3. Configure node
+### Step 2. Configure resource
 
-For SSH, this step is a no-op as it doesn't need any additional configuration
-so users will proceed to starting an agent at step 4.
+For an SSH Server, present the automatic installation script to the user to copy
+and paste. This script auto detects OS and installs the correct binary. No other
+actions are required.
 
-For databases, this step will inform the user of any additional configuration
-they may need in order to get database access to work. It will depend on the
-database type and where the database is hosted.
+For a database, there are three steps:
 
-For self-hosted databases, in the initial version the wizard will display the
-links to the respective sections of the documentation guides for preparing
-the node (e.g. joining to AD domain for SQL Server) and show the commands for
-creating a database user.
+1. Deploy a database agent (optional if user has already deployed at least one
+   database agent)
+2. Register the database
+3. Configure mTLS (for self-server database) / Configure IAM policy (for AWS
+   database)
 
-For AWS databases that use IAM authentication (PostgreSQL, MySQL), the wizard
-will additionally display an appropriate `teleport db configure bootstrap`
-command for the user to run which will configure IAM permissions.
+### Step 3. Set up access
 
-### Step 4. Start agent
+For an SSH Server, this step requires adding Linux principals / users.
 
-For SSH, display the command for the user to run on their node, showing either
-"Automatic" or "AWS" commands from the existing "Add server" dialog depending
-on whether self-hosted or AWS option was picked in step 1.
+For a database, the user needs to define the available logical databases and
+users.
 
-For a database, display the appropriate `teleport db start` command similar to
-the existing "Add database" dialog.
+### Step 4. Test connection
 
-### Step 5. Configure role
+This step is the same for all resources. There are two actions here:
 
-Teleport roles by default only include internal user traits as allowed SSH
-logins (`{{internal.logins}}`) and database users (`{{internal.db_users}}`)
-and database names (`{{internal.db_names}}`). This results into users getting
-access denied errors unless they update their roles explicitly.
-
-On this step the wizard will ask the user for their intended SSH logins and/or
-database users/names and update the internal user traits appropriately so the
-users with the built-in `access` role will be allowed access to their resources.
-
-### Step 6. Connect
-
-This step will ask the user to test the connectivity by logging into their
-cluster with `tsh login` and running appropriate connect command, `tsh ssh`
-or `tsh db connect`.
+1. Test connection: user clicks on a button and Teleport runs through a series
+   of diagnostic tests to ensure that the connection is set up correct and can
+   be established.
+2. Connect: user clicks on a button and the connection is made in the Web UI.
+   For example, for an SSH Server, clicking on this button would pop up a new
+   tab with a session to the newly connected server.
 
 ### Day 2
 
 Day 2 users already have gotten an initial success with connecting their
-resources to Teleport by going through the guided wizard described above.
-They have SSH and/or database agent(-s) installed and running.
+resources to Teleport by going through the guided wizard described above. They
+have SSH and/or database agent(-s) installed and running.
 
 As they're thinking about bringing a larger part of their infrastructure into
 their Teleport cluster, this is where it makes sense for them to use Teleport's
@@ -161,17 +164,17 @@ Teleport agent configuration file `teleport.yaml`:
 ssh_service:
   enabled: "yes"
   aws:
-  - types: ["ec2"]
-    regions: ["us-west-1"]
-    tags:
-      "*": "*"
+    - types: ["ec2"]
+      regions: ["us-west-1"]
+      tags:
+        "*": "*"
 db_service:
   enabled: "yes"
   aws:
-  - types: ["rds"]
-    regions: ["us-west-1"]
-    tags:
-      "*": "*"
+    - types: ["rds"]
+      regions: ["us-west-1"]
+      tags:
+        "*": "*"
 ```
 
 Instead, Teleport will implement ability to configure auto-discovery (enable,
@@ -179,23 +182,23 @@ disable, specify resources types to discover, tags, etc.) dynamically via the
 API which web UI will utilize.
 
 Similar to application and database dynamic registration, auto-discovery
-configuration will be turned into a resource (e.g. `kind: Discovery`) which
-will be tied to a particular SSH or a database agent.
+configuration will be turned into a resource (e.g. `kind: Discovery`) which will
+be tied to a particular SSH or a database agent.
 
 Web UI will provide a wizard-like dialog that will allow users to enable AWS
 auto-discovery by going through the following flow:
 
-1. Select the type of resource to discover e.g. EC2 instances, RDS databases,
-   as well as regions and tags to filter by.
-2. Select an existing agent that will be running the auto-discovery. In order
-   to run EC2 discovery, there should be a running SSH agent. For RDS discovery,
-   a database agent.
+1. Select the type of resource to discover e.g. EC2 instances, RDS databases, as
+   well as regions and tags to filter by.
+2. Select an existing agent that will be running the auto-discovery. In order to
+   run EC2 discovery, there should be a running SSH agent. For RDS discovery, a
+   database agent.
 3. The selected agent will perform initial discovery according to the provided
    filters. This can be implemented by providing an API for the web UI to create
    a "discovery request" which agents will watch.
 4. The agent will attempt to fullfill the discovery request and will report
-   errors, e.g. insufficient IAM policy, to the user. This can be implemented
-   by filling out a Status field on the agent's resource spec.
+   errors, e.g. insufficient IAM policy, to the user. This can be implemented by
+   filling out a Status field on the agent's resource spec.
 5. If successful, the UI wizard will display all resources matching the
    discovery request for the user to inspect and confirm. If unsatisfied, the
    user can retrace to an earlier step to re-run the discovery.
