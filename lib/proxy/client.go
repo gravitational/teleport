@@ -444,7 +444,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
-			errs = append(errs, trace.ConnectionProblem(err, "error starting stream"))
+			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
 			continue
 		}
 		err = stream.Send(&clientapi.Frame{
@@ -453,12 +453,12 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 			},
 		})
 		if err != nil {
-			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame"))
+			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
 			continue
 		}
 		msg, err := stream.Recv()
 		if err != nil {
-			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response"))
+			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
 			continue
 		}
 		if msg.GetConnectionEstablished() == nil {
@@ -473,7 +473,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 		return stream, existing, nil
 	}
 
-	return nil, existing, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error opening tunnel rpcs to all proxies")
+	return nil, existing, trace.NewAggregate(errs...)
 }
 
 // getConnections returns connections to the supplied proxy ids.
