@@ -72,12 +72,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.LocalAddress == "" {
-		// Due to SQL Server Management Studio behavior, it can't connect to address like localhost:12345,
-		// we have to use IP, like 127.0.0.1:12345.
+		c.LocalAddress = "localhost"
+		// SQL Server Management Studio won't connect to localhost:12345, so use 127.0.0.1:12345 instead.
 		if runtime.GOOS == constants.WindowsOS && c.Protocol == defaults.ProtocolSQLServer {
 			c.LocalAddress = "127.0.0.1"
-		} else {
-			c.LocalAddress = "localhost"
 		}
 	}
 
