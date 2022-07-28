@@ -17,52 +17,25 @@ limitations under the License.
 package common
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
-// GetPaginatedSessions grabs up to 'max' sessions.
-func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]events.AuditEvent, error) {
-	prevEventKey := ""
-	var sessions []events.AuditEvent
-	for {
-		if remaining := max - len(sessions); remaining > pageSize {
-			pageSize = remaining
-		}
-		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
-			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sessions = append(sessions, nextEvents...)
-		if eventKey == "" || len(sessions) >= max {
-			break
-		}
-		prevEventKey = eventKey
-	}
-	if max < len(sessions) {
-		return sessions[:max], nil
-	}
-	return sessions, nil
-}
-
+// SessionsCollection is a collection of session end events.
 type SessionsCollection struct {
 	SessionEvents []events.AuditEvent
 }
 
+// WriteText writes the session collection as text to the provided io.Writer.
 func (e *SessionsCollection) WriteText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
 	for _, event := range e.SessionEvents {
@@ -83,6 +56,7 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+// WriteJSON writes the session collection as JSON to the provided io.Writer.
 func (e *SessionsCollection) WriteJSON(w io.Writer) error {
 	data, err := json.MarshalIndent(e.SessionEvents, "", "    ")
 	if err != nil {
@@ -92,6 +66,7 @@ func (e *SessionsCollection) WriteJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+// WriteYAML writes the session collection as YAML to the provided io.Writer.
 func (e *SessionsCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, e.SessionEvents)
 }

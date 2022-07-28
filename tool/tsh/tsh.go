@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -458,6 +459,17 @@ var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeC
 
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
+
+// initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
+func initLogger(cf *CLIConf) {
+	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
+	cf.Debug = cf.Debug || isDebug
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+	} else {
+		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+	}
+}
 
 // Run executes TSH client. same as main() but easier to test
 func Run(ctx context.Context, args []string, opts ...cliOption) error {

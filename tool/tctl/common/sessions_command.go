@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/tool/common"
@@ -66,7 +67,7 @@ func (c *SessionsCommand) Initialize(app *kingpin.Application, config *service.C
 func (c *SessionsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.sessionsList.FullCommand():
-		err = c.ListSessions(client)
+		err = c.ListSessions(ctx, client)
 	default:
 		return false, nil
 	}
@@ -83,7 +84,7 @@ func (c *SessionsCommand) ListSessions(ctx context.Context, tc auth.ClientI) err
 		return trace.Errorf("date range for session listing too large: %v days specified: limit %v days",
 			days, defaults.TshTctlSessionDayLimit)
 	}
-	sessions, err := common.GetPaginatedSessions(context.Background(), fromUTC, toUTC,
+	sessions, err := client.GetPaginatedSessions(context.Background(), fromUTC, toUTC,
 		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxSessionsToShow, tc)
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)

@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/gravitational/teleport/tool/common"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
@@ -4352,8 +4351,11 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		ctx,
 		"teleportClient/SearchSessionEvents",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.Int("page_size", pageSize), 
-			attribute.String("from", fromUTC.Format(time.RFC3339), ...)
+		oteltrace.WithAttributes(
+			attribute.Int("page_size", pageSize),
+			attribute.String("from", fromUTC.Format(time.RFC3339)),
+			attribute.String("to", toUTC.Format(time.RFC3339)),
+		),
 	)
 	defer span.End()
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -4366,7 +4368,7 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	defer authClient.Close()
-	sessions, err := common.GetPaginatedSessions(ctx, fromUTC, toUTC,
+	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
 		pageSize, order, max, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
