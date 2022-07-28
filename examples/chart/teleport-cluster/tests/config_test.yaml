@@ -309,6 +309,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for session-recording.yaml
+    values:
+      - ../.lint/session-recording.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for standalone-customsize.yaml
     values:
       - ../.lint/standalone-customsize.yaml
