@@ -3,7 +3,7 @@ title: Machine ID Troubleshooting Guide
 description: Troubleshooting common issues with Machine ID
 ---
 
-## A bot failed to renew a certificate due to a "generation mismatch", what does this mean?
+## A bot failed to renew a certificate due to a "generation mismatch"
 
 ### Symptoms
 
@@ -20,8 +20,8 @@ ERROR: failed direct dial to auth server: auth API: access denied [00]
 "\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
 ```
 
-In particular, note the message `auth API: access denied`. The Teleport auth
-server will provide some additional context:
+In particular, note the message `auth API: access denied`. The Teleport Auth
+Service will provide some additional context:
 ```text
 [AUTH]      WARN lock targeting User:"bot-example" is in force: The bot user "bot-example" has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate. auth/apiserver.go:224
 ```
@@ -39,7 +39,7 @@ be automatically [locked](../access-controls/guides/locking.mdx).
 
 Renewable certificates are exclusively stored in the bot's internal data
 directory, by default `/var/lib/teleport/bot`. It's possible to trigger this by
-accident if multiple bots are started using same internal data directory, or if
+accident if multiple bots are started using the same internal data directory, or if
 this internal data is otherwise being shared between multiple bot instances.
 
 Additionally, if a bot fails to save its freshly renewed certificates (for
@@ -60,7 +60,7 @@ Additionally, ensure the internal data is not being copied to any other nodes.
 If you'd like to share certificates between nodes, only copy content from
 destination directories.
 
-Once the underlying cause has been addressed, two steps required to reset a
+Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
  1. Remove the lock on the bot's user
  2. Reset the bot's generation counter by deleting and re-creating the bot
@@ -117,7 +117,7 @@ fail."
 
 Token-joined bots are unable to reauthenticate to the Teleport server once their
 certificates have expired. Tokens in token-based joining (as opposed to AWS IAM
-joining) are one-time-use, so when the bot's internal certificates expire, it
+joining) can only be used once, so when the bot's internal certificates expire, it
 will not be able to connect.
 
 When a bot's identity expires, certain server-side parameters like the
@@ -134,8 +134,8 @@ $ sudo tctl bots rm example
 $ sudo tctl bots add example --roles=access
 ```
 
-Copy the resulting join token into the existing bot config - either the
-`--token` CLI flag or the `onboarding.token` parameter in `tbot.yaml` - and
+Copy the resulting join token into the existing bot config—either the
+`--token` CLI flag or the `onboarding.token` parameter in `tbot.yaml`—and
 restart the bot. It will detect the new token and rejoin the cluster as normal.
 
 ## SSH connections fail with `ssh: handshake failed: ssh: unable to authenticate`
@@ -164,7 +164,7 @@ In particular, note the `ssh: unable to authenticate` message.
 This can occur when attempting to log into the node as a user not listed as a
 principal on the SSH certificate.
 
-This can be verified by viewing the `tbot` logs and looking for the log message
+You can verify this by viewing the `tbot` logs and looking for the log message
 when impersonated certificates for the matching destination were renewed.
 
 In the following example, the only principal listed for the identity in
@@ -173,16 +173,16 @@ In the following example, the only principal listed for the identity in
 INFO [TBOT]      Successfully renewed impersonated certificates for directory /opt/machine-id, valid: after=2022-07-21T21:49:26Z, before=2022-07-21T22:50:26Z, duration=1h1m0s | kind=tls, renewable=false, disallow-reissue=true, roles=[access], principals=[alice -teleport-internal-join], generation=0 tbot/renew.go:630
 ```
 
-... however, the SSH command attempted to login as `bob`.
+However, the SSH command attempted to log in as `bob`.
 
 ### Resolution
 
-Ensure the bot identity is allowed to login as the requested user by taking any
+Ensure the bot identity is allowed to log in as the requested user by taking any
 of the following actions:
 
- 1. Changing the SSH command to login as an allowed user
+ 1. Changing the SSH command to log in as an allowed user
  2. Modifying the `access` role to allow the `alice` principal
- 3. Adding an additional role granting login via the `bob` principal
+ 3. Adding a role granting login via the `bob` principal
 
 Note that if roles are added or modified, the certificates will need to be
 renewed for the changes to take effect. The bot will renew certificates on its
@@ -198,7 +198,7 @@ $ pkill -sigusr1 tbot
 
 ### Symptoms
 
-When requesting [database access](../database-access/introduction.mdx)
+When requesting [Database Access](../database-access/introduction.mdx)
 certificates, the certificate request fails with an error like the following:
 
 ```text
