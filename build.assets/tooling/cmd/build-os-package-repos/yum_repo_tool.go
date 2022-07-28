@@ -283,14 +283,14 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 					return trace.Wrap(err, "failed to add artifact for YUM repo %q", relativeRepoPath)
 				}
 
+				repoFilePath := filepath.Join(repoPath, "teleport.repo")
+				err = yrt.createRepoFile(repoFilePath, os, relativeGpgPublicKeyPath)
+				if err != nil {
+					return trace.Wrap(err, "failed to create repo file for os %q at %q", os, repoFilePath)
+				}
+
 				repoCount++
 			}
-		}
-
-		repoFilePath := filepath.Join(osPath, "teleport.repo")
-		err := yrt.createRepoFile(repoFilePath, os, relativeGpgPublicKeyPath)
-		if err != nil {
-			return trace.Wrap(err, "failed to create repo file for os %q at %q", os, repoFilePath)
 		}
 	}
 
