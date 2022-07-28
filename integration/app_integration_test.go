@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,9 +34,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -53,10 +50,14 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
@@ -83,6 +84,7 @@ func TestAppAccess(t *testing.T) {
 	t.Run("TestAppAccessNoHeaderOverrides", pack.appAccessNoHeaderOverrides)
 	t.Run("TestAppAuditEvents", pack.appAuditEvents)
 	t.Run("TestAppInvalidateAppSessionsOnLogout", pack.appInvalidateAppSessionsOnLogout)
+	t.Run("TestAppAccessTCP", pack.appAccessTCP)
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", pack.appServersHA)
@@ -175,6 +177,43 @@ func (p *pack) appAccessWebsockets(t *testing.T) {
 	}
 }
 
+// appAccessTCP tests proxying of plain TCP applications through app access.
+func (p *pack) appAccessTCP(t *testing.T) {
+	pack := setup(t)
+
+	tests := []struct {
+		description string
+		address     string
+		outMessage  string
+	}{
+		{
+			description: "TCP app in root cluster",
+			address:     pack.startLocalProxy(t, pack.rootTCPPublicAddr, pack.rootAppClusterName),
+			outMessage:  pack.rootTCPMessage,
+		},
+		{
+			description: "TCP app in leaf cluster",
+			address:     pack.startLocalProxy(t, pack.leafTCPPublicAddr, pack.leafAppClusterName),
+			outMessage:  pack.leafTCPMessage,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			conn, err := net.Dial("tcp", test.address)
+			require.NoError(t, err)
+
+			buf := make([]byte, 1024)
+			n, err := conn.Read(buf)
+			require.NoError(t, err)
+
+			resp := strings.TrimSpace(string(buf[:n]))
+			require.Equal(t, test.outMessage, resp)
+		})
+	}
+}
+
+// appAccessClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func (p *pack) appAccessClientCert(t *testing.T) {
 	tests := []struct {
@@ -711,6 +750,11 @@ type pack struct {
 	rootWSSMessage    string
 	rootWSSAppURI     string
 
+	rootTCPAppName    string
+	rootTCPPublicAddr string
+	rootTCPMessage    string
+	rootTCPAppURI     string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -738,6 +782,11 @@ type pack struct {
 	leafWSSMessage    string
 	leafWSSAppURI     string
 
+	leafTCPAppName    string
+	leafTCPPublicAddr string
+	leafTCPMessage    string
+	leafTCPAppURI     string
+
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
@@ -762,6 +811,29 @@ type appTestOptions struct {
 // setup configures all clusters and servers needed for a test.
 func setup(t *testing.T) *pack {
 	return setupWithOptions(t, appTestOptions{})
+}
+
+// newTCPServer starts accepting TCP connections and serving them using the
+// provided handler. Handlers are expected to close client connections.
+// Returns the TCP listener.
+func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err == nil {
+				go handleConn(conn)
+			}
+			if err != nil && !utils.IsOKNetworkError(err) {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+
+	return listener
 }
 
 // setupWithOptions configures app access test with custom options.
@@ -789,6 +861,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootWSSPublicAddr: "wss-01.example.com",
 		rootWSSMessage:    uuid.New().String(),
 
+		rootTCPAppName:    "tcp-01",
+		rootTCPPublicAddr: "tcp-01.example.com",
+		rootTCPMessage:    uuid.New().String(),
+
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
@@ -801,6 +877,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		leafWSSAppName:    "wss-02",
 		leafWSSPublicAddr: "wss-02.example.com",
 		leafWSSMessage:    uuid.New().String(),
+
+		leafTCPAppName:    "tcp-02",
+		leafTCPPublicAddr: "tcp-02.example.com",
+		leafTCPMessage:    uuid.New().String(),
 
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
@@ -845,6 +925,13 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
+	// Plain TCP application in root cluster (tcp://).
+	rootTCPServer := newTCPServer(t, func(c net.Conn) {
+		c.Write([]byte(p.rootTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { rootTCPServer.Close() })
+	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
 	}))
@@ -861,6 +948,12 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(leafWSSServer.Close)
+	// Plain TCP application in leaf cluster (tcp://).
+	leafTCPServer := newTCPServer(t, func(c net.Conn) {
+		c.Write([]byte(p.leafTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { leafTCPServer.Close() })
 	jwtServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, r.Header.Get(teleport.AppJWTHeader))
 	}))
@@ -899,9 +992,11 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.rootAppURI = rootServer.URL
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
+	p.rootTCPAppURI = fmt.Sprintf("tcp://%v", rootTCPServer.Addr().String())
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL
+	p.leafTCPAppURI = fmt.Sprintf("tcp://%v", leafTCPServer.Addr().String())
 	p.jwtAppURI = jwtServer.URL
 	p.headerAppURI = headerServer.URL
 	p.flushAppURI = flushServer.URL
@@ -1180,6 +1275,29 @@ func (p *pack) initCertPool(t *testing.T) {
 	p.rootCertPool = pool
 }
 
+// startLocalProxy starts a local ALPN proxy for the specified application.
+func (p *pack) startLocalProxy(t *testing.T, publicAddr, clusterName string) string {
+	tlsConfig := p.makeTLSConfig(t, publicAddr, clusterName)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    p.rootCluster.GetWebAddr(),
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolTCP},
+		InsecureSkipVerify: true,
+		Listener:           listener,
+		ParentContext:      context.Background(),
+		Certs:              tlsConfig.Certificates,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+
+	go proxy.Start(context.Background())
+
+	return proxy.GetAddr()
+}
+
 // makeTLSConfig returns TLS config suitable for making an app access request.
 func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.Config {
 	privateKey, publicKey, err := native.GenerateKeyPair()
@@ -1406,6 +1524,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				PublicAddr: p.rootWSSPublicAddr,
 			},
 			{
+				Name:       p.rootTCPAppName,
+				URI:        p.rootTCPAppURI,
+				PublicAddr: p.rootTCPPublicAddr,
+			},
+			{
 				Name:       p.jwtAppName,
 				URI:        p.jwtAppURI,
 				PublicAddr: p.jwtAppPublicAddr,
@@ -1533,6 +1656,11 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.leafWSSAppName,
 				URI:        p.leafWSSAppURI,
 				PublicAddr: p.leafWSSPublicAddr,
+			},
+			{
+				Name:       p.leafTCPAppName,
+				URI:        p.leafTCPAppURI,
+				PublicAddr: p.leafTCPPublicAddr,
 			},
 			{
 				Name:       "dumper-leaf",
