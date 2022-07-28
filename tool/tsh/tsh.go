@@ -353,7 +353,10 @@ const (
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
-	proxyDefaultResolutionTimeout = 2 * time.Second
+	//
+	// Raised to 5 seconds when fallback measure was removed to account for
+	// users with higher latency connections.
+	proxyDefaultResolutionTimeout = 5 * time.Second
 
 	teleportNamespace = "teleport.dev"
 )
@@ -1792,7 +1795,8 @@ func onBenchmark(cf *CLIConf) error {
 	fmt.Printf("\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
-		t.AddRow([]string{fmt.Sprintf("%v", quantile),
+		t.AddRow([]string{
+			fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
@@ -2203,11 +2207,8 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
-
-			// On error, fall back to the legacy behaviour
 			if err != nil {
-				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
-				return c.ParseProxyHost(cf.Proxy)
+				return trace.Wrap(err)
 			}
 		}
 
@@ -2244,7 +2245,6 @@ func refuseArgs(command string, args []string) error {
 		} else {
 			return trace.BadParameter("unexpected argument: %s", arg)
 		}
-
 	}
 	return nil
 }
