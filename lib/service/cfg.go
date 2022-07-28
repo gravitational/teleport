@@ -648,6 +648,8 @@ type DatabasesConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers match Azure hosted databases.
+	AzureMatchers []services.AzureMatcher
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 }

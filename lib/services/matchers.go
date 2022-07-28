@@ -42,6 +42,19 @@ type AWSMatcher struct {
 	SSMDocument string
 }
 
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// TODO(gavin): test multiple subs with one credential
+	// Subscriptions are Azure subscriptions to query for resources
+	Subscriptions []string
+	// Types are Azure database types to match, "rds" or "redshift".
+	Types []string
+	// Regions are Azure regions to query for databases.
+	Regions []string
+	// Tags are Azure tags to match.
+	Tags types.Labels
+}
+
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
 func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
 	for _, matcher := range matchers {

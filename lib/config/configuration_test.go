@@ -419,6 +419,22 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 			},
+			AzureMatchers: []AzureMatcher{
+				{
+					Types:   []string{"mysql"},
+					Regions: []string{"eastus", "westus"},
+					Tags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+				},
+				{
+					Types:   []string{"postgres"},
+					Regions: []string{"centralus"},
+					Tags: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+				},
+			},
 		},
 		Metrics: Metrics{
 			Service: Service{
@@ -1273,6 +1289,22 @@ func makeConfigFixture() string {
 			Tags:    map[string]apiutils.Strings{"c": {"d"}},
 		},
 	}
+	conf.Databases.AzureMatchers = []AzureMatcher{
+		{
+			Types:   []string{"mysql"},
+			Regions: []string{"eastus", "westus"},
+			Tags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+		},
+		{
+			Types:   []string{"postgres"},
+			Regions: []string{"centralus"},
+			Tags: map[string]apiutils.Strings{
+				"c": {"d"},
+			},
+		},
+	}
 
 	// Metrics service.
 	conf.Metrics.EnabledFlag = "yes"
@@ -1929,6 +1961,12 @@ db_service:
   aws:
   - types: ["rds", "redshift"]
     regions: ["us-east-1", "us-west-1"]
+    tags:
+      '*': '*'
+  azure:
+  - subscriptions: ["foo", "bar"]
+    types: ["mysql", "postgres"]
+    regions: ["eastus", "westus"]
     tags:
       '*': '*'
   databases:
