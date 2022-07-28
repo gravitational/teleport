@@ -712,6 +712,14 @@
             {
               "title": "Machine ID with Databases",
               "slug": "/machine-id/guides/databases/"
+            },
+            {
+              "title": "Machine ID with Kubernetes",
+              "slug": "/machine-id/guides/kubernetes/"
+            },
+            {
+              "title": "Machine ID with Apps",
+              "slug": "/machine-id/guides/apps/"
             }
           ]
         }
