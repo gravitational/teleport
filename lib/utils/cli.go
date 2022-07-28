@@ -228,10 +228,6 @@ If you think something malicious may be occurring, contact your Teleport
 system administrator to resolve this issue.
   `
 
-	if strings.Contains(err.Error(), "certificate is not trusted") {
-		return unknownAuthority
-	}
-
 	switch innerError := trace.Unwrap(err).(type) {
 	case x509.HostnameError:
 		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
@@ -244,9 +240,14 @@ system administrator to resolve this issue.
 		return fmt.Sprintf(`WARNING:
   The certificate presented by the proxy is invalid: %v.
   Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
 	}
+
+	// Check for less explicit errors
+	if strings.Contains(err.Error(), "certificate is not trusted") {
+		return unknownAuthority
+	}
+
+	return ""
 }
 
 const (
