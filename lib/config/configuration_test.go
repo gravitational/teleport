@@ -609,6 +609,14 @@ teleport:
 `,
 			outError: true,
 		},
+		{
+			desc: "proxy-peering, valid",
+			inConfig: `
+proxy_service:
+  peer_listen_addr: peerhost:1234
+  peer_public_addr: peer.example:1234
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -858,6 +866,56 @@ func TestPostgresPublicAddr(t *testing.T) {
 			err := applyProxyConfig(test.fc, cfg)
 			require.NoError(t, err)
 			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+		})
+	}
+}
+
+// TestProxyPeeringPublicAddr makes sure the public address can only be
+// set if the listen addr is set.
+func TestProxyPeeringPublicAddr(t *testing.T) {
+	tests := []struct {
+		desc   string
+		fc     *FileConfig
+		outErr bool
+	}{
+		{
+			desc: "full proxy peering config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerAddr:       "peerhost:1234",
+					PeerPublicAddr: "peer.example:5432",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "no public proxy peering addr in config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerAddr: "peerhost:1234",
+				},
+			},
+			outErr: false,
+		},
+		{
+			desc: "no private proxy peering addr in config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerPublicAddr: "peer.example:1234",
+				},
+			},
+			outErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			if test.outErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

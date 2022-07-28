@@ -396,6 +396,10 @@ type ProxyConfig struct {
 	// PeerAddr is the proxy peering address.
 	PeerAddr utils.NetAddr
 
+	// PeerPublicAddr is the public address the proxy advertises for proxy
+	// peering clients.
+	PeerPublicAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -424,10 +428,6 @@ type ProxyConfig struct {
 	// MongoPublicAddrs is a list of the public addresses the proxy
 	// advertises for Mongo clients.
 	MongoPublicAddrs []utils.NetAddr
-
-	// PeerPublicAddrs is the public addresse the proxy advertises for proxy
-	// peering clients.
-	PeerPublicAddr utils.NetAddr
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
@@ -483,8 +483,8 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 
 // publicPeerAddr attempts to returns the public address the proxy advertises
 // for proxy peering clients if available. It falls back to PeerAddr othewise.
-func (c ProxyConfig) publicPeerAddr() (utils.NetAddr, error) {
-	addr := c.PeerPublicAddr
+func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerPublicAddr
 	if addr.IsEmpty() || addr.IsHostUnspecified() {
 		return c.peerAddr()
 	}
@@ -492,10 +492,10 @@ func (c ProxyConfig) publicPeerAddr() (utils.NetAddr, error) {
 }
 
 // peerAddr returns the address the proxy advertises for proxy peering clients.
-func (c ProxyConfig) peerAddr() (utils.NetAddr, error) {
-	addr := c.PeerAddr
+func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerAddr
 	if addr.IsEmpty() {
-		addr = *defaults.ProxyPeeringListenAddr()
+		addr = defaults.ProxyPeeringListenAddr()
 	}
 	if !addr.IsHostUnspecified() {
 		return addr, nil
@@ -503,16 +503,16 @@ func (c ProxyConfig) peerAddr() (utils.NetAddr, error) {
 
 	ip, err := utils.GuessHostIP()
 	if err != nil {
-		return utils.NetAddr{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	hostAddr, err := utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
 	if err != nil {
-		return utils.NetAddr{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return *hostAddr, nil
+	return addr, nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
