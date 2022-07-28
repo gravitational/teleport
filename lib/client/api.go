@@ -4352,6 +4352,8 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		ctx,
 		"teleportClient/SearchSessionEvents",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.Int("page_size", pageSize), 
+			attribute.String("from", fromUTC.Format(time.RFC3339), ...)
 	)
 	defer span.End()
 	proxyClient, err := tc.ConnectToProxy(ctx)
