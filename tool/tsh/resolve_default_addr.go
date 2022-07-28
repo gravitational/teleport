@@ -57,7 +57,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 
 	rsp, err := cli.Do(request)
 	if err != nil {
-		log.WithError(err).Debug("Race request failed")
+		log.WithError(err).Debug("Proxy address test failed")
 		results <- raceResult{addr: addr, err: err}
 		return
 	}
@@ -77,7 +77,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 	// to treat this as a failure and return an error to the race
 	// aggregator.
 	if rsp.StatusCode != http.StatusOK {
-		err = trace.BadParameter("Racer received non-OK response: %03d", rsp.StatusCode)
+		err = trace.BadParameter("Proxy address test received non-OK response: %03d", rsp.StatusCode)
 		log.Debugf("%v, response body: %s ", err, string(resBody))
 
 		results <- raceResult{addr: addr, err: err}
@@ -128,7 +128,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	// properly in error conditions.
 	var racersInFlight sync.WaitGroup
 	defer func() {
-		log.Debug("Waiting for all in-flight racers to finish")
+		log.Debug("Waiting for all in-flight proxy address tests to finish")
 		racersInFlight.Wait()
 	}()
 
