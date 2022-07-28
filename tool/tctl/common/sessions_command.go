@@ -84,7 +84,7 @@ func (c *SessionsCommand) ListSessions(ctx context.Context, tc auth.ClientI) err
 		return trace.Errorf("date range for session listing too large: %v days specified: limit %v days",
 			days, defaults.TshTctlSessionDayLimit)
 	}
-	sessions, err := client.GetPaginatedSessions(context.Background(), fromUTC, toUTC,
+	sessions, err := client.GetPaginatedSessions(ctx, fromUTC, toUTC,
 		apidefaults.DefaultChunkSize, types.EventOrderDescending, c.maxSessionsToShow, tc)
 	if err != nil {
 		return trace.Errorf("getting session events: %v", err)
