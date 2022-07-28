@@ -5558,12 +5558,12 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_COMMIT}"
-- name: Download artifacts for "v9.3.10"
+- name: Download artifacts for "v10.0.0"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "${ARTIFACT_PATH}/*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/9.3.10/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/10.0.0/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5573,7 +5573,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Publish rpms to YUM repos for "v9.3.10"
+- name: Publish rpms to YUM repos for "v10.0.0"
   image: golang:1.18.4-bullseye
   commands:
   - apt update
@@ -5583,7 +5583,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="v9.3.10"
+  - export VERSION="v10.0.0"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -5608,12 +5608,12 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-- name: Download artifacts for "v9.3.12"
+- name: Download artifacts for "v10.0.1"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "${ARTIFACT_PATH}/*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/9.3.12/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/10.0.1/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5623,7 +5623,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Publish rpms to YUM repos for "v9.3.12"
+- name: Publish rpms to YUM repos for "v10.0.1"
   image: golang:1.18.4-bullseye
   commands:
   - apt update
@@ -5633,7 +5633,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="v9.3.12"
+  - export VERSION="v10.0.1"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -5658,12 +5658,12 @@ steps:
     path: /mnt
   - name: tmpfs
     path: /tmpfs
-- name: Download artifacts for "v9.3.13"
+- name: Download artifacts for "v10.0.2"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "${ARTIFACT_PATH}/*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/9.3.13/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/10.0.2/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5673,7 +5673,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Publish rpms to YUM repos for "v9.3.13"
+- name: Publish rpms to YUM repos for "v10.0.2"
   image: golang:1.18.4-bullseye
   commands:
   - apt update
@@ -5683,7 +5683,7 @@ steps:
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
   - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="v9.3.13"
+  - export VERSION="v10.0.2"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
     "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
@@ -6386,6 +6386,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: feb93e94a83ba9b89bcbfee33d5cdd2e9c89d02d04e9fd7fbcd6dc1f7054cf57
+hmac: 238f4c74ecdff7e8f2df99af1d34a82c7775437c14e8be108abd6ee6d7551e9d
 
 ...
