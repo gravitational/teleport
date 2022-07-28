@@ -43,6 +43,7 @@ export enum MessageType {
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
   SHARED_DIRECTORY_READ_REQUEST = 19,
   SHARED_DIRECTORY_READ_RESPONSE = 20,
+  SHARED_DIRECTORY_WRITE_REQUEST = 21,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -136,6 +137,16 @@ export type SharedDirectoryReadResponse = {
   errCode: SharedDirectoryErrCode;
   readDataLength: number;
   readData: Uint8Array;
+};
+
+// | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
+export type SharedDirectoryWriteRequest = {
+  completionId: number;
+  directoryId: number;
+  pathLength: number;
+  path: string;
+  offset: bigint;
+  writeData: Uint8Array;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -753,6 +764,41 @@ export default class Codec {
       path,
       offset,
       length,
+    };
+  }
+
+  // | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
+  decodeSharedDirectoryWriteRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryWriteRequest {
+    let dv = new DataView(buffer);
+    let bufOffset = byteLength;
+
+    let completionId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length;
+    let directoryId = dv.getUint32(bufOffset);
+    bufOffset += uint32Length;
+    let offset = dv.getBigUint64(bufOffset);
+    bufOffset += uint64Length;
+    let pathLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length;
+    let path = this.decoder.decode(
+      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+    );
+    bufOffset += pathLength;
+    let writeDataLength = dv.getUint32(bufOffset);
+    bufOffset += uint32Length;
+    let writeData = new Uint8Array(
+      buffer.slice(bufOffset, bufOffset + writeDataLength)
+    );
+
+    return {
+      completionId,
+      directoryId,
+      pathLength,
+      path,
+      offset,
+      writeData,
     };
   }
 
