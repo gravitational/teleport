@@ -440,7 +440,10 @@ const (
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
-	proxyDefaultResolutionTimeout = 2 * time.Second
+	//
+	// Raised to 5 seconds when fallback measure was removed to account for
+	// users with higher latency connections.
+	proxyDefaultResolutionTimeout = 5 * time.Second
 )
 
 // env vars that tsh status will check to provide hints about active env vars to a user.

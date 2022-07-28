@@ -220,6 +220,7 @@ func formatCertError(err error) string {
 
   If you know the certificate is self-signed and would like to ignore this
   error use the --insecure flag.
+
   If you have your own certificate authority that you would like to use to
   validate the certificate chain presented by the proxy, set the
   SSL_CERT_FILE and SSL_CERT_DIR environment variables respectively and try
@@ -239,7 +240,9 @@ func formatCertError(err error) string {
 		return unknownAuthority
 	case x509.CertificateInvalidError:
 		return fmt.Sprintf(`WARNING:
+
   The certificate presented by the proxy is invalid: %v.
+
   Contact your Teleport system administrator to resolve this issue.`, innerError)
 	}
 
