@@ -120,14 +120,14 @@ enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_CREDENTIAL = 3;
 }
 
-// WebauthnCredentialInfo holds fields related to a user's WebAuthn credential.
-message WebauthnCredentialInfo { string Username = 1; }
+// CredentialInfo holds fields related to a user's WebAuthn credential.
+message CredentialInfo { string Username = 1; }
 
 // LoginPasswordlessResponse is a message sent by the server during the
 // passwordless login flow.
 message LoginPasswordlessResponse {
     PasswordlessPrompt prompt = 1;
-    repeated WebauthnCredentialInfo credentials = 2;
+    repeated CredentialInfo credentials = 2;
 }
 
 // LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
@@ -146,7 +146,7 @@ message LoginPasswordlessRequest {
 
     // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
     message LoginPasswordlessPINResponse {
-        // pin is the user's device's pin number
+        // pin is the user's device's pin.
         string pin = 1;
     }
 
