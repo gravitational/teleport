@@ -4332,17 +4332,6 @@ func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, ev
 	duration := end.Sub(start)
 
 	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
-
-// GetActiveSessions fetches a list of all active sessions tracked by the SessionTracker resource
-// that the user has access to.
-func (tc *TeleportClient) GetActiveSessions(ctx context.Context) ([]types.SessionTracker, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer proxy.Close()
-	return proxy.GetActiveSessions(ctx)
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
