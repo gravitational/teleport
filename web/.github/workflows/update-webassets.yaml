@@ -28,6 +28,7 @@ jobs:
           repository: gravitational/webassets-fork # TODO(zmb3): switch off the fork
           submodules: recursive
           path: dist
+          ref: ${{ github.ref_name }}
 
       # This workflow only runs on push to a protected branch, so the code
       # has already been reviewed and is trusted. This means it is safe to
@@ -41,16 +42,12 @@ jobs:
           git config --global user.email github-goteleport-core-svc@goteleport.com
           git config --global user.name "$GITHUB_ACTOR"
 
-          export WEBAPPS_BRANCH=$(git branch --show-current)
-
           cd dist/e
-          git switch $WEBAPPS_BRANCH
           git add -A
           git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA"
           git push
 
           cd ..
-          git switch $WEBAPPS_BRANCH
           git add -A
           git commit -m "Update webassets from gravitational/webapps@$GITHUB_SHA"
           git push
