@@ -45,10 +45,6 @@ jobs:
 
           echo "Updating webassets.e"
           cd dist/e
-          git stash save
-          git checkout $GITHUB_REF_NAME
-          git pull
-          git stash pop
           git add -A
           git status
           git commit -m "Update webassets.e from gravitational/webapps@$GITHUB_SHA" --allow-empty
@@ -56,10 +52,6 @@ jobs:
 
           echo "Updating webassets"
           cd ..
-          git stash save
-          git checkout $GITHUB_REF_NAME
-          git pull
-          git stash pop
           git add -A
           git status
           git commit -m "Update webassets from gravitational/webapps@$GITHUB_SHA" --allow-empty
