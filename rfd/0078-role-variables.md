@@ -38,7 +38,7 @@ Example role spec:
 kind: role
 version: v5
 metadata:
-  name: node-users
+  name: node_users
 spec:
   vars:
     - name: "logins"
@@ -70,9 +70,10 @@ spec:
           out: ["prod"]
   allow:
     logins:
-      - "{{vars.logins}}"
+      # variables can be reference as `vars.<role_name>.<variable_name>`
+      - "{{vars.node_users.logins}}"
     node_labels:
-      env: ["{{vars.allow_env}}"]
+      env: ["{{vars.node_users.allow_env}}"]
 ```
 
 These variables could be used in another role without redefinition:
@@ -85,7 +86,7 @@ metadata:
 spec:
   allow:
     app_labels:
-      env: ["{{vars.allow_env}}"]
+      env: ["{{vars.node_users.allow_env}}"]
 ```
 
 ### Should we select the first matching expansion, or all matching expansions?
@@ -141,12 +142,14 @@ make root cluster variables override alternate definitions in leaf clusters.
 
 ### What happens when the same variable name is defined in two different roles?
 
-This is fine, until a user tries to login with both roles, in which case the
-variable definition will conflict.
+Variable names will be scoped by the role name to avoid collisions, they will be
+referenced by `vars.<role_name>.<variable_name>`.
 
-When fetching roles, we will detect if a variable is being redefined, and
-return an error.
-This will block login with two roles which define the same variable.
+One downside of including the role name when referring to a variable is that our
+parser does not understand identifiers which include hyphens. When seeing a role
+name like `node-users` it thinks you are trying to subtract `users` from
+`nodes`. Roles which define variables will need to have names which are valid [Go
+identifiers](https://go.dev/ref/spec#Identifiers).
 
 ### Can variable definitions depend on other variables?
 
