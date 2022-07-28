@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	writeCloseErr = errors.New("write closed")
-	closeErr      = errors.New("channel closed")
+	errCloseWrite = errors.New("write closed")
+	errClose      = errors.New("channel closed")
 )
 
 type mockChannel struct{}
@@ -41,11 +41,11 @@ func (mc *mockChannel) Write(data []byte) (int, error) {
 }
 
 func (mc *mockChannel) Close() error {
-	return closeErr
+	return errClose
 }
 
 func (mc *mockChannel) CloseWrite() error {
-	return writeCloseErr
+	return errCloseWrite
 }
 
 func (mc *mockChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
@@ -62,5 +62,5 @@ func TestAgentChannelClose(t *testing.T) {
 	}
 	// Ensure write part of channel is closed first
 	require.EqualError(t, aChannel.Close(),
-		trace.NewAggregate(writeCloseErr, closeErr).Error())
+		trace.NewAggregate(errCloseWrite, errClose).Error())
 }
