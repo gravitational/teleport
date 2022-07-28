@@ -5,6 +5,7 @@
         "clusterName",
         "authenticationType",
         "enterprise",
+        "operator",
         "podSecurityPolicy",
         "labels",
         "chartMode",
@@ -159,6 +160,33 @@
             "$id": "#/properties/enterprise",
             "type": "boolean",
             "default": false
+        },
+        "installCRDs": {
+            "$id": "#/properties/installCRDs",
+            "type": "boolean",
+            "default": false
+        },
+        "operator": {
+            "$id": "#/properties/operator",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/operator/properties/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "image": {
+                    "$id": "#/properties/operator/properties/image",
+                    "type": "string",
+                    "default": "quay.io/gravitational/teleport-operator"
+                },
+                "resources": {
+                    "$id": "#/properties/operator/properties/resources",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "podSecurityPolicy": {
             "$id": "#/properties/podSecurityPolicy",

@@ -1274,14 +1274,14 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 		},
 	}
 	// authentication attempt fails with no password set up
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
 	err = clt.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// success with password set up
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 	require.NotEqual(t, ws, "")
 
@@ -1390,7 +1390,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create a web session and client for the user.
 	proxyClient, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	baseWebSession, err := proxyClient.AuthenticateWebUser(AuthenticateUserRequest{
+	baseWebSession, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass: &PassCreds{
 			Password: password,
@@ -1560,14 +1560,14 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	err = clt.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 
 	web, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
 	// Create a approved access request.
@@ -1578,10 +1578,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	accessReq.SetAccessExpiry(tt.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	err = clt.CreateAccessRequest(ctx, accessReq)
 	require.NoError(t, err)
 
-	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1623,7 +1623,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Empty(t, cmp.Diff(certRequests(sess1.GetTLSCert()), []string{accessReq.GetName()}))
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -2308,7 +2308,7 @@ func TestCertificateFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		// authentication attempt fails with password auth only
-		re, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+		re, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 			AuthenticateUserRequest: AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &PassCreds{
@@ -2408,21 +2408,21 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// authentication attempt fails with wrong password
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with wrong otp
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: "wrong123"},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with password auth only
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2431,7 +2431,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: validToken},
 	})
@@ -2480,7 +2480,7 @@ func TestLoginAttempts(t *testing.T) {
 		},
 	}
 	// authentication attempt fails with bad password
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// creates first failed login attempt
@@ -2490,7 +2490,7 @@ func TestLoginAttempts(t *testing.T) {
 
 	// try second time with wrong pass
 	req.Pass.Password = pass
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 
 	// clears all failed attempts after success
@@ -2583,7 +2583,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure access is denied for web login.
-	_, err = tt.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = tt.server.Auth().AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2594,7 +2594,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Make sure access is denied for SSH login.
 	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
-	_, err = tt.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = tt.server.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass: &PassCreds{
@@ -3238,7 +3238,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = tt.server.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = tt.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = tt.server.Auth().GetClusterName()
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

@@ -41,6 +41,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -69,12 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 type integrationTestSuite struct {
@@ -313,7 +312,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(apidefaults.Namespace)
+			sessions, err := site.GetSessions(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -353,7 +352,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessionID)
+				session, err = site.GetSession(ctx, apidefaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -3387,7 +3386,8 @@ func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName 
 func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	var conns []types.TunnelConnection
 	for i := 0; i < 30; i++ {
-		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
+		// to speed things up a bit, bypass the auth cache
+		conns, err := authServer.Services.GetTunnelConnections(clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return
@@ -3730,6 +3730,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	var err error
 
@@ -3760,7 +3761,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(apidefaults.Namespace)
+	sessions, _ := site.GetSessions(ctx, apidefaults.Namespace)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3777,12 +3778,12 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		endCh <- err
 	}()
 
 	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
 	require.NoError(t, err)
@@ -3791,7 +3792,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
+		session, err = site.GetSession(ctx, apidefaults.Namespace, sessions[0].ID)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
@@ -6458,8 +6459,10 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 	}{
 		{
 			name: "all nodes",
-			expected: []string{"root-zero", "root-one", "root-two",
-				"leaf-zero", "leaf-one", "leaf-two"},
+			expected: []string{
+				"root-zero", "root-one", "root-two",
+				"leaf-zero", "leaf-one", "leaf-two",
+			},
 		},
 		{
 			name:     "leaf only",
@@ -6501,8 +6504,10 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 	}{
 		{
 			name: "all",
-			expected: []string{"root-one", "root-two",
-				"leaf-one", "leaf-two"},
+			expected: []string{
+				"root-one", "root-two",
+				"leaf-one", "leaf-two",
+			},
 		},
 		{
 			name:     "leaf only",
@@ -6648,7 +6653,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	t.Run("chmod", func(t *testing.T) {
-		err = sftpClient.Chmod(testFilePath, 0777)
+		err = sftpClient.Chmod(testFilePath, 0o777)
 		require.NoError(t, err)
 	})
 
