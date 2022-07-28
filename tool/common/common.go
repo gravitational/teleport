@@ -37,7 +37,7 @@ import (
 // GetPaginatedSessions grabs up to 'max' sessions.
 func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]events.AuditEvent, error) {
 	prevEventKey := ""
-	sessions := []events.AuditEvent{}
+	var sessions []events.AuditEvent
 	for {
 		if remaining := max - len(sessions); remaining > pageSize {
 			pageSize = remaining
