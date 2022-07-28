@@ -6082,7 +6082,7 @@ name: publish-rlz
 
 environment:
   RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.58-dev.justinas-9
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.64
 
 trigger:
   event:
@@ -6164,6 +6164,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 9de9cb68c0a3de9287987f36b0265ca20acd0823e298e463dd53263e608d2583
+hmac: 1863c33c12cbc7bb62ea7c3ce5513c75c02daecf37554a083cad998a14abf429
 
 ...
