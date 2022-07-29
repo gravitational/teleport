@@ -26,6 +26,8 @@ export default function FieldInput({
   onKeyPress,
   placeholder,
   defaultValue,
+  min,
+  max,
   rule = defaultRule,
   type = 'text',
   autoFocus = false,
@@ -95,6 +97,8 @@ export default function FieldInput({
       hasError={hasError}
       placeholder={placeholder}
       value={value}
+      min={min}
+      max={max}
       autoComplete={autoComplete}
       onChange={onChange}
       onKeyPress={onKeyPress}
@@ -146,6 +150,8 @@ type Props = {
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly?: boolean;
   defaultValue?: string;
+  min?: number;
+  max?: number;
   // TS: temporary handles ...styles
   [key: string]: any;
 };
