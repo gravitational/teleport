@@ -201,3 +201,64 @@ clusters, so this seems like the most logical choice.
 As long as the role which defines the variable is present in both clusters and
 it is mapped to its leaf equivalent, you can seamlessly use the variable in both
 clusters.
+
+## Examples
+
+### Defined allow labels for each group
+
+If the Teleport admin cannot create custom traits in their IDP, the it is
+extremely cumbersome and repetitive (borderline impossible) to define a custom
+mapping per group.
+
+Solution today:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: users
+spec:
+  allow:
+    node_labels:
+      env:
+        - regexp.replace(external.groups, "dev", "dev")
+        - regexp.replace(external.groups, "dev", "staging")
+        - regexp.replace(external.groups, "qa", "qa")
+        - regexp.replace(external.groups, "qa", "staging")
+    app_labels:
+      env:
+        - regexp.replace(external.groups, "dev", "dev")
+        - regexp.replace(external.groups, "dev", "staging")
+        - regexp.replace(external.groups, "qa", "qa")
+        - regexp.replace(external.groups, "qa", "staging")
+```
+
+The full list would have to be repeated for every value in every role. I don't
+think anyone even knows you can do this, and I hope no-one actually does,
+because it's ridiculous.
+
+With role variables it becomes trivial:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: users
+spec:
+  vars:
+    - name: allow_envs
+      values:
+        - input: "{{external.groups}}"
+          match: "^(qa|devs)$"
+          out:
+            - "$1"
+            - "staging"
+  allow:
+    node_labels:
+      env: "{{vars.users.allow_envs}}"
+    app_labels:
+      env: "{{vars.users.allow_envs}}"
+```
+
+The same variable can easily be defined once, and used many times within this
+role and other roles.
