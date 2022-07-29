@@ -225,9 +225,9 @@ type resourceSet struct {
 	// Drone does not strictly follow the k8s CRD format for resources here
 	// See link for details:
 	// https://docs.drone.io/pipeline/kubernetes/syntax/steps/#resources
-	// Cpu    *resourceQuantity `yaml:"cpu,omitempty"`
+	// CPU    *resourceQuantity `yaml:"cpu,omitempty"`
 
-	Cpu    float64           `yaml:"cpu,omitempty"`
+	CPU    float64           `yaml:"cpu,omitempty"`
 	Memory *resourceQuantity `yaml:"memory,omitempty"`
 }
 
