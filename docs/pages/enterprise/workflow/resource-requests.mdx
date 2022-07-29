@@ -122,7 +122,7 @@ Name                                 Hostname    Labels       Resource ID
 ------------------------------------ ----------- ------------ ------------------------------------------------------
 b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
 bbb56211-7b54-4f9e-bee9-b68ea156be5f node        test=test    /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f
-
+ 
 To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
     --reason <request reason>
@@ -139,7 +139,7 @@ $ tsh request search --kind node --search iot
 Name                                 Hostname    Labels       Resource ID
 ------------------------------------ ----------- ------------ ------------------------------------------------------
 b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
-
+ 
 To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason <request reason>
@@ -160,9 +160,9 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
-
+ 
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
-
+ 
 Waiting for request approval...
 
 ```
@@ -184,9 +184,9 @@ $ tsh request ls
 ID                                   User  Roles  Resources                   Created At (UTC)    Status
 ------------------------------------ ----- ------ --------------------------- ------------------- -------
 f406f5d8-3c2a-428f-8547-a1d091a4ddab alice access ["/teleport.example.... [+] 23 Jun 22 18:25 UTC PENDING
-
+ 
 [+] Requested resources truncated, use `tsh request show <request-id>` to view the full list
-
+ 
 hint: use 'tsh request show <request-id>' for additional details
       use 'tsh login --request-id=<request-id>' to login with an approved request
 $ tsh request show f406f5d8-3c2a-428f-8547-a1d091a4ddab
@@ -197,7 +197,7 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
-
+ 
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
 $ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Successfully submitted review.  Request state: APPROVED
@@ -224,13 +224,13 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
-
+ 
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
-
+ 
 Waiting for request approval...
-
+ 
 Approval received, getting updated certificates...
-
+ 
 > Profile URL:        https://teleport.example.com
   Logged in as:       alice
   Active requests:    f406f5d8-3c2a-428f-8547-a1d091a4ddab
@@ -250,7 +250,7 @@ $ tsh ls
 Node Name Address   Labels
 --------- --------- ---------
 iot       [::]:3022 test=test
-
+ 
 $ tsh ssh alice@iot
 iot:~ alice$
 ```
@@ -289,10 +289,10 @@ Status:     PENDING
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
 
 Waiting for request approval...
-
+ 
 Approval received, reason="okay"
 Getting updated certificates...
-
+ 
 iot:~ alice$
 ```
 
