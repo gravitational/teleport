@@ -616,17 +616,6 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			if err := checkRoleFeatureSupport(r); err != nil {
 				return trace.Wrap(err)
 			}
-		case types.GithubConnector:
-			// If we are running Teleport OSS, ensure that the Github organization
-			// the user is trying to authenticate with is not using external SSO.
-			// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
-			// This is checked when Github auth connectors get created or updated, but
-			// check again here in case the organization enabled external SSO after
-			// the auth connector was created.
-			if err := checkGithubFeatureSupport(r, nil); err != nil {
-				return trace.Wrap(err)
-			}
-
 		default:
 			// No validation checks for this resource type
 		}
