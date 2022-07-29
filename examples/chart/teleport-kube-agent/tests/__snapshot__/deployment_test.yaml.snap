@@ -1,4 +1,4 @@
-sets Deployment annotations when specified:
+sets Deployment annotations when specified if action is Upgrade:
   1: |
     apiVersion: apps/v1
     kind: Deployment
@@ -77,7 +77,7 @@ sets Deployment annotations when specified:
               secretName: teleport-kube-agent-join-token
           - emptyDir: {}
             name: data
-sets Deployment labels when specified:
+sets Deployment labels when specified if action is Upgrade:
   1: |
     replicas: 1
     selector:
@@ -145,7 +145,7 @@ sets Deployment labels when specified:
             secretName: teleport-kube-agent-join-token
         - emptyDir: {}
           name: data
-sets Pod annotations when specified:
+sets Pod annotations when specified if action is Upgrade:
   1: |
     containers:
     - args:
@@ -200,7 +200,7 @@ sets Pod annotations when specified:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-sets Pod labels when specified:
+sets Pod labels when specified if action is Upgrade:
   1: |
     containers:
     - args:
@@ -255,7 +255,7 @@ sets Pod labels when specified:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should add emptyDir for data when existingDataVolume is not set:
+should add emptyDir for data when existingDataVolume is not set if action is Upgrade:
   1: |
     containers:
     - args:
@@ -310,7 +310,7 @@ should add emptyDir for data when existingDataVolume is not set:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should add insecureSkipProxyTLSVerify to args when set in values:
+should add insecureSkipProxyTLSVerify to args when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -366,7 +366,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should correctly configure existingDataVolume when set:
+should correctly configure existingDataVolume when set if action is Upgrade:
   1: |
     containers:
     - args:
@@ -419,7 +419,7 @@ should correctly configure existingDataVolume when set:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should expose diag port:
+should expose diag port if action is Upgrade:
   1: |
     containers:
     - args:
@@ -474,74 +474,7 @@ should expose diag port:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should have multiple replicas when replicaCount is set (using .replicaCount, deprecated):
-  1: |
-    affinity:
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-        - podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - RELEASE-NAME
-            topologyKey: kubernetes.io/hostname
-          weight: 50
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:11.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - all
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /etc/teleport-secrets
-        name: auth-token
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - name: auth-token
-      secret:
-        secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
-should have multiple replicas when replicaCount is set (using highAvailability.replicaCount):
+should have multiple replicas when replicaCount is set (using .replicaCount, deprecated) if action is Upgrade:
   1: |
     affinity:
       podAntiAffinity:
@@ -608,7 +541,74 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should have one replica when replicaCount is not set:
+should have multiple replicas when replicaCount is set (using highAvailability.replicaCount) if action is Upgrade:
+  1: |
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - RELEASE-NAME
+            topologyKey: kubernetes.io/hostname
+          weight: 50
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: quay.io/gravitational/teleport:11.0.0-dev
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /etc/teleport-secrets
+        name: auth-token
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    serviceAccountName: RELEASE-NAME
+    volumes:
+    - configMap:
+        name: RELEASE-NAME
+      name: config
+    - name: auth-token
+      secret:
+        secretName: teleport-kube-agent-join-token
+    - emptyDir: {}
+      name: data
+should have one replica when replicaCount is not set if action is Upgrade:
   1: |
     containers:
     - args:
@@ -663,7 +663,7 @@ should have one replica when replicaCount is not set:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should mount extraVolumes and extraVolumeMounts:
+should mount extraVolumes and extraVolumeMounts if action is Upgrade:
   1: |
     containers:
     - args:
@@ -723,7 +723,7 @@ should mount extraVolumes and extraVolumeMounts:
     - name: my-mount
       secret:
         secretName: mySecret
-should provision initContainer correctly when set in values:
+should provision initContainer correctly when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -814,7 +814,7 @@ should provision initContainer correctly when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set SecurityContext:
+should set SecurityContext if action is Upgrade:
   1: |
     containers:
     - args:
@@ -869,7 +869,7 @@ should set SecurityContext:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set affinity when set in values:
+should set affinity when set in values if action is Upgrade:
   1: |
     affinity:
       nodeAffinity:
@@ -944,7 +944,7 @@ should set affinity when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set default serviceAccountName when not set in values:
+should set default serviceAccountName when not set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -999,7 +999,7 @@ should set default serviceAccountName when not set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set environment when extraEnv set in values:
+should set environment when extraEnv set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1057,7 +1057,7 @@ should set environment when extraEnv set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set image and tag correctly:
+should set image and tag correctly if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1112,7 +1112,7 @@ should set image and tag correctly:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set imagePullPolicy when set in values:
+should set imagePullPolicy when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1167,7 +1167,7 @@ should set imagePullPolicy when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set nodeSelector if set in values:
+should set nodeSelector if set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1224,7 +1224,7 @@ should set nodeSelector if set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set not set priorityClassName when not set in values:
+should set not set priorityClassName when not set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1279,7 +1279,7 @@ should set not set priorityClassName when not set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set preferred affinity when more than one replica is used:
+should set preferred affinity when more than one replica is used if action is Upgrade:
   1: |
     affinity:
       podAntiAffinity:
@@ -1346,7 +1346,7 @@ should set preferred affinity when more than one replica is used:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set priorityClassName when set in values:
+should set priorityClassName when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1402,7 +1402,7 @@ should set priorityClassName when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set probeTimeoutSeconds when set in values:
+should set probeTimeoutSeconds when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1457,7 +1457,7 @@ should set probeTimeoutSeconds when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set required affinity when highAvailability.requireAntiAffinity is set:
+should set required affinity when highAvailability.requireAntiAffinity is set if action is Upgrade:
   1: |
     affinity:
       podAntiAffinity:
@@ -1522,7 +1522,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set resources when set in values:
+should set resources when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1584,7 +1584,7 @@ should set resources when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set serviceAccountName when set in values:
+should set serviceAccountName when set in values if action is Upgrade:
   1: |
     containers:
     - args:
@@ -1639,7 +1639,7 @@ should set serviceAccountName when set in values:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
-should set tolerations when set in values:
+should set tolerations when set in values if action is Upgrade:
   1: |
     containers:
     - args:

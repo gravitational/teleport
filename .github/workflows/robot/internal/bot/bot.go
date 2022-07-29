@@ -59,6 +59,9 @@ type Client interface {
 	// CreateComment will leave a comment on an Issue or Pull Request.
 	CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error
 
+	// ListComments will list all comments on an Issue or Pull Request.
+	ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error)
+
 	// ListWorkflows lists all workflows within a repository.
 	ListWorkflows(ctx context.Context, organization string, repository string) ([]github.Workflow, error)
 
