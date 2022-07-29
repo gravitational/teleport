@@ -799,6 +799,13 @@ aliases:
 
 The example above also demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`. The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will catch that and report is as an error. Conversely providing additional arguments is *NOT* an error; any unused arguments will simply be appended at the end of the expanded alias definition.
 
+An additional variable that can be used in alias definition is `$TSH`. It will be expanded to absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
+
+```yaml
+aliases:
+    "status": "$TSH status --format=json"
+```
+
 The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To debug aliases, set the `TELEPORT_DEBUG=1` environment variable instead.
 
 ## Further reading

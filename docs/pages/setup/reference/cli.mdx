@@ -781,6 +781,13 @@ aliases:
 
 `tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
 
+Alias definition can also reference `$TSH` variable. It will be expanded to absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
+
+```yaml
+aliases:
+    "status": "$TSH status --format=json"
+```
+
 To debug aliases, set the `TELEPORT_DEBUG=1` environment variable.
 
 ## tctl
