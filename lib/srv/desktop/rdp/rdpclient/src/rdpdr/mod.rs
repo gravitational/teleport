@@ -968,6 +968,30 @@ impl Client {
         )))
     }
 
+    pub fn handle_tdp_sd_move_response<S: Read + Write>(
+        &mut self,
+        res: SharedDirectoryMoveResponse,
+        mcs: &mut mcs::Client<S>,
+    ) -> RdpResult<()> {
+        debug!("received TDP SharedDirectoryMoveResponse: {:?}", res);
+        if let Some(tdp_resp_handler) = self
+            .pending_sd_move_resp_handlers
+            .remove(&res.completion_id)
+        {
+            let rdp_responses = tdp_resp_handler(self, res)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in rdp_responses {
+                mcs.write(chan, resp)?;
+            }
+            return Ok(());
+        }
+
+        Err(try_error(&format!(
+            "received invalid completion id: {}",
+            res.completion_id
+        )))
+    }
+
     fn prep_device_create_response(
         &mut self,
         req: &DeviceCreateRequest,
@@ -1415,11 +1439,12 @@ impl Client {
                     move |cli: &mut Self,
                           res: SharedDirectoryMoveResponse|
                           -> RdpResult<Vec<Vec<u8>>> {
-                        if res.err_code == TdpErrCode::Nil {
-                            cli.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
-                        } else {
-                            cli.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
+                        if res.err_code != TdpErrCode::Nil {
+                            return cli
+                                .prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
                         }
+
+                        cli.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
                     },
                 ),
             );

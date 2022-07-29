@@ -68,6 +68,7 @@ const (
 	TypeSharedDirectoryWriteRequest   = MessageType(21)
 	TypeSharedDirectoryWriteResponse  = MessageType(22)
 	TypeSharedDirectoryMoveRequest    = MessageType(23)
+	TypeSharedDirectoryMoveResponse   = MessageType(24)
 	TypeSharedDirectoryListRequest    = MessageType(25)
 	TypeSharedDirectoryListResponse   = MessageType(26)
 )
@@ -152,6 +153,8 @@ func decode(in peekReader) (Message, error) {
 		return decodeSharedDirectoryWriteResponse(in)
 	case TypeSharedDirectoryMoveRequest:
 		return decodeSharedDirectoryMoveRequest(in)
+	case TypeSharedDirectoryMoveResponse:
+		return decodeSharedDirectoryMoveResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -1413,6 +1416,32 @@ func decodeSharedDirectoryMoveRequest(in peekReader) (SharedDirectoryMoveRequest
 		OriginalPath: originalPath,
 		NewPath:      newPath,
 	}, nil
+}
+
+type SharedDirectoryMoveResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryMoveResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryMoveResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryMoveResponse(in peekReader) (SharedDirectoryMoveResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryMoveResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryMoveRequest) {
+		return SharedDirectoryMoveResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryMoveResponse(%v)", t, TypeSharedDirectoryMoveRequest)
+	}
+
+	var res SharedDirectoryMoveResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

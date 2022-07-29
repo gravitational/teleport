@@ -652,6 +652,13 @@ impl<S: Read + Write> RdpClient<S> {
         self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
     }
 
+    pub fn handle_tdp_sd_move_response(
+        &mut self,
+        res: SharedDirectoryMoveResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
+    }
+
     pub fn shutdown(&mut self) -> RdpResult<()> {
         self.mcs.shutdown()
     }
@@ -1027,6 +1034,43 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Write Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_move_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryMoveResponse,
+) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+
+    let res: SharedDirectoryMoveResponse = res;
+
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_move_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Move Response: {:?}", e);
             CGOErrCode::ErrCodeFailure
         }
     }

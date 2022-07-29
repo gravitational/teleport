@@ -509,6 +509,16 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryMoveResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
