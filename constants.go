@@ -152,6 +152,9 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
+	// ComponentSubsystemSFTP is the SFTP subsystem.
+	ComponentSubsystemSFTP = "subsystem:sftp"
+
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -690,6 +693,10 @@ const (
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
 )
 
 const (
