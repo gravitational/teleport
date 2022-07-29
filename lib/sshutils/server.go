@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -440,10 +439,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
-
-		if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, auditd.Failed, auditd.Message{}); err != nil {
-			s.log.Warnf("failed to send message to auditd: %v", err)
-		}
 
 		return
 	}

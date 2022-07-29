@@ -314,6 +314,9 @@ type ServerContext struct {
 	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
 
+	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
+	ttyName string
+
 	// request is the request that was issued by the client
 	request *ssh.Request
 
@@ -999,7 +1002,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Login:                 c.Identity.Login,
 		Roles:                 roleNames,
 		Terminal:              c.termAllocated || command == "",
-		TerminalName:          c.SrcAddr, //TODO: fixme
+		TerminalName:          c.ttyName,
+		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
