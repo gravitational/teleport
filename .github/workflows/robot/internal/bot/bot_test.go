@@ -135,6 +135,10 @@ func (f *fakeGithub) RequestReviewers(ctx context.Context, organization string, 
 	return nil
 }
 
+func (f *fakeGithub) DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+	return nil
+}
+
 func (f *fakeGithub) ListReviews(ctx context.Context, organization string, repository string, number int) ([]github.Review, error) {
 	return f.reviews, nil
 }
@@ -177,6 +181,10 @@ func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string,
 
 func (f *fakeGithub) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
 	return nil
+}
+
+func (f *fakeGithub) ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	return nil, nil
 }
 
 func (f *fakeGithub) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {

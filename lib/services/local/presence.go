@@ -52,7 +52,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
-		jitter:  utils.NewJitter(),
+		jitter:  utils.NewFullJitter(),
 		Backend: b,
 	}
 }
@@ -689,10 +689,10 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 }
 
 // this combination of backoff parameters leads to worst-case total time spent
-// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
+// in backoff between 1ms and 2000ms depending on jitter.  tests are in
 // place to verify that this is sufficient to resolve a 20-lease contention
 // event, which is worse than should ever occur in practice.
-const baseBackoff = time.Millisecond * 300
+const baseBackoff = time.Millisecond * 400
 const leaseRetryAttempts int64 = 6
 
 // AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
@@ -1439,7 +1439,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix)
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 

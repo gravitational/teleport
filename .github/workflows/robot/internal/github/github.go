@@ -61,6 +61,21 @@ func (c *Client) RequestReviewers(ctx context.Context, organization string, repo
 	return nil
 }
 
+// DismissReviewers is used to remove the review request from a Pull Request.
+func (c *Client) DismissReviewers(ctx context.Context, organization string, repository string, number int, reviewers []string) error {
+	_, err := c.client.PullRequests.RemoveReviewers(ctx,
+		organization,
+		repository,
+		number,
+		go_github.ReviewersRequest{
+			Reviewers: reviewers,
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // Review is a GitHub PR review.
 type Review struct {
 	// Author is the GitHub login of the user that created the PR.
@@ -487,6 +502,28 @@ func (c *Client) CreateComment(ctx context.Context, organization string, reposit
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ListComments lists all comemnts on an issue or PR.
+func (c *Client) ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	comments, _, err := c.client.Issues.ListComments(ctx,
+		organization,
+		repository,
+		number,
+		&go_github.IssueListCommentsOptions{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := make([]string, len(comments))
+	for i, c := range comments {
+		if c.Body != nil {
+			s[i] = *c.Body
+		}
+	}
+
+	return s, nil
 }
 
 // CreatePullRequest will create a Pull Request.

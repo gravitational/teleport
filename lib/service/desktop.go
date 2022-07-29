@@ -43,25 +43,12 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 	})
 	process.registerWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), WindowsDesktopIdentityEvent, eventsC)
-
-		var event Event
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debug("Process is exiting.")
-			return nil
+		conn, err := process.waitForConnector(WindowsDesktopIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
-		}
-
-		err := process.initWindowsDesktopServiceRegistered(log, conn)
-		if err != nil {
+		if err := process.initWindowsDesktopServiceRegistered(log, conn); err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
 		}
@@ -106,7 +93,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		log.Info("Using local listener and registering directly with auth server")
-		listener, err = process.importOrCreateListener(listenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
+		listener, err = process.importOrCreateListener(ListenerWindowsDesktop, cfg.WindowsDesktop.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -253,6 +240,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				"Windows desktop service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, listener.Addr())
 		}
+		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
 		if err != nil {
 			if err == http.ErrServerClosed {
