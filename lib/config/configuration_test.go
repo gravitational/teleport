@@ -874,9 +874,9 @@ func TestPostgresPublicAddr(t *testing.T) {
 // set if the listen addr is set.
 func TestProxyPeeringPublicAddr(t *testing.T) {
 	tests := []struct {
-		desc   string
-		fc     *FileConfig
-		outErr bool
+		desc    string
+		fc      *FileConfig
+		wantErr bool
 	}{
 		{
 			desc: "full proxy peering config",
@@ -886,7 +886,7 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 					PeerPublicAddr: "peer.example:5432",
 				},
 			},
-			outErr: false,
+			wantErr: false,
 		},
 		{
 			desc: "no public proxy peering addr in config",
@@ -895,7 +895,7 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 					PeerAddr: "peerhost:1234",
 				},
 			},
-			outErr: false,
+			wantErr: false,
 		},
 		{
 			desc: "no private proxy peering addr in config",
@@ -904,14 +904,14 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 					PeerPublicAddr: "peer.example:1234",
 				},
 			},
-			outErr: true,
+			wantErr: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := service.MakeDefaultConfig()
 			err := applyProxyConfig(test.fc, cfg)
-			if test.outErr {
+			if test.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
