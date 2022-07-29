@@ -41,36 +41,55 @@ metadata:
   name: node_users
 spec:
   vars:
+    # Each variable has a name it will be referenced by.
     - name: "logins"
-      # "select" is a string value which will be used as the input to all
-      # possible expansion matchers. It can (and usually will) contain a trait
-      # which will be expanded before passing as input.
-      select: "{{external.email}}"
-      expansions:
-        # nic should be able to login as root
-        - match: '^nic@goteleport\.com$'
+      # values hold a list of possible values which will all be appended to
+      # form the complete list of values for the variable.
+      values:
+        # The simplest value is a list of static strings.
+        - out: [ubuntu]
+
+        # Values can also contain traits and transforms.
+        - out: ['{{regexp.replace(external.username, "-", "_")}}']
+
+        # Values can also take an input, which will usually be a trait.
+        - input: "{{external.email}}"
+          # match is a regular expression which must match the input in order
+          # for this value to be included.
+          match: "^nic@goteleport.com$"
           out: [root]
-        # alice should be able to login as root and admin
-        - match: '^alice@goteleport\.com$'
-          out: [root, admin]
-        # all teleport employees should be able to login as the local part of their email
-        - match: '@goteleport\.com$'
-          # "out" values can contain transforms and any traits
-          out: ["{{email.local(external.email)}}"]
+
+        - input: "{{external.email}}"
+          # match may contain contain capture groups which can be expanded in
+          # the output.
+          #
+          # Here "alice@goteleport.com" maps to "alice", but "foo@example.com"
+          # will be rejected.
+          match: "^(.*)@goteleport.com$"
+          output: "$1"
+
     - name: "allow-env"
-      # If the trait in a "select" expands to a list, all values will be checked
-      # for matches and the outputs will be combined.
-      select: "{{external.groups}}"
-      expansions:
-        # matchers can contain regexp capture groups, which can be expanded in
-        # "out" values
-        - match: '^env-(\w+)$'
+      values:
+        # An input will expand to a list of N inputs if the trait is a list of size N.
+        # Any input value which matches the `match` regex will contribute one
+        # output value, which may contain regex captures from that specific input.
+        #
+        # Here [devs, env-staging, env-prod] maps to [staging, prod].
+        - input: "{{external.groups}}"
+          match: '^env-(\w+)$'
           out: ['$1']
-        - match: '^admins$'
-          out: ["prod"]
+
+        # If any of the N input values match the `not_match` regex, none of the
+        # values will be used.
+        #
+        # Here [devs] maps to [dev], but [devs, contractors] maps to []
+        - input: "{{external.groups}}"
+          match: '^devs$'
+          not_match: 'contractors'
+          out: ["dev"]
   allow:
     logins:
-      # variables can be referenced as `vars.<role_name>.<variable_name>` or
+      # Variables can be referenced as `vars.<role_name>.<variable_name>` or
       # `vars["<role_name>"]["<variable_name"]`.
       - "{{vars.node_users.logins}}"
     node_labels:
@@ -135,43 +154,6 @@ Variables can be used anywhere traits can be used. This is almost anywhere you
 need to set a value in a role spec, including allow or deny rules such as
 `logins` or `node_labels`, impersonation conditions, etc.
 
-### Should we select the first matching expansion, or all matching expansions?
-
-For the example
-
-```yaml
-vars:
-  - name: "logins"
-    select: "{{external.username}}"
-    expansions:
-      - match: "nic"
-        out: [root]
-      - match: "bob"
-        out: [readonly]
-      - match: "(.*)"
-        out: ["$1"]
-```
-
-we could either choose to expand the first match or all matches, the results for
-which are shown in this table:
-
-username | first match | all matches
----------|-------------|------------
-nic      | [root]      | [root, nic]
-bob      | []          | [bob]
-alice    | [alice]     | [alice]
-
-In favor of expanding all matches, it is useful to be able to provide a default
-which applies to all possible values.
-
-In favor of selecting only the first match, it is useful to be able to exclude
-some value from matching any other expansions.
-This is especially true given Go's lack of support for negative-lookahead
-regular expressions.
-
-I'm not quite sure which is the best route to take here and am quite open to
-suggestions from reviewers.
-
 ### When to compute variable values
 
 Variables will be computed during `FetchRoles`, before traits normally are
@@ -185,6 +167,8 @@ expanded values could be stored in the user's traits, which would be encoded in
 their certificates.
 However, this would make it difficult to detect variable redefinition and would
 make root cluster variables override alternate definitions in leaf clusters.
+Computing variable values will not be much more intensive than what we already
+do to expand traits, and I don't expect it will noticably slow anything down.
 
 ### What happens when the same variable name is defined in two different roles?
 
