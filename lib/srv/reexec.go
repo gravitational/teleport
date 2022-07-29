@@ -28,6 +28,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -98,6 +99,8 @@ type ExecCommand struct {
 	Terminal bool `json:"term"`
 
 	TerminalName string `json:"terminal_name"`
+
+	ClientAddress string `json:"client_address"`
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
@@ -194,6 +197,35 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+
+	auditdMsg := auditd.Message{
+		SystemUser:   c.Login,
+		TeleportUser: c.Username,
+		ConnAddress:  c.ClientAddress,
+		TTYName:      c.TerminalName,
+	}
+
+	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
+	}
+
+	defer func(err *error) {
+		result := auditd.Success
+
+		if err != nil && *err != nil {
+			result = auditd.Failed
+			//fmt.Fprintf(errorWriter, "magic cmd: %v", *err)
+			if strings.Contains((*err).Error(), "unknown user") {
+				if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, result, auditdMsg); err != nil {
+					log.WithError(err).Errorf("failed to login user end: %v", err)
+				}
+			}
+		}
+
+		if err := auditd.SendEvent(auditd.AUDIT_USER_END, result, auditdMsg); err != nil {
+			log.WithError(err).Errorf("failed to login user end: %v", err)
+		}
+	}(&err)
 
 	var tty *os.File
 	var pty *os.File
@@ -362,27 +394,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
-
-	auditdMsg := auditd.Message{
-		SystemUser:   localUser.Username,
-		TeleportUser: c.Username,
-		TTYName:      c.TerminalName,
-	}
-
-	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
-	}
-
-	defer func(err *error) {
-		result := auditd.Success
-		if err != nil {
-			result = auditd.Failed
-		}
-
-		if err := auditd.SendEvent(auditd.AUDIT_USER_END, result, auditdMsg); err != nil {
-			log.WithError(err).Errorf("failed to login user end: %v", err)
-		}
-	}(&err)
 
 	// Start the command.
 	err = cmd.Start()

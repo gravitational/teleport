@@ -70,7 +70,7 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 
 	msg.SetDefaults()
 
-	auditd := NewAuditDClient(msg)
+	auditd := NewClient(msg)
 	defer func() {
 		err := auditd.Close()
 		if err != nil {
@@ -114,7 +114,7 @@ func (c *Client) connect() error {
 	return nil
 }
 
-func NewAuditDClient(msg Message) *Client {
+func NewClient(msg Message) *Client {
 	msg.SetDefaults()
 
 	execName, err := os.Executable()
@@ -123,7 +123,8 @@ func NewAuditDClient(msg Message) *Client {
 		execName = "?"
 	}
 
-	// Match sshd
+	// Teleport never tries to get the hostname name.
+	// Let's mimic the sshd behavior.
 	const hostname = "?"
 
 	return &Client{
