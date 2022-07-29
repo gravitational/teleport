@@ -66,7 +66,7 @@ spec:
           # Here "alice@goteleport.com" maps to "alice", but "foo@example.com"
           # will be rejected.
           match: "^(.*)@goteleport.com$"
-          output: "$1"
+          out: ["$1"]
 
     - name: "allow-env"
       values:
