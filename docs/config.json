@@ -27,6 +27,14 @@
             {
               "title": "DigitalOcean",
               "slug": "/getting-started/digitalocean/"
+            },
+            {
+              "title": "Local Kubernetes Lab",
+              "slug": "/getting-started/local-kubernetes/"
+            },
+            {
+              "title": "Kubernetes Cluster",
+              "slug": "/getting-started/kubernetes-cluster/"
             }
           ]
         },
@@ -356,21 +364,7 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/kubernetes-access/getting-started/",
-          "entries": [
-            {
-              "title": "Local Demo Cluster",
-              "slug": "/kubernetes-access/getting-started/local/"
-            },
-            { 
-              "title": "Cluster", 
-              "slug": "/kubernetes-access/getting-started/cluster/"
-            },
-            {
-              "title": "Agent",
-              "slug": "/kubernetes-access/getting-started/agent/"
-            }
-          ]
+          "slug": "/kubernetes-access/getting-started/"
         },
         {
           "title": "Guides",
@@ -1211,6 +1205,21 @@
     {
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/agent/",
+      "destination": "/docs/kubernetes-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/cluster/",
+      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/kubernetes-access/getting-started/local/",
+      "destination": "/docs/getting-started/local-kubernetes/",
       "permanent": true
     }
   ]

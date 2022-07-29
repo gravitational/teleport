@@ -3,12 +3,11 @@ title: Kubernetes Access
 description: Teleport Kubernetes Access introduction, demo, and resources.
 ---
 
-Teleport provides secure access for Kubernetes clusters.
+Teleport provides secure access to Kubernetes clusters.
 
 - Users can receive short-lived kubeconfig files (and certificates) using Single Sign-On (SSO) and switch between clusters without logging in twice.
 - Admins can use roles to implement policies, such as the best practice that developers must not access production.
 - Organizations can achieve compliance by capturing `kubectl` events and session recordings for `kubectl`.
-- Admins can host the Teleport Auth Service and Proxy Service within a Kubernetes Cluster.
 
 ## SSO and Audit for Kubernetes Clusters
 
@@ -32,27 +31,10 @@ Set up SSO, capture audit events, and sessions with Teleport running in a Kubern
   Your browser does not support the video tag.
 </video>
 
-## Getting started
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-### Deploy Teleport on Kubernetes
+## Get started
 
 <TileSet>
-  <Tile icon="kubernetes" title="Try Teleport on a Local Kubernetes Cluster" href="./getting-started/local.mdx">
-    Quickly see how Teleport works with Kubernetes on your laptop.
-  </Tile>
-  <Tile icon="kubernetes" title="Teleport Cluster in Kubernetes" href="./getting-started/cluster.mdx">
-    Deploy a standalone Teleport cluster in a Kubernetes cluster.
-  </Tile>
-</TileSet>
-
-
-### Use Teleport to access a Kubernetes cluster
-</ScopedBlock>
-
-<TileSet>
-  <Tile icon="kubernetes" title="Teleport Kubernetes Agent" href="./getting-started/agent.mdx">
+  <Tile icon="kubernetes" title="Teleport Kubernetes Access" href="./getting-started.mdx">
 
     Get started with Teleport Kubernetes Access.
 
