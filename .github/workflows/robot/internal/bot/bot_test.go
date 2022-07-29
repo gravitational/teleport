@@ -183,6 +183,10 @@ func (f *fakeGithub) CreateComment(ctx context.Context, organization string, rep
 	return nil
 }
 
+func (f *fakeGithub) ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	return nil, nil
+}
+
 func (f *fakeGithub) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {
 	return 0, nil
 }
