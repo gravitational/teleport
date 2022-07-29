@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -29,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -44,28 +42,6 @@ type raceResult struct {
 // response without being too onerous on the client side if we hit a non-
 // teleport responder by mistake.
 const maxPingBodySize = 16 * 1024
-
-// logResponseBody reads and dumps a response body to the log at the supplied
-// level. Note that it is still the caller's responsibility to close the body
-// stream.
-func logResponseBody(level logrus.Level, bodyStream io.Reader) {
-	if log.Logger.Level < level {
-		return
-	}
-
-	// NB: `ReadAll()` will time out (or be cancelled) according to the
-	//     context originally supplied to the request that initiated this
-	//     response, so no need to have an independent reading timeout
-	//     here.
-	body, err := ioutil.ReadAll(io.LimitReader(bodyStream, maxPingBodySize))
-	if err != nil {
-		// This is only for debugging purposes, so it's safe to just give up here.
-		log.WithError(err).Debug("Could not read failed racer response body")
-		return
-	}
-
-	log.Logf(level, "Failed racer response body: %q", body)
-}
 
 // raceRequest drives an HTTP request to completion and posts the results back
 // to the supplied channel.
