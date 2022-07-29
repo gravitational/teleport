@@ -1241,7 +1241,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.GetUser(username, false)
+	user, err := a.Services.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
