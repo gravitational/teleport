@@ -1800,15 +1800,15 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 }
 
 // GetWebSession returns existing web session described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return a.Cache.GetWebSession(ctx, req)
+	return a.Services.GetWebSession(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return a.Cache.GetWebToken(ctx, req)
+	return a.Services.GetWebToken(ctx, req)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
