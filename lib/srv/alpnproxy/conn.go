@@ -17,11 +17,13 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"context"
 	"io"
 	"net"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // newBufferedConn creates new instance of bufferedConn.
@@ -87,3 +89,29 @@ func (conn readOnlyConn) RemoteAddr() net.Addr               { return &utils.Net
 func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
+
+// TODO add docs
+type waitConn struct {
+	net.Conn
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func newWaitConn(ctx context.Context, conn net.Conn) *waitConn {
+	ctx, cancel := context.WithCancel(ctx)
+	return &waitConn{
+		Conn:   conn,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+func (conn *waitConn) WaitForClose() {
+	<-conn.ctx.Done()
+}
+
+func (conn *waitConn) Close() error {
+	err := conn.Conn.Close()
+	conn.cancel()
+	return trace.Wrap(err)
+}

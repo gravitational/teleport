@@ -20,6 +20,8 @@ import (
 	"crypto/tls"
 
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // IsHTTPTunnelRequired returns true if a HTTP tunnel is required.
@@ -34,14 +36,14 @@ import (
 func IsHTTPTunnelRequired(proxyAddr string, insecure bool) bool {
 	// Use an very old protocol for testing to reduce false positives in case
 	// remote is running an older version.
-	testProtocol := ALPNSNIProtocolReverseTunnel
+	testProtocol := constants.ALPNSNIProtocolReverseTunnel
 	testConn, err := tls.Dial("tcp", proxyAddr, &tls.Config{
 		NextProtos:         []string{testProtocol, protocolHTTP},
 		InsecureSkipVerify: insecure,
 	})
 	if err != nil {
 		// TODO
-		logrus.Warnf(err)
+		logrus.Warn(err)
 		return false
 	}
 	defer testConn.Close()

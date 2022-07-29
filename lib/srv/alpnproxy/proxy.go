@@ -68,15 +68,15 @@ type ProxyConfig struct {
 // NewRouter creates a ALPN new router.
 func NewRouter() *Router {
 	return &Router{
-		alpnHandlers: make([]*HandlerDecs, 0),
+		alpnHandlers: make([]*HandlerDesc, 0),
 	}
 }
 
 // Router contains information about protocol handlers and routing rules.
 type Router struct {
-	alpnHandlers       []*HandlerDecs
-	kubeHandler        *HandlerDecs
-	databaseTLSHandler *HandlerDecs
+	alpnHandlers       []*HandlerDesc
+	kubeHandler        *HandlerDesc
+	databaseTLSHandler *HandlerDesc
 	mtx                sync.Mutex
 }
 
@@ -144,33 +144,32 @@ func (r *Router) CheckAndSetDefaults() error {
 }
 
 // AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
-func (r *Router) AddKubeHandler(handler HandlerFunc) {
+func (r *Router) AddKubeHandler(desc HandlerDesc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	r.kubeHandler = &HandlerDecs{
-		Handler:    handler,
-		ForwardTLS: true,
-	}
+
+	// Make sure we are forwarding TLS.
+	desc.ForwardTLS = true
+
+	r.kubeHandler = &desc
 }
 
 // AddDBTLSHandler adds the handler for DB TLS traffic.
-func (r *Router) AddDBTLSHandler(handler HandlerFunc) {
+func (r *Router) AddDBTLSHandler(desc HandlerDesc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	r.databaseTLSHandler = &HandlerDecs{
-		Handler: handler,
-	}
+	r.databaseTLSHandler = &desc
 }
 
 // Add sets the handler for DB TLS traffic.
-func (r *Router) Add(desc HandlerDecs) {
+func (r *Router) Add(desc HandlerDesc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	r.alpnHandlers = append(r.alpnHandlers, &desc)
 }
 
-// HandlerDecs describes the handler for particular protocols.
-type HandlerDecs struct {
+// HandlerDesc describes the handler for particular protocols.
+type HandlerDesc struct {
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
 	// HandlerWithConnInfo is protocol handler function providing additional TLS insight.
@@ -188,9 +187,13 @@ type HandlerDecs struct {
 	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
 	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
 	TLSConfig *tls.Config
+	// IsAsync specifies that the provided handler is asynchronous and it will
+	// handle closing of the client connections. The handler is typically async
+	// when using the ListenerMuxWrapper.
+	IsAsync bool
 }
 
-func (h *HandlerDecs) CheckAndSetDefaults() error {
+func (h *HandlerDesc) CheckAndSetDefaults() error {
 	if h.Handler != nil && h.HandlerWithConnInfo != nil {
 		return trace.BadParameter("can't create route with both Handler and HandlerWithConnInfo handlers")
 	}
@@ -204,7 +207,7 @@ func (h *HandlerDecs) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+func (h *HandlerDesc) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
 	}
@@ -307,14 +310,10 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
-			// In case of successful handleConn call leave the connection Close() call up to service handler.
-			// For example in ReverseTunnel handles connection asynchronously and closing conn after
-			// service handler returned will break service logic.
-			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
-			if err := p.handleConn(ctx, clientConn); err != nil {
-				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-					p.log.WithError(cerr).Warnf("Failed to close client connection.")
-				}
+			if err := p.handleConn(ctx, clientConn, false); err != nil {
+				// Try to close clientConn in case err happens before
+				// clientConn is closed.
+				p.closeClientConnAndLogError(clientConn)
 
 				if trace.IsBadParameter(err) {
 					p.log.Warnf("Failed to handle client connection: %v", err)
@@ -324,6 +323,14 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			}
 		}()
 	}
+}
+
+// MakeConnectionHandler creates a ConnectionHandler which provides a callback
+// to handle incoming connections by this ALPN proxy server.
+func (p *Proxy) MakeConnectionHandler(waitForAsync bool) ConnectionHandler {
+	return ConnectionHandlerFunc(func(ctx context.Context, conn net.Conn) error {
+		return p.handleConn(ctx, conn, true)
+	})
 }
 
 // ConnectionInfo contains details about TLS connection.
@@ -348,7 +355,7 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 // 5) For backward compatibility check RouteToDatabase identity field
 //    was set if yes forward to the generic TLS DB handler.
 // 6) Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, waitForAsync bool) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -357,6 +364,19 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	handlerDesc, err := p.getHandlerDescBaseOnClientHelloMsg(hello)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if handlerDesc.IsAsync {
+		// Do not close clientConn for async handlers. Connections will be
+		// closed by the handlers themselves.
+		if waitForAsync {
+			waitConn := newWaitConn(ctx, conn)
+			defer waitConn.WaitForClose()
+
+			conn = waitConn
+		}
+	} else {
+		defer p.closeClientConnAndLogError(clientConn)
 	}
 
 	connInfo := ConnectionInfo{
@@ -391,7 +411,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 
 // getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler
 // otherwise the ProxyConfig.WebTLSConfig is used.
-func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
+func (p *Proxy) getTLSConfig(desc *HandlerDesc) *tls.Config {
 	if desc.TLSConfig != nil {
 		return desc.TLSConfig
 	}
@@ -469,7 +489,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
-func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
+func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDesc, error) {
 	if shouldRouteToKubeService(clientHelloInfo.ServerName) {
 		if p.cfg.Router.kubeHandler == nil {
 			return nil, trace.BadParameter("received kube request but k8 service is disabled")
@@ -480,7 +500,7 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 }
 
 // getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
-func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
+func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDesc, error) {
 	// Add the HTTP protocol as a default protocol. If client supported
 	// list is empty the default HTTP handler will be returned.
 	clientProtocols := clientHelloInfo.SupportedProtos
@@ -491,10 +511,14 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 	for _, v := range clientProtocols {
 		protocol := common.Protocol(v)
 		if common.IsDBTLSProtocol(protocol) {
-			return &HandlerDecs{
+			if p.cfg.Router.databaseTLSHandler == nil {
+				return nil, trace.BadParameter("database handle not enabled")
+			}
+			return &HandlerDesc{
 				MatchFunc:           MatchByProtocol(protocol),
 				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
 				ForwardTLS:          false,
+				IsAsync:             p.cfg.Router.databaseTLSHandler.IsAsync,
 			}, nil
 		}
 
@@ -529,4 +553,11 @@ func (p *Proxy) Close() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
+	err := clientConn.Close()
+	if err != nil && !utils.IsOKNetworkError(err) {
+		p.log.WithError(err).Warnf("Failed to close client connection.")
+	}
 }

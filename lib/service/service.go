@@ -3325,6 +3325,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// Register web proxy server
+	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
 	var webServer *http.Server
 	var webHandler *web.APIHandler
 	if !process.Config.Proxy.DisableWebService {
@@ -3361,6 +3362,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
 				ProxySettings:    proxySettings,
+				ALPNHandler:      alpnHandlerForWeb,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3410,7 +3412,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
 	if alpnRouter != nil {
-		alpnRouter.Add(alpnproxy.HandlerDecs{
+		alpnRouter.Add(alpnproxy.HandlerDesc{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
 			Handler:   webHandler.HandleConnection,
 		})
@@ -3608,19 +3610,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
-			alpnRouter.Add(alpnproxy.HandlerDecs{
+			alpnRouter.Add(alpnproxy.HandlerDesc{
 				MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolMySQL)),
 				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnection),
 			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
+			alpnRouter.Add(alpnproxy.HandlerDesc{
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
+			alpnRouter.Add(alpnproxy.HandlerDesc{
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
+			alpnRouter.Add(alpnproxy.HandlerDesc{
 				// For the following protocols ALPN Proxy will handle the
 				// connection internally (terminate wrapped TLS traffic) and
 				// route extracted connection to ALPN Proxy DB TLS Handler.
@@ -3695,7 +3697,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
-		alpnRouter.Add(alpnproxy.HandlerDecs{
+		alpnRouter.Add(alpnproxy.HandlerDesc{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
 			ForwardTLS:          true,
@@ -3704,6 +3706,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
 			WebTLSConfig:      tlsConfigWeb.Clone(),
 			IdentityTLSConfig: identityTLSConf,
@@ -3715,6 +3718,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(true))
+
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
@@ -3932,21 +3938,25 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	router := alpnproxy.NewRouter()
 	if cfg.Proxy.Kube.Enabled {
 		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
-		router.AddKubeHandler(kubeListener.HandleConnection)
+		router.AddKubeHandler(alpnproxy.HandlerDesc{
+			Handler: kubeListener.HandleConnection,
+			IsAsync: true,
+		})
 		listeners.kube = kubeListener
 	}
 	if !cfg.Proxy.DisableReverseTunnel {
 		reverseTunnel := alpnproxy.NewMuxListenerWrapper(listeners.reverseTunnel, listeners.web)
-		router.Add(alpnproxy.HandlerDecs{
+		router.Add(alpnproxy.HandlerDesc{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolReverseTunnel),
 			Handler:   reverseTunnel.HandleConnection,
+			IsAsync:   true,
 		})
 		listeners.reverseTunnel = reverseTunnel
 	}
 
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
-		router.Add(alpnproxy.HandlerDecs{
+		router.Add(alpnproxy.HandlerDesc{
 			MatchFunc: alpnproxy.MatchByProtocol(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
@@ -3954,27 +3964,33 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 			),
 			Handler:    webWrapper.HandleConnection,
 			ForwardTLS: false,
+			IsAsync:    true,
 		})
 		listeners.web = webWrapper
 	}
 
 	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
-	router.Add(alpnproxy.HandlerDecs{
+	router.Add(alpnproxy.HandlerDesc{
 		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
 		Handler:   grpcListener.HandleConnection,
+		IsAsync:   true,
 	})
 	listeners.grpc = grpcListener
 
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
-	router.Add(alpnproxy.HandlerDecs{
+	router.Add(alpnproxy.HandlerDesc{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
 		TLSConfig: serverTLSConf,
+		IsAsync:   true,
 	})
 	listeners.ssh = sshProxyListener
 
 	webTLSDB := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
-	router.AddDBTLSHandler(webTLSDB.HandleConnection)
+	router.AddDBTLSHandler(alpnproxy.HandlerDesc{
+		Handler: webTLSDB.HandleConnection,
+		IsAsync: true,
+	})
 	listeners.db.tls = webTLSDB
 
 	return router
