@@ -66,9 +66,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
+	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -202,6 +204,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("SFTP", suite.bind(testSFTP))
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -618,11 +621,9 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if len(os.Args) == 2 &&
-		(os.Args[1] == teleport.ExecSubCommand || os.Args[1] == teleport.ForwardSubCommand || os.Args[1] == teleport.CheckHomeDirSubCommand) {
-		srv.RunAndExit(os.Args[1])
+	// If the test is re-executing itself, handle the appropriate sub-command.
+	if srv.IsReexec() {
+		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 
@@ -5929,4 +5930,95 @@ outer:
 	}
 
 	t.FailNow()
+}
+
+func testSFTP(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport instance.
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	client, err := teleport.NewClient(ClientConfig{
+		Login:   suite.me.Username,
+		Cluster: Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// Create SFTP session.
+	ctx := context.Background()
+	proxyClient, err := client.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(proxyClient.Client)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sftpClient.Close())
+	})
+
+	// Create file that will be uploaded and downloaded.
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "testfile")
+	testFile, err := os.Create(testFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testFile.Close())
+	})
+
+	_, err = testFile.WriteString("This is test data.")
+	require.NoError(t, err)
+	require.NoError(t, testFile.Sync())
+
+	// Test stat'ing a file.
+	t.Run("stat", func(t *testing.T) {
+		fi, err := sftpClient.Stat(testFilePath)
+		require.NoError(t, err)
+		require.NotNil(t, fi)
+	})
+
+	// Test downloading a file.
+	t.Run("download", func(t *testing.T) {
+		testFileDownload := testFilePath + "-download"
+		downloadFile, err := os.Create(testFileDownload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, downloadFile.Close())
+		})
+
+		remoteDownloadFile, err := sftpClient.Open(testFilePath)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteDownloadFile.Close())
+		})
+
+		_, err = io.Copy(downloadFile, remoteDownloadFile)
+		require.NoError(t, err)
+	})
+
+	// Test uploading a file.
+	t.Run("upload", func(t *testing.T) {
+		testFileUpload := testFilePath + "-upload"
+		remoteUploadFile, err := sftpClient.Create(testFileUpload)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, remoteUploadFile.Close())
+		})
+
+		_, err = io.Copy(remoteUploadFile, testFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("chmod", func(t *testing.T) {
+		err = sftpClient.Chmod(testFilePath, 0777)
+		require.NoError(t, err)
+	})
+
+	// Ensure SFTP audit events are present.
+	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
+	require.NoError(t, err)
+	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
 }
