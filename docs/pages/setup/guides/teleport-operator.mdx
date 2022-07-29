@@ -3,8 +3,8 @@ title: Teleport Kubernetes Operator
 description: Easily manage Teleport resources from Kubernetes
 ---
 
-The Teleport Kubernetes Operator provides a way for Kubernetes users to manage Teleport resources like Users and
-Roles using Kubernetes resources.
+The Teleport Kubernetes Operator provides a way for Kubernetes users to manage Teleport resources like users and
+roles as Kubernetes resources.
 
 <Admonition type="note">
   Setting up the Teleport Operator is not required to
@@ -48,7 +48,7 @@ Add the Teleport Helm Chart [repo](https://charts.releases.teleport.dev/):
 $ helm repo add teleport https://charts.releases.teleport.dev
 ```
 
-Install the helm chart for the Teleport Cluster with `operator.enabled=true`.
+Install the Helm chart for the Teleport Cluster with `operator.enabled=true`.
 
 ```code
 $ helm install teleport-cluster teleport/teleport-cluster \
@@ -154,7 +154,7 @@ FIELDS:
 ### Troubleshooting a resource not reconciled in Teleport
 
 During reconciliation the operator adds a `status` field on the Kubernetes resource.
-If Teleport returns some error it will be available in `status.conditions`.
+If Teleport returns an error it will be available in `status.conditions` when you retrieve a resource via `kubectl`:
 
 ```code
 $ kubectl get teleportusers myuser -o yaml
@@ -182,7 +182,7 @@ status:
 
 Here `SuccessfullyReconciled` is `False` and the error is `role my-non-existing-role is not found`.
 
-If the status is not present or does not gives sufficient information to solve the issue, check the operator logs:
+If the status is not present or does not give sufficient information to solve the issue, check the operator logs:
 
 ```shell
 $ kubectl logs "$PROXY_POD" -c operator
