@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck disable=SC2016,SC1004,SC2174,SC2155
+
 set -xeu
 
 # These must be set for the script to run
