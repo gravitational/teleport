@@ -467,6 +467,8 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
+    // LicenseWarnings is a list of license compliance warnings.
+    repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
 }
 
 // Features are auth server features.
