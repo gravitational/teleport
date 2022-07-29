@@ -204,6 +204,222 @@ export const formatters: Formatters = {
     format: ({ exitError, ...rest }) =>
       `File upload to node [${rest['addr.local']}] failed [${exitError}]`,
   },
+  [eventCodes.SFTP_OPEN]: {
+    type: 'sftp',
+    desc: 'SFTP Open',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] opened file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_OPEN_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Open Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to open file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_CLOSE]: {
+    type: 'sftp',
+    desc: 'SFTP Close',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] closed file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_CLOSE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Close Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to close file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_READ]: {
+    type: 'sftp',
+    desc: 'SFTP Read',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read from file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_READ_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Read Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read from file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_WRITE]: {
+    type: 'sftp',
+    desc: 'SFTP Write',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] wrote to file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_WRITE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Write Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to write to file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_LSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_LSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_FSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_SETSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Setstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] changed attributes of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_SETSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Setstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to change attributes of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSETSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] changed attributes of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_FSETSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to change attributes of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_OPENDIR]: {
+    type: 'sftp',
+    desc: 'SFTP Opendir',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] opened directory [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_OPENDIR_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Opendir Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to open directory [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_READDIR]: {
+    type: 'sftp',
+    desc: 'SFTP Readdir',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read directory [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_READDIR_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Readdir Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read directory [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_REMOVE]: {
+    type: 'sftp',
+    desc: 'SFTP Remove',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] removed file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_REMOVE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Remove Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to remove file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_MKDIR]: {
+    type: 'sftp',
+    desc: 'SFTP Mkdir',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] created directory [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_MKDIR_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Mkdir Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to create directory [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_RMDIR]: {
+    type: 'sftp',
+    desc: 'SFTP Rmdir',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] removed directory [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_RMDIR_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Rmdir Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to remove directory [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_REALPATH]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried absolute path of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_REALPATH_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query absolute path of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_STAT]: {
+    type: 'sftp',
+    desc: 'SFTP Stat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_STAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Stat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_RENAME]: {
+    type: 'sftp',
+    desc: 'SFTP Rename',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] renamed file [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_RENAME_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Rename Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to rename file [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_READLINK]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read symbolic link [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_READLINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read symbolic link [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
+  [eventCodes.SFTP_SYMLINK]: {
+    type: 'sftp',
+    desc: 'SFTP Symlink',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] created symbolic link [${path}] on node [${rest['addr.local']}]`,
+  },
+  [eventCodes.SFTP_SYMLINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Symlink Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to create symbolic link [${path}] on node [${rest['addr.local']}]: [${error}]`,
+  },
   [eventCodes.SESSION_JOIN]: {
     type: 'session.join',
     desc: 'User Joined',
