@@ -57,7 +57,7 @@ spec:
         - match: '@goteleport\.com$'
           # "out" values can contain transforms and any traits
           out: ["{{email.local(external.email)}}"]
-    - name: "allow_env"
+    - name: "allow-env"
       # If the trait in a "select" expands to a list, all values will be checked
       # for matches and the outputs will be combined.
       select: "{{external.groups}}"
@@ -70,10 +70,11 @@ spec:
           out: ["prod"]
   allow:
     logins:
-      # variables can be referenced as `vars.<role_name>.<variable_name>`
+      # variables can be referenced as `vars.<role_name>.<variable_name>` or
+      # `vars["<role_name>"]["<variable_name"]`.
       - "{{vars.node_users.logins}}"
     node_labels:
-      env: ["{{vars.node_users.allow_env}}"]
+      env: ["{{vars.node_users["allow-env"]}}"]
 ```
 
 These variables could be used in another role without redefinition:
@@ -86,8 +87,53 @@ metadata:
 spec:
   allow:
     app_labels:
-      env: ["{{vars.node_users.allow_env}}"]
+      env: ["{{vars.node_users["allow-env"]}}"]
 ```
+
+### How to reference variables
+
+Variables can be referenced similar to traits, by enclosing their name in
+`{{}}`.
+
+Variable names are prefixed by that `vars` namespace and include the role name
+to avoid collisions.
+
+You can use the selector syntax `{{vars.role_name.variable_name}}`, the index
+syntax `{{vars["role-name"]["variable-name"]}}`, or some combination
+`{{vars[role_name].variable_name}}`.
+
+It is necessary to use the index syntax and enclose the identifier (role or
+variable name) in quotes if it is not a valid
+[Go identifier](https://go.dev/ref/spec#Identifiers),
+or else the parser will not be able to handle it.
+The same is true for traits today.
+
+Variables can be referenced in the role which defines them, or in any other
+role.
+In order for a variable to be defined, the user must always posess the role
+which defines it.
+
+If the user does not have the role which defines the variable, or a typo is made,
+the variable may be undefined.
+We will handle this the same way we handle undefined traits: the entire value,
+including any prefix or suffix, will not be used.
+
+For example, if only the variable `vars.example.login = "ubuntu"` is defined,
+then the following will expand to just `logins: ["ubuntu"]`:
+
+```yaml
+logins:
+  - '{{vars.example.login}}'
+  - '{{vars.example.unknown}}'
+  - 'user-{{vars.example.unknown}}'
+  - '{{vars.unknown.login}}-user'
+```
+
+### Where variables can be used
+
+Variables can be used anywhere traits can be used. This is almost anywhere you
+need to set a value in a role spec, including allow or deny rules such as
+`logins` or `node_labels`, impersonation conditions, etc.
 
 ### Should we select the first matching expansion, or all matching expansions?
 
@@ -142,14 +188,8 @@ make root cluster variables override alternate definitions in leaf clusters.
 
 ### What happens when the same variable name is defined in two different roles?
 
-Variable names will be scoped by the role name to avoid collisions, they will be
-referenced by `vars.<role_name>.<variable_name>`.
-
-One downside of including the role name when referring to a variable is that our
-parser does not understand identifiers which include hyphens. When seeing a role
-name like `node-users` it thinks you are trying to subtract `users` from
-`nodes`. Roles which define variables will need to have names which are valid [Go
-identifiers](https://go.dev/ref/spec#Identifiers).
+Variable names will be scoped by the role name to avoid collisions (this section
+was more relevant before this was decided, it's no longer an issue).
 
 ### Can variable definitions depend on other variables?
 
