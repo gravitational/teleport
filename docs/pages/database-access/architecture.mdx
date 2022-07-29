@@ -56,10 +56,10 @@ connect to a database.
    for more details on how it works.
 2. The user picks the database they want to connect to from the list of available
    databases shown in `tsh db ls` command.
-3. The user connects to the database with `tsh db connect` command which first
-   retrieves a short-lived X.509 certificate and then launches the standard
-   database client (e.g. `psql`) with this client certificate to authenticate
-   with the Proxy.
+3. The user connects to the database with the `tsh db connect` command which
+   first retrieves a short-lived X.509 certificate and then launches the
+   standard database client (e.g. `psql`) with this client certificate to
+   authenticate with the Proxy.
 4. The Proxy authenticates the connection and dispatches it to the appropriate
    Database Service based on the routing information encoded in the client
    certificate, over the reverse tunnel.
@@ -84,9 +84,10 @@ Let's take a detailed look at each authentication point.
 
 ### Database client to Proxy
 
-When running the `tsh db connect` command, it first retrieves a short-lived
-X.509 certificate for the selected database. Then the command provides the
-database client with this client certificate to authenticate with the Proxy.
+When running the `tsh db connect` command, the command first retrieves a
+short-lived X.509 certificate for the selected database. Then the command
+provides the database client with this client certificate to authenticate with
+the Proxy.
 
 <Admonition
   type="note"
@@ -97,9 +98,9 @@ database client with this client certificate to authenticate with the Proxy.
   TLS or x509 certificates.
 </Admonition>
 
-For configuring graphical clients, use the `tsh proxy db` command which prints
-detailed information about the connection such as host/port and location of the
-secrets. See [GUI Clients](./guides/gui-clients.mdx) for details.
+For configuring graphical clients, use the `tsh proxy db` command, which prints
+detailed information about the connection such as the host, port, and location
+of the secrets. See [GUI Clients](./guides/gui-clients.mdx) for details.
 
 ### Proxy to Database service
 
