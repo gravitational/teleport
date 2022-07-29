@@ -25,8 +25,17 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ReadStatFS combines two interfaces: fs.ReadFileFS and fs.StatFS
+// We need both when creating the archive to be able to:
+// - read file contents - `ReadFile` provided by fs.ReadFileFS
+// - set the correct file permissions - `Stat() ... Mode()` provided by fs.StatFS
+type ReadStatFS interface {
+	fs.ReadFileFS
+	fs.StatFS
+}
+
 // CompressTarGzArchive creates a Tar Gzip archive in memory, reading the files using the provided file reader
-func CompressTarGzArchive(files []string, fileReader fs.ReadFileFS, fileMode fs.FileMode) (*bytes.Buffer, error) {
+func CompressTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer, error) {
 	archiveBytes := &bytes.Buffer{}
 
 	gzipWriter := gzip.NewWriter(archiveBytes)
@@ -41,10 +50,15 @@ func CompressTarGzArchive(files []string, fileReader fs.ReadFileFS, fileMode fs.
 			return nil, trace.Wrap(err)
 		}
 
+		fileStat, err := fileReader.Stat(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if err := tarWriter.WriteHeader(&tar.Header{
 			Name: filename,
 			Size: int64(len(bs)),
-			Mode: int64(fileMode),
+			Mode: int64(fileStat.Mode()),
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

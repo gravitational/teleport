@@ -19,40 +19,42 @@ package web
 import (
 	"bytes"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/exp/slices"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-/* signCertKeyPair returns the necessary files to set up mTLS for other services
+/*
+signDatabaseCertificate returns the necessary files to set up mTLS using the `db` format
 This is the equivalent of running the tctl command
 As an example, requesting:
-POST /webapi/sites/mycluster/sign
+POST /webapi/sites/mycluster/sign/db
 {
 	"hostname": "pg.example.com",
-	"ttl": "2190h",
-	"format": "db"
+	"ttl": "2190h"
 }
 
 Should be equivalent to running:
    tctl auth sign --host=pg.example.com --ttl=2190h --format=db
 
-This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the service.
+This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the database.
 */
-func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite) (interface{}, error) {
-	req := &signCertKeyPairReq{}
+func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, tokenRoles types.SystemRoles) (interface{}, error) {
+	if !tokenRoles.Include(types.RoleDatabase) {
+		return nil, trace.AccessDenied("required '%s' role was not provided by the token", types.RoleDatabase)
+	}
+
+	req := &signDatabaseCertificateReq{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,29 +65,22 @@ func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p http
 
 	virtualFS := identityfile.NewInMemoryConfigWriter()
 
-	mTLSReq := srv.GenerateMTLSFilesRequest{
-		ClusterAPI:          h.auth.proxyClient,
-		Principals:          []string{req.Hostname},
-		OutputFormat:        req.Format,
-		OutputCanOverwrite:  true,
-		OutputLocation:      "server",
-		IdentityFileWriter:  virtualFS,
-		TTL:                 req.TTL,
-		HelperMessageWriter: nil,
+	mTLSReq := db.GenerateDatabaseCertificatesRequest{
+		ClusterAPI:         h.auth.proxyClient,
+		Principals:         []string{req.Hostname},
+		OutputFormat:       identityfile.FormatDatabase,
+		OutputCanOverwrite: true,
+		OutputLocation:     "server",
+		IdentityFileWriter: virtualFS,
+		TTL:                req.TTL,
 	}
-	filesWritten, err := srv.GenerateMTLSFiles(r.Context(), mTLSReq)
+	filesWritten, err := db.GenerateDatabaseCertificates(r.Context(), mTLSReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	archiveName := fmt.Sprintf("teleport_mTLS_%s.tar.gz", req.Hostname)
-
-	// https://www.postgresql.org/docs/current/libpq-ssl.html
-	// On Unix systems, the permissions on the private key file must disallow any access to world or group;
-	//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
-	// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
-	fileMode := fs.FileMode(teleport.FileMaskOwnerOnly) // 0600
-	archiveBytes, err := utils.CompressTarGzArchive(filesWritten, virtualFS, fileMode)
+	archiveBytes, err := utils.CompressTarGzArchive(filesWritten, virtualFS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,30 +95,19 @@ func (h *Handler) signCertKeyPair(w http.ResponseWriter, r *http.Request, p http
 	return nil, nil
 }
 
-type signCertKeyPairReq struct {
-	Hostname  string `json:"hostname,omitempty"`
-	FormatRaw string `json:"format,omitempty"`
-	TTLRaw    string `json:"ttl,omitempty"`
-	Format    identityfile.Format
-	TTL       time.Duration
+type signDatabaseCertificateReq struct {
+	Hostname string `json:"hostname,omitempty"`
+	TTLRaw   string `json:"ttl,omitempty"`
+
+	TTL time.Duration `json:"-"`
 }
 
-// TODO(marco): only format db is supported
-var supportedFormats = []identityfile.Format{
-	identityfile.FormatDatabase,
-}
-
-func (s *signCertKeyPairReq) CheckAndSetDefaults() error {
+// CheckAndSetDefaults will validate and convert the received values
+// Hostname must not be empty
+// TTL must either be a valid time.Duration or empty (inherits apidefaults.CertDuration)
+func (s *signDatabaseCertificateReq) CheckAndSetDefaults() error {
 	if s.Hostname == "" {
 		return trace.BadParameter("missing hostname")
-	}
-
-	if s.FormatRaw == "" {
-		return trace.BadParameter("missing format")
-	}
-	s.Format = identityfile.Format(s.FormatRaw)
-	if !slices.Contains(supportedFormats, s.Format) {
-		return trace.BadParameter("provided format '%s' is not valid, supported formats are: %q", s.Format, supportedFormats)
 	}
 
 	if s.TTLRaw == "" {

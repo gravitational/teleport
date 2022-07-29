@@ -18,11 +18,13 @@ import (
 	"context"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,12 +33,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -371,7 +373,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 	}
 
 	return trace.Wrap(
-		srv.WriteHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
 	)
 }
 
@@ -466,19 +468,114 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
 
-	genMTLSReq := srv.GenerateMTLSFilesRequest{
-		ClusterAPI:          clusterAPI,
-		Principals:          principals,
-		OutputFormat:        a.outputFormat,
-		OutputCanOverwrite:  a.signOverwrite,
-		OutputLocation:      a.output,
-		TTL:                 a.genTTL,
-		Key:                 key,
-		HelperMessageWriter: os.Stdout,
+	genMTLSReq := db.GenerateDatabaseCertificatesRequest{
+		ClusterAPI:         clusterAPI,
+		Principals:         principals,
+		OutputFormat:       a.outputFormat,
+		OutputCanOverwrite: a.signOverwrite,
+		OutputLocation:     a.output,
+		TTL:                a.genTTL,
+		Key:                key,
 	}
-	_, err := srv.GenerateMTLSFiles(ctx, genMTLSReq)
-	return trace.Wrap(err)
+	filesWritten, err := db.GenerateDatabaseCertificates(ctx, genMTLSReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat))
 }
+
+var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
+	identityfile.FormatDatabase:  dbAuthSignTpl,
+	identityfile.FormatMongo:     mongoAuthSignTpl,
+	identityfile.FormatCockroach: cockroachAuthSignTpl,
+	identityfile.FormatRedis:     redisAuthSignTpl,
+	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
+}
+
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
+	if writer == nil {
+		return nil
+	}
+
+	tpl, found := mapIdentityFileFormatHelperTemplate[outputFormat]
+	if !found {
+		// This format doesn't have a recommended configuration.
+		// Consider adding one to ease the installation for the end-user
+		return nil
+	}
+
+	tplVars := map[string]interface{}{
+		"files":  strings.Join(filesWritten, ", "),
+		"output": output,
+	}
+
+	if outputFormat == identityfile.FormatSnowflake {
+		delete(tplVars, "output")
+	}
+
+	return trace.Wrap(tpl.Execute(writer, tplVars))
+}
+
+var (
+	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
+	dbAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your PostgreSQL server, add the following to its
+postgresql.conf configuration file:
+
+ssl = on
+ssl_cert_file = '/path/to/{{.output}}.crt'
+ssl_key_file = '/path/to/{{.output}}.key'
+ssl_ca_file = '/path/to/{{.output}}.cas'
+
+To enable mutual TLS on your MySQL server, add the following to its
+mysql.cnf configuration file:
+
+[mysqld]
+require_secure_transport=ON
+ssl-cert=/path/to/{{.output}}.crt
+ssl-key=/path/to/{{.output}}.key
+ssl-ca=/path/to/{{.output}}.cas
+`))
+	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
+	mongoAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your MongoDB server, add the following to its
+mongod.yaml configuration file:
+
+net:
+  tls:
+    mode: requireTLS
+    certificateKeyFile: /path/to/{{.output}}.crt
+    CAFile: /path/to/{{.output}}.cas
+`))
+	cockroachAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your CockroachDB server, point it to the certs
+directory using --certs-dir flag:
+
+cockroach start \
+  --certs-dir={{.output}} \
+  # other flags...
+`))
+
+	redisAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Redis server, add the following to your redis.conf:
+
+tls-ca-cert-file /path/to/{{.output}}.cas
+tls-cert-file /path/to/{{.output}}.crt
+tls-key-file /path/to/{{.output}}.key
+tls-protocols "TLSv1.2 TLSv1.3"
+`))
+
+	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+Please add the generated key to the Snowflake users as described here:
+https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
+`))
+)
 
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.

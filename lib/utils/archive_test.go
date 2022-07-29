@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/fs"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -29,20 +30,29 @@ import (
 )
 
 type mockFileReader struct {
-	files map[string][]byte
+	files map[string]*InMemoryFile
 }
 
 func (m mockFileReader) ReadFile(name string) ([]byte, error) {
-	contents, found := m.files[name]
+	f, found := m.files[name]
 	if !found {
 		return nil, fs.ErrNotExist
 	}
 
-	return contents, nil
+	return f.Content(), nil
 }
 
 func (m mockFileReader) Open(name string) (fs.File, error) {
 	return nil, trace.NotImplemented("Open is not implemented")
+}
+
+func (m mockFileReader) Stat(name string) (fs.FileInfo, error) {
+	f, found := m.files[name]
+	if !found {
+		return nil, fs.ErrNotExist
+	}
+
+	return f, nil
 }
 
 // CompressAsTarGzArchive creates a Tar Gzip archive in memory, reading the files using the provided file reader
@@ -50,15 +60,13 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 	tests := []struct {
 		name       string
 		fileNames  []string
-		fsContents map[string][]byte
-		fileMode   fs.FileMode
+		fsContents map[string]*InMemoryFile
 		assert     require.ErrorAssertionFunc
 	}{
 		{
 			name:       "File Not Exists bubbles up",
 			fileNames:  []string{"not", "found"},
-			fsContents: map[string][]byte{},
-			fileMode:   0600,
+			fsContents: map[string]*InMemoryFile{},
 			assert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorIs(t, err, fs.ErrNotExist)
@@ -67,12 +75,11 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 		{
 			name:      "Archive is created",
 			fileNames: []string{"file1", "file2"},
-			fsContents: map[string][]byte{
-				"file1": []byte("contentsfile1"),
-				"file2": []byte("contentsfile2"),
+			fsContents: map[string]*InMemoryFile{
+				"file1": NewInMemoryFile("file1", teleport.FileMaskOwnerOnly, time.Now(), []byte("contentsfile1")),
+				"file2": NewInMemoryFile("file2", teleport.FileMaskOwnerOnly, time.Now(), []byte("contentsfile2")),
 			},
-			fileMode: teleport.FileMaskOwnerOnly,
-			assert:   require.NoError,
+			assert: require.NoError,
 		},
 	}
 
@@ -80,7 +87,7 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 		fileReader := mockFileReader{
 			files: tt.fsContents,
 		}
-		bs, err := CompressTarGzArchive(tt.fileNames, fileReader, tt.fileMode)
+		bs, err := CompressTarGzArchive(tt.fileNames, fileReader)
 		tt.assert(t, err)
 		if err != nil {
 			continue
@@ -99,7 +106,6 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, byte(tar.TypeReg), header.Typeflag)
-			require.Equal(t, tt.fileMode, fs.FileMode(header.Mode))
 
 			tarContentFileNames = append(tarContentFileNames, header.Name)
 			require.Contains(t, tt.fsContents, header.Name)
@@ -108,7 +114,8 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 			require.NoError(t, err)
 			t.Log(string(gotBytes))
 
-			require.Equal(t, tt.fsContents[header.Name], gotBytes)
+			require.Equal(t, tt.fsContents[header.Name].content, gotBytes)
+			require.Equal(t, tt.fsContents[header.Name].mode, fs.FileMode(header.Mode))
 		}
 		require.ElementsMatch(t, tarContentFileNames, tt.fileNames)
 	}

@@ -22,53 +22,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
-type InMemoryFileInfo struct {
-	name    string
-	size    int64
-	mode    fs.FileMode
-	modTime time.Time
-	isDir   bool
-	content []byte
-}
-
-// Name returns the file's name
-func (fi InMemoryFileInfo) Name() string {
-	return fi.name
-}
-
-// Size returns the file size (calculated when writing the file)
-func (fi InMemoryFileInfo) Size() int64 {
-	return fi.size
-}
-
-// Mode returns the fs.FileMode
-func (fi InMemoryFileInfo) Mode() fs.FileMode {
-	return fi.mode
-}
-
-// ModTime returns the last modification time
-func (fi InMemoryFileInfo) ModTime() time.Time {
-	return fi.modTime
-}
-
-// IsDir checks whether the file is a directory
-func (fi InMemoryFileInfo) IsDir() bool {
-	return fi.isDir
-}
-
-// Sys is platform independent
-// InMemoryFileInfo's implementation is no-op
-func (fi InMemoryFileInfo) Sys() interface{} {
-	return nil
-}
-
-func NewInMemoryConfigWriter() InMemoryConfigWriter {
-	return InMemoryConfigWriter{
+// NewInMemoryConfigWriter creates a new virtual file system
+// It stores the files contents and their properties in memory
+func NewInMemoryConfigWriter() *InMemoryConfigWriter {
+	return &InMemoryConfigWriter{
 		mux:   &sync.RWMutex{},
-		files: make(map[string]InMemoryFileInfo),
+		files: make(map[string]*utils.InMemoryFile),
 	}
 }
 
@@ -76,29 +39,22 @@ func NewInMemoryConfigWriter() InMemoryConfigWriter {
 //  instead of writing to a more persistent storage.
 type InMemoryConfigWriter struct {
 	mux   *sync.RWMutex
-	files map[string]InMemoryFileInfo
+	files map[string]*utils.InMemoryFile
 }
 
 // WriteFile writes the given data to path `name`
 // It replaces the file if it already exists
-func (m InMemoryConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
+func (m *InMemoryConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.files[name] = InMemoryFileInfo{
-		name:    name,
-		size:    int64(len(data)),
-		mode:    perm,
-		modTime: time.Now(),
-		content: data,
-		isDir:   false,
-	}
+	m.files[name] = utils.NewInMemoryFile(name, perm, time.Now(), data)
 
 	return nil
 }
 
 // Remove the file.
 // If the file does not exist, Remove is a no-op
-func (m InMemoryConfigWriter) Remove(name string) error {
+func (m *InMemoryConfigWriter) Remove(name string) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -108,7 +64,7 @@ func (m InMemoryConfigWriter) Remove(name string) error {
 
 // Stat returns the FileInfo of the given file.
 // Returns fs.ErrNotExists if the file is not present
-func (m InMemoryConfigWriter) Stat(name string) (fs.FileInfo, error) {
+func (m *InMemoryConfigWriter) Stat(name string) (fs.FileInfo, error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
 
@@ -122,7 +78,7 @@ func (m InMemoryConfigWriter) Stat(name string) (fs.FileInfo, error) {
 
 // ReadFile returns the file contents.
 // Returns fs.ErrNotExists if the file is not present
-func (m InMemoryConfigWriter) ReadFile(name string) ([]byte, error) {
+func (m *InMemoryConfigWriter) ReadFile(name string) ([]byte, error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
 
@@ -131,10 +87,10 @@ func (m InMemoryConfigWriter) ReadFile(name string) ([]byte, error) {
 		return nil, fs.ErrNotExist
 	}
 
-	return f.content, nil
+	return f.Content(), nil
 }
 
 // Open is not implemented but exists here to satisfy the io/fs.ReadFileFS interface.
-func (m InMemoryConfigWriter) Open(name string) (fs.File, error) {
+func (m *InMemoryConfigWriter) Open(name string) (fs.File, error) {
 	return nil, trace.NotImplemented("Open is not implemented for InMemoryConfigWriter")
 }

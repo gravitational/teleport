@@ -2204,17 +2204,15 @@ func TestSignMTLS(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &responseToken)
 	require.NoError(t, err)
 
-	// download mTLS files from /webapi/sites/:site/sign
-	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign")
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
 
 	bs, err := json.Marshal(struct {
 		Hostname string `json:"hostname"`
 		TTL      string `json:"ttl"`
-		Format   string `json:"format"`
 	}{
 		Hostname: "mypg.example.com",
 		TTL:      "2h",
-		Format:   "db",
 	})
 	require.NoError(t, err)
 
@@ -2296,8 +2294,8 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 	err = json.Unmarshal(re.Bytes(), &responseToken)
 	require.NoError(t, err)
 
-	// download mTLS files from /webapi/sites/:site/sign
-	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign")
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
 
 	bs, err := json.Marshal(struct {
 		Hostname string `json:"hostname"`

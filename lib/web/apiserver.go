@@ -365,9 +365,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
-	// Sign required files to setup mTLS in other services (eg DBs)
-	// POST /webapi/sites/:site/sign
-	h.POST("/webapi/sites/:site/sign", h.WithProvisionTokenAuth(h.signCertKeyPair, types.RoleDatabase))
+	// Sign required files to set up mTLS using the db format.
+	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
@@ -2701,12 +2700,12 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 }
 
 // ProvisionTokenHandler is a authenticated handler that is called for some existing Token
-type ProvisionTokenAuthedHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite) (interface{}, error)
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, roles types.SystemRoles) (interface{}, error)
 
 // WithProvisionTokenAuth ensures that request is authenticated with a provision token.
 // Provision tokens, when used like this are invalidated as soon as used.
 // Doesn't matter if the underlying response was a success or an error.
-func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler, requiredRole types.SystemRole) httprouter.Handle {
+func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx := r.Context()
 		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
@@ -2717,35 +2716,42 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenAuthedHandler, require
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		if err := h.consumeTokenForAPICall(ctx, creds.Password, requiredRole); err != nil {
+		tokenRoles, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		if err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
 		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
 		if err != nil {
-			h.log.WithError(err).WithField("cluster-name", h.auth.clusterName).Warn("Failed to query site.")
+			h.log.WithError(err).WithField("cluster-name", h.auth.clusterName).Warn("Failed to query cluster.")
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, site)
+		return fn(w, r, p, site, tokenRoles)
 	})
 }
 
-func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string, requiredRole types.SystemRole) error {
+// consumeTokenForAPICall will fetch a token, check if the requireRole is present and then delete the token
+// If any of those calls returns an error, this method also returns an error
+//
+// If multiple clients reach here at the same time, only one of them will be able to actually make the request.
+// This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
+// This is currently true for all the backends as explained here
+// https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.SystemRoles, error) {
 	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if !token.GetRoles().Include(requiredRole) {
-		return trace.AccessDenied("invalid auth")
-	}
+	roles := token.GetRoles()
 
 	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+
+	return roles, nil
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)
