@@ -408,6 +408,16 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubFeatureSupport(connector, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
