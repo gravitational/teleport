@@ -806,7 +806,13 @@ aliases:
     "status": "$TSH status --format=json"
 ```
 
-The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To debug aliases, set the `TELEPORT_DEBUG=1` environment variable instead.
+The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To troubleshoot your aliases, set the `TELEPORT_DEBUG=1` environment variable instead. This will cause the `tsh` logs to be printed to the console:
+
+```bash
+$ TELEPORT_DEBUG=1 tsh status
+DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
+...
+```
 
 ## Further reading
 - [CLI Reference](../setup/reference/cli.mdx).

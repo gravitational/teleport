@@ -788,7 +788,14 @@ aliases:
     "status": "$TSH status --format=json"
 ```
 
-To debug aliases, set the `TELEPORT_DEBUG=1` environment variable.
+To troubleshoot aliases, set the `TELEPORT_DEBUG=1` environment variable. This will cause detailed logs to be printed to the console:
+
+```bash
+$ TELEPORT_DEBUG=1 tsh status
+DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
+...
+```
+
 
 ## tctl
 
