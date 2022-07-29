@@ -1,10 +1,10 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: draft
+state: implemented
 ---
 
 
-# RFD 73 - Teleport Kube-Agent credential storage in Kubernetes Native Secrets
+# RFD 74 - Teleport Kube-Agent credential storage in Kubernetes Native Secrets
 
 ## Required Approvers
 
@@ -349,7 +349,7 @@ A description of each case's caveats is available below.
     If storage was not available, Helm chart installed the assets as a Deployment. Due to [limitations](#limitations), the current RFD forces the usage of Statefulset. This means that for this case, if no action is taken Helm chart will switch from Deployment to a Statefulset. Helm manages this change by destroying the Deployment object and creating the new Statefulset. During this transition, even if the operator has the `PodDisruptionBudget` object enabled, the Kubernetes cluster might become inaccessible from Teleport for some time because there is no guarantee that the system has at least one agent replica running. So in order to prevent the downtime, Helm chart will keep the Deployment if it already exists in the cluster, but it will also install in parallel the Statefulset. Once the upgrade finishes, Helm chart will run a `post-upgrade` hook that waits until the StatefulSet pods are ready and deletes the Deployment after that.
     The hook will run the following commands:
     ```bash
-        $ kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m
+        $ kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
         $ kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }
     ```
 
@@ -499,7 +499,7 @@ spec:
       containers:
       - name: post-upgrade-job
         image: "alpine:3.3"
-        command: ["/bin/bash","-c", "kubectl wait --for=condition=available statefulset/{ .Release.Name } -n { .Release.Namespace } --timeout=10m && kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }"]
+        command: ["/bin/bash","-c", "kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }} && kubectl delete deployment/{ .Release.Name } -n { .Release.Namespace }"]
 +{{- end}}
 ```
 
