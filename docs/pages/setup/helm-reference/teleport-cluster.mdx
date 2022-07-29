@@ -446,13 +446,13 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
 | `bool` | `false`| ✅ |
 
 CRDs are required by the teleport-operator and are installed by default when `operator.enabled` is true.
-`installCRDs` overrides this behaviour and allows users to explicit whether to deploy Teleport CRDs.
+`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
 
 Unless you are deploying multiple `teleport-cluster` Helm releases in the same Kubernetes cluster or installing
 the CRDs on your own you should not have to set this value.
 
 <Admonition type="note">
-  CRDs are not namespace-scoped resources, they can be installed only once in a cluster.
+  CRDs are not namespace-scoped resources—they can be installed only once in a cluster.
 
   If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
   release should have `installCRDs` enabled.
