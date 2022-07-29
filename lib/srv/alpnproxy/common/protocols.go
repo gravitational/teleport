@@ -76,6 +76,9 @@ const (
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
 	ProtocolMySQLWithVerPrefix = Protocol(string(ProtocolMySQL) + "-")
+
+	// ProtocolTCP is TLS ALPN protocol value used to indicate plain TCP connection.
+	ProtocolTCP Protocol = "teleport-tcp"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -91,6 +94,7 @@ var SupportedProtocols = []Protocol{
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolAuth,
+	ProtocolTCP,
 }
 
 // ProtocolsToString converts the list of Protocols to the list of strings.

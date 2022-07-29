@@ -53,7 +53,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.18
+	github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-20220308023801-e4a6915ea237
 	github.com/hashicorp/golang-lru v0.5.4
@@ -63,7 +63,7 @@ require (
 	github.com/jackc/pgx/v4 v4.15.0
 	github.com/jcmturner/gokrb5/v8 v8.4.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
-	github.com/jonboulle/clockwork v0.2.2
+	github.com/jonboulle/clockwork v0.3.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
@@ -75,6 +75,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/pkg/errors v0.9.1
+	github.com/pkg/sftp v1.13.5
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
@@ -230,6 +231,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
@@ -315,6 +317,7 @@ replace (
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500
+	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220706192634-fe0df089a5e3
 	github.com/russellhaering/gosaml2 => github.com/gravitational/gosaml2 v0.0.0-20220318224559-f06932032ae2
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.2.1

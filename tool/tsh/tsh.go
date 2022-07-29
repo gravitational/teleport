@@ -437,7 +437,10 @@ const (
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
-	proxyDefaultResolutionTimeout = 2 * time.Second
+	//
+	// Raised to 5 seconds when fallback measure was removed to account for
+	// users with higher latency connections.
+	proxyDefaultResolutionTimeout = 5 * time.Second
 )
 
 // env vars that tsh status will check to provide hints about active env vars to a user.
@@ -2051,11 +2054,13 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 			break
 		}
 	}
+
 	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
 	} else {
-		row = append(row, name, app.GetDescription(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
 	}
+
 	return row
 }
 
@@ -2069,10 +2074,10 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	// lines per node.
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Application", "Description", "Public Address", "URI", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+			[]string{"Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -2201,7 +2206,6 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	if verbose {
 		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
 	} else {
-
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
 	fmt.Fprintln(w, t.AsBuffer().String())
@@ -2334,7 +2338,8 @@ func onListClusters(cf *CLIConf) error {
 			ClusterName: rootClusterName,
 			Status:      teleport.RemoteClusterStatusOnline,
 			ClusterType: "root",
-			Selected:    isSelected(rootClusterName)}
+			Selected:    isSelected(rootClusterName),
+		}
 		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
 			leafClusterInfo = append(leafClusterInfo, clusterInfo{
@@ -2342,7 +2347,8 @@ func onListClusters(cf *CLIConf) error {
 				Status:      leaf.GetConnectionStatus(),
 				ClusterType: "leaf",
 				Labels:      leaf.GetMetadata().Labels,
-				Selected:    isSelected(leaf.GetName())})
+				Selected:    isSelected(leaf.GetName()),
+			})
 		}
 		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
@@ -2681,17 +2687,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// split login & host
 	hostLogin := cf.NodeLogin
+	hostUser := cf.UserHost
 	var labels map[string]string
-	if cf.UserHost != "" {
-		parts := strings.Split(cf.UserHost, "@")
+	if hostUser != "" {
+		parts := strings.Split(hostUser, "@")
 		partsLength := len(parts)
 		if partsLength > 1 {
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
-			cf.UserHost = parts[partsLength-1]
+			hostUser = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
-			labels, err = client.ParseLabelSpec(cf.UserHost)
+		if strings.Contains(hostUser, "=") {
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2704,7 +2711,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			partsLength := len(parts)
 			if partsLength > 1 {
 				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				cf.UserHost = parts[partsLength-1]
+				hostUser = parts[partsLength-1]
 				break
 			}
 		}
@@ -2721,7 +2728,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = cf.UserHost
+	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}
@@ -3086,11 +3093,8 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
-
-			// On error, fall back to the legacy behaviour
 			if err != nil {
-				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
-				return c.ParseProxyHost(cf.Proxy)
+				return trace.Wrap(err)
 			}
 		}
 
@@ -3762,10 +3766,10 @@ func printAppsWithClusters(apps []appListing, active []tlsca.RouteToApp, verbose
 	// lines per node.
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "URI", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "URI", "Labels"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Application", "Description", "Public Address", "Labels"}, rows, "Labels")
+			[]string{"Proxy", "Cluster", "Application", "Description", "Type", "Public Address", "Labels"}, rows, "Labels")
 	}
 	fmt.Println(t.AsBuffer().String())
 }
