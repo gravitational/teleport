@@ -287,6 +287,21 @@ export default function createClient(
         });
       });
     },
+
+    async setGatewayLocalPort(gatewayUri: string, localPort: string) {
+      const req = new api.SetGatewayLocalPortRequest()
+        .setGatewayUri(gatewayUri)
+        .setLocalPort(localPort);
+      return new Promise<types.Gateway>((resolve, reject) => {
+        tshd.setGatewayLocalPort(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject());
+          }
+        });
+      });
+    },
   };
 
   return client;

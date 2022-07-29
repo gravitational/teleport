@@ -438,6 +438,23 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return gateway;
   }
 
+  async setGatewayLocalPort(gatewayUri: string, localPort: string) {
+    if (!this.findGateway(gatewayUri)) {
+      throw new Error(`Could not find gateway ${gatewayUri}`);
+    }
+
+    const gateway = await this.client.setGatewayLocalPort(
+      gatewayUri,
+      localPort
+    );
+
+    this.setState(draft => {
+      draft.gateways.set(gatewayUri, gateway);
+    });
+
+    return gateway;
+  }
+
   findCluster(clusterUri: string) {
     return this.state.clusters.get(clusterUri);
   }

@@ -46,6 +46,10 @@ export type TshClient = {
     gatewayUri: string,
     targetSubresourceName: string
   ) => Promise<Gateway>;
+  setGatewayLocalPort: (
+    gatewayUri: string,
+    localPort: string
+  ) => Promise<Gateway>;
 
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;

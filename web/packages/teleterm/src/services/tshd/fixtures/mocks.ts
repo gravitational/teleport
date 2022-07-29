@@ -32,6 +32,10 @@ export class MockTshClient implements TshClient {
     gatewayUri: string,
     targetSubresourceName: string
   ) => Promise<Gateway>;
+  setGatewayLocalPort: (
+    gatewayUri: string,
+    localPort: string
+  ) => Promise<Gateway>;
 
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;

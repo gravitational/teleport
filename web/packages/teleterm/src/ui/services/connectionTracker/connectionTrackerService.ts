@@ -191,6 +191,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             } else {
               gwConn.gatewayUri = doc.gatewayUri;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
+              gwConn.port = doc.port;
               gwConn.connected = !!this._clusterService.findGateway(
                 doc.gatewayUri
               );
