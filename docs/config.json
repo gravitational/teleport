@@ -198,7 +198,7 @@
           "slug": "/setup/guides/",
           "entries": [
             {
-              "title": "Teleport Kubernetes Operator",
+              "title": "Kubernetes Operator (Preview)",
               "slug": "/setup/guides/teleport-operator/"
             },
             {

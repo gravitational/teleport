@@ -421,18 +421,14 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
 | - | - | - |
 | `bool` | `false`| ✅ |
 
-CRDs are required by the teleport-operator and are installed by default when `operator.enabled` is true.
+CRDs are not namespace-scoped resources—they can be installed only once in a cluster.
+
+CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
 `installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
 
-Unless you are deploying multiple `teleport-cluster` Helm releases in the same Kubernetes cluster or installing
-the CRDs on your own you should not have to set this value.
-
-<Admonition type="note">
-  CRDs are not namespace-scoped resources—they can be installed only once in a cluster.
-
-  If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
-  release should have `installCRDs` enabled.
-</Admonition>
+If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
+the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -457,7 +453,7 @@ the CRDs on your own you should not have to set this value.
 
 `operator.enabled` controls whether to deploy the Teleport Kubernetes Operator as a side-car.
 
-Enabling the operator will also deploy the Teleport CRDs in the Kubernetes clusters.
+Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
 [`installCRDs`](#installCRDs).
 
@@ -481,7 +477,7 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
 | - | - | - |
 | `string` | `quay.io/gravitational/teleport-operator`| ✅ |
 
-`operator.image` sets the Teleport Operator container image used for Teleport pods in the cluster.
+`operator.image` sets the Teleport Kubernetes Operator container image used for Teleport pods in the cluster.
 You can override this to use your own Teleport Operator image rather than a Teleport-published image.
 
 This setting requires [`operator.enabled`](#operatorenabled).
@@ -506,9 +502,10 @@ This setting requires [`operator.enabled`](#operatorenabled).
 | - | - | - |
 | `object` | `{}` | ✅  |
 
-[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+See the [Kubernetes resource](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+documentation.
 
-Resource requests/limits which should be configured for the Teleport Operator container.
+It is recommended to set Resource requests/limits for each container based on their observed usage.
 
 <Tabs>
   <TabItem label="values.yaml">
