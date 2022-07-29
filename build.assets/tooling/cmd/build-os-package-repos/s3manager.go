@@ -103,7 +103,7 @@ func (s *S3manager) DownloadExistingRepo() error {
 	downloadGroup.SetLimit(s.maxConcurrentSyncs)
 	linkMap := make(map[string]string)
 
-	var continuationToken *string = nil
+	var continuationToken *string
 	for {
 		listObjResponse, err := s.downloader.S3.ListObjectsV2(&s3.ListObjectsV2Input{
 			Bucket:            &s.bucketName,
