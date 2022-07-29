@@ -360,10 +360,6 @@ type TeleportProcess struct {
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
 
-	// appDependCh is used by application service in single process mode to block
-	// until auth and reverse tunnel servers are ready.
-	appDependCh chan Event
-
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
@@ -505,6 +501,34 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 	process.connectors[connector.ClientIdentity.ID.Role] = connector
 }
 
+// waitForConnector is a utility function to wait for an identity event and cast
+// the resulting payload as a *Connector. Returns (nil, nil) when the
+// ExitContext is done, so error checking should happen on the connector rather
+// than the error:
+//  conn, err := process.waitForConnector("FooIdentity", log)
+//  if conn == nil {
+//  	return trace.Wrap(err)
+//  }
+func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
+	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
+	if err != nil {
+		if log != nil {
+			log.Debugf("Process is exiting.")
+		}
+		return nil, nil
+	}
+	if log != nil {
+		log.Debugf("Received event %q.", event.Name)
+	}
+
+	conn, ok := (event.Payload).(*Connector)
+	if !ok {
+		return nil, trace.BadParameter("unsupported connector type: %T", event.Payload)
+	}
+
+	return conn, nil
+}
+
 func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	process.Lock()
 	defer process.Unlock()
@@ -587,9 +611,11 @@ type Process interface {
 	// blocks until all resources are freed and go-routines are
 	// shut down.
 	Shutdown(context.Context)
-	// WaitForEvent waits for event to occur, sends event to the channel,
-	// this is a non-blocking function.
-	WaitForEvent(ctx context.Context, name string, eventC chan<- Event)
+	// WaitForEvent waits for one event with the specified name (returns the
+	// latest such event if at least one has been broadcasted already, ignoring
+	// the context). Returns an error if the context is canceled before an event
+	// is received.
+	WaitForEvent(ctx context.Context, name string) (Event, error)
 	// WaitWithContext waits for the service to stop. This is a blocking
 	// function.
 	WaitWithContext(ctx context.Context)
@@ -663,16 +689,12 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	// before shutting down the old one.
 	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
 	defer startCancel()
-	eventC := make(chan Event, 1)
-	newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		cfg.Log.Infof("New service has started successfully.")
-	case <-startTimeoutCtx.Done():
+	if _, err := newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent); err != nil {
 		warnOnErr(newSrv.Close(), cfg.Log)
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
+	cfg.Log.Infof("New service has started successfully.")
 	shutdownTimeout := cfg.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
@@ -898,12 +920,9 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 		id:                  processID,
 		log:                 cfg.Log,
 		keyPairs:            make(map[keyPairKey]KeyPair),
-		appDependCh:         make(chan Event, 1024),
 		cloudLabels:         cloudLabels,
 		TracingProvider:     tracing.NoopProvider(),
 	}
-
-	process.registerAppDepend()
 
 	process.registerExpectedServices(cfg)
 
@@ -1118,18 +1137,14 @@ func (process *TeleportProcess) notifyParent() {
 	ctx, cancel := context.WithTimeout(process.ExitContext(), signalPipeTimeout)
 	defer cancel()
 
-	eventC := make(chan Event, 1)
-	process.WaitForEvent(ctx, TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		process.log.Infof("New service has started successfully.")
-	case <-ctx.Done():
+	if _, err := process.WaitForEvent(ctx, TeleportReadyEvent); err != nil {
 		process.log.Errorf("Timeout waiting for a forked process to start: %v. Initiating self-shutdown.", ctx.Err())
 		if err := process.Close(); err != nil {
 			process.log.Warningf("Failed to shutdown process: %v.", err)
 		}
 		return
 	}
+	process.log.Infof("New service has started successfully.")
 
 	if err := process.writeToSignalPipe(signalPipe, fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
 		process.log.Warningf("Failed to write to signal pipe: %v", err)
@@ -1167,16 +1182,7 @@ func (process *TeleportProcess) getInstanceClient() *auth.Client {
 // the InstanceReady event is emitted.
 func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	process.inventorySetupDelay.Do(func() {
-		eventCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		eventC := make(chan Event, 1)
-		process.WaitForEvent(eventCtx, InstanceReady, eventC)
-
-		select {
-		case <-eventC:
-		case <-eventCtx.Done():
-		}
+		process.WaitForEvent(ctx, InstanceReady)
 	})
 	return process.makeInventoryControlStream(ctx)
 }
@@ -1807,10 +1813,7 @@ func payloadContext(payload interface{}, log logrus.FieldLogger) context.Context
 // when the callback is called
 func (process *TeleportProcess) OnExit(serviceName string, callback func(interface{})) {
 	process.RegisterFunc(serviceName, func() error {
-		eventC := make(chan Event)
-		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
-
-		event := <-eventC
+		event, _ := process.WaitForEvent(context.TODO(), TeleportExitEvent)
 		callback(event.Payload)
 		return nil
 	})
@@ -2072,27 +2075,15 @@ func (process *TeleportProcess) initInstance() error {
 		return nil
 	}
 	process.registerWithAuthServer(types.RoleInstance, InstanceIdentityEvent)
-	eventsC := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), InstanceIdentityEvent, eventsC)
 
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentInstance, process.id),
 	})
 
 	process.RegisterCriticalFunc("instance.init", func() error {
-		var event Event
-
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debugf("Process is exiting.")
-			return nil
-		}
-
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
+		conn, err := process.waitForConnector(InstanceIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
 		process.setInstanceClient(conn.Client)
@@ -2107,8 +2098,6 @@ func (process *TeleportProcess) initInstance() error {
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 	process.registerWithAuthServer(types.RoleNode, SSHIdentityEvent)
-	eventsC := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), SSHIdentityEvent, eventsC)
 
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
@@ -2124,20 +2113,10 @@ func (process *TeleportProcess) initSSH() error {
 	var asyncEmitter *events.AsyncEmitter
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
-		var ok bool
-		var event Event
-
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debugf("Process is exiting.")
-			return nil
-		}
-
-		conn, ok = (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
+		var err error
+		conn, err = process.waitForConnector(SSHIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
 		cfg := process.Config
@@ -2876,21 +2855,9 @@ func (process *TeleportProcess) initProxy() error {
 	}
 	process.registerWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
 	process.RegisterCriticalFunc("proxy.init", func() error {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), ProxyIdentityEvent, eventsC)
-
-		var event Event
-		select {
-		case event = <-eventsC:
-			process.log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			process.log.Debugf("Process is exiting.")
-			return nil
-		}
-
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
+		conn, err := process.waitForConnector(ProxyIdentityEvent, process.log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
 		if err := process.initProxyEndpoint(conn); err != nil {
@@ -3464,15 +3431,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		eventC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady, eventC)
-
 		process.RegisterCriticalFunc("proxy.peer", func() error {
-			select {
-			case <-process.ExitContext().Done():
+			if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
 				log.Debugf("Process exiting: failed to start peer proxy service waiting for reverse tunnel server")
 				return nil
-			case <-eventC:
 			}
 
 			log.Infof("Peer proxy service is starting on %s", listeners.proxy.Addr().String())
@@ -4018,21 +3980,14 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	return router
 }
 
-// registerAppDepend will register dependencies for application service.
-func (process *TeleportProcess) registerAppDepend() {
-	for _, eventName := range appDependEvents {
-		process.WaitForEvent(process.ExitContext(), eventName, process.appDependCh)
-	}
-}
-
 // waitForAppDepend waits until all dependencies for an application service
 // are ready.
 func (process *TeleportProcess) waitForAppDepend() {
-	for i := 0; i < len(appDependEvents); i++ {
-		select {
-		case <-process.appDependCh:
-		case <-process.ExitContext().Done():
+	for _, event := range appDependEvents {
+		_, err := process.WaitForEvent(process.ExitContext(), event)
+		if err != nil {
 			process.log.Debugf("Process is exiting.")
+			break
 		}
 	}
 }
@@ -4092,8 +4047,6 @@ func (process *TeleportProcess) initApps() {
 	// Auth Server need to exist on disk or a registration token should be
 	// provided.
 	process.registerWithAuthServer(types.RoleApp, AppsIdentityEvent)
-	eventsCh := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), AppsIdentityEvent, eventsCh)
 
 	// Define logger to prefix log lines with the name of the component and PID.
 	component := teleport.Component(teleport.ComponentApp, process.id)
@@ -4104,22 +4057,11 @@ func (process *TeleportProcess) initApps() {
 	var conn *Connector
 
 	process.RegisterCriticalFunc("apps.start", func() error {
-		var ok bool
-		var event Event
+		conn, err := process.waitForConnector(AppsIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
+		}
 
-		// Block until registration is complete and a client (with an identity) has
-		// been returned.
-		select {
-		case event = <-eventsCh:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debugf("Process is exiting.")
-			return nil
-		}
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported event payload type %q", event.Payload)
-		}
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
 		accessPoint, err := process.newLocalCacheForApps(conn.Client, []string{component})
@@ -4168,25 +4110,22 @@ func (process *TeleportProcess) initApps() {
 
 		// Start header dumping debugging application if requested.
 		if process.Config.Apps.DebugApp {
-			debugCh := make(chan Event)
-			process.WaitForEvent(process.ExitContext(), DebugAppReady, debugCh)
 			process.initDebugApp()
 
 			// Block until the header dumper application is ready, and once it is,
 			// figure out where it's running and add it to the list of applications.
-			select {
-			case event := <-debugCh:
-				server, ok := event.Payload.(*httptest.Server)
-				if !ok {
-					return trace.BadParameter("unexpected payload %T", event.Payload)
-				}
-				process.Config.Apps.Apps = append(process.Config.Apps.Apps, App{
-					Name: "dumper",
-					URI:  server.URL,
-				})
-			case <-process.ExitContext().Done():
-				return trace.Wrap(process.ExitContext().Err())
+			event, err := process.WaitForEvent(process.ExitContext(), DebugAppReady)
+			if err != nil {
+				return trace.Wrap(err)
 			}
+			server, ok := event.Payload.(*httptest.Server)
+			if !ok {
+				return trace.BadParameter("unexpected payload %T", event.Payload)
+			}
+			process.Config.Apps.Apps = append(process.Config.Apps.Apps, App{
+				Name: "dumper",
+				URI:  server.URL,
+			})
 		}
 
 		// Loop over each application and create a server.

@@ -193,18 +193,14 @@ func (p *databasePack) testRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	waitForEvent := func(process *service.TeleportProcess, event string) {
-		eventC := make(chan service.Event, 1)
-		process.WaitForEvent(context.TODO(), event, eventC)
-		select {
-		case <-eventC:
-
-		case <-time.After(20 * time.Second):
-			t.Fatalf("timeout waiting for service to broadcast event %s", event)
-		}
+		_, err := process.WaitForEventTimeout(20*time.Second, event)
+		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
 	}
 
 	for _, phase := range rotationPhases {
@@ -381,7 +377,6 @@ func (p *databasePack) testMySQLRootCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Close()
 	require.NoError(t, err)
-
 }
 
 // testMySQLLeafCluster tests a scenario where a user connects
@@ -523,7 +518,6 @@ func (p *databasePack) testMongoLeafCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Disconnect(context.Background())
 	require.NoError(t, err)
-
 }
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
@@ -992,8 +986,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	//TODO(tcsc): Refactor the test database setup such that it does
-	//            not use NewPortStr(),
+	// TODO(tcsc): Refactor the test database setup such that it does not use NewPortStr()
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
