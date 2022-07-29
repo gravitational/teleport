@@ -31,6 +31,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
@@ -54,13 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -1690,13 +1690,8 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	})
 
 	// Wait for node to become ready.
-	eventCh := make(chan service.Event, 1)
-	node.WaitForEvent(node.ExitContext(), service.NodeSSHReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("node didn't start after 10s")
-	}
+	node.WaitForEventTimeout(10*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "node didn't start after 10s")
 
 	return node
 }
@@ -1748,15 +1743,10 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
 
 	authAddr, err := auth.AuthSSHAddr()
 	require.NoError(t, err)
@@ -1788,12 +1778,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("proxy web server didn't start after 10s")
-	}
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
+	require.NoError(t, err, "proxy web server didn't start after 10s")
 
 	return auth, proxy
 }
