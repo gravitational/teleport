@@ -324,7 +324,7 @@ func fido2Register(
 	}
 
 	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
-	log.Debugf("FIDO2: registration: rrk=%v", rrk)
+	log.Debugf("FIDO2: registration: resident key=%v", rrk)
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
@@ -393,7 +393,7 @@ func fido2Register(
 			log.Debugf("FIDO2: Device %v: filtered due to plat mismatch (requested %v, device %v)", info.path, plat, info.plat)
 			return false, nil
 		case rrk && !info.rk:
-			log.Debugf("FIDO2: Device %v: filtered due to lack of RK", info.path)
+			log.Debugf("FIDO2: Device %v: filtered due to lack of resident keys", info.path)
 			return false, nil
 		case uv && !info.uvCapable():
 			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
