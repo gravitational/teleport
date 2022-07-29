@@ -19,7 +19,14 @@ COPY README.md packages/webapps.e/telepor[t]/package.json web-apps/packages/weba
 
 # download and install npm dependencies
 WORKDIR web-apps
-RUN yarn install
+# Install JavaScript dependencies and manually check if yarn.lock needs an update.
+# Yarn v1 doesn't respect the --frozen-lockfile flag when using workspaces.
+# https://github.com/yarnpkg/yarn/issues/4098
+RUN sha384sum yarn.lock > yarn-lock-sha \
+  && yarn install \
+  && sha384sum --check yarn-lock-sha || \
+  { echo "yarn.lock needs an update; run yarn install, verify that correct dependencies were installed \
+and commit the updated version of yarn.lock"; exit 1; }
 
 # copy the rest of the files and run yarn build command
 COPY  . .
