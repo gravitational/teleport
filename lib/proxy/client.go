@@ -488,7 +488,6 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 	ids := make(map[string]struct{})
 	var conns []*clientConn
-	defer c.config.connShuffler(conns)
 
 	// look for existing matching connections.
 	c.RLock()
@@ -505,6 +504,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 	c.RUnlock()
 
 	if len(conns) != 0 {
+		c.config.connShuffler(conns)
 		return conns, true, nil
 	}
 
@@ -547,6 +547,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 		c.conns[conn.id] = conn
 	}
 
+	c.config.connShuffler(conns)
 	return conns, false, nil
 }
 
