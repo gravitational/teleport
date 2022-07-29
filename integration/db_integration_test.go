@@ -159,18 +159,14 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	waitForEvent := func(process *service.TeleportProcess, event string) {
-		eventC := make(chan service.Event, 1)
-		process.WaitForEvent(context.TODO(), event, eventC)
-		select {
-		case <-eventC:
-
-		case <-time.After(20 * time.Second):
-			t.Fatalf("timeout waiting for service to broadcast event %s", event)
-		}
+		_, err := process.WaitForEventTimeout(20*time.Second, event)
+		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
 	}
 
 	for _, phase := range rotationPhases {
