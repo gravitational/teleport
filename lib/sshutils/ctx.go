@@ -85,8 +85,23 @@ type agentChannel struct {
 	ch ssh.Channel
 }
 
+// Close closes the agent channel.
 func (a *agentChannel) Close() error {
-	return a.ch.Close()
+	// For graceful teardown, close the write part of the channel first. This
+	// will send "EOF" packet (type 96) to the other side which will drain and
+	// close the channel.
+	//
+	// The regular close after that will send "close" packet (type 97) which
+	// won't attempt to send us any more data since the channel is already
+	// closed.
+	//
+	// This mimics vanilla OpenSSH behavior. Without close_write first, the
+	// agent client may be getting warnings like the following in stdout:
+	//
+	// channel 1: chan_shutdown_read: shutdown() failed for fd 8 [i0 o1]: Not a socket
+	return trace.NewAggregate(
+		a.ch.CloseWrite(),
+		a.ch.Close())
 }
 
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
