@@ -97,28 +97,34 @@ func buildDockerPromotionPipelineQuay() pipeline {
 		Name:  "Pull/retag Docker images",
 		Image: "docker",
 		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":     {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_KEY"},
-			"AWS_SECRET_ACCESS_KEY": {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_SECRET"},
+			"STAGING_QUAY_USERNAME": {fromSecret: "QUAYIO_DOCKER_USERNAME"},
+			"STAGING_QUAY_PASSWORD": {fromSecret: "QUAYIO_DOCKER_PASSWORD"},
 			"QUAY_USERNAME":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_USERNAME"},
 			"QUAY_PASSWORD":         {fromSecret: "PRODUCTION_QUAYIO_DOCKER_PASSWORD"},
+			"AWS_ACCESS_KEY_ID":     {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_KEY"},
+			"AWS_SECRET_ACCESS_KEY": {fromSecret: "STAGING_TELEPORT_DRONE_USER_ECR_SECRET"},
 		},
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
 			"apk add --no-cache aws-cli",
 			"export VERSION=${DRONE_TAG##v}",
 			// authenticate with staging credentials
+			`docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" ` + ProductionRegistryQuay,
 			"aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin " + StagingRegistry,
 			// pull staging images
 			"echo \"---> Pulling images for $${VERSION}\"",
 			fmt.Sprintf("docker pull %s/gravitational/teleport:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry),
 			fmt.Sprintf("docker pull %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry),
+			fmt.Sprintf("docker pull %s/gravitational/teleport-operator-ci:$${VERSION}", ProductionRegistryQuay),
 			// retag images to production naming
 			"echo \"---> Tagging images for $${VERSION}\"",
 			fmt.Sprintf("docker tag %s/gravitational/teleport:$${VERSION} %s/gravitational/teleport:$${VERSION}", StagingRegistry, ProductionRegistryQuay),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION} %s/gravitational/teleport-ent:$${VERSION}", StagingRegistry, ProductionRegistryQuay),
 			fmt.Sprintf("docker tag %s/gravitational/teleport-ent:$${VERSION}-fips %s/gravitational/teleport-ent:$${VERSION}-fips", StagingRegistry, ProductionRegistryQuay),
+			fmt.Sprintf("docker tag %s/gravitational/teleport-operator-ci:$${VERSION} %s/gravitational/teleport-operator:$${VERSION}", ProductionRegistryQuay, ProductionRegistryQuay),
 			// authenticate with production credentials
+			"docker logout " + ProductionRegistryQuay,
 			"docker logout " + StagingRegistry,
 			"docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" " + ProductionRegistryQuay,
 			// push production images
@@ -126,6 +132,7 @@ func buildDockerPromotionPipelineQuay() pipeline {
 			fmt.Sprintf("docker push %s/gravitational/teleport:$${VERSION}", ProductionRegistryQuay),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}", ProductionRegistryQuay),
 			fmt.Sprintf("docker push %s/gravitational/teleport-ent:$${VERSION}-fips", ProductionRegistryQuay),
+			fmt.Sprintf("docker push %s/gravitational/teleport-operator:$${VERSION}", ProductionRegistryQuay),
 		},
 	})
 
