@@ -234,7 +234,9 @@ fn connect_rdp_inner(
     // From rdp-rs/src/core/client.rs
     let shared_tcp = SharedStream::new(tcp);
     // Set read timeout to prevent blocking forever on the handshake if the RDP server doesn't respond.
-    shared_tcp.tcp.set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
+    shared_tcp
+        .tcp
+        .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
