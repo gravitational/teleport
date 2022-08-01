@@ -468,7 +468,7 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
 
-	genMTLSReq := db.GenerateDatabaseCertificatesRequest{
+	dbCertReq := db.GenerateDatabaseCertificatesRequest{
 		ClusterAPI:         clusterAPI,
 		Principals:         principals,
 		OutputFormat:       a.outputFormat,
@@ -477,7 +477,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		TTL:                a.genTTL,
 		Key:                key,
 	}
-	filesWritten, err := db.GenerateDatabaseCertificates(ctx, genMTLSReq)
+	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -508,10 +508,6 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 	tplVars := map[string]interface{}{
 		"files":  strings.Join(filesWritten, ", "),
 		"output": output,
-	}
-
-	if outputFormat == identityfile.FormatSnowflake {
-		delete(tplVars, "output")
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))

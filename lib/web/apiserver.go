@@ -2700,7 +2700,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 }
 
 // ProvisionTokenHandler is a authenticated handler that is called for some existing Token
-type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, roles types.SystemRoles) (interface{}, error)
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, token types.ProvisionToken) (interface{}, error)
 
 // WithProvisionTokenAuth ensures that request is authenticated with a provision token.
 // Provision tokens, when used like this are invalidated as soon as used.
@@ -2716,7 +2716,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.AccessDenied("need auth")
 		}
 
-		tokenRoles, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
 		if err != nil {
 			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
@@ -2728,7 +2728,7 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, site, tokenRoles)
+		return fn(w, r, p, site, token)
 	})
 }
 
@@ -2739,19 +2739,17 @@ func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Ha
 // This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
 // This is currently true for all the backends as explained here
 // https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
-func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.SystemRoles, error) {
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
 	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	roles := token.GetRoles()
-
 	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return roles, nil
+	return token, nil
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)

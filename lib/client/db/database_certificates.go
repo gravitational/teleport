@@ -44,7 +44,10 @@ type GenerateDatabaseCertificatesRequest struct {
 
 // GenerateDatabaseCertificates to be used by databases to set up mTLS authentication
 func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCertificatesRequest) ([]string, error) {
-	if req.OutputFormat != identityfile.FormatSnowflake && len(req.Principals) == 1 && req.Principals[0] == "" {
+
+	if len(req.Principals) == 0 ||
+		(len(req.Principals) == 1 && req.Principals[0] == "" && req.OutputFormat != identityfile.FormatSnowflake) {
+
 		return nil, trace.BadParameter("at least one hostname must be specified")
 	}
 

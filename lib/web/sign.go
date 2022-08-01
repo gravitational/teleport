@@ -49,8 +49,8 @@ Should be equivalent to running:
 
 This endpoint returns a tar.gz compressed archive containing the required files to setup mTLS for the database.
 */
-func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, tokenRoles types.SystemRoles) (interface{}, error) {
-	if !tokenRoles.Include(types.RoleDatabase) {
+func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, token types.ProvisionToken) (interface{}, error) {
+	if !token.GetRoles().Include(types.RoleDatabase) {
 		return nil, trace.AccessDenied("required '%s' role was not provided by the token", types.RoleDatabase)
 	}
 
@@ -65,7 +65,7 @@ func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request
 
 	virtualFS := identityfile.NewInMemoryConfigWriter()
 
-	mTLSReq := db.GenerateDatabaseCertificatesRequest{
+	dbCertReq := db.GenerateDatabaseCertificatesRequest{
 		ClusterAPI:         h.auth.proxyClient,
 		Principals:         []string{req.Hostname},
 		OutputFormat:       identityfile.FormatDatabase,
@@ -74,7 +74,7 @@ func (h *Handler) signDatabaseCertificate(w http.ResponseWriter, r *http.Request
 		IdentityFileWriter: virtualFS,
 		TTL:                req.TTL,
 	}
-	filesWritten, err := db.GenerateDatabaseCertificates(r.Context(), mTLSReq)
+	filesWritten, err := db.GenerateDatabaseCertificates(r.Context(), dbCertReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
