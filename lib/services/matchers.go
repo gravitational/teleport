@@ -245,4 +245,8 @@ const (
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
 	AWSMatcherEC2 = "ec2"
+	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
+	AzureMatcherMySQL = "mysql"
+	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
+	AzureMatcherPostgres = "postgres"
 )

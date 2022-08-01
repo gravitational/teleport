@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -132,6 +134,38 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+
+// NewDatabaseFromAzureMySQLServer creates a database resource from an AzureMySQL server.
+func NewDatabaseFromAzureMySQLServer(server *armmysql.Server) (types.Database, error) {
+	if server.Properties == nil || server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("empty endpoint")
+	}
+	endpoint := *server.Properties.FullyQualifiedDomainName
+	if server.Name == nil {
+		return nil, trace.BadParameter("empty server name")
+	}
+	name := *server.Name
+
+	metadata, err := MetadataFromAzureMySQLServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var location string
+	if server.Location != nil {
+		location = *server.Location
+	}
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure MySQL server in %v", location),
+			Labels:      labelsFromAzureMySQLServer(server, metadata),
+		}, name),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      fmt.Sprintf("%v:%v", endpoint, AzureMySQLPort),
+			Azure:    *metadata,
+		})
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
@@ -341,6 +375,29 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		})
 }
 
+// MetadataFromAzureMySQLServer creates Azure metadata from the provided AzureMySQL server.
+func MetadataFromAzureMySQLServer(server *armmysql.Server) (*types.Azure, error) {
+	var (
+		name   string
+		region string
+		id     string
+	)
+	if server.Name != nil {
+		name = *server.Name
+	}
+	if server.Location != nil {
+		region = *server.Location
+	}
+	if server.ID != nil {
+		id = *server.ID
+	}
+	return &types.Azure{
+		Name:       name,
+		Region:     region,
+		ResourceID: id,
+	}, nil
+}
+
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
@@ -512,6 +569,28 @@ func engineToProtocol(engine string) string {
 	return ""
 }
 
+// labelsFromAzureMySQLServer creates database labels for the provided Azure MySQL server.
+func labelsFromAzureMySQLServer(server *armmysql.Server, meta *types.Azure) map[string]string {
+	labels := azureTagsToLabels(server.Tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = meta.Region
+	if server.Type != nil {
+		labels[labelEngine] = *server.Type
+	}
+	if server.Properties != nil && server.Properties.Version != nil {
+		labels[labelEngineVersion] = string(*server.Properties.Version)
+	}
+	labels[labelEndpointType] = AzureMySQLEndpointTypeServer
+	if server.ID != nil {
+		resourceID, err := arm.ParseResourceID(*server.ID)
+		if err == nil {
+			labels[labelResourceGroup] = resourceID.ResourceGroupName
+			labels[labelSubscriptionID] = resourceID.SubscriptionID
+		}
+	}
+	return labels
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -566,6 +645,23 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 	return labels
 }
 
+// azureTagsToLabels converts Azure tags to a labels map.
+func azureTagsToLabels(tags map[string]*string) map[string]string {
+	labels := make(map[string]string)
+	for key, val := range tags {
+		if val == nil {
+			log.Debugf("Skipping Azure tag %q, missing a value.")
+			continue
+		}
+		if types.IsValidLabelKey(key) {
+			labels[key] = *val
+		} else {
+			log.Debugf("Skipping Azure tag %q, not a valid label key.", key)
+		}
+	}
+	return labels
+}
+
 // rdsTagsToLabels converts RDS tags to a labels map.
 func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 	labels := make(map[string]string)
@@ -583,6 +679,17 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 		}
 	}
 	return labels
+}
+
+// IsAzureMySQLVersionSupported returns true if database supports IAM authentication.
+// Only available for 5.7 and newer.
+func IsAzureMySQLVersionSupported(version armmysql.ServerVersion) bool {
+	switch version {
+	case armmysql.ServerVersionEight0, armmysql.ServerVersionFive7:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRDSInstanceSupported returns true if database supports IAM authentication.
@@ -639,6 +746,20 @@ func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
 // IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
 func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
 	return aws.BoolValue(cluster.TLSEnabled)
+}
+
+func IsAzureMySQLServerAvailable(state armmysql.ServerState) bool {
+	switch state {
+	case armmysql.ServerStateReady:
+		return true
+	case armmysql.ServerStateInaccessible,
+		armmysql.ServerStateDropping,
+		armmysql.ServerStateDisabled:
+		return false
+	default:
+		log.Warnf("Unknown Azure MySQL server state: %q", state)
+		return false
+	}
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -876,4 +997,18 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// labelSubscriptionID is the label key for Azure subscription ID.
+	labelSubscriptionID = "subscription-id"
+	// labelResourceGroup is the label key for the Azure resource group name.
+	labelResourceGroup = "resource-group"
+)
+
+const (
+	// Azure managed mysql server port is always 3306
+	AzureMySQLPort = "3306"
+	// AzureMySQLEndpointTypeServer is the endpoint for an Azure single-server instance
+	AzureMySQLEndpointTypeServer = "server"
 )

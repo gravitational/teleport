@@ -23,7 +23,9 @@ import (
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -72,6 +74,8 @@ type CloudClients interface {
 	GetGCPSQLAdminClient(context.Context) (GCPSQLAdminClient, error)
 	// GetAzureCredential returns Azure default token credential chain.
 	GetAzureCredential() (azcore.TokenCredential, error)
+	// GetAzureMySQLClient returns Azure MySQL client for the specified subscription.
+	GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -92,6 +96,8 @@ type cloudClients struct {
 	gcpSQLAdmin GCPSQLAdminClient
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
+	// azureMySQLClient is the cached Azure MySQL client.
+	azureMySQLClient *armmysql.ServersClient
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -203,6 +209,16 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return c.initAzureCredential()
 }
 
+func (c *cloudClients) GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error) {
+	c.mtx.RLock()
+	if c.azureMySQLClient != nil {
+		defer c.mtx.RUnlock()
+		return c.azureMySQLClient, nil
+	}
+	c.mtx.RUnlock()
+	return c.initAzureMySQLClient(subscription, cred)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -277,6 +293,22 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	}
 	c.azureCredential = cred
 	return cred, nil
+}
+
+func (c *cloudClients) initAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.azureMySQLClient != nil { // If some other thread already got here first.
+		return c.azureMySQLClient, nil
+	}
+	logrus.Debug("Initializing Azure MySQL servers client.")
+	options := &arm.ClientOptions{}
+	client, err := armmysql.NewServersClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.azureMySQLClient = client
+	return client, nil
 }
 
 // TestCloudClients are used in tests.

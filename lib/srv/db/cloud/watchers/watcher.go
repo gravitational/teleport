@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -33,6 +34,8 @@ import (
 type WatcherConfig struct {
 	// AWSMatchers is a list of matchers for AWS databases.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of matchers for Azure databases.
+	AzureMatchers []services.AzureMatcher
 	// Clients provides cloud API clients.
 	Clients common.CloudClients
 	// Interval is the interval between fetches.
@@ -75,7 +78,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fetchers, err := makeFetchers(config.Clients, config.AWSMatchers)
+	fetchers, err := config.makeFetchers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +146,23 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
-func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+func (c *WatcherConfig) makeFetchers() (result []Fetcher, err error) {
+	if fetchers, err := makeAWSFetchers(c.Clients, c.AWSMatchers); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		result = append(result, fetchers...)
+	}
+
+	if fetchers, err := makeAzureFetchers(c.Clients, c.AzureMatchers); err != nil {
+		return nil, trace.Wrap(err)
+	} else {
+		result = append(result, fetchers...)
+	}
+
+	return result, nil
+}
+
+func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(common.CloudClients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
@@ -170,6 +189,56 @@ func makeFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (
 		}
 	}
 	return result, nil
+}
+
+func makeAzureFetchers(clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(common.CloudClients, string, azcore.TokenCredential, []string, types.Labels) (Fetcher, error)
+	makeFetcherFuncs := map[string][]makeFetcherFunc{
+		services.AzureMatcherMySQL: {makeAzureMySQLFetcher},
+		// TODO(gavin): postgres
+	}
+	cred, err := clients.GetAzureCredential()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, matcher := range matchers {
+		for _, sub := range matcher.Subscriptions {
+			for matcherType, makeFetchers := range makeFetcherFuncs {
+				if !utils.SliceContainsStr(matcher.Types, matcherType) {
+					continue
+				}
+
+				for _, makeFetcher := range makeFetchers {
+					fetcher, err := makeFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result = append(result, fetcher)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+// makeAzureMySQLFetcher returns Azure MySQL server fetcher for the provided subscription, regions, and tags.
+func makeAzureMySQLFetcher(clients common.CloudClients, subscription string, cred azcore.TokenCredential, regions []string, tags types.Labels) (Fetcher, error) {
+	client, err := clients.GetAzureMySQLClient(subscription, cred)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetcher, err := newAzureMySQLFetcher(
+		azureMySQLFetcherConfig{
+			Regions: regions,
+			Labels:  tags,
+			Client:     client,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fetcher, nil
 }
 
 // makeRDSInstanceFetcher returns RDS instance fetcher for the provided region and tags.

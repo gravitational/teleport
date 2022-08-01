@@ -103,8 +103,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
 	watcher, err := watchers.NewWatcher(ctx, watchers.WatcherConfig{
-		AWSMatchers: s.cfg.AWSMatchers,
-		Clients:     s.cfg.CloudClients,
+		AWSMatchers:   s.cfg.AWSMatchers,
+		AzureMatchers: s.cfg.AzureMatchers,
+		Clients:       s.cfg.CloudClients,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {

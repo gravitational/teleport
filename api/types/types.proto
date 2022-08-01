@@ -366,6 +366,12 @@ message GCPCloudSQL {
 message Azure {
     // Name is the Azure database server name.
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+    // Region is an Azure cloud region.
+    string Region = 2 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // ResourceID is the Azure fully qualified ID for the resource.
+    // e.g
+    // /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+    string ResourceID = 3 [ (gogoproto.jsontag) = "resource_id,omitempty" ];
 }
 
 // AD contains Active Directory specific database configuration.
