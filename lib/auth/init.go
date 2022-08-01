@@ -173,6 +173,9 @@ type InitConfig struct {
 
 	// Enforcer is used to enforce Teleport Enterprise license compliance.
 	Enforcer services.Enforcer
+
+	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
+	ConnectionsDiagnostic services.ConnectionsDiagnostic
 }
 
 // Init instantiates and configures an instance of AuthServer

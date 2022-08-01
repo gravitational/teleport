@@ -256,6 +256,9 @@ const (
 	// KindSessionTracker is a resource that tracks a live session.
 	KindSessionTracker = "session_tracker"
 
+	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
+	KindConnectionDiagnostic = "connection_diagnostic"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
