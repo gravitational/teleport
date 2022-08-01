@@ -4,3 +4,4 @@ node_modules
 coverage
 dist
 **/dist
+*DS_store
