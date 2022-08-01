@@ -1,8 +1,8 @@
 # Changelog
 
-## 10.1.0
+## 10.1.1
 
-Teleport 10.1.0 is a minor release that brings the following new features:
+Teleport 10.1 is a minor release that brings the following new features:
 
 * Machine ID support for Kubernetes Access (Preview). [#14550](https://github.com/gravitational/teleport/pull/14550)
 * Machine ID support for Application Access (Preview). [#14723](https://github.com/gravitational/teleport/pull/14723)
