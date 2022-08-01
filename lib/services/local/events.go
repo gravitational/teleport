@@ -1164,7 +1164,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1189,7 +1189,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
 	}
 }
 
