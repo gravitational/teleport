@@ -229,7 +229,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }
@@ -1164,7 +1164,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1189,7 +1189,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
 	}
 }
 

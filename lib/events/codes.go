@@ -106,6 +106,8 @@ const (
 
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionEndCode is the application session end event code.
+	AppSessionEndCode = "T2011I"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -325,6 +327,9 @@ const (
 	// RenewableCertificateGenerationMismatchCode is the renewable cert
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
+
+	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
+	UpgradeWindowStartUpdatedCode = "TUW01I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

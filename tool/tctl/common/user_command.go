@@ -327,12 +327,12 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	}
 	if len(u.allowedDatabaseUsers) > 0 {
 		dbUsers := flattenSlice(u.allowedDatabaseUsers)
-		user.SetDBUsers(dbUsers)
+		user.SetDatabaseUsers(dbUsers)
 		updateMessages["database users"] = dbUsers
 	}
 	if len(u.allowedDatabaseNames) > 0 {
 		dbNames := flattenSlice(u.allowedDatabaseNames)
-		user.SetDBNames(dbNames)
+		user.SetDatabaseNames(dbNames)
 		updateMessages["database names"] = dbNames
 	}
 	if len(u.allowedAWSRoleARNs) > 0 {

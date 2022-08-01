@@ -1870,6 +1870,16 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	return trail.FromGRPC(err)
 }
 
+// CreateToken creates a provision token.
+func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T", token)
+	}
+	_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GenerateToken generates a new auth token for the given service roles.
 // This token can be used by corresponding services to authenticate with
 // the Auth server and get a signed certificate and private key.
@@ -2768,4 +2778,23 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
+}
+
+// GetConnectionDiagnostic reads a connection diagnostic
+func (c *Client) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
+	req := &proto.GetConnectionDiagnosticRequest{
+		Name: name,
+	}
+	res, err := c.grpc.GetConnectionDiagnostic(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CreateConnectionDiagnostic creates a new connection diagnostic.
+func (c *Client) CreateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.CreateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
 }

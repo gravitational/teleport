@@ -504,6 +504,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
+				"teleport-tcp",
 			},
 		},
 		{
@@ -522,6 +523,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
+				"teleport-tcp",
 			},
 		},
 	}

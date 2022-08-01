@@ -165,7 +165,7 @@ func RoleForUser(u types.User) types.Role {
 
 // RoleForCertAuthority creates role using types.CertAuthority.
 func RoleForCertAuthority(ca types.CertAuthority) types.Role {
-	role, _ := types.NewRoleV3(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
+	role, _ := types.NewRole(RoleNameForCertAuthority(ca.GetClusterName()), types.RoleSpecV5{
 		Options: types.RoleOptions{
 			MaxSessionTTL: types.NewDuration(defaults.MaxCertDuration),
 		},
@@ -649,7 +649,7 @@ type HostUsersInfo struct {
 
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRoleV3(name, spec)
+	role, err := types.NewRole(name, spec)
 	return role, trace.Wrap(err)
 }
 

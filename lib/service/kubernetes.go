@@ -43,25 +43,12 @@ func (process *TeleportProcess) initKubernetes() {
 
 	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), KubeIdentityEvent, eventsC)
-
-		var event Event
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debug("Process is exiting.")
-			return nil
+		conn, err := process.waitForConnector(KubeIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
-		}
-
-		err := process.initKubernetesService(log, conn)
-		if err != nil {
+		if err := process.initKubernetesService(log, conn); err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
 		}
@@ -127,7 +114,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		log.Debug("Turning on Kubernetes service listening address.")
-		listener, err = process.importOrCreateListener(listenerKube, cfg.Kube.ListenAddr.Addr)
+		listener, err = process.importOrCreateListener(ListenerKube, cfg.Kube.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}

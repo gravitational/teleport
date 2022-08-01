@@ -25,6 +25,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -46,10 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -159,6 +159,14 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 		a.TLS.Shutdown(ctx),
 		a.AuthServer.Close(),
 	)
+}
+
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
 }
 
 // TestAuthServer is auth server using local filesystem backend
@@ -357,11 +365,11 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromUser(user, a.AuthServer)
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, a.ClusterName)
 	certs, err := a.AuthServer.generateUserCert(certRequest{
 		user:          user,
 		ttl:           ttl,
@@ -415,11 +423,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo, err := services.AccessInfoFromUser(user, authServer)
+		accessInfo := services.AccessInfoFromUser(user)
+		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
@@ -941,7 +949,7 @@ type clt interface {
 
 // CreateRole creates a role without assigning any users. Used in tests.
 func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRoleV3(name, spec)
+	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
