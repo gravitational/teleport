@@ -60,7 +60,7 @@ func withInsecure(insecure bool) optionsFunc {
 	}
 }
 
-func getAuthClient(t *testing.T, ctx context.Context, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
+func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opts ...optionsFunc) auth.ClientI {
 	var options options
 	for _, v := range opts {
 		v(&options)
@@ -99,7 +99,7 @@ func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []stri
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	client := getAuthClient(t, ctx, fc, opts...)
+	client := getAuthClient(ctx, t, fc, opts...)
 	_, err = cmd.TryRun(ctx, selectedCmd, client)
 	return err
 }

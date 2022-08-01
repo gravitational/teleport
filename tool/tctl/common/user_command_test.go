@@ -76,7 +76,7 @@ func TestUserUpdate(t *testing.T) {
 	}
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 	ctx := context.Background()
-	client := getAuthClient(t, ctx, fileConfig)
+	client := getAuthClient(ctx, t, fileConfig)
 
 	baseUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
