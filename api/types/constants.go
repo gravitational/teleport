@@ -259,6 +259,9 @@ const (
 	// KindDatabaseCertificate is a resource to control Database Certificates generation
 	KindDatabaseCertificate = "database_certificate"
 
+	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
+	KindConnectionDiagnostic = "connection_diagnostic"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 

@@ -170,6 +170,9 @@ type InitConfig struct {
 	WindowsDesktops services.WindowsDesktops
 
 	SessionTrackerService services.SessionTrackerService
+
+	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
+	ConnectionsDiagnostic services.ConnectionsDiagnostic
 }
 
 // Init instantiates and configures an instance of AuthServer
