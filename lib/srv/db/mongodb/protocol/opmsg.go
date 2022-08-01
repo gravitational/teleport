@@ -281,11 +281,11 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 
 // validateDocumentSize validates document length encoded in the message.
 func validateDocumentSize(src []byte) error {
-        const headerLen = 4
+	const headerLen = 4
 	if len(src) < headerLen {
 		return trace.BadParameter("document is too short")
 	}
-	
+
 	// document length is encoded in the first 4 bytes
 	documentLength := int(int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24)
 
