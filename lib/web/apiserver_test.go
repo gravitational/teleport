@@ -2098,6 +2098,11 @@ func TestTokenGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+	endpoint := pack.clt.Endpoint("webapi", "token")
+
 	tt := []struct {
 		name       string
 		roles      types.SystemRoles
@@ -2149,12 +2154,6 @@ func TestTokenGeneration(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := newWebPack(t, 1)
-
-			proxy := env.proxies[0]
-			pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
-
-			endpoint := pack.clt.Endpoint("webapi", "token")
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
 				Roles:      tc.roles,
 				JoinMethod: tc.joinMethod,
