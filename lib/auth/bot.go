@@ -127,14 +127,14 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	// Ensure conflicting resources don't already exist.
 	// We skip the cache here to allow for bot recreation shortly after bot
 	// deletion.
-	_, err := s.Access.GetRole(ctx, resourceName)
+	_, err := s.Services.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	if roleExists := (err == nil); roleExists {
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
-	_, err = s.Identity.GetUser(resourceName, false)
+	_, err = s.Services.GetUser(resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
