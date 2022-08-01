@@ -338,7 +338,11 @@ image-fips-ci: docker-binaries-fips
 
 .PHONY: publish-ci
 publish-ci:
-	docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_ENT_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+		echo "$(DOCKER_IMAGE_ENT_STAGING):$(VERSION) already exists. ";     \
+	else                                                                    \
+		docker push $(DOCKER_IMAGE_ENT_STAGING):$(VERSION);                 \
+	fi
 
 .PHONY: publish-fips-ci
 publish-fips-ci:
