@@ -343,10 +343,11 @@ func (p Protocol) String() string {
 }
 
 var (
-	proxyPrefix   = []byte{'P', 'R', 'O', 'X', 'Y'}
-	proxyV2Prefix = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
-	sshPrefix     = []byte{'S', 'S', 'H'}
-	tlsPrefix     = []byte{0x16}
+	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
+	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	sshPrefix        = []byte{'S', 'S', 'H'}
+	tlsPrefix        = []byte{0x16}
+	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -387,8 +388,6 @@ func isHTTP(in []byte) bool {
 	return false
 }
 
-var proxyHelloSig = []byte(sshutils.ProxyHelloSignature)
-
 // detectProto tries to determine the network protocol used from the first
 // few bytes of a connection.
 func detectProto(r *bufio.Reader) (Protocol, error) {
@@ -413,14 +412,14 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		if bytes.HasPrefix(in, proxyV2Prefix) {
 			return ProtoProxyV2, nil
 		}
-	case bytes.HasPrefix(in, proxyHelloSig[:8]):
+	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
 		// Support for SSH connections opened with the ProxyHelloSignature for
 		// Teleport to Teleport connections.
-		in, err = r.Peek(len(proxyHelloSig))
+		in, err = r.Peek(len(proxyHelloPrefix))
 		if err != nil {
 			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
 		}
-		if bytes.HasPrefix(in, proxyHelloSig) {
+		if bytes.HasPrefix(in, proxyHelloPrefix) {
 			return ProtoSSH, nil
 		}
 	case bytes.HasPrefix(in, sshPrefix):

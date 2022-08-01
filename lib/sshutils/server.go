@@ -443,9 +443,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		if !errors.Is(err, io.EOF) {
 			s.log.
 				WithError(err).
-				WithFields(logrus.Fields{
-					"remote_addr": conn.RemoteAddr(),
-				}).Warn("Error occurred in handshake for new SSH conn")
+				WithField("remote_addr", conn.RemoteAddr()).
+				Warn("Error occurred in handshake for new SSH conn")
 		}
 		conn.SetDeadline(time.Time{})
 		return

@@ -2969,7 +2969,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 			listeners.ssh = mux.SSH()
 			go func() {
-				if err := mux.Serve(); err != nil {
+				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
 					mux.Entry.WithError(err).Error("Mux encountered err serving")
 				}
 			}()
@@ -3068,7 +3068,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
 		go func() {
-			if err := listeners.mux.Serve(); err != nil {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
 				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
 			}
 		}()
@@ -3099,7 +3099,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}
 		go func() {
-			if err := listeners.mux.Serve(); err != nil {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
 				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
 			}
 		}()
@@ -3137,7 +3137,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				listeners.web = listeners.mux.TLS()
 				process.muxPostgresOnWebPort(cfg, &listeners)
 				go func() {
-					if err := listeners.mux.Serve(); err != nil {
+					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
 						listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
 					}
 				}()
