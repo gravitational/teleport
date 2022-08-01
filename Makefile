@@ -13,7 +13,6 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-
 DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -1015,7 +1014,11 @@ image-ci: clean docker-binaries
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
+	@if docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION); then\
+		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
+	else                                                                \
+		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
