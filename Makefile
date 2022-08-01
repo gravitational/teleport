@@ -953,7 +953,11 @@ image-ci: clean docker-binaries
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
+	else                                                                \
+		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version
