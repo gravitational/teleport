@@ -528,6 +528,9 @@ type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 // (RegisterPrompt happens to match the minimal interface required.)
 type runPrompt RegisterPrompt
 
+// errNoSuitableDevices is used internally to loop over findSuitableDevices.
+var errNoSuitableDevices = errors.New("no suitable devices found")
+
 func runOnFIDO2Devices(
 	ctx context.Context,
 	prompt runPrompt,
@@ -537,7 +540,7 @@ func runOnFIDO2Devices(
 	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
 	prompted := false
 	devices, err := findSuitableDevices(filter, knownPaths)
-	if err != nil {
+	if errors.Is(err, errNoSuitableDevices) {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
 		prompt.PromptTouch()
@@ -585,11 +588,15 @@ func findSuitableDevicesOrTimeout(
 	defer ticker.Stop()
 
 	for {
-		devices, err := findSuitableDevices(filter, knownPaths)
-		if err == nil {
+		switch devices, err := findSuitableDevices(filter, knownPaths); {
+		case err == nil:
 			return devices, nil
+		case errors.Is(err, errNoSuitableDevices):
+			// OK, carry on until we find a device or timeout.
+		default:
+			// Unexpected, abort.
+			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Debug("FIDO2: Selecting devices")
 
 		select {
 		case <-ctx.Done():
@@ -623,6 +630,11 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		for i := 0; i < infoAttempts; i++ {
 			info, err = dev.Info()
 			switch {
+			case errors.Is(err, libfido2.ErrNotFIDO2):
+				// Use an empty info and carry on.
+				// A FIDO/U2F device has no capabilities beyond MFA
+				// registrations/assertions.
+				info = &libfido2.DeviceInfo{}
 			case errors.Is(err, libfido2.ErrTX):
 				// Happens occasionally, give the device a short grace period and retry.
 				time.Sleep(1 * time.Millisecond)
@@ -649,7 +661,7 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 
 	l := len(devs)
 	if l == 0 {
-		return nil, errors.New("no suitable devices found")
+		return nil, errNoSuitableDevices
 	}
 	log.Debugf("FIDO2: Found %v suitable devices", l)
 

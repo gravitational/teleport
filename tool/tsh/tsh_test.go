@@ -24,12 +24,21 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -38,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -53,13 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -76,6 +79,9 @@ func init() {
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
 		main()
+		// main will only exit if there is an error.
+		// since we are here, there was no error, so we must do so ourselves.
+		os.Exit(0)
 		return
 	}
 
@@ -127,6 +133,130 @@ func (p *cliModules) Features() modules.Features {
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *cliModules) IsBoringBinary() bool {
 	return false
+}
+
+func TestAlias(t *testing.T) {
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		aliases        map[string]string
+		args           []string
+		wantErr        bool
+		validateOutput func(t *testing.T, output string)
+	}{
+		{
+			name: "loop",
+			aliases: map[string]string{
+				"loop": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "loop via other",
+			aliases: map[string]string{
+				"loop":      fmt.Sprintf("%v loop", testExecutable),
+				"loop-call": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop-call"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "r1 -> r2 -> r1",
+			aliases: map[string]string{
+				"r1": fmt.Sprintf("%v r2", testExecutable),
+				"r2": fmt.Sprintf("%v r1", testExecutable),
+			},
+			args:    []string{"r2"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"r2\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "set default flag to command",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+			},
+			args:    []string{"version"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "default flag and alias",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+				"v":       fmt.Sprintf("%v version", testExecutable),
+			},
+			args:    []string{"v"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "call external program, pass non-zero exit code",
+			aliases: map[string]string{
+				"ss": fmt.Sprintf("%v status", testExecutable),
+				"bb": fmt.Sprintf("bash -c '%v ss'", testExecutable),
+			},
+			args:    []string{"bb"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, fmt.Sprintf("%vNot logged in", utils.Color(utils.Red, "ERROR: ")))
+				require.Contains(t, output, fmt.Sprintf("%vexit status 1", utils.Color(utils.Red, "ERROR: ")))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// make sure we have fresh configs for the tests:
+			// - new home
+			// - new global config
+			tmpHomePath := t.TempDir()
+			t.Setenv(types.HomeEnvVar, tmpHomePath)
+			t.Setenv(globalTshConfigEnvVar, filepath.Join(tmpHomePath, "tsh_global.yaml"))
+
+			// make the re-exec behave as `tsh` instead of test binary.
+			t.Setenv(tshBinMainTestEnv, "1")
+
+			// write config to use
+			config := &TshConfig{Aliases: tt.aliases}
+			configBytes, err := yamlv2.Marshal(config)
+			require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
+			require.NoError(t, err)
+
+			// run command
+			cmd := exec.Command(testExecutable, tt.args...)
+			t.Logf("running command %v", cmd)
+			output, err := cmd.CombinedOutput()
+			t.Logf("executable output: %v", string(output))
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateOutput(t, string(output))
+		})
+	}
 }
 
 func TestFailedLogin(t *testing.T) {
@@ -380,6 +510,128 @@ func TestRelogin(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSwitchingProxies(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	connector := mockConnector(t)
+	// Connector need not be functional since we are going to mock the actual
+	// login operation.
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	auth1, proxy1 := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+
+	auth2, proxy2 := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+	authServer1 := auth1.GetAuthServer()
+	require.NotNil(t, authServer1)
+
+	proxyAddr1, err := proxy1.ProxyWebAddr()
+	require.NoError(t, err)
+
+	authServer2 := auth2.GetAuthServer()
+	require.NotNil(t, authServer2)
+
+	proxyAddr2, err := proxy2.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// perform initial login to both proxies
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer1, alice)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			cf.mockSSOLogin = mockSSOLogin(t, authServer2, alice)
+			return nil
+		})
+
+	require.NoError(t, err)
+
+	// login again while both proxies are still valid and ensure it is successful without an SSO login provided
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	// logout
+
+	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			return nil
+		})
+	require.NoError(t, err)
+
+	// after logging out, make sure that any attempt to log in without providing a valid login function fails
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr1.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.Error(t, err)
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--auth", connector.GetName(),
+		"--proxy", proxyAddr2.String(),
+	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+		return nil
+	})
+
+	require.Error(t, err)
+
+	cancel()
+}
+
 func TestMakeClient(t *testing.T) {
 	var conf CLIConf
 	conf.HomePath = t.TempDir()
@@ -390,7 +642,7 @@ func TestMakeClient(t *testing.T) {
 	require.Error(t, err)
 
 	// minimal configuration (with defaults)
-	conf.Proxy = "proxy"
+	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
@@ -499,7 +751,7 @@ func TestMakeClient(t *testing.T) {
 // from access and approves them. It accepts a stop channel, which will stop the
 // loop and cancel all active requests when it is closed.
 func approveAllAccessRequests(ctx context.Context, access services.DynamicAccess) (err error) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -578,31 +830,33 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	require.NotNil(t, node)
 	sshHostID := node.Config.HostUUID
+
+	sshHostname2 := "test-ssh-server-2"
+	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
+	sshHostID2 := node2.Config.HostUUID
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	require.NotNil(t, nodeNoAccess)
+	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
 
-	hasNode := func(hostName string) func() bool {
+	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
 			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
+			foundCount := 0
 			for _, node := range nodes {
-				if node.GetHostname() == hostName {
-					return true
+				if apiutils.SliceContainsStr(hostIDs, node.GetName()) {
+					foundCount++
 				}
 			}
-			return false
+			return foundCount == len(hostIDs)
 		}
 	}
 
 	// wait for auth to see nodes
-	require.Eventually(t, hasNode(sshHostname), 10*time.Second, time.Second,
-		sshHostname+" never showed up")
-	require.Eventually(t, hasNode(sshHostnameNoAccess), 10*time.Second, time.Second,
-		sshHostnameNoAccess+" never showed up")
+	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostIDNoAccess),
+		10*time.Second, 100*time.Millisecond, "nodes never showed up")
 
 	err = Run(ctx, []string{
 		"login",
@@ -668,15 +922,23 @@ func TestSSHAccessRequest(t *testing.T) {
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)
 
-	// ssh with request, by hostname
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--request-reason", "reason here to bypass prompt",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+	// the first ssh request can fail if the proxy node watcher doesn't know
+	// about the nodes yet, retry a few times until it works
+	require.Eventually(t, func() bool {
+		// ssh with request, by hostname
+		err := Run(ctx, []string{
+			"ssh",
+			"--debug",
+			"--insecure",
+			"--request-reason", "reason here to bypass prompt",
+			fmt.Sprintf("%s@%s", user.Username, sshHostname),
+			"echo", "test",
+		}, setHomePath(tmpHomePath))
+		if err != nil {
+			t.Logf("Got error while trying to SSH to node, retrying. Error: %v", err)
+		}
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond, "failed to ssh with retries")
 
 	// now that we have an approved access request, it should work without
 	// prompting for a request reason
@@ -711,6 +973,43 @@ func TestSSHAccessRequest(t *testing.T) {
 		"--insecure",
 		"--request-reason", "reason here to bypass prompt",
 		fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other non-approved node, do not prompt for request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// drop the current access request
+	err = Run(ctx, []string{
+		"--insecure",
+		"request",
+		"drop",
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	// fail to ssh to other node with no active request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--disable-access-request",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
+		"echo", "test",
+	}, setHomePath(tmpHomePath))
+	require.Error(t, err)
+
+	// successfully ssh to other node, with new request
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--request-reason", "reason here to bypass prompt",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname2),
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -1585,6 +1884,7 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 		AddString("").
 		AddString(""))
 	return withAuthConfig(func(cfg *service.AuthConfig) {
+		fmt.Printf("\n\n Setting MOTD: '%s' \n\n", motd)
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
@@ -1642,13 +1942,8 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	})
 
 	// Wait for node to become ready.
-	eventCh := make(chan service.Event, 1)
-	node.WaitForEvent(node.ExitContext(), service.NodeSSHReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("node didn't start after 10s")
-	}
+	node.WaitForEventTimeout(10*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "node didn't start after 10s")
 
 	return node
 }
@@ -1700,15 +1995,10 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
 
 	authAddr, err := auth.AuthAddr()
 	require.NoError(t, err)
@@ -1740,12 +2030,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("proxy web server didn't start after 10s")
-	}
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
+	require.NoError(t, err, "proxy web server didn't start after 10s")
 
 	return auth, proxy
 }

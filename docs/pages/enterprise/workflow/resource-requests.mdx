@@ -4,6 +4,10 @@ description: Teleport allows users to request access to specific resources from 
 h1: Teleport Resource Access Requests
 ---
 
+<Admonition type="tip" title="Preview">
+  Resource Access Requests are currently in Preview.
+</Admonition>
+
 With Teleport Resource Access Requests, users can request access to specific
 resources without needing to know anything about the roles or RBAC controls used
 under the hood.
@@ -25,6 +29,16 @@ available in Teleport Enterprise.
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="warning">
+All `teleport` instances in the cluster must be running Teleport `v10.0.0` or
+greater in order for Resource Access Requests to be properly enforced.
+Older versions of `teleport` will only do RBAC checks based on roles and will
+not respect resource restrictions.
+It is not recommended to enable Resource Access Requests by setting any
+`search_as_roles` until all `teleport` instances in your cluster have been
+upgraded to version 10.
+</Admonition>
 
 ## Step 1/8. Create the requester role
 
@@ -241,12 +255,16 @@ $ tsh ssh alice@iot
 iot:~ alice$
 ```
 
-<Admonition type="note">
+## Step 8/8. Resume regular access
+
 While logged in with a resource access request, users will be blocked from access to any other resources.
-This is necessary because their certicate now contains an elevated role.
-Their certificate is restricted to only allow access to the resources they were specifically approved for.
-They will need to `tsh logout` and log back in to resume their regular access.
-</Admonition>
+This is necessary because their certificate now contains an elevated role,
+so it is restricted to only allow access to the resources they were specifically approved for.
+Use the `tsh request drop` command to "drop" the request and resume regular access.
+
+```code
+$ tsh request drop
+```
 
 ## Next Steps
 

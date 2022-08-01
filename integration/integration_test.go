@@ -41,6 +41,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -69,12 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 type integrationTestSuite struct {
@@ -282,7 +281,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
-			nodeProcess, err := teleport.StartNode(nodeConf)
+			_, err := teleport.StartNode(nodeConf)
 			require.NoError(t, err)
 
 			// get access to a authClient for the cluster
@@ -313,7 +312,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(apidefaults.Namespace)
+			sessions, err := site.GetSessions(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -353,7 +352,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(session.Parties) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(apidefaults.Namespace, sessionID)
+				session, err = site.GetSession(ctx, apidefaults.Namespace, sessionID)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -485,15 +484,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, 0, start.GetInt("bytes"))
 			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
-
-			// If session are being recorded at nodes, the SessionServerID should contain
-			// the ID of the node. If sessions are being recorded at the proxy, then
-			// SessionServerID should be that of the proxy.
-			expectedServerID := nodeProcess.Config.HostUUID
-			if services.IsRecordAtProxy(tt.inRecordLocation) {
-				expectedServerID = teleport.Process.Config.HostUUID
-			}
-			require.Equal(t, expectedServerID, start.GetString(events.SessionServerID))
 
 			// make sure data is recorded properly
 			out := &bytes.Buffer{}
@@ -3138,15 +3128,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.Error(t, err)
 
 	// wait for the node to reach a degraded state
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
-	eventC := make(chan service.Event)
-	node.WaitForEvent(ctx, service.TeleportDegradedEvent, eventC)
-	select {
-	case <-eventC:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for node to become degraded")
-	}
+	_, err = node.WaitForEventTimeout(5*time.Minute, service.TeleportDegradedEvent)
+	require.NoError(t, err, "timed out waiting for node to become degraded")
 
 	// start the proxy again and ensure the tunnel is re-established
 	proxyTunnel, err = main.StartProxy(proxyConfig)
@@ -3387,7 +3370,8 @@ func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName 
 func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	var conns []types.TunnelConnection
 	for i := 0; i < 30; i++ {
-		conns, err := authServer.Presence.GetTunnelConnections(clusterName)
+		// to speed things up a bit, bypass the auth cache
+		conns, err := authServer.Services.GetTunnelConnections(clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return
@@ -3730,6 +3714,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	var err error
 
@@ -3760,7 +3745,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(apidefaults.Namespace)
+	sessions, _ := site.GetSessions(ctx, apidefaults.Namespace)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3777,12 +3762,12 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		endCh <- err
 	}()
 
 	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
 	require.NoError(t, err)
@@ -3791,7 +3776,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(session.Parties) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(apidefaults.Namespace, sessions[0].ID)
+		session, err = site.GetSession(ctx, apidefaults.Namespace, sessions[0].ID)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
@@ -4001,9 +3986,9 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	// Enable Kubernetes service to test issue where the `KubernetesReady` event was not properly propagated
-	// and in the case where Kube service was enabled cert rotation flow was broken.
+	// Enable Kubernetes/Desktop services to test that the ready event is propagated.
 	helpers.EnableKubernetesService(t, config)
+	helpers.EnableDesktopService(config)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
@@ -4526,14 +4511,10 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 
 // waitForProcessEvent waits for process event to occur or timeout
 func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout time.Duration) error {
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), event, eventC)
-	select {
-	case <-eventC:
-		return nil
-	case <-time.After(timeout):
+	if _, err := svc.WaitForEventTimeout(timeout, event); err != nil {
 		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
 	}
+	return nil
 }
 
 // waitForProcessStart is waiting for the process to start
@@ -4563,12 +4544,7 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
+	if _, err := svc.WaitForEventTimeout(20*time.Second, service.TeleportReadyEvent); err != nil {
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
 	}
@@ -6458,8 +6434,10 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 	}{
 		{
 			name: "all nodes",
-			expected: []string{"root-zero", "root-one", "root-two",
-				"leaf-zero", "leaf-one", "leaf-two"},
+			expected: []string{
+				"root-zero", "root-one", "root-two",
+				"leaf-zero", "leaf-one", "leaf-two",
+			},
 		},
 		{
 			name:     "leaf only",
@@ -6501,8 +6479,10 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 	}{
 		{
 			name: "all",
-			expected: []string{"root-one", "root-two",
-				"leaf-one", "leaf-two"},
+			expected: []string{
+				"root-one", "root-two",
+				"leaf-one", "leaf-two",
+			},
 		},
 		{
 			name:     "leaf only",
@@ -6648,7 +6628,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	t.Run("chmod", func(t *testing.T) {
-		err = sftpClient.Chmod(testFilePath, 0777)
+		err = sftpClient.Chmod(testFilePath, 0o777)
 		require.NoError(t, err)
 	})
 

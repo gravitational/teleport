@@ -20,11 +20,6 @@ import (
 	"strings"
 )
 
-func promoteBuildPipeline() pipeline {
-	aptPipeline := promoteAptPipeline()
-	return aptPipeline
-}
-
 // Used for one-off migrations of older versions.
 // Use cases include:
 //  * We want to support another OS while providing backwards compatibility
@@ -91,13 +86,7 @@ func promoteAptPipeline() pipeline {
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
 	steps := []step{
-		{
-			Name:  "Verify build is tagged",
-			Image: "alpine:latest",
-			Commands: []string{
-				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-			},
-		},
+		verifyTaggedBuildStep(),
 	}
 	steps = append(steps, p.Steps...)
 	steps = append(steps,
@@ -343,4 +332,14 @@ func aptToolCheckoutCommands(commit, checkoutPath string) []string {
 func updateDocsPipeline() pipeline {
 	// TODO: migrate
 	return pipeline{}
+}
+
+func verifyTaggedBuildStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
 }
