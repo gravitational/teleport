@@ -144,24 +144,6 @@ $ make -C build.assets build-binaries
 
 ### Local Build
 
-To perform a build on your host, ensure you have installed Go. In order to
-include the Rust-powered features like Desktop Access, you'll
-also need `cargo` and `rustc`. The current versions of these tools can be found
-in `build.assets/Makefile`.
-
-```bash
-# get the source & build:
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
-$ make full
-
-# create the default data directory before starting:
-$ sudo mkdir -p -m0700 /var/lib/teleport
-$ sudo chown $USER /var/lib/teleport
-```
-
-If the build succeeds, the installer will place the binaries in the `build` directory.
-
 **Important:**
 
 * The Go compiler is somewhat sensitive to the amount of memory: you will need
@@ -170,7 +152,97 @@ If the build succeeds, the installer will place the binaries in the `build` dire
 * This will build the latest version of Teleport, **regardless** of whether it
   is stable. If you want to build the latest stable release, run `git checkout`
   to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
-  running `make full`.
+  performing a build.
+* The following instructions are Mac-specific.
+
+#### Dependencies
+
+Ensure you have installed correct versions of dependencies:
+
+* `Go` version from [go.mod](https://github.com/gravitational/teleport/blob/0e9d621b464f2bd05a28e7db0ae2ef65349c460e/go.mod#L3)
+  
+  ```shell
+  # if we are not on the latest, you might need to
+  # brew install go@<some_version>, i.e. 1.16
+  #
+  # check which version will be installed by running
+  # brew info go
+  
+  $ brew install go
+  ````
+  
+If you wish to build the Rust-powered features like Desktop Access:
+
+* `Rust` and `Cargo` version from [build.assets/Makefile](https://github.com/gravitational/teleport/blob/c3dde989cc9de6fa199f1a12287926218cc2e685/build.assets/Makefile#L21):
+  
+  ```shell
+  $ brew install rustup
+  $ rustup-init
+  # accept defaults
+  #
+  # Once command finishes successfully, you might need to add
+  # 
+  # export PATH="$HOME/.cargo/bin:$PATH"
+  # 
+  # into ~/.zprofile and run
+  # 
+  # $ . ~/.zprofile
+  # 
+  # or open a new shell
+  #
+  $ rustup toolchain install <version from build.assets/Makefile>
+  $ cd <teleport.git>
+  $ rustup override set <version from build.assets/Makefile>
+  $ rustc --version                                                                                                                                                                  ─╯
+  rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
+  ```
+To build `tsh` version > `10.x` with `libfido` support:  
+
+* Install `libfido2` and `openssl v 1.1.1` 
+  ```shell
+  $ brew install libfido2
+  $ brew install openssl@1.1
+  ```
+
+#### Perform a build
+
+Get the source
+
+```shell
+$ git clone https://github.com/gravitational/teleport.git
+$ cd teleport
+```
+
+To perform a build 
+
+```shell
+$ make full
+```
+
+To build `tsh` with `libfido`
+
+* On M1 Mac
+
+  ```shell
+  PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@1.1/lib/pkgconfig make build/tsh FIDO2=dynamic
+  ```
+
+* On Intel Mac
+
+  ```shell
+  PKG_CONFIG_PATH=/usr/local/opt/openssl@1.1/lib/pkgconfig make build/tsh FIDO2=dynamic
+  ```
+
+#### Build output and running locally
+
+If the build succeeds, the installer will place the binaries in the `build` directory.
+
+Before starting, create default data directories:
+
+```shell
+$ sudo mkdir -p -m0700 /var/lib/teleport
+$ sudo chown $USER /var/lib/teleport
+```
 
 ### Web UI
 
