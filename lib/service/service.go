@@ -2110,12 +2110,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		ok := false
-		defer func() {
-			if !ok {
-				warnOnErr(conn.Close(), log)
-			}
-		}()
+		defer func() { warnOnErr(conn.Close(), log) }()
 
 		cfg := process.Config
 
@@ -2162,12 +2157,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		defer func() {
-			if !ok {
-				warnOnErr(ebpf.Close(), log)
-			}
-		}()
+		defer func() { warnOnErr(ebpf.Close(), log) }()
 
 		// Start access control programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If access control is not enabled, this will simply
@@ -2213,12 +2203,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		defer func() {
-			if !ok {
-				warnOnErr(asyncEmitter.Close(), log)
-			}
-		}()
+		defer func() { warnOnErr(asyncEmitter.Close(), log) }()
 
 		clusterName, err := authClient.GetClusterName()
 		if err != nil {
@@ -2283,12 +2268,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		defer func() {
-			if !ok {
-				warnOnErr(s.Close(), log)
-			}
-		}()
+		defer func() { warnOnErr(s.Close(), log) }()
 
 		// init uploader service for recording SSH node, if proxy is not
 		// enabled on this node, because proxy stars uploader service as well
@@ -2322,9 +2302,6 @@ func (process *TeleportProcess) initSSH() error {
 			// Start the SSH server. This kicks off updating labels, starting the
 			// heartbeat, and accepting connections.
 			go s.Serve(listener)
-
-			// Broadcast that the node has started.
-			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -2356,34 +2333,29 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 			log.Infof("Service is starting in tunnel mode.")
-
-			// Broadcast that the node has started.
-			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 		}
 
-		// Cancel deferred cleanup, as we'll register an OnExit handler
-		ok = true
-
-		// Execute this when process is asked to exit.
-		process.OnExit("ssh.shutdown", func(payload interface{}) {
-			if payload == nil {
-				log.Infof("Shutting down immediately.")
-				warnOnErr(s.Close(), log)
-			} else {
-				log.Infof("Shutting down gracefully.")
-				warnOnErr(s.Shutdown(payloadContext(payload, log)), log)
-			}
-
-			agentPool.Stop()
-			warnOnErr(ebpf.Close(), log)
-			warnOnErr(asyncEmitter.Close(), log)
-			warnOnErr(conn.Close(), log)
-			log.Infof("Exited.")
-		})
+		// Broadcast that the node has started.
+		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 
 		// Block and wait while the node is running.
 		s.Wait()
 		agentPool.Wait()
+
+		event, err := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if event.Payload == nil {
+			log.Infof("Shutting down immediately.")
+			warnOnErr(s.Close(), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			warnOnErr(s.Shutdown(payloadContext(event.Payload, log)), log)
+		}
+
+		agentPool.Stop()
 		log.Infof("Exited.")
 		return nil
 	})
