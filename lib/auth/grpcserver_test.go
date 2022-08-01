@@ -2252,10 +2252,7 @@ func TestExport(t *testing.T) {
 	t.Parallel()
 	uploadErr := trace.AccessDenied("failed to upload")
 
-	const (
-		user          = "user"
-		alreadyTagged = "already-tagged"
-	)
+	const user = "user"
 
 	validateResource := func(forwardedFor string, resourceSpan *otlptracev1.ResourceSpans) {
 		var forwarded []string
@@ -2266,14 +2263,20 @@ func TestExport(t *testing.T) {
 		}
 
 		require.Len(t, forwarded, 1)
-		require.Equal(t, forwardedFor, forwarded[0])
 
 		for _, scopeSpan := range resourceSpan.ScopeSpans {
 			for _, span := range scopeSpan.Spans {
 				for _, attribute := range span.Attributes {
-					require.NotEqual(t, forwardedTag, attribute.Key)
+					if attribute.Key == forwardedTag {
+						forwarded = append(forwarded, attribute.Value.GetStringValue())
+					}
 				}
 			}
+		}
+
+		require.Len(t, forwarded, 2)
+		for _, value := range forwarded {
+			require.Equal(t, forwardedFor, value)
 		}
 	}
 
@@ -2296,13 +2299,7 @@ func TestExport(t *testing.T) {
 							if attribute.Key == forwardedTag {
 								require.False(t, foundForwardedTag)
 								foundForwardedTag = true
-
-								expected := forwardedFor
-								if span.Name == alreadyTagged {
-									expected = user
-								}
-
-								require.Equal(t, expected, attribute.Value.GetStringValue())
+								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
 							}
 						}
 						require.True(t, foundForwardedTag)
@@ -2359,6 +2356,10 @@ func TestExport(t *testing.T) {
 							},
 						},
 						{
+							Name:       "with-tag",
+							Attributes: []*otlpcommonv1.KeyValue{{Key: forwardedTag, Value: &otlpcommonv1.AnyValue{Value: &otlpcommonv1.AnyValue_StringValue{StringValue: "test"}}}},
+						},
+						{
 							Name: "no-attributes",
 						},
 					},
@@ -2391,7 +2392,7 @@ func TestExport(t *testing.T) {
 							},
 						},
 						{
-							Name: alreadyTagged,
+							Name: "already-tagged",
 							Attributes: []*otlpcommonv1.KeyValue{
 								{
 									Key: forwardedTag,

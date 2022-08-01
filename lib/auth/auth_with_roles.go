@@ -354,24 +354,40 @@ func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.Expo
 		},
 	}
 
-	// returns true if the attributes don't already contain
-	// the forwardedTag
-	tagNeeded := func(attrs []*otlpcommonv1.KeyValue) bool {
-		for _, attr := range attrs {
+	// returns the index at which the attribute with
+	// the forwardedTag key exists, -1 if not found
+	tagIndex := func(attrs []*otlpcommonv1.KeyValue) int {
+		for i, attr := range attrs {
 			if attr.Key == forwardedTag {
-				return false
+				return i
 			}
 		}
 
-		return true
+		return -1
 	}
 
 	for _, resourceSpans := range req.ResourceSpans {
 		// if there is a resource, tag it with the
 		// forwarded attribute instead of each of tagging
 		// each span
-		if resourceSpans.Resource != nil && tagNeeded(resourceSpans.Resource.Attributes) {
-			resourceSpans.Resource.Attributes = append(resourceSpans.Resource.Attributes, value)
+		if resourceSpans.Resource != nil {
+			if index := tagIndex(resourceSpans.Resource.Attributes); index != -1 {
+				resourceSpans.Resource.Attributes[index] = value
+			} else {
+				resourceSpans.Resource.Attributes = append(resourceSpans.Resource.Attributes, value)
+			}
+
+			// override any span attributes with a forwarded tag,
+			// but we don't need to add one if the span isn't already
+			// tagged since we just tagged the resource
+			for _, scopeSpans := range resourceSpans.ScopeSpans {
+				for _, span := range scopeSpans.Spans {
+					if index := tagIndex(span.Attributes); index != -1 {
+						span.Attributes[index] = value
+					}
+				}
+			}
+
 			continue
 		}
 
@@ -379,7 +395,9 @@ func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.Expo
 		// individual spans with the forwarded tag
 		for _, scopeSpans := range resourceSpans.ScopeSpans {
 			for _, span := range scopeSpans.Spans {
-				if tagNeeded(span.Attributes) {
+				if index := tagIndex(span.Attributes); index != -1 {
+					span.Attributes[index] = value
+				} else {
 					span.Attributes = append(span.Attributes, value)
 				}
 			}
