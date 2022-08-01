@@ -71,7 +71,7 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	}
 
 	// Start the prompt flow.
-	if err := cluster.PwdlessLogin(stream.Context(), stream); err != nil {
+	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
 		return trace.Wrap(err)
 	}
 

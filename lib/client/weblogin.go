@@ -383,12 +383,12 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	return out, nil
 }
 
-// SSHAgentPwdlessLogin requests a passwordless MFA challenge via the proxy.
+// SSHAgentPasswordlessLogin requests a passwordless MFA challenge via the proxy.
 // weblogin.CustomPrompt (or a default prompt) is used for interaction with the
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
-func SSHAgentPwdlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)

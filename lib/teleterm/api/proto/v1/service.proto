@@ -86,8 +86,8 @@ service TerminalService {
     // -> Receive PIN response
     // <- Send PasswordlessPrompt enum RETAP to confirm
     // -> Receive RETAP device response
-    // <- Send list of usernames associated with device
-    // -> Receive the index number associated with the selected username in list
+    // <- Send list of credentials (e.g. usernames) associated with device
+    // -> Receive the index number associated with the selected credential in list
     // <- End
     rpc LoginPasswordless(stream LoginPasswordlessRequest)
         returns (stream LoginPasswordlessResponse);
@@ -155,7 +155,7 @@ message LoginPasswordlessRequest {
     message LoginPasswordlessCredentialResponse {
         // index is the associated number in the list of credentials that the user selected to log
         // in as.
-        int64 index = 3;
+        int64 index = 1;
     }
 }
 

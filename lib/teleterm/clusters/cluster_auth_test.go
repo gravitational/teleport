@@ -83,7 +83,7 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 		{User: wancli.UserInfo{Name: "llama"}},
 	}
 
-	expectedCredResponse := []*api.WebauthnCredentialInfo{
+	expectedCredResponse := []*api.CredentialInfo{
 		{Username: "ape"},
 		{Username: "bar"},
 		{Username: "foo"},

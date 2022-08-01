@@ -3294,7 +3294,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		user = tc.Username
 	}
 
-	response, err := SSHAgentPwdlessLogin(ctx, SSHLoginPasswordless{
+	response, err := SSHAgentPasswordlessLogin(ctx, SSHLoginPasswordless{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
 			PubKey:            pubKey,

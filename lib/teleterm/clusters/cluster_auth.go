@@ -282,8 +282,8 @@ func (c *Cluster) processAuthResponse(ctx context.Context, key *client.Key, resp
 	return nil
 }
 
-// PwdlessLogin processes passwordless logins for this cluster.
-func (c *Cluster) PwdlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+// PasswordlessLogin processes passwordless logins for this cluster.
+func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
 	if _, err := c.clusterClient.Ping(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -297,7 +297,7 @@ func (c *Cluster) PwdlessLogin(ctx context.Context, stream api.TerminalService_L
 	// existing profile for the first time (investigate why)
 	c.clusterClient.SiteName = ""
 
-	response, err := client.SSHAgentPwdlessLogin(ctx, client.SSHLoginPasswordless{
+	response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
 			PubKey:            key.Pub,
