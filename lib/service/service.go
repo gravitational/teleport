@@ -2308,7 +2308,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
-		var waitFn = func() {}
+		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -2335,7 +2335,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 
 			// Create and start an agent pool.
-			agentPool, err := reversetunnel.NewAgentPool(
+			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
 					Component:            teleport.ComponentNode,
@@ -2358,11 +2358,6 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 			log.Infof("Service is starting in tunnel mode.")
-			waitFn = agentPool.Wait
-
-			process.OnExit("agentpool.shutdown", func(payload interface{}) {
-				agentPool.Stop()
-			})
 
 			// Broadcast that the node has started.
 			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
@@ -2381,6 +2376,7 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload, log)), log)
 			}
 
+			agentPool.Stop()
 			warnOnErr(ebpf.Close(), log)
 			warnOnErr(asyncEmitter.Close(), log)
 			warnOnErr(conn.Close(), log)
@@ -2389,7 +2385,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		// Block and wait while the node is running.
 		s.Wait()
-		waitFn()
+		agentPool.Wait()
 		log.Infof("Exited.")
 		return nil
 	})
