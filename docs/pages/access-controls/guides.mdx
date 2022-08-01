@@ -1,36 +1,40 @@
 ---
-title: Access Controls Guides
-description: Detailed guides for configuring Teleport Access Controls.
+title: Configure Access 
+description: How to configure access to specific resources in your infrastructure or your Teleport cluster as a whole.
 layout: tocless-doc
 ---
 
-<ul>
-  <ScopedBlock scope={["cloud", "enterprise"]}>
-  <li>
-    [Dual Authorization](./guides/dual-authz.mdx). Protect access to critical resources with dual authorization.
-  </li>
-  </ScopedBlock>
-  <li>
-    [Role Templates](./guides/role-templates.mdx). Setup dynamic access policies with Role Templates.
-  </li>
-  <li>
-    [Impersonating Teleport Users](./guides/impersonation.mdx). Create certs for CI/CD using impersonation.
-  </li>
-  <li>
-    [Passwordless](./guides/passwordless.mdx). Use passwordless authentication (Preview).
-  </li>
-  <li>
-    [Second Factor - WebAuthn](./guides/webauthn.mdx). Add Two-Factor Authentication through WebAuthn.
-  </li>
-  <li>
-    [Per-session MFA](./guides/per-session-mfa.mdx). Per-session Multi-Factor Authentication.
-  </li>
-  <li>
-    [Locking](./guides/locking.mdx). Lock access to active user sessions or hosts.
-  </li>
-  <ScopedBlock scope={["cloud", "enterprise"]}>
-  <li>
-    [Moderated Sessions](./guides/moderated-sessions.mdx). Require session auditors and allow fine-grained live session access.
-  </li>
-  </ScopedBlock>
-</ul>
+Teleport gives you fine-grained control over who can access resources in your
+infrastructure as well as how they can access those resources. Once you have
+deployed a Teleport cluster, configure access controls to achieve the right
+security policies for your organization.
+
+<TileSet>
+  <Tile title="Dual Authorization" href="./guides/dual-authz.mdx" icon="lock">
+  Protect access to critical resources with dual authorization.
+  </Tile>
+  <Tile title="Role Templates" icon="lock" href="./guides/role-templates.mdx">
+  Set up dynamic access policies with role templates.
+  </Tile>
+  <Tile title="Impersonating Teleport Users" href="./guides/impersonation.mdx"
+  icon="lock">
+  Create certificates for other users with impersonation.
+  </Tile>
+  <Tile title="Passwordless" icon="lock" href="./guides/passwordless.mdx">
+  Use passwordless authentication (Preview).
+  </Tile>
+  <Tile href="./guides/webauthn.mdx" title="WebAuthn" icon="lock">
+  Add two-factor authentication through WebAuthn.
+  </Tile>
+  <Tile href="./guides/per-session-mfa.mdx" title="Per-Session MFA" icon="lock">
+  Per-session multi-mactor authentication.
+  </Tile>
+  <Tile href="./guides/locking.mdx" title="Locking" icon="lock">
+  Lock access to active user sessions or hosts.
+  </Tile>
+  <Tile href="./guides/moderated-sessions.mdx" title="Moderated Sessions"
+  icon="lock">
+  Require session auditors and allow fine-grained live session access.
+  </Tile>
+</TileSet>
+
