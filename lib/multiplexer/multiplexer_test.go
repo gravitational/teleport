@@ -747,9 +747,11 @@ func TestMux(t *testing.T) {
 		go mux.Serve()
 		defer mux.Close()
 
-		called := false
-		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-			called = true
+		// Record the remote addr from the point of view of the ssh handler
+		// so we can confirm that the header is parsed properly.
+		calledWithRemoteAddr := ""
+		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, c *sshutils.ConnectionContext, nch ssh.NewChannel) {
+			calledWithRemoteAddr = c.ServerConn.RemoteAddr().String()
 			err := nch.Reject(ssh.Prohibited, "nothing to see here")
 			require.NoError(t, err)
 		})
@@ -767,9 +769,10 @@ func TestMux(t *testing.T) {
 
 		// Manually create client conn so we can inject the ProxyHelloSignature
 		conn, err := net.DialTimeout("tcp", listener.Addr().String(), time.Second)
+		remoteAddr := "6.6.6.6:1337"
 		require.NoError(t, err)
 		hp := &apisshutils.HandshakePayload{
-			ClientAddr: "6.6.6.6",
+			ClientAddr: remoteAddr,
 		}
 		payloadJSON, err := json.Marshal(hp)
 		require.NoError(t, err)
@@ -789,7 +792,7 @@ func TestMux(t *testing.T) {
 		_, err = clt.NewSession()
 		require.EqualError(t, err, "ssh: rejected: administratively prohibited (nothing to see here)")
 		// make sure the channel handler was called OK
-		require.True(t, called)
+		require.Equal(t, remoteAddr, calledWithRemoteAddr)
 
 		// Close mux, new requests should fail
 		mux.Close()
