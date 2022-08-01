@@ -1,21 +1,12 @@
-Using an existing Teleport cluster, create the following `user` and `role` resources with the command below, replacing `YAML_PATH` with the path to each resource spec.
+Teleport's Access Request plugins authenticate to your Teleport cluster as a
+user with permissions to list, read, and update Access Requests. This way,
+plugins can retrieve Access Requests from the Teleport Auth Service, present
+them to reviewers, and modify them after a review.
 
-```
-$ tctl create -f YAML_PATH.yaml
-```
-
-(!docs/pages/includes/plugins/impersonations.mdx!)
-
-Create a non-interactive bot user and role called `access-plugin`.
+Define a user and role called `access-plugin` by adding the following content to
+a file called `access-plugin.yaml`:
 
 ```yaml
-kind: user
-metadata:
-  name: access-plugin
-spec:
-  roles: ['access-plugin']
-version: v2
----
 kind: role
 version: v4
 metadata:
@@ -27,8 +18,75 @@ spec:
         verbs: ['list', 'read', 'update']
       - resources: ['access_plugin_data']
         verbs: ['update']
+---
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
 ```
 
-<Admonition type="tip">
-  If you're using other plugins, you might want to create different users and roles for different plugins
-</Admonition>
+Create the user and role:
+
+```code
+$ tctl create -f access-plugin.yaml
+```
+
+As with all Teleport users, the Teleport Auth Service authenticates the
+`access-plugin` user by issuing short-lived TLS credentials. In this case, we
+will need to request the credentials manually by _impersonating_ the
+`access-plugin` role and user.
+
+<ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
+Service host, you will already have impersonation privileges.</ScopedBlock>
+
+To grant your user impersonation privileges for `access-plugin`, define a role
+called `access-plugin-impersonator` by pasting the following YAML document into
+a file called `access-plugin-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: access-plugin-impersonator
+spec:
+  allow:
+    impersonate:
+      roles:
+      - access-plugin
+      users:
+      - access-plugin
+```
+
+Create the `access-plugin-impersonator` role: 
+
+```code
+$ tctl create -f access-plugin-impersonator.yaml
+```
+
+Retrieve your user definition:
+
+```code
+$ TELEPORT_USER=$(tsh status | awk -F "      " '/Logged in as/{print $2}')
+$ tctl get users/${TELEPORT_USER?} > myuser.yaml
+```
+
+Edit `myuser.yaml` to include the role you just created:
+
+```diff
+  roles:
+   - access
+   - auditor
+   - editor
++  - access-plugin-impersonator
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f myuser.yaml
+```
+
+Log out of your Teleport cluster and log in again. You will now be able to
+generate signed certificates for the `access-plugin` role and user.
