@@ -67,7 +67,7 @@ spec:
           deny: 1
 ```
 
-Create the roles  you defined:
+Create the roles you defined:
 
 ```code
 $ tctl create -f editor-request-rbac.yaml
@@ -80,7 +80,7 @@ assigning yourself the `editor-reviewer` role. First, retrieve your user
 definition:
 
 ```code
-$ TELEPORT_USER=$(tsh status | awk -F "      " '/Logged in as/{print $2}')
+$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
 $ tctl get user/${TELEPORT_USER?} > user.yaml
 ```
 
