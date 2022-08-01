@@ -30,7 +30,11 @@ export default function useGateway(doc: types.DocumentGateway) {
   // The port to show as default in the input field in case creating a gateway fails.
   // This is typically the case if someone reopens the app and the port of the gateway is already
   // occupied.
-  const defaultPort = doc.port || '0';
+  //
+  // This needs a default value as otherwise React will complain about switching an uncontrolled
+  // input to a controlled one once `doc.port` gets set. The backend will handle converting an empty
+  // string to '0'.
+  const defaultPort = doc.port || '';
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
   const rootCluster = ctx.clustersService.findRootClusterByResource(
