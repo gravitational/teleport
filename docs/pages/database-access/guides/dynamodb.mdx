@@ -3,14 +3,13 @@ title: Database Access with AWS DynamoDB
 description: How to access AWS DynamoDB with Teleport.
 ---
 
-<Admonition type="note" title="Important">
-Access to AWS DynamoDB is provided by [**Teleport Application Access**](../../application-access/introduction.mdx) for AWS Console and API.
-</Admonition>
+Access to AWS DynamoDB is provided by [**Teleport Application
+Access**](../../application-access/introduction.mdx) for AWS Console and API.
 
 This guide will help you to:
 - Install the Teleport Application Service.
-- Set up Teleport to access the AWS Console and API.
-- Connect to your DynamoDB databases through Teleport.
+- Set up the Teleport Application Service to access the AWS Console and API.
+- Connect to your DynamoDB databases through the Teleport Application Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![DynamoDB Self-Hosted](../../../img/database-access/guides/dynamodb_selfhosted.png)
@@ -39,7 +38,7 @@ If you have not yet deployed the Auth Service and Proxy Service, you should foll
 
 We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
 
-<Admonition type="note" title="Application Access and DNS">
+<Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
@@ -78,7 +77,7 @@ The next step is to give your Teleport users permissions to assume IAM roles in
 your Teleport cluster.
 
 You can do this by creating a Teleport role with the `aws_role_arns` field
-listing the IAM role ARN created in the previous step.
+listing the IAM role ARN created in the previous step:
 
 ```yaml
 kind: role
@@ -93,7 +92,7 @@ spec:
     - arn:aws:iam::123456789000:role/ExampleTeleportDynamoDBRole
 ```
 
-<Details title="Templating `aws_role_arns`" opened={false}>
+<Details title="Templating aws_role_arns" opened={false}>
 The `aws_role_arns` field supports template variables so they can be populated
 dynamically based on your users' identity provider attributes. See [Role
 Templates](../../access-controls/guides/role-templates.mdx) for details.
@@ -102,7 +101,7 @@ Templates](../../access-controls/guides/role-templates.mdx) for details.
 Now assign this role to the Teleport users you wish to grant access to
 DynamoDB.
 
-## Step 3/5. Install Teleport Application Service
+## Step 3/5. Install the Teleport Application Service
 
 ### Generate a token
 
@@ -127,12 +126,13 @@ besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Now start Teleport Application Service using the output from the previous step:
+Now start the Teleport Application Service using the output from the previous
+step:
 
 ```code
 $ teleport app start \
-   --token=<token> \
-   --ca-pin=<ca-pin> \
+   --token=(=presets.tokens.first=) \
+   --ca-pin=(=presets.ca_pin=) \
    --auth-server=https://teleport.example.com:443 \
    --name=aws-dynamodb \
    --uri=https://console.aws.amazon.com/dynamodbv2/home
