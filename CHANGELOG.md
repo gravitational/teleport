@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.1.1
+## 10.1.2
 
 Teleport 10.1 is a minor release that brings the following new features:
 
