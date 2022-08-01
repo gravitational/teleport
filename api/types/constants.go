@@ -256,6 +256,9 @@ const (
 	// KindSessionTracker is a resource that tracks a live session.
 	KindSessionTracker = "session_tracker"
 
+	// KindDatabaseCertificate is a resource to control Database Certificates generation
+	KindDatabaseCertificate = "database_certificate"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
