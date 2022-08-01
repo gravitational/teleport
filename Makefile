@@ -11,11 +11,12 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.0.2
+VERSION=10.1.1
 
-DOCKER_IMAGE ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
+DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
+DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -981,13 +982,19 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: publish-ecr
+publish-ecr: image
+	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
+	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -997,12 +1004,12 @@ publish: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator

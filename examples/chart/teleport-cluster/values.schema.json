@@ -163,8 +163,7 @@
         },
         "installCRDs": {
             "$id": "#/properties/installCRDs",
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
         },
         "operator": {
             "$id": "#/properties/operator",
