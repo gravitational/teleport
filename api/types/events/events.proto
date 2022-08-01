@@ -1025,6 +1025,9 @@ message SFTP {
 
     // Action is what kind of file operation
     SFTPAction Action = 11 [ (gogoproto.jsontag) = "action" ];
+
+    // Error is the optional error that may have occurred
+    string Error = 12 [ (gogoproto.jsontag) = "error,omitempty" ];
 }
 
 // Subsystem is emitted when a user requests a new subsystem.
