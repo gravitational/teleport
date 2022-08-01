@@ -219,6 +219,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
+		sendAllHostCAs:  cfg.SendAllHostCAs,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -395,6 +396,8 @@ type Server struct {
 	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 
 	inventory *inventory.Controller
+
+	sendAllHostCAs bool
 }
 
 func (a *Server) CloseContext() context.Context {

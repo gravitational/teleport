@@ -718,6 +718,8 @@ type Auth struct {
 
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
 	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
+
+	SendAllHostCAs bool `yaml:"send_all_host_cas,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.

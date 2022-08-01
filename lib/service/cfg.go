@@ -562,6 +562,8 @@ type AuthConfig struct {
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config
+
+	SendAllHostCAs bool
 }
 
 // SSHConfig configures SSH server node role

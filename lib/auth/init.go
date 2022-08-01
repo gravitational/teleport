@@ -176,6 +176,8 @@ type InitConfig struct {
 
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
+
+	SendAllHostCAs bool
 }
 
 // Init instantiates and configures an instance of AuthServer
