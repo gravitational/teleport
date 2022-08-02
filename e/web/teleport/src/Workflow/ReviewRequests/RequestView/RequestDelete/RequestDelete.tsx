@@ -67,7 +67,7 @@ export function RequestDelete({
             </Text>
             <TextSelectCopy
               mt={2}
-              text={`tctl lock --access_request ${requestId}`}
+              text={`tctl lock --access-request ${requestId}`}
             />
           </>
         )}

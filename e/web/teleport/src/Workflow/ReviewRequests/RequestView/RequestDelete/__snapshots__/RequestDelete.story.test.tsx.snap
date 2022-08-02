@@ -374,7 +374,7 @@ exports[`approved role escalation 1`] = `
               $
             </div>
             <div>
-              tctl lock --access_request 5ee98d44-de9d-5103-a7cd-072b1ff76253
+              tctl lock --access-request 5ee98d44-de9d-5103-a7cd-072b1ff76253
             </div>
           </div>
           <button
