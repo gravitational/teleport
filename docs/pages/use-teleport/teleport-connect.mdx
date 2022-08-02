@@ -115,3 +115,20 @@ menu item.
 Teleport Connect updates and caches the local shell environment on app restart and not when starting
 a new shell session. If you add new environment variables to your shell startup files, Connect will
 see them only after you restart the app.
+
+### Insecure mode
+
+The insecure mode skips the verification of the HTTPS certificate when talking to a proxy service of
+a Teleport cluster. This is useful in test environments or for demo purposes, we do not recommend
+using this mode in production.
+
+To launch the app in the insecure mode, open a terminal first. From there you can launch the app in
+one of the two ways:
+
+```code
+# Using macOS open utility:
+$ open -a "Teleport Connect" --args --insecure
+
+# Passing the flag to the executable directly:
+$ /Applications/Teleport\ Connect.app/Contents/MacOS/Teleport\ Connect --insecure
+```
