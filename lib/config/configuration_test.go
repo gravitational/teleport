@@ -290,7 +290,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.SSH.Enabled())
 	require.False(t, conf.Kube.Enabled())
 
-	// static config
+	// good config
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(conf, &FileConfig{
@@ -421,15 +421,17 @@ func TestConfigReading(t *testing.T) {
 			},
 			AzureMatchers: []AzureMatcher{
 				{
-					Types:   []string{"mysql"},
-					Regions: []string{"eastus", "westus"},
+					Subscriptions: []string{"sub1", "sub2"},
+					Types:         []string{"mysql"},
+					Regions:       []string{"eastus", "westus"},
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 				},
 				{
-					Types:   []string{"postgres"},
-					Regions: []string{"centralus"},
+					Subscriptions: []string{"sub3", "sub4"},
+					Types:         []string{"postgres"},
+					Regions:       []string{"centralus"},
 					Tags: map[string]apiutils.Strings{
 						"c": {"d"},
 					},
@@ -1291,15 +1293,17 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.AzureMatchers = []AzureMatcher{
 		{
-			Types:   []string{"mysql"},
-			Regions: []string{"eastus", "westus"},
+			Subscriptions: []string{"sub1", "sub2"},
+			Types:         []string{"mysql"},
+			Regions:       []string{"eastus", "westus"},
 			Tags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 		},
 		{
-			Types:   []string{"postgres"},
-			Regions: []string{"centralus"},
+			Subscriptions: []string{"sub3", "sub4"},
+			Types:         []string{"postgres"},
+			Regions:       []string{"centralus"},
 			Tags: map[string]apiutils.Strings{
 				"c": {"d"},
 			},
