@@ -59,7 +59,7 @@ RUNTIME="$r"
 TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 
-DOCKER_IMAGE="public.ecr.aws/gravitational/fpm
+DOCKER_IMAGE="public.ecr.aws/gravitational/fpm"
 
 # linux package configuration
 LINUX_BINARY_DIR=/usr/local/bin
