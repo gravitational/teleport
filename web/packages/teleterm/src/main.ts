@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { app, globalShortcut, shell } from 'electron';
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
+import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
 import createLoggerService from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
@@ -84,6 +85,8 @@ function initializeApp(): void {
         app.quit();
       });
     }
+
+    enableWebHandlersProtection();
 
     windowsManager.createWindow();
   });
