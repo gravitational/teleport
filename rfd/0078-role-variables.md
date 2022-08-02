@@ -159,7 +159,7 @@ need to set a value in a role spec, including allow or deny rules such as
 Variables will be computed during `FetchRoles`, before traits normally are
 expanded in the role definition.
 This first occurs during login, and again when building an `AccessChecker` on
-the proxy or on teleport Nodes/services before evaluating whether the user can
+the Proxy or on Teleport Nodes/services before evaluating whether the user can
 access a resource.
 
 If it is desirable to avoid computing the variables more than once on login, the
@@ -206,7 +206,7 @@ clusters.
 
 ### Defined allow labels for each group
 
-If the Teleport admin cannot create custom traits in their IDP, the it is
+If the Teleport admin cannot create custom traits in their IDP, then it is
 extremely cumbersome and repetitive (borderline impossible) to define a custom
 mapping per group.
 
