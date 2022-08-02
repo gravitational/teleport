@@ -19,6 +19,8 @@
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
+        "roleName",
+        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -205,6 +207,16 @@
             "type": "string",
             "default": ""
         },
+        "roleName": {
+            "$id": "#/properties/roleName",
+            "type": "string",
+            "default": ""
+        },
+        "roleBindingName": {
+            "$id": "#/properties/roleBindingName",
+            "type": "string",
+            "default": ""
+        },
         "highAvailability": {
             "$id": "#/properties/highAvailability",
             "type": "object",
@@ -315,6 +327,16 @@
                 },
                 "clusterRoleBinding": {
                     "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "role": {
+                    "$id": "#/properties/extraLabels/properties/role",
+                    "type": "object",
+                    "default": {}
+                },
+                "roleBinding": {
+                    "$id": "#/properties/extraLabels/properties/roleBinding",
                     "type": "object",
                     "default": {}
                 },

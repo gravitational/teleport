@@ -504,6 +504,28 @@ func (c *Client) CreateComment(ctx context.Context, organization string, reposit
 	return nil
 }
 
+// ListComments lists all comemnts on an issue or PR.
+func (c *Client) ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	comments, _, err := c.client.Issues.ListComments(ctx,
+		organization,
+		repository,
+		number,
+		&go_github.IssueListCommentsOptions{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := make([]string, len(comments))
+	for i, c := range comments {
+		if c.Body != nil {
+			s[i] = *c.Body
+		}
+	}
+
+	return s, nil
+}
+
 // CreatePullRequest will create a Pull Request.
 func (c *Client) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {
 	pull, _, err := c.client.PullRequests.Create(ctx,
