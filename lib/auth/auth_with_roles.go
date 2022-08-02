@@ -2275,8 +2275,8 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// as-is for now (and ensure the user is allowed to assume them
 	// later).
 	//
-	// Traits are copied across so that `{{ internal.logins }}` within the
-	// impersonated role behave correctly.
+	// Traits are copied across from the impersonating user so that role
+	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
 		Roles:  req.RoleRequests,
 		Traits: user.GetTraits(),
