@@ -110,8 +110,8 @@ const (
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
 
-	// actionPlaySpeed sets the playback speed
-	actionPlaySpeed = playbackAction("play/speed")
+	// actionSpeed sets the playback speed
+	actionSpeed = playbackAction("speed")
 )
 
 // actionMessage is a message passed from the playback client
@@ -193,7 +193,7 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
-		case actionPlaySpeed:
+		case actionSpeed:
 			pp.playSpeed <- action.PlaybackSpeed
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
@@ -208,7 +208,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
-	var playFactor float32 = 1.0
+	var delayFactor float32 = 1.0
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -231,9 +231,9 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			return
 		case playSpeed := <-pp.playSpeed:
-			prevPlayFactor := playFactor
-			playFactor = 1.0 / playSpeed
-			lastDelay = int64(float32(lastDelay) * (playFactor / prevPlayFactor))
+			prevDelayFactor := delayFactor
+			delayFactor = 1.0 / playSpeed
+			lastDelay = int64(float32(lastDelay) * (delayFactor / prevDelayFactor))
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
@@ -244,7 +244,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
-				scaledDelay := int64(float32(e.DelayMilliseconds) * playFactor)
+				scaledDelay := int64(float32(e.DelayMilliseconds) * delayFactor)
 				if scaledDelay > lastDelay {
 					// TODO(zmb3): replace with time.After so we can cancel
 					time.Sleep(time.Duration(scaledDelay-lastDelay) * time.Millisecond)
