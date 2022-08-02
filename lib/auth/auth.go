@@ -50,6 +50,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -69,6 +70,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -158,6 +160,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
 	}
+	if cfg.TraceClient == nil {
+		cfg.TraceClient = tracing.NewNoopClient()
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -201,7 +206,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			WindowsDesktops:       cfg.WindowsDesktops,
 			SessionTrackerService: cfg.SessionTrackerService,
 		},
-		keyStore: keyStore,
+		keyStore:    keyStore,
+		traceClient: cfg.TraceClient,
 	}
 	for _, o := range opts {
 		o(&as)
@@ -362,6 +368,10 @@ type Server struct {
 
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
+
+	// traceClient is used to forward spans to the upstream collector for components
+	// within the cluster that don't have a direct connection to said collector
+	traceClient otlptrace.Client
 }
 
 // SetCache sets cache used by auth server
