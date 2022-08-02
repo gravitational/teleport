@@ -33,6 +33,11 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const (
+	minPlaybackSpeed = 0.25
+	maxPlaybackSpeed = 16
+)
+
 // Player manages the playback of a recorded desktop session.
 // It streams events from the audit log to the browser over
 // a websocket connection.
@@ -194,6 +199,12 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 		case actionPlayPause:
 			pp.togglePlaying()
 		case actionSpeed:
+			if action.PlaybackSpeed < minPlaybackSpeed {
+				action.PlaybackSpeed = minPlaybackSpeed
+			} else if action.PlaybackSpeed > maxPlaybackSpeed {
+				action.PlaybackSpeed = maxPlaybackSpeed
+			}
+
 			pp.playSpeed <- action.PlaybackSpeed
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
