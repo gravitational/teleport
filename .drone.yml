@@ -5713,44 +5713,31 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - export VERSION=${DRONE_TAG##v}
-  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - echo "---> Pulling images for $${VERSION}"
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     public.ecr.aws/gravitational/teleport:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-    quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-  - docker logout quay.io
+    public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
   - echo "---> Pushing images for $${VERSION}"
-  - docker push quay.io/gravitational/teleport:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker push quay.io/gravitational/teleport-operator:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-    QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-    STAGING_QUAY_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    STAGING_QUAY_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5809,12 +5796,14 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - export VERSION=${DRONE_TAG##v}
+  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - echo "---> Pulling images for $${VERSION}"
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     quay.io/gravitational/teleport:$${VERSION}
@@ -5822,12 +5811,15 @@ steps:
     quay.io/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
+  - docker logout quay.io
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
   - echo "---> Pushing images for $${VERSION}"
   - docker push quay.io/gravitational/teleport:$${VERSION}
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  -   ERSION}
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5837,6 +5829,10 @@ steps:
       from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
       from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+    STAGING_QUAY_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    STAGING_QUAY_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6242,6 +6238,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfe9263c545d10b26f27dc10b8b5e5b833d0fca4333860550dae28113cef681a
+hmac: 886b4ee9d5440155e696730354e0d8f773def8d703105d58d7017bf997e0c687
 
 ...
