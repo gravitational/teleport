@@ -12,7 +12,7 @@ approve or deny these requests.
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 Open-source Teleport users can get a preview of how Access Requests work by
-requesting a role via the Teleport CLI. Full access request functionality,
+requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
 
@@ -157,7 +157,7 @@ deny:
 When requesting a new role users can add provide a reason along with their request
 `tsh login --request-roles="db" --request-reason="Need access to db"`.
 
-By requiring a reason along with an access request, you can provide users with a default
+By requiring a reason along with an Access Request, you can provide users with a default
 unprivileged state where they must always go through the Access Requests API in order to
 gain meaningful privilege.
 
@@ -188,7 +188,7 @@ spec:
         - claim: groups
           value: admins
           roles: ['*']
-      # Teleport can attach annotations to pending access requests. these
+      # Teleport can attach annotations to pending Access Requests. these
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -197,9 +197,9 @@ spec:
         groups: ['{{external.groups}}']
   options:
     # the `request_access` field can be set to 'always' or 'reason' to tell
-    # tsh or the web UI to always create an access request on login. If it is
+    # tsh or the web UI to always create an Access Request on login. If it is
     # set to 'reason', the user will be required to indicate *why* they are
-    # generating the access request.
+    # generating the Access Request.
     request_access: reason
     # the `request_prompt` field can be used to tell the user what should
     # be supplied in the request reason field.
