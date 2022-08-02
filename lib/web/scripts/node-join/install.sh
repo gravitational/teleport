@@ -42,6 +42,12 @@ JOIN_TOKEN='{{.token}}'
 JOIN_METHOD='{{.joinMethod}}'
 JOIN_METHOD_FLAG=""
 [ ! -z "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
+
+# inject labels into the configuration
+LABELS='{{.labels}}'
+LABELS_FLAG=""
+[ ! -z "$LABELS" ] && LABELS_FLAG="--labels ${LABELS}"
+
 # When all stanza generators have been updated to use the new
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
 # with the script passing it in in `join_tokens.go`.
@@ -439,6 +445,7 @@ install_teleport_node_config() {
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
+      ${LABELS_FLAG} \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS

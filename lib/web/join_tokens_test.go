@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -286,6 +287,7 @@ func toHex(s string) string { return hex.EncodeToString([]byte(s)) }
 func TestGetNodeJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 	validIAMToken := "valid-iam-token"
+	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
@@ -303,6 +305,9 @@ func TestGetNodeJoinScript(t *testing.T) {
 				return &types.ProvisionTokenV2{
 					Metadata: types.Metadata{
 						Name: token,
+					},
+					Spec: types.ProvisionTokenSpecV2{
+						RefResourceID: internalResourceID,
 					},
 				}, nil
 			}
@@ -360,6 +365,15 @@ func TestGetNodeJoinScript(t *testing.T) {
 			errAssert: require.NoError,
 			extraAssertions: func(script string) {
 				require.Contains(t, script, "JOIN_METHOD='iam'")
+			},
+		},
+		{
+			desc:      "internal resourceid label",
+			settings:  scriptSettings{token: validToken},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
 			},
 		},
 	} {

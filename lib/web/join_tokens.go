@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -52,6 +53,8 @@ type nodeJoinToken struct {
 	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
+	// RefResourceID contains the id of the RefResourceID label
+	RefResourceID string `json:"refResourceID,omitempty"`
 }
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -115,6 +118,17 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
+	// If using the automatic method to add a Node, the `install.sh` will add the token's RefResourceID value
+	//   as part of the initial Labels configuration for that Node
+	// Script install-node.sh:
+	//   ...
+	//   $ teleport configure ... --labels teleport.internal/resource-id=<RefResourceID> ...
+	//   ...
+	//
+	// The client can then query the resources by this id and answer the question:
+	//   - Which Node joined the cluster from this token Y?
+	req.RefResourceID = uuid.NewString()
+
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,9 +140,10 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	return &nodeJoinToken{
-		ID:     tokenName,
-		Expiry: expires,
-		Method: provisionToken.GetJoinMethod(),
+		ID:            tokenName,
+		Expiry:        expires,
+		Method:        provisionToken.GetJoinMethod(),
+		RefResourceID: req.RefResourceID,
 	}, nil
 }
 
@@ -247,7 +262,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// The provided token can be attacker controlled, so we must validate
 	// it with the backend before using it to generate the script.
-	_, err := m.GetToken(ctx, settings.token)
+	token, err := m.GetToken(ctx, settings.token)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
@@ -276,6 +291,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	labelsList := []string{}
+	refResourceID := token.GetRefResourceID()
+	if refResourceID != "" {
+		labelsList = append(labelsList, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, refResourceID))
 	}
 
 	var buf bytes.Buffer
@@ -307,6 +328,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"appName":        settings.appName,
 		"appURI":         settings.appURI,
 		"joinMethod":     settings.joinMethod,
+		"labels":         strings.Join(labelsList, ","),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

@@ -828,6 +828,9 @@ message ProvisionTokenSpecV2 {
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
     // BotName is the name of the bot this token grants access to, if any
     string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
+    // RefResourceID is an identifier to correlate this token to resources that used it to join the
+    // cluster
+    string RefResourceID = 6 [ (gogoproto.jsontag) = "ref_resource_id,omitempty" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

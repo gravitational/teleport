@@ -58,6 +58,10 @@ type ProvisionToken interface {
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
+
+	// GetRefResourceID returns the RefResourceID use to correlate tokens with nodes that joined using this token
+	GetRefResourceID() string
+
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -248,6 +252,11 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
+}
+
+// GetRefResourceID returns resource ID
+func (p *ProvisionTokenV2) GetRefResourceID() string {
+	return p.Spec.RefResourceID
 }
 
 // V1 returns V1 version of the resource
