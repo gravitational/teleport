@@ -1483,6 +1483,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1514,6 +1530,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1641,22 +1658,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1666,7 +1667,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2234,7 +2234,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		storagePresence := local.NewPresenceService(process.storage)
+		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
 		s, err = regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
@@ -2952,9 +2952,29 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	var listeners proxyListeners
 
 	if !cfg.Proxy.SSHAddr.IsEmpty() {
-		listeners.ssh, err = process.importOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
+		l, err := process.importOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if cfg.Proxy.EnableProxyProtocol {
+			// Create multiplexer for the purpose of processing proxy protocol
+			mux, err := multiplexer.New(multiplexer.Config{
+				Listener:            l,
+				EnableProxyProtocol: true,
+				ID:                  teleport.Component(teleport.ComponentProxy, "ssh"),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.ssh = mux.SSH()
+			go func() {
+				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+					mux.Entry.WithError(err).Error("Mux encountered err serving")
+				}
+			}()
+		} else {
+			listeners.ssh = l
 		}
 	}
 
@@ -3047,7 +3067,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
-		go listeners.mux.Serve()
+		go func() {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
@@ -3074,7 +3098,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				return nil, trace.Wrap(err)
 			}
 		}
-		go listeners.mux.Serve()
+		go func() {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
 		return &listeners, nil
 	default:
 		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
@@ -3108,7 +3136,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				}
 				listeners.web = listeners.mux.TLS()
 				process.muxPostgresOnWebPort(cfg, &listeners)
-				go listeners.mux.Serve()
+				go func() {
+					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+						listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+					}
+				}()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
 				listeners.web = listener
