@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -176,6 +177,9 @@ type InitConfig struct {
 
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
+
+	// TraceClient is used to forward spans to the upstream telemetry collector
+	TraceClient otlptrace.Client
 }
 
 // Init instantiates and configures an instance of AuthServer
