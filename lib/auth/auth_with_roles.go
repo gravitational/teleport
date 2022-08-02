@@ -2245,7 +2245,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForRoleRequest(req)
+		return a.desiredAccessInfoForRoleRequest(req, user)
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -2260,7 +2260,7 @@ func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCerts
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	// DEPRECATED: consider making role requests without UseRoleRequests set an
@@ -2274,9 +2274,12 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// are intended to reduce allowed permissions so we'll accept them
 	// as-is for now (and ensure the user is allowed to assume them
 	// later).
-	// Note: traits are not currently set for role impersonation.
+	//
+	// Traits are copied across so that `{{ internal.logins }}` within the
+	// impersonated role behave correctly.
 	return &services.AccessInfo{
-		Roles: req.RoleRequests,
+		Roles:  req.RoleRequests,
+		Traits: user.GetTraits(),
 	}, nil
 }
 
