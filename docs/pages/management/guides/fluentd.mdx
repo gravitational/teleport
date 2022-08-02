@@ -45,6 +45,10 @@ from Teleport's events API, and forwards them to Fluentd.
   $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
   ```
 
+  We currently only build the event handler plugin for amd64 machines. If your
+  macOS machine uses Apple silicon, you will need to [install
+  Rosetta](https://support.apple.com/en-us/HT211861) before you can run the
+  event handler plugin. You can also build from source.
   </TabItem>
 
   <TabItem label="Docker">
@@ -57,6 +61,21 @@ from Teleport's events API, and forwards them to Fluentd.
   ```code
   $ helm repo add teleport https://charts.releases.teleport.dev/
   ```
+  </TabItem>
+  <TabItem label="From Source">
+  Ensure that you have Docker installed and running.
+
+  Run the following commands to build the plugin:
+
+  ```code
+  $ git clone https://github.com/gravitational/teleport-plugins.git --depth 1
+  $ cd teleport-plugins/event-handler/build.assets
+  $ make build
+  ```
+
+  You can find the compiled binary within your clone of the `teleport-plugins`
+  repo, with the file path, `event-handler/build/teleport-event-handler`.
+
   </TabItem>
 </Tabs>
 
