@@ -43,6 +43,7 @@ type Player struct {
 	mu        sync.Mutex
 	cond      *sync.Cond
 	playState playbackState
+	playSpeed chan float32
 
 	log logrus.FieldLogger
 	sID string
@@ -68,6 +69,7 @@ func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.Fie
 		playState: playStatePlaying,
 		log:       log,
 		sID:       sID,
+		playSpeed: make(chan float32),
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -107,6 +109,9 @@ const (
 	// actionPlayPause toggles the playback state
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
+
+	// actionPlaySpeed sets the playback speed
+	actionPlaySpeed = playbackAction("play/speed")
 )
 
 // actionMessage is a message passed from the playback client
@@ -115,6 +120,9 @@ const (
 type actionMessage struct {
 	// actionPlayPause toggles the playbackState.playState
 	Action playbackAction `json:"action"`
+
+	// PlaySpeed is the playback speed to use.
+	PlaybackSpeed float32 `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
@@ -185,6 +193,8 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
+		case actionPlaySpeed:
+			pp.playSpeed <- action.PlaybackSpeed
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
@@ -198,6 +208,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
+	var playFactor float32 = 1.0
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -219,6 +230,8 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				}
 			}
 			return
+		case playSpeed := <-pp.playSpeed:
+			playFactor = 1.0 / playSpeed
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
@@ -229,10 +242,11 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
-				if e.DelayMilliseconds > lastDelay {
+				scaledDelay := int64(float32(e.DelayMilliseconds) * playFactor)
+				if scaledDelay > lastDelay {
 					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
-					lastDelay = e.DelayMilliseconds
+					time.Sleep(time.Duration(scaledDelay-lastDelay) * time.Millisecond)
+					lastDelay = scaledDelay
 				}
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
