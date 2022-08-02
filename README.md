@@ -173,7 +173,9 @@ Ensure you have installed correct versions of dependencies:
   
 If you wish to build the Rust-powered features like Desktop Access:
 
-* `Rust` and `Cargo` version from [build.assets/Makefile](https://github.com/gravitational/teleport/blob/c3dde989cc9de6fa199f1a12287926218cc2e685/build.assets/Makefile#L21):
+* `Rust` and `Cargo` version from
+  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
+  (search for RUST_VERSION):
   
   ```shell
   $ brew install rustup
