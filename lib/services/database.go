@@ -580,7 +580,6 @@ func labelsFromAzureMySQLServer(server *armmysql.Server, meta *types.Azure) map[
 	if server.Properties != nil && server.Properties.Version != nil {
 		labels[labelEngineVersion] = string(*server.Properties.Version)
 	}
-	labels[labelEndpointType] = AzureMySQLEndpointTypeServer
 	if server.ID != nil {
 		resourceID, err := arm.ParseResourceID(*server.ID)
 		if err == nil {
@@ -650,7 +649,7 @@ func azureTagsToLabels(tags map[string]*string) map[string]string {
 	labels := make(map[string]string)
 	for key, val := range tags {
 		if val == nil {
-			log.Debugf("Skipping Azure tag %q, missing a value.")
+			log.Debugf("Skipping Azure tag %q, missing a value.", key)
 			continue
 		}
 		if types.IsValidLabelKey(key) {
@@ -687,7 +686,10 @@ func IsAzureMySQLVersionSupported(version armmysql.ServerVersion) bool {
 	switch version {
 	case armmysql.ServerVersionEight0, armmysql.ServerVersionFive7:
 		return true
+	case armmysql.ServerVersionFive6:
+		return false
 	default:
+		log.Warnf("Unknown Azure MySQL server version: %q", version)
 		return false
 	}
 }
@@ -1009,6 +1011,4 @@ const (
 const (
 	// Azure managed mysql server port is always 3306
 	AzureMySQLPort = "3306"
-	// AzureMySQLEndpointTypeServer is the endpoint for an Azure single-server instance
-	AzureMySQLEndpointTypeServer = "server"
 )
