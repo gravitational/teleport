@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package session is used for bookeeping of SSH interactive sessions
+// Package session is used for bookkeeping of SSH interactive sessions
 // that happen in realtime across the teleport cluster
 package session
 
@@ -27,14 +27,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
 	"github.com/pborman/uuid"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // ID is a unique session ID.
@@ -238,21 +239,21 @@ const MaxSessionSliceLength = 1000
 type Service interface {
 	// GetSessions returns a list of currently active sessions matching
 	// the given condition.
-	GetSessions(namespace string) ([]Session, error)
+	GetSessions(ctx context.Context, namespace string) ([]Session, error)
 
-	// GetSession returns a session with it's parties by ID.
-	GetSession(namespace string, id ID) (*Session, error)
+	// GetSession returns a session with its parties by ID.
+	GetSession(ctx context.Context, namespace string, id ID) (*Session, error)
 
 	// CreateSession creates a new active session and it's parameters if term is
 	// skipped, terminal size won't be recorded.
-	CreateSession(sess Session) error
+	CreateSession(ctx context.Context, sess Session) error
 
 	// UpdateSession updates certain session parameters (last_active, terminal
 	// parameters) other parameters will not be updated.
-	UpdateSession(req UpdateRequest) error
+	UpdateSession(ctx context.Context, req UpdateRequest) error
 
 	// DeleteSession removes an active session from the backend.
-	DeleteSession(namespace string, id ID) error
+	DeleteSession(ctx context.Context, namespace string, id ID) error
 }
 
 type server struct {
@@ -284,9 +285,9 @@ func activeKey(namespace string, key string) []byte {
 
 // GetSessions returns a list of active sessions.
 // Returns an empty slice if no sessions are active
-func (s *server) GetSessions(namespace string) ([]Session, error) {
+func (s *server) GetSessions(ctx context.Context, namespace string) ([]Session, error) {
 	prefix := activePrefix(namespace)
-	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
+	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -323,10 +324,10 @@ func (slice Sessions) Len() int {
 	return len(slice)
 }
 
-// GetSession returns the session by it's id. Returns NotFound if a session
+// GetSession returns the session by its id. Returns NotFound if a session
 // is not found
-func (s *server) GetSession(namespace string, id ID) (*Session, error) {
-	item, err := s.bk.Get(context.TODO(), activeKey(namespace, string(id)))
+func (s *server) GetSession(ctx context.Context, namespace string, id ID) (*Session, error) {
+	item, err := s.bk.Get(ctx, activeKey(namespace, string(id)))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("session(%v, %v) is not found", namespace, id)
@@ -343,7 +344,7 @@ func (s *server) GetSession(namespace string, id ID) (*Session, error) {
 // CreateSession creates a new session if it does not exist, if the session
 // exists the function will return AlreadyExists error
 // The session will be marked as active for TTL period of time
-func (s *server) CreateSession(sess Session) error {
+func (s *server) CreateSession(ctx context.Context, sess Session) error {
 	if err := sess.ID.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -373,7 +374,7 @@ func (s *server) CreateSession(sess Session) error {
 		Value:   data,
 		Expires: s.clock.Now().UTC().Add(s.activeSessionTTL),
 	}
-	_, err = s.bk.Create(context.TODO(), item)
+	_, err = s.bk.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -385,8 +386,8 @@ const (
 	sessionUpdateRetryPeriod = 20 * time.Millisecond
 )
 
-// UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
-func (s *server) UpdateSession(req UpdateRequest) error {
+// UpdateSession updates session parameters - can mark it as inactive and update its terminal parameters
+func (s *server) UpdateSession(ctx context.Context, req UpdateRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -395,7 +396,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 
 	// Try several times, then give up
 	for i := 0; i < sessionUpdateAttempts; i++ {
-		item, err := s.bk.Get(context.TODO(), key)
+		item, err := s.bk.Get(ctx, key)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -421,7 +422,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 			Expires: s.clock.Now().UTC().Add(s.activeSessionTTL),
 		}
 
-		_, err = s.bk.CompareAndSwap(context.TODO(), *item, newItem)
+		_, err = s.bk.CompareAndSwap(ctx, *item, newItem)
 		if err != nil {
 			if trace.IsCompareFailed(err) || trace.IsConnectionProblem(err) {
 				s.clock.Sleep(sessionUpdateRetryPeriod)
@@ -435,7 +436,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 }
 
 // DeleteSession removes an active session from the backend.
-func (s *server) DeleteSession(namespace string, id ID) error {
+func (s *server) DeleteSession(ctx context.Context, namespace string, id ID) error {
 	if !types.IsValidNamespace(namespace) {
 		return trace.BadParameter("invalid namespace %q", namespace)
 	}
@@ -444,7 +445,7 @@ func (s *server) DeleteSession(namespace string, id ID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.bk.Delete(context.TODO(), activeKey(namespace, string(id)))
+	err = s.bk.Delete(ctx, activeKey(namespace, string(id)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -464,27 +465,27 @@ func NewDiscardSessionServer() Service {
 }
 
 // GetSessions returns an empty list of sessions.
-func (d *discardSessionServer) GetSessions(namespace string) ([]Session, error) {
+func (d *discardSessionServer) GetSessions(ctx context.Context, namespace string) ([]Session, error) {
 	return []Session{}, nil
 }
 
 // GetSession always returns a zero session.
-func (d *discardSessionServer) GetSession(namespace string, id ID) (*Session, error) {
+func (d *discardSessionServer) GetSession(ctx context.Context, namespace string, id ID) (*Session, error) {
 	return &Session{}, nil
 }
 
 // CreateSession always returns nil, does nothing.
-func (d *discardSessionServer) CreateSession(sess Session) error {
+func (d *discardSessionServer) CreateSession(ctx context.Context, sess Session) error {
 	return nil
 }
 
 // UpdateSession always returns nil, does nothing.
-func (d *discardSessionServer) UpdateSession(req UpdateRequest) error {
+func (d *discardSessionServer) UpdateSession(ctx context.Context, req UpdateRequest) error {
 	return nil
 }
 
 // DeleteSession removes an active session from the backend.
-func (d *discardSessionServer) DeleteSession(namespace string, id ID) error {
+func (d *discardSessionServer) DeleteSession(ctx context.Context, namespace string, id ID) error {
 	return nil
 }
 
