@@ -159,7 +159,8 @@ $ make -C build.assets build-binaries
 
 Ensure you have installed correct versions of dependencies:
 
-* `Go` version from [go.mod](https://github.com/gravitational/teleport/blob/0e9d621b464f2bd05a28e7db0ae2ef65349c460e/go.mod#L3)
+* `Go` version from
+  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
   
   ```shell
   # if we are not on the latest, you might need to
