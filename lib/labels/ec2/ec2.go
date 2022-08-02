@@ -110,7 +110,7 @@ func (l *EC2) Sync(ctx context.Context) error {
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			l.c.Log.Warningf("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+			l.c.Log.Debug("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
 			return nil
 		}
 		return trace.Wrap(err)
@@ -158,7 +158,7 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 
 	for {
 		if err := l.Sync(ctx); err != nil {
-			l.c.Log.Warningf("Error fetching EC2 tags: %v", err)
+			l.c.Log.Debugf("Error fetching EC2 tags: %v", err)
 		}
 		select {
 		case <-ticker.Chan():
