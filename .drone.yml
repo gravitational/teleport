@@ -1220,6 +1220,39 @@ steps:
       - docker push $OSS_IMAGE_NAME_PROD
       - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
+  - name: Build/push Teleport Lab Docker image
+    image: docker:git
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
+      - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export TELEPORT_LAB_IMAGE_NAME_PROD="public.aws.ecr/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+       # Check out code
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # Build and push Teleport lab image
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
+      - docker push $TELEPORT_LAB_IMAGE_NAME
+
 services:
   - name: Start Docker
     image: docker:dind
