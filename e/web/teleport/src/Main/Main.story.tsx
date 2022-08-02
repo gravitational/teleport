@@ -21,7 +21,6 @@ import {
   MockedWorkflowService,
   MockedStoreAccessRequests,
 } from 'e-teleport/Workflow/fixtures';
-import { MockedCloudService } from 'e-teleport/Billing/fixtures';
 
 export default {
   title: 'TeleportE/Main',
@@ -67,7 +66,6 @@ function useMainStory() {
     ctx.storeUser.setState(userContext);
     ctx.storeAccessRequests = new MockedStoreAccessRequests();
     ctx.workflowService = new MockedWorkflowService();
-    ctx.cloudService = new MockedCloudService();
 
     getFeatures().forEach(f => f.register(ctx));
 

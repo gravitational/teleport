@@ -6,7 +6,6 @@ import Ctx from 'teleport/teleportContext';
 import cfg from 'e-teleport/config';
 import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
 import AuthConnectors from 'e-teleport/AuthConnectors';
-import Billing from 'e-teleport/Billing';
 import AccountE from 'e-teleport/Account';
 import { SupportE } from 'e-teleport/Support';
 
@@ -75,32 +74,6 @@ class FeatureNewAccessRequest extends Feature {
   }
 }
 
-class FeatureBilling extends Feature {
-  topNavTitle = 'Billing & Usage';
-
-  route = {
-    title: 'Billing & Usage',
-    path: cfg.routes.billing,
-    component: Billing,
-  };
-
-  isAvailable(ctx: Ctx): boolean {
-    return ctx.getFeatureFlags().billing;
-  }
-
-  register(ctx: Ctx) {
-    ctx.storeNav.addTopMenuItem({
-      title: 'Billing & Usage',
-      Icon: Icons.CreditCard,
-      getLink() {
-        return cfg.routes.billingUsage;
-      },
-    });
-
-    ctx.features.push(this);
-  }
-}
-
 class FeatureAccount extends OSS.FeatureAccount {
   route = {
     title: 'Account Settings',
@@ -137,6 +110,5 @@ export default function getFeatures() {
     new OSS.FeatureTrust(),
     new FeatureHelpAndSupport(),
     new FeatureAccount(),
-    new FeatureBilling(),
   ];
 }
