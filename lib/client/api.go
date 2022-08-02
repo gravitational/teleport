@@ -1913,25 +1913,21 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		for _, fp := range tc.Config.LocalForwardPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+	for _, fp := range tc.Config.LocalForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.listenAndForward(ctx, socket, addr, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 	}
-	if len(tc.Config.DynamicForwardedPorts) > 0 {
-		for _, fp := range tc.Config.DynamicForwardedPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				return trace.Errorf("Failed to bind to %v: %v.", addr, err)
-			}
-			go nodeClient.dynamicListenAndForward(ctx, socket)
+	for _, fp := range tc.Config.DynamicForwardedPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
 	return nil
 }
@@ -2062,6 +2058,17 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Return an error if it is a desktop session
+	if len(sessionEvents) > 0 {
+		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
+			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
+			message := "Desktop sessions cannot be viewed with tsh." +
+				" Please use the browser to play this session." +
+				" Click on the URL to view the session in the browser:"
+			return trace.BadParameter("%s\n%s", message, url)
+		}
 	}
 
 	// read the stream into a buffer:
@@ -4311,4 +4318,17 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 		}
 	}
 	return databases, nil
+}
+
+// getDesktopEventWebURL returns the web UI URL users can access to
+// watch a desktop session recording in the browser
+func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
+	if len(events) < 1 {
+		return ""
+	}
+	start := events[0].GetTimestamp()
+	end := events[len(events)-1].GetTimestamp()
+	duration := end.Sub(start)
+
+	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
 }

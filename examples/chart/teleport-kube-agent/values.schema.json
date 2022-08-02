@@ -19,6 +19,8 @@
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
+        "roleName",
+        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -143,6 +145,14 @@
             "type": "string",
             "default": ""
         },
+        "caPin": {
+            "$id": "#/properties/caPin",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "insecureSkipProxyTLSVerify": {
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
@@ -194,6 +204,16 @@
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "roleName": {
+            "$id": "#/properties/roleName",
+            "type": "string",
+            "default": ""
+        },
+        "roleBindingName": {
+            "$id": "#/properties/roleBindingName",
             "type": "string",
             "default": ""
         },
@@ -307,6 +327,16 @@
                 },
                 "clusterRoleBinding": {
                     "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "role": {
+                    "$id": "#/properties/extraLabels/properties/role",
+                    "type": "object",
+                    "default": {}
+                },
+                "roleBinding": {
+                    "$id": "#/properties/extraLabels/properties/roleBinding",
                     "type": "object",
                     "default": {}
                 },

@@ -218,6 +218,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
+// HandleConnection handles connections from plain TCP applications.
+func (h *APIHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+	return h.appHandler.HandleConnection(ctx, conn)
+}
+
 func (h *APIHandler) Close() error {
 	return h.handler.Close()
 }
@@ -360,6 +365,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// Sign required files to set up mTLS using the db format.
+	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
+
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
@@ -442,6 +450,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect", h.WithClusterAuth(h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
+
+	// GET a Connection Diagnostics by its name
+	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 
 	// if Web UI is enabled, check the assets dir:
 	var indexPage *template.Template
@@ -836,12 +847,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := h.cfg.ProxyClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
 		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
+		LicenseWarnings:  pr.LicenseWarnings,
 	}, nil
 }
 
@@ -2680,6 +2697,59 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 		return fn(w, r, p, ctx, site)
 	})
+}
+
+// ProvisionTokenHandler is a authenticated handler that is called for some existing Token
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, token types.ProvisionToken) (interface{}, error)
+
+// WithProvisionTokenAuth ensures that request is authenticated with a provision token.
+// Provision tokens, when used like this are invalidated as soon as used.
+// Doesn't matter if the underlying response was a success or an error.
+func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx := r.Context()
+		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
+
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.WithError(err).Warn("No auth headers.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to authenticate.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
+		if err != nil {
+			h.log.WithError(err).WithField("cluster-name", h.auth.clusterName).Warn("Failed to query cluster.")
+			return nil, trace.Wrap(err)
+		}
+
+		return fn(w, r, p, site, token)
+	})
+}
+
+// consumeTokenForAPICall will fetch a token, check if the requireRole is present and then delete the token
+// If any of those calls returns an error, this method also returns an error
+//
+// If multiple clients reach here at the same time, only one of them will be able to actually make the request.
+// This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
+// This is currently true for all the backends as explained here
+// https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
+	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)

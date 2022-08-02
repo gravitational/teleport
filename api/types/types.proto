@@ -549,6 +549,8 @@ message AppSpecV3 {
     bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+    // AWS contains additional options for AWS applications.
+    AppAWS AWS = 6 [ (gogoproto.jsontag) = "aws,omitempty" ];
 }
 
 // App is a specific application that a server proxies.
@@ -603,6 +605,12 @@ message CommandLabelV2 {
     repeated string Command = 2 [ (gogoproto.jsontag) = "command" ];
     // Result captures standard output
     string Result = 3 [ (gogoproto.jsontag) = "result" ];
+}
+
+// AppAWS contains additional options for AWS applications.
+message AppAWS {
+    // ExternalID is the AWS External ID used when assuming roles in this app.
+    string ExternalID = 1 [ (gogoproto.jsontag) = "external_id,omitempty" ];
 }
 
 // PrivateKeyType is the storage type of a private key.
@@ -3564,4 +3572,22 @@ message SortBy {
     bool IsDesc = 1 [ (gogoproto.jsontag) = "is_desc" ];
     // Field is the name of an objects field to sort by.
     string Field = 2 [ (gogoproto.jsontag) = "field" ];
+}
+
+// ConnectionDiagnosticV1 is the result of testing a connection.
+// When setting up a new resource in Teleport, it's useful to know if we can connect to it.
+// This can be done using the test connection feature.
+// Running `tsh` with `--test-id` creates a new Connection diagnostic
+// The user can then receive the result as feedback using the UI
+message ConnectionDiagnosticV1 {
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the resource spec.
+    ConnectionDiagnosticSpecV1 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message ConnectionDiagnosticSpecV1 {
+    bool Success = 1 [ (gogoproto.jsontag) = "success" ];
+    string Message = 2 [ (gogoproto.jsontag) = "message" ];
 }

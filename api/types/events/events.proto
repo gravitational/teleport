@@ -92,6 +92,11 @@ message ServerMetadata {
     // session occurred on.
     map<string, string> ServerLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "server_labels,omitempty" ];
+
+    // ForwardedBy tells us if the metadata was sent by the node itself or by another node in it's
+    // place. We can't verify emit permissions fully for these events so care should be taken with
+    // them.
+    string ForwardedBy = 6 [ (gogoproto.jsontag) = "forwarded_by,omitempty" ];
 }
 
 // Connection contains connection info
@@ -1402,6 +1407,33 @@ message AppSessionStart {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// AppSessionEnd is emitted when an application session ends.
+message AppSessionEnd {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // App is a common application resource metadata.
+    AppMetadata App = 6
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // AppSessionChunk is emitted at the start of a 5 minute chunk on each
 // proxy. This chunk is used to buffer 5 minutes of audit events at a time
 // for applications.
@@ -2029,6 +2061,7 @@ message OneOf {
         events.DatabaseSessionMalformedPacket DatabaseSessionMalformedPacket = 90;
         events.SFTP SFTP = 91;
         events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
+        events.AppSessionEnd AppSessionEnd = 93;
     }
 }
 
