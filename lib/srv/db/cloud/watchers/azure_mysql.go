@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -34,7 +35,7 @@ type azureMySQLFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Client is the Azure resource manager API client.
-	Client *armmysql.ServersClient
+	Client common.AzureMySQLClient
 	// regions is the Azure regions to filter databases.
 	Regions []string
 	// regionSet is the Azure regions to filter databases, as a hashset for efficient lookup.
@@ -94,16 +95,9 @@ func (f *azureMySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 // getDatabases returns a list of database resources representing Azure database servers.
 func (f *azureMySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
-	var servers []*armmysql.Server
-	options := &armmysql.ServersClientListOptions{}
-	pager := f.cfg.Client.NewListPager(options)
-	for pageNum := 0; pageNum <= maxPages && pager.More(); pageNum++ {
-		res, err := pager.NextPage(ctx)
-		if err != nil {
-			// TODO(gavin): convert from azure error to trace error
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, res.Value...)
+	servers, err := f.cfg.Client.ListServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	databases := make(types.Databases, 0, len(servers))
@@ -116,8 +110,14 @@ func (f *azureMySQLFetcher) getDatabases(ctx context.Context) (types.Databases, 
 
 		name := stringVal(server.Name)
 		var version armmysql.ServerVersion
-		if server.Properties != nil && server.Properties.Version != nil {
-			version = *server.Properties.Version
+		var state armmysql.ServerState
+		if server.Properties != nil {
+			if server.Properties.Version != nil {
+				version = *server.Properties.Version
+			}
+			if server.Properties.UserVisibleState != nil {
+				state = *server.Properties.UserVisibleState
+			}
 		}
 		if !services.IsAzureMySQLVersionSupported(version) {
 			f.log.Debugf("Azure server %q (version %v) doesn't support IAM authentication. Skipping.",
@@ -126,10 +126,6 @@ func (f *azureMySQLFetcher) getDatabases(ctx context.Context) (types.Databases, 
 			continue
 		}
 
-		var state armmysql.ServerState
-		if server.Properties != nil && server.Properties.UserVisibleState != nil {
-			state = *server.Properties.UserVisibleState
-		}
 		if !services.IsAzureMySQLServerAvailable(state) {
 			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
 				name,

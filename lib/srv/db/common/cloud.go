@@ -75,7 +75,7 @@ type CloudClients interface {
 	// GetAzureCredential returns Azure default token credential chain.
 	GetAzureCredential() (azcore.TokenCredential, error)
 	// GetAzureMySQLClient returns Azure MySQL client for the specified subscription.
-	GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error)
+	GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureMySQLClient, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -83,9 +83,13 @@ type CloudClients interface {
 // NewCloudClients returns a new instance of cloud clients retriever.
 func NewCloudClients() CloudClients {
 	return &cloudClients{
-		awsSessions: make(map[string]*awssession.Session),
+		awsSessions:       make(map[string]*awssession.Session),
+		azureMySQLClients: make(map[string]AzureMySQLClient),
 	}
 }
+
+// cloudClients implements CloudClients
+var _ CloudClients = (*cloudClients)(nil)
 
 type cloudClients struct {
 	// awsSessions is a map of cached AWS sessions per region.
@@ -96,10 +100,44 @@ type cloudClients struct {
 	gcpSQLAdmin GCPSQLAdminClient
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
-	// azureMySQLClient is the cached Azure MySQL client.
-	azureMySQLClient *armmysql.ServersClient
+	// azureMySQLClients is the cached Azure MySQL Server clients.
+	azureMySQLClients map[string]AzureMySQLClient
 	// mtx is used for locking.
 	mtx sync.RWMutex
+}
+
+// AzureMySQLClient provides an interface for getting MySQL servers.
+type AzureMySQLClient interface {
+	// ListServers lists all Azure MySQL servers within an Azure subscription.
+	ListServers(ctx context.Context) ([]*armmysql.Server, error)
+}
+
+// ARMMySQLServersClient implements AzureMySQLClient.
+var _ AzureMySQLClient = (*ARMMySQLServersClient)(nil)
+
+// ARMMySQLServersClient wraps armmysql.ServersClient so we can implement the AzureMySQLClient interface.
+type ARMMySQLServersClient struct {
+	client *armmysql.ServersClient
+}
+
+// ListServers lists all Azure MySQL servers within an Azure subscription, using a configured armmysql client.
+func (wrapper *ARMMySQLServersClient) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+	var servers []*armmysql.Server
+	options := &armmysql.ServersClientListOptions{}
+	pager := wrapper.client.NewListPager(options)
+	for pageNum := 0; pageNum <= MaxPages && pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			// TODO(gavin): convert from azure error to trace error
+			return nil, trace.Wrap(err)
+		}
+		for _, server := range page.Value {
+			if server != nil {
+				servers = append(servers, server)
+			}
+		}
+	}
+	return servers, nil
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -209,11 +247,12 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return c.initAzureCredential()
 }
 
-func (c *cloudClients) GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error) {
+// GetAzureMySQLClient returns an AzureMySQLClient for the given subscription.
+func (c *cloudClients) GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureMySQLClient, error) {
 	c.mtx.RLock()
-	if c.azureMySQLClient != nil {
-		defer c.mtx.RUnlock()
-		return c.azureMySQLClient, nil
+	if client, ok := c.azureMySQLClients[subscription]; ok {
+		c.mtx.RUnlock()
+		return client, nil
 	}
 	c.mtx.RUnlock()
 	return c.initAzureMySQLClient(subscription, cred)
@@ -287,7 +326,9 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 		return c.azureCredential, nil
 	}
 	logrus.Debug("Initializing Azure default credential chain.")
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &azidentity.DefaultAzureCredentialOptions{}
+	cred, err := azidentity.NewDefaultAzureCredential(options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,33 +336,40 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	return cred, nil
 }
 
-func (c *cloudClients) initAzureMySQLClient(subscription string, cred azcore.TokenCredential) (*armmysql.ServersClient, error) {
+func (c *cloudClients) initAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureMySQLClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	if c.azureMySQLClient != nil { // If some other thread already got here first.
-		return c.azureMySQLClient, nil
+	if client, ok := c.azureMySQLClients[subscription]; ok { // If some other thread already got here first.
+		return client, nil
 	}
 	logrus.Debug("Initializing Azure MySQL servers client.")
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	client, err := armmysql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.azureMySQLClient = client
-	return client, nil
+	wrappedClient := &ARMMySQLServersClient{client: client}
+	c.azureMySQLClients[subscription] = wrappedClient
+	return wrappedClient, nil
 }
+
+// TestCloudClients implements CloudClients
+var _ CloudClients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS            rdsiface.RDSAPI
-	RDSPerRegion   map[string]rdsiface.RDSAPI
-	Redshift       redshiftiface.RedshiftAPI
-	ElastiCache    elasticacheiface.ElastiCacheAPI
-	MemoryDB       memorydbiface.MemoryDBAPI
-	SecretsManager secretsmanageriface.SecretsManagerAPI
-	IAM            iamiface.IAMAPI
-	STS            stsiface.STSAPI
-	GCPSQL         GCPSQLAdminClient
+	RDS              rdsiface.RDSAPI
+	RDSPerRegion     map[string]rdsiface.RDSAPI
+	Redshift         redshiftiface.RedshiftAPI
+	ElastiCache      elasticacheiface.ElastiCacheAPI
+	MemoryDB         memorydbiface.MemoryDBAPI
+	SecretsManager   secretsmanageriface.SecretsManagerAPI
+	IAM              iamiface.IAMAPI
+	STS              stsiface.STSAPI
+	GCPSQL           GCPSQLAdminClient
+	AzureMySQL       AzureMySQLClient
+	AzureMySQLPerSub map[string]AzureMySQLClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -382,6 +430,14 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdmi
 // GetAzureCredential returns default Azure token credential chain.
 func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return &azidentity.ChainedTokenCredential{}, nil
+}
+
+// GetAzureMySQLClient returns an AzureMySQLClient for the specified subscription
+func (c *TestCloudClients) GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureMySQLClient, error) {
+	if len(c.AzureMySQLPerSub) != 0 {
+		return c.AzureMySQLPerSub[subscription], nil
+	}
+	return c.AzureMySQL, nil
 }
 
 // Close closes all initialized clients.

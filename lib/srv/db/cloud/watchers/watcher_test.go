@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -37,6 +39,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+type watchTest struct {
+	name              string
+	awsMatchers       []services.AWSMatcher
+	azureMatchers     []services.AzureMatcher
+	clients           common.CloudClients
+	expectedDatabases types.Databases
+}
 
 // TestWatcher tests cloud databases watcher.
 func TestWatcher(t *testing.T) {
@@ -93,12 +103,23 @@ func TestWatcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
-	tests := []struct {
-		name              string
-		awsMatchers       []services.AWSMatcher
-		clients           common.CloudClients
-		expectedDatabases types.Databases
-	}{
+	const (
+		eastus        = "eastus"
+		eastus2       = "eastus2"
+		westus        = "westus"
+		subscription1 = "sub1"
+		subscription2 = "sub2"
+	)
+	mySQLServer1, mySQLDatabase1 := makeARMMySQLServer(t, "server-1", subscription1, eastus, map[string]string{"env": "prod"})
+	mySQLServer2, _ := makeARMMySQLServer(t, "server-2", subscription1, eastus, map[string]string{"env": "dev"})
+	mySQLServer3, _ := makeARMMySQLServer(t, "server-3", subscription1, eastus2, map[string]string{"env": "prod"})
+	mySQLServer4, mySQLDatabase4 := makeARMMySQLServer(t, "server-4", subscription2, westus, map[string]string{"env": "prod"})
+	mySQLServerUnknownVersion, _ := makeARMMySQLServer(t, "server-5", subscription1, eastus, nil, withARMyMySQLVersion("unknown"))
+	mySQLServerUnsupportedVersion, _ := makeARMMySQLServer(t, "server-6", subscription1, eastus, nil, withARMyMySQLVersion(string(armmysql.ServerVersionFive6)))
+	mySQLServerDisabledState, _ := makeARMMySQLServer(t, "server-7", subscription1, eastus, nil, withARMMySQLState(string(armmysql.ServerStateDisabled)))
+	mySQLServerUnknownState, _ := makeARMMySQLServer(t, "server-8", subscription1, eastus, nil, withARMMySQLState("unknown"))
+
+	tests := []watchTest{
 		{
 			name: "RDS labels matching",
 			awsMatchers: []services.AWSMatcher{
@@ -294,11 +315,161 @@ func TestWatcher(t *testing.T) {
 				memorydbDatabaseProd,
 			},
 		},
+		{
+			name: "Azure MySQL labels matching",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Subscriptions: []string{subscription1},
+					Types:         []string{services.AzureMatcherMySQL},
+					Regions:       []string{eastus},
+					Tags:          types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				AzureMySQLPerSub: map[string]common.AzureMySQLClient{
+					subscription1: &cloud.AzureMySQLMock{
+						DBServers: []*armmysql.Server{mySQLServer1, mySQLServer2, mySQLServer3},
+					},
+					subscription2: &cloud.AzureMySQLMock{
+						DBServers: []*armmysql.Server{mySQLServer4},
+					},
+				},
+			},
+			// mySQLServer2 tags dont match, mySQLserver3 is in eastus2, mySQLserver4 is in subscription2
+			expectedDatabases: types.Databases{mySQLDatabase1},
+		},
+		{
+			name: "Azure MySQL unsupported and unknown database versions are skipped",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Subscriptions: []string{subscription1},
+					Types:         []string{services.AzureMatcherMySQL},
+					Regions:       []string{eastus},
+					Tags:          types.Labels{"*": []string{"*"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				AzureMySQL: &cloud.AzureMySQLMock{
+					DBServers: []*armmysql.Server{
+						mySQLServer1,
+						mySQLServerUnknownVersion,
+						mySQLServerUnsupportedVersion,
+					},
+				},
+			},
+			expectedDatabases: types.Databases{mySQLDatabase1},
+		},
+		{
+			name: "Azure MySQL unavailable databases are skipped",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Subscriptions: []string{subscription1},
+					Types:         []string{services.AzureMatcherMySQL},
+					Regions:       []string{eastus},
+					Tags:          types.Labels{"*": []string{"*"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				AzureMySQL: &cloud.AzureMySQLMock{
+					DBServers: []*armmysql.Server{
+						mySQLServer1,
+						mySQLServerDisabledState,
+						mySQLServerUnknownState,
+					},
+				},
+			},
+			expectedDatabases: types.Databases{mySQLDatabase1},
+		},
+		{
+			name: "Azure MySQL skip access denied errors",
+			azureMatchers: []services.AzureMatcher{
+				{
+					Subscriptions: []string{subscription1, subscription2},
+					Types:         []string{services.AzureMatcherMySQL},
+					Regions:       []string{eastus, westus},
+					Tags:          types.Labels{"*": []string{"*"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				AzureMySQLPerSub: map[string]common.AzureMySQLClient{
+					subscription1: &cloud.AzureMySQLMockUnauth{
+						DBServers: []*armmysql.Server{mySQLServer1, mySQLServer2, mySQLServer3},
+					},
+					subscription2: &cloud.AzureMySQLMock{
+						DBServers: []*armmysql.Server{mySQLServer4},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{mySQLDatabase4},
+		},
+		{
+			name: "multiple cloud matchers",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types: []string{
+						services.AWSMatcherRedshift,
+						services.AWSMatcherRDS,
+						services.AWSMatcherElastiCache,
+						services.AWSMatcherMemoryDB,
+					},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			azureMatchers: []services.AzureMatcher{
+				{
+					Subscriptions: []string{subscription1, subscription2},
+					Types: []string{
+						services.AzureMatcherMySQL,
+						services.AzureMatcherPostgres,
+					},
+					Regions: []string{eastus, westus},
+					Tags:    types.Labels{"*": []string{"*"}},
+				},
+			},
+			clients: &common.TestCloudClients{
+				RDS: &cloud.RDSMock{
+					DBClusters: []*rds.DBCluster{auroraCluster1},
+				},
+				Redshift: &cloud.RedshiftMock{
+					Clusters: []*redshift.Cluster{redshiftUse1Prod},
+				},
+				ElastiCache: &cloud.ElastiCacheMock{
+					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd},
+					TagsByARN:         elasticacheTagsByARN,
+				},
+				MemoryDB: &cloud.MemoryDBMock{
+					Clusters:  []*memorydb.Cluster{memorydbProd},
+					TagsByARN: memorydbTagsByARN,
+				},
+				AzureMySQLPerSub: map[string]common.AzureMySQLClient{
+					subscription1: &cloud.AzureMySQLMock{
+						DBServers: []*armmysql.Server{mySQLServer1},
+					},
+					subscription2: &cloud.AzureMySQLMock{
+						DBServers: []*armmysql.Server{mySQLServer4},
+					},
+				},
+			},
+			expectedDatabases: types.Databases{
+				auroraDatabase1,
+				redshiftDatabaseUse1Prod,
+				elasticacheDatabaseProd,
+				memorydbDatabaseProd,
+				mySQLDatabase1,
+				mySQLDatabase4,
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			watcher, err := NewWatcher(ctx, WatcherConfig{AWSMatchers: test.awsMatchers, Clients: test.clients})
+			watcher, err := NewWatcher(ctx,
+				WatcherConfig{
+					AWSMatchers:   test.awsMatchers,
+					AzureMatchers: test.azureMatchers,
+					Clients:       test.clients,
+				})
 			require.NoError(t, err)
 
 			go watcher.fetchAndSend()
@@ -311,6 +482,59 @@ func TestWatcher(t *testing.T) {
 				t.Fatal("didn't receive databases after 1 second")
 			}
 		})
+	}
+}
+
+func makeARMMySQLServer(t *testing.T, name, subscription, region string, labels map[string]string, opts ...func(*armmysql.Server)) (*armmysql.Server, types.Database) {
+	resourceGroup := "defaultRG"
+	resourceType := "Microsoft.DBForMySQL/servers"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subscription,
+		resourceGroup,
+		resourceType,
+		name,
+	)
+	// ensure this mock ID is valid and parses
+	_, err := arm.ParseResourceID(id)
+	require.NoError(t, err)
+
+	fqdn := name + ".mysql" + types.AzureEndpointSuffix
+	state := armmysql.ServerStateReady
+	version := armmysql.ServerVersionFive7
+	server := &armmysql.Server{
+		Location: &region,
+		Properties: &armmysql.ServerProperties{
+			FullyQualifiedDomainName: &fqdn,
+			UserVisibleState:         &state,
+			Version:                  &version,
+		},
+		Tags: labelsToAzureTags(labels),
+		ID:   &id,
+		Name: &name,
+		Type: &resourceType,
+	}
+	for _, opt := range opts {
+		opt(server)
+	}
+
+	database, err := services.NewDatabaseFromAzureMySQLServer(server)
+	require.NoError(t, err)
+	return server, database
+}
+
+// withARMMySQLState returns an option function to makeARMMySQLServer to overwrite state.
+func withARMMySQLState(state string) func(*armmysql.Server) {
+	return func(server *armmysql.Server) {
+		state := armmysql.ServerState(state) // ServerState is a type alias for string
+		server.Properties.UserVisibleState = &state
+	}
+}
+
+// withARMyMySQLVersion returns an option function to makeARMMySQLServer to overwrite version.
+func withARMyMySQLVersion(version string) func(*armmysql.Server) {
+	return func(server *armmysql.Server) {
+		version := armmysql.ServerVersion(version) // ServerVersion is a type alias for string
+		server.Properties.Version = &version
 	}
 }
 
@@ -522,6 +746,14 @@ func labelsToTags(labels map[string]string) (tags []*rds.Tag) {
 			Key:   aws.String(key),
 			Value: aws.String(val),
 		})
+	}
+	return tags
+}
+
+func labelsToAzureTags(labels map[string]string) map[string]*string {
+	tags := make(map[string]*string, len(labels))
+	for k, v := range labels {
+		tags[k] = &v
 	}
 	return tags
 }

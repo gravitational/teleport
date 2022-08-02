@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -39,6 +40,30 @@ import (
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
+
+// AzureMySQLMock implements AzureMySQLClient
+var _ common.AzureMySQLClient = (*AzureMySQLMock)(nil)
+
+// AzureMySQLMock mocks AzureMySQLClient.
+type AzureMySQLMock struct {
+	DBServers []*armmysql.Server
+}
+
+func (m *AzureMySQLMock) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+	return m.DBServers, nil
+}
+
+// AzureMySQLMockUnauth implements AzureMySQLClient
+var _ common.AzureMySQLClient = (*AzureMySQLMockUnauth)(nil)
+
+// AzureMySQLMockUnauth mocks AzureMySQLClient.
+type AzureMySQLMockUnauth struct {
+	DBServers []*armmysql.Server
+}
+
+func (m *AzureMySQLMockUnauth) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
 
 // STSMock mocks AWS STS API.
 type STSMock struct {
