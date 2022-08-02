@@ -2599,6 +2599,7 @@ func onBenchmark(cf *CLIConf) error {
 		Command:       cf.RemoteCommand,
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
+		Interactive:   cf.BenchInteractive,
 	}
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {

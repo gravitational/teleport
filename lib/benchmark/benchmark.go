@@ -22,10 +22,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/teleport/api/profile"
@@ -59,7 +57,7 @@ type Config struct {
 	Interactive bool
 	// MinimumWindow is the min duration
 	MinimumWindow time.Duration
-	// MinimumMeasurments is the min amount of requests
+	// MinimumMeasurements is the min amount of requests
 	MinimumMeasurements int
 }
 
@@ -90,15 +88,6 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		exitSignals := make(chan os.Signal, 1)
-		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
-		defer signal.Stop(exitSignals)
-		sig := <-exitSignals
-		logrus.Debugf("signal: %v", sig)
-		cancel()
-	}()
 	var results []Result
 	sleep := false
 	for {
@@ -126,10 +115,10 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 
 // ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
 func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
-	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
+	timestamp := time.Now().Format("2006-01-02_15:04:05")
+	suffix := fmt.Sprintf("latency_profile_%s.txt", timestamp)
 	if path != "." {
-		if err := os.MkdirAll(path, 0700); err != nil {
+		if err := os.MkdirAll(path, 0o700); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
@@ -141,8 +130,7 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
-
-			logrus.WithError(err).Warningf("failed to close file")
+			logrus.WithError(err).Warn("failed to close file")
 		}
 		return "", trace.Wrap(err)
 	}
@@ -164,8 +152,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	requestsC := make(chan benchMeasure)
-	resultC := make(chan benchMeasure)
+	resultC := make(chan *benchMeasure)
 
 	go func() {
 		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
@@ -176,8 +163,8 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			select {
 			case <-ticker.C:
 				// ticker makes its first tick after the given duration, not immediately
-				// this sets the send measure ResponseStart time accurately
-				delay = delay + interval
+				// this sets ResponseStart time accurately
+				delay += interval
 				t := start.Add(delay)
 				measure := benchMeasure{
 					ResponseStart: t,
@@ -185,9 +172,8 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 					client:        tc,
 					interactive:   c.Interactive,
 				}
-				go work(ctx, measure, resultC)
+				go work(ctx, &measure, resultC)
 			case <-ctx.Done():
-				close(requestsC)
 				return
 			}
 		}
@@ -204,7 +190,9 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		}
 		select {
 		case measure := <-resultC:
-			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
+			if err := result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond)); err != nil {
+				logrus.WithError(err).Warn("failed to record histogram value")
+			}
 			result.RequestsOriginated++
 			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
 				cancel()
@@ -232,8 +220,11 @@ type benchMeasure struct {
 	interactive   bool
 }
 
-func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
-	m.Error = execute(m)
+func work(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+	// do not use parent context that will cancel in flight requests
+	// because we give test some time to gracefully wrap up
+	// the in-flight connections to avoid extra errors
+	m.Error = m.execute(context.Background())
 	m.End = time.Now()
 	select {
 	case send <- m:
@@ -242,30 +233,29 @@ func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
 	}
 }
 
-func execute(m benchMeasure) error {
+func (m *benchMeasure) execute(ctx context.Context) error {
 	if !m.interactive {
-		// do not use parent context that will cancel in flight requests
-		// because we give test some time to gracefully wrap up
-		// the in-flight connections to avoid extra errors
-		return m.client.SSH(context.TODO(), m.command, false)
+		return trace.Wrap(m.client.SSH(ctx, m.command, false))
 	}
 	config := m.client.Config
-	client, err := client.NewClient(&config)
+	clt, err := client.NewClient(&config)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
-	client.Stdin = reader
-	out := &utils.SyncBuffer{}
-	client.Stdout = out
-	client.Stderr = out
-	err = m.client.SSH(context.TODO(), nil, false)
-	if err != nil {
-		return err
+	clt.Stdin = reader
+	out := utils.NewSyncBuffer()
+	clt.Stdout = out
+	clt.Stderr = out
+	if err := m.client.SSH(ctx, nil, false); err != nil {
+		return trace.Wrap(err)
 	}
-	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
+
+	if _, err := writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n")); err != nil {
+		return trace.Wrap(err, "failed to write input")
+	}
 	return nil
 }
 
