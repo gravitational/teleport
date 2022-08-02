@@ -96,19 +96,6 @@ spec:
       env: ["{{vars["allow-env"]}}"]
 ```
 
-These variables could be used in another role without redefinition:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: app-users
-spec:
-  allow:
-    app_labels:
-      env: ["{{vars["allow-env"]}}"]
-```
-
 ### How to reference variables
 
 Variables can be referenced similar to traits, by enclosing their name in
@@ -246,9 +233,10 @@ spec:
         - regexp.replace(external.groups, "qa", "staging")
 ```
 
-The full list would have to be repeated for every value in every role. I don't
-think anyone even knows you can do this, and I hope no-one actually does,
-because it's ridiculous.
+With more roles and more complex rules, this would be even more difficult. The
+full list would have to be repeated for every value in every role. I don't think
+anyone even knows you can do this, and I hope no-one actually does, because it's
+ridiculous.
 
 With role variables it becomes trivial:
 
@@ -274,4 +262,4 @@ spec:
 ```
 
 The same variable can easily be defined once, and used many times within this
-role and other roles.
+role.
