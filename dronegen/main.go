@@ -33,8 +33,8 @@ func main() {
 	pipelines = append(pipelines, pushPipelines()...)
 	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
-	pipelines = append(pipelines, artifactMigrationPipeline())
-	pipelines = append(pipelines, promoteBuildPipelines()...)
+	pipelines = append(pipelines, artifactMigrationPipeline()...)
+	pipelines = append(pipelines, promoteBuildPipeline()...)
 	pipelines = append(pipelines, updateDocsPipeline())
 	pipelines = append(pipelines, buildboxPipeline())
 
