@@ -263,3 +263,40 @@ spec:
 
 The same variable can easily be defined once, and used many times within this
 role.
+
+## Alternatives
+
+### Trait transformations
+
+Instead of defining variables in the role spec, we could create a new `trait`
+resource which can define new traits which will be computed during login and
+embedded in the user's cert.
+
+These traits would be reusable across roles and trusted clusters.
+
+The syntax could be similar to the proposed role variable syntax:
+
+```yaml
+kind: trait
+version: v1
+metadata:
+  name: groups
+spec:
+  values:
+    # An input will expand to a list of N inputs if the trait is a list of N.
+    # Any input value which matches the `match` regex will contribute one
+    # output value, which may contain regex captures from that specific input.
+    #
+    # Here [devs, env-staging, env-prod] maps to [staging, prod].
+    - input: "{{external.groups}}"
+      match: '^env-(\w+)$'
+      out: ['$1']
+    # If any of the N input values match the `not_match` regex, none of the
+    # values will be used.
+    #
+    # Here [devs] maps to [dev], but [devs, contractors] maps to []
+    - input: "{{external.groups}}"
+      match: '^devs$'
+      not_match: 'contractors'
+      out: ["dev"]
+```
