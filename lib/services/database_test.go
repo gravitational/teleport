@@ -102,6 +102,7 @@ spec:
   ca_cert: |
 %v`
 
+// TODO(gavin): add test for database from azure postgres db
 // TestDatabaseFromAzureMySQLServer tests converting an Azure MySQL Server to a database resource.
 func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 	name := "testdb"
