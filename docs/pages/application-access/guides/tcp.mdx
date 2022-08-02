@@ -14,7 +14,7 @@ servers or databases not yet natively supported in Database Access.
 (!docs/pages/includes/tctl.mdx!)
 
 - TCP application to connect to. In this guide we'll use a PostgreSQL running
-  in Docker as an example, you can also use any TCP-based application you may
+  in Docker as an example. You can also use any TCP-based application you may
   already have.
 - Host where you will run the Teleport Application Service.
 
@@ -23,7 +23,7 @@ and `*.teleport.example.com`. You can substitute the address of your Teleport
 Proxy Service. (For Teleport Cloud customers, this will be similar to
 `mytenant.teleport.sh`.)
 
-<Admonition type="note" title="Application Access and DNS">
+<Admonition type="note" title="Application Access and DNS" scope={["oss", "enterprise"]} scopeOnly>
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
@@ -68,7 +68,7 @@ $ tctl tokens add --type=app
 Save the generated token in `/tmp/token` on the node where Application Service
 will run.
 
-Now, install Teleport on Application Service node. It must be able to reach
+Now, install Teleport on the Application Service node. It must be able to reach
 both your Teleport Proxy and the TCP application it's going to proxy.
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -135,7 +135,7 @@ $ tsh proxy app tcp-app
 Proxying connections to tcp-app on 127.0.0.1:55868
 ```
 
-The local proxy will setup a local listener that will proxy all connection to
+The `tsh proxy app` command will set up a listener that will proxy all connections to
 the target application.
 
 ## Step 4/4. Connect
