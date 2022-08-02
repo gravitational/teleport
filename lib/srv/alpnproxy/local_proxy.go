@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -149,16 +150,18 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
-		NextProtos:         l.cfg.GetProtocols(),
-		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-		ServerName:         serverName,
-		Certificates:       l.cfg.Certs,
-	})
+	upstreamDialer := client.TLSRoutingDialer{
+		Config: &tls.Config{
+			NextProtos:         l.cfg.GetProtocols(),
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         serverName,
+			Certificates:       l.cfg.Certs,
+		},
+	}
+	upstreamConn, err := upstreamDialer.DialContext(ctx, "tcp", l.cfg.RemoteProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer upstreamConn.Close()
 
 	errC := make(chan error, 2)
 	go func() {

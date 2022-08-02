@@ -56,9 +56,9 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
-func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+func NewDialer(keepAlivePeriod, dialTimeout time.Duration, tlsConfig *tls.Config) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
+		dialer := newDirectOrHTTPUpgradeDialer(addr, keepAlivePeriod, dialTimeout, tlsConfig)
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
@@ -105,32 +105,29 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		tunnelAddr, err := webclient.GetTunnelAddr(
 			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		dialer := &net.Dialer{
-			Timeout:   dialTimeout,
-			KeepAlive: keepAlivePeriod,
-		}
-		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-
 		}
 
 		host, _, err := webclient.ParseHostPort(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConn := tls.Client(conn, &tls.Config{
-			NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
-			InsecureSkipVerify: insecure,
-			ServerName:         host,
-		})
-		if err := tlsConn.Handshake(); err != nil {
+
+		tlsDialer := TLSRoutingDialer{
+			KeepAlivePeriod: keepAlivePeriod,
+			DialTimeout:     dialTimeout,
+			Config: &tls.Config{
+				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+				InsecureSkipVerify: insecure,
+				ServerName:         host,
+			},
+		}
+		tlsConn, err := tlsDialer.DialContext(ctx, network, tunnelAddr)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -159,4 +156,55 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 		return nil, trace.NewAggregate(err, sconn.Close())
 	}
 	return conn, nil
+}
+
+// TODO
+type httpUpgradeDialer struct {
+	insecure bool
+}
+
+func newHTTPUpgradeDialer(insecure bool) ContextDialer {
+	return &httpUpgradeDialer{
+		insecure: insecure,
+	}
+}
+
+func (d httpUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return doHTTPupgrade(ctx, addr, d.insecure)
+}
+
+// TODO
+func newDirectOrHTTPUpgradeDialer(proxyAddr string, keepAlivePeriod, dialTimeout time.Duration, tlsConfig *tls.Config) ContextDialer {
+	if isHTTPUpgradeRequired(proxyAddr, tlsConfig) {
+		return newHTTPUpgradeDialer(tlsConfig.InsecureSkipVerify)
+	}
+
+	return newDirectDialer(keepAlivePeriod, dialTimeout)
+}
+
+// TODO
+type TLSRoutingDialer struct {
+	KeepAlivePeriod time.Duration
+	DialTimeout     time.Duration
+	Config          *tls.Config
+}
+
+func (d *TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if d.Config == nil {
+		return nil, trace.BadParameter("missing TLS config")
+	}
+
+	dialer := newDirectOrHTTPUpgradeDialer(addr, d.KeepAlivePeriod, d.DialTimeout, d.Config)
+	conn, err := dialer.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConn := tls.Client(conn, d.Config)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		defer conn.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsConn, nil
 }

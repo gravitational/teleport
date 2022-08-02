@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -57,9 +58,6 @@ func dialWithDeadline(ctx context.Context, network string, addr string, config *
 // TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
 // incoming connection to ReverseTunnel proxy service.
 func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	dialer := &net.Dialer{
-		Timeout: config.Timeout,
-	}
 	address, err := utils.ParseAddr(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,9 +67,9 @@ func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, ad
 		return nil, trace.Wrap(err)
 	}
 
-	tlsDialer := tls.Dialer{
-		NetDialer: dialer,
-		Config:    conf,
+	tlsDialer := client.TLSRoutingDialer{
+		DialTimeout: config.Timeout,
+		Config:      conf,
 	}
 
 	tlsConn, err := tlsDialer.DialContext(ctx, network, addr)
@@ -128,10 +126,6 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
 	if d.tlsRoutingEnabled {
 		addr, err := utils.ParseAddr(address)
 		if err != nil {
@@ -142,9 +136,9 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 			return nil, trace.Wrap(err)
 		}
 
-		tlsDialer := tls.Dialer{
-			NetDialer: dialer,
-			Config:    conf,
+		tlsDialer := client.TLSRoutingDialer{
+			DialTimeout: timeout,
+			Config:      conf,
 		}
 
 		tlsConn, err := tlsDialer.DialContext(ctx, "tcp", address)
@@ -153,6 +147,11 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 		}
 		return tlsConn, nil
 	}
+
+	dialer := &net.Dialer{
+		Timeout: timeout,
+	}
+
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
