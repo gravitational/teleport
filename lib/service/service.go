@@ -2339,9 +2339,6 @@ func (process *TeleportProcess) initSSH() error {
 		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 
 		// Block and wait while the node is running.
-		s.Wait()
-		agentPool.Wait()
-
 		event, err := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2355,7 +2352,10 @@ func (process *TeleportProcess) initSSH() error {
 			warnOnErr(s.Shutdown(payloadContext(event.Payload, log)), log)
 		}
 
+		s.Wait()
+		agentPool.Wait()
 		agentPool.Stop()
+
 		log.Infof("Exited.")
 		return nil
 	})
