@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=9.3.13
+VERSION=9.3.14
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -953,7 +953,11 @@ image-ci: clean docker-binaries
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
+	else                                                                \
+		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version

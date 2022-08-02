@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.3.14
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with Teleport determining whether it's running on an EC2 instance. [#14867](https://github.com/gravitational/teleport/pull/14867)
+* Fixed "public IP not among valid principals" error from `tsh proxy ssh`. [#15011](https://github.com/gravitational/teleport/pull/15011)
+* Fixed issue with corrupted web UI transfers. [#15045](https://github.com/gravitational/teleport/pull/15045)
+* Fixed "chan_shutdown_read: not a socket" issue when using `ssh-add` commands with Windows OpenSSH client. [#15050](https://github.com/gravitational/teleport/pull/15050)
+* Fixed issues with explicitly provided username not always being respected in `tsh ssh`. [#14939](https://github.com/gravitational/teleport/pull/14939)
+* Added SFTP subsystem support. [#14197](https://github.com/gravitational/teleport/pull/14197)
+* Improved error messages during `tsh login`. [#15027](https://github.com/gravitational/teleport/pull/15027)
+
 ## 9.3.13
 
 This release of Teleport contains multiple improvements and bug fixes.
