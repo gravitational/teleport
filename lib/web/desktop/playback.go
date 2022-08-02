@@ -208,7 +208,8 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
-	var delayFactor float32 = 1.0
+	var playSpeed float32 = 1.0
+	scaleDelay := func(delay int64) int64 { return int64(float32(delay) / playSpeed) }
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -230,10 +231,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				}
 			}
 			return
-		case playSpeed := <-pp.playSpeed:
-			prevDelayFactor := delayFactor
-			delayFactor = 1.0 / playSpeed
-			lastDelay = int64(float32(lastDelay) * (delayFactor / prevDelayFactor))
+		case playSpeed = <-pp.playSpeed:
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
@@ -244,11 +242,10 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
-				scaledDelay := int64(float32(e.DelayMilliseconds) * delayFactor)
-				if scaledDelay > lastDelay {
+				if e.DelayMilliseconds > lastDelay {
 					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(scaledDelay-lastDelay) * time.Millisecond)
-					lastDelay = scaledDelay
+					time.Sleep(time.Duration(scaleDelay(e.DelayMilliseconds-lastDelay)) * time.Millisecond)
+					lastDelay = e.DelayMilliseconds
 				}
 				msg, err := utils.FastMarshal(e)
 				if err != nil {
