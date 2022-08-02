@@ -278,6 +278,20 @@
               "slug": "/setup/reference/signals/"
             }
           ]
+        },
+        {
+          "title": "Helm Chart Reference",
+          "slug": "/setup/helm-reference/",
+          "entries": [
+            {
+              "title": "teleport-cluster",
+              "slug": "/setup/helm-reference/teleport-cluster/"
+            },
+            {
+              "title": "teleport-kube-agent",
+              "slug": "/setup/helm-reference/teleport-kube-agent/"
+            }
+          ]
         }
       ]
     },
@@ -288,6 +302,10 @@
         {
           "title": "Using tsh",
           "slug": "/use-teleport/tsh/"
+        },
+        {
+          "title": "Using Teleport Connect",
+          "slug": "/use-teleport/teleport-connect/"
         }
       ]
     },
@@ -308,8 +326,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web App Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP App Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
@@ -446,6 +468,32 @@
             {
               "title": "teleport-kube-agent",
               "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
+            }
+          ]
+        },
+        {
+          "title": "Helm Guides",
+          "slug": "/kubernetes-access/helm/guides/",
+          "entries": [
+            {
+              "title": "AWS EKS Cluster",
+              "slug": "/kubernetes-access/helm/guides/aws/"
+            },
+            {
+              "title": "Google Cloud GKE Cluster",
+              "slug": "/kubernetes-access/helm/guides/gcp/"
+            },
+            {
+              "title": "DigitalOcean Kubernetes Cluster",
+              "slug": "/kubernetes-access/helm/guides/digitalocean/"
+            },
+            {
+              "title": "Customize Deployment Config",
+              "slug": "/kubernetes-access/helm/guides/custom/"
+            },
+            {
+              "title": "Migrating From Older Charts",
+              "slug": "/kubernetes-access/helm/guides/migration/"
             }
           ]
         },
@@ -1296,6 +1344,51 @@
     {
       "source": "/access-controls/guides/u2f/",
       "destination": "/access-controls/guides/webauthn/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/setup/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/setup/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/custom/",
+      "destination": "/setup/helm-deployments/custom/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/digitalocean/",
+      "destination": "/setup/helm-deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/gcp/",
+      "destination": "/setup/helm-deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/migration/",
+      "destination": "/setup/helm-deployments/migration/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/",
+      "destination": "/setup/helm-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-cluster/",
+      "destination": "/setup/helm-reference/teleport-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/reference/teleport-kube-agent/",
+      "destination": "/setup/helm-reference/teleport-kube-agent/",
       "permanent": true
     },
     {

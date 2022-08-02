@@ -17,9 +17,11 @@ limitations under the License.
 package web
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
@@ -2183,6 +2185,166 @@ func TestTokenGeneration(t *testing.T) {
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
+}
+
+func TestSignMTLS(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	endpoint := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleDatabase},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
+
+	bs, err := json.Marshal(struct {
+		Hostname string `json:"hostname"`
+		TTL      string `json:"ttl"`
+	}{
+		Hostname: "mypg.example.com",
+		TTL:      "2h",
+	})
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	gzipReader, err := gzip.NewReader(resp.Body)
+	require.NoError(t, err)
+
+	tarReader := tar.NewReader(gzipReader)
+
+	tarContentFileNames := []string{}
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
+		require.Equal(t, int64(0600), header.Mode)
+		tarContentFileNames = append(tarContentFileNames, header.Name)
+	}
+
+	expectedFileNames := []string{"server.cas", "server.key", "server.crt"}
+	require.ElementsMatch(t, tarContentFileNames, expectedFileNames)
+
+	// the token is no longer valid, so trying again should return an error
+	req, err = http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	respSecondCall, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer respSecondCall.Body.Close()
+	require.Equal(t, http.StatusForbidden, respSecondCall.StatusCode)
+}
+
+func TestSignMTLS_failsAccessDenied(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	username := "test-user@example.com"
+
+	roleUserUpdate, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindUser, []string{types.VerbUpdate}),
+				types.NewRule(types.KindToken, []string{types.VerbCreate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleUserUpdate})
+
+	endpoint := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleProxy},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
+
+	bs, err := json.Marshal(struct {
+		Hostname string `json:"hostname"`
+		TTL      string `json:"ttl"`
+		Format   string `json:"format"`
+	}{
+		Hostname: "mypg.example.com",
+		TTL:      "2h",
+		Format:   "db",
+	})
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// It fails because we passed a Provision Token with the wrong Role: Proxy
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	// using a user token also returns Forbidden
+	endpointResetToken := pack.clt.Endpoint("webapi", "users", "password", "token")
+	_, err = pack.clt.PostJSON(context.Background(), endpointResetToken, auth.CreateUserTokenRequest{
+		Name: username,
+		TTL:  time.Minute,
+		Type: auth.UserTokenTypeResetPassword,
+	})
+	require.NoError(t, err)
+
+	req, err = http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+
+	resp, err = anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
