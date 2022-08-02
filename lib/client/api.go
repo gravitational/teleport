@@ -45,7 +45,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -55,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1528,7 +1529,7 @@ func (tc *TeleportClient) Join(ctx context.Context, namespace string, sessionID 
 	}
 
 	// find the session ID on the site:
-	sessions, err := site.GetSessions(namespace)
+	sessions, err := site.GetSessions(ctx, namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
