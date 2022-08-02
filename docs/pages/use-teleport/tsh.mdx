@@ -632,6 +632,14 @@ used to start the session. In this case, Teleport user `joe` is logged in to the
 SSH Node as Unix user `joe`, so only Teleport users with a role allowing login `joe`
 will be able to join.
 
+<Admonition
+  type="tip"
+  title="Lacking permission?"
+>
+  Joining sessions requires special permissions that need to be set up by your cluster administrator.
+  Refer them to the [Moderated Sessions guide](../access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+</Admonition>
+
 <Notice type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Notice>

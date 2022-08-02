@@ -50,6 +50,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -71,6 +72,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -148,6 +150,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.ConnectionsDiagnostic == nil {
+		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
+	}
 	if cfg.SessionTrackerService == nil {
 		cfg.SessionTrackerService, err = local.NewSessionTrackerService(cfg.Backend)
 		if err != nil {
@@ -163,6 +168,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
+	}
+	if cfg.TraceClient == nil {
+		cfg.TraceClient = tracing.NewNoopClient()
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -193,6 +201,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WindowsDesktops:       cfg.WindowsDesktops,
 		SessionTrackerService: cfg.SessionTrackerService,
 		Enforcer:              cfg.Enforcer,
+		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -215,6 +224,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
+		traceClient:     cfg.TraceClient,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -242,6 +252,7 @@ type Services struct {
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.Enforcer
+	services.ConnectionsDiagnostic
 	types.Events
 	events.IAuditLog
 }
@@ -390,6 +401,10 @@ type Server struct {
 	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 
 	inventory *inventory.Controller
+
+	// traceClient is used to forward spans to the upstream collector for components
+	// within the cluster that don't have a direct connection to said collector
+	traceClient otlptrace.Client
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -655,7 +670,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -1241,7 +1256,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.GetUser(username, false)
+	user, err := a.Services.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -1810,15 +1825,15 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 }
 
 // GetWebSession returns existing web session described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return a.Cache.GetWebSession(ctx, req)
+	return a.Services.GetWebSession(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return a.Cache.GetWebToken(ctx, req)
+	return a.Services.GetWebToken(ctx, req)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
@@ -2106,7 +2121,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
-	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+	client := a.Cache
+	if req.NoCache {
+		client = a.Services
+	}
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -2120,7 +2139,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// to the backend, which is a fine tradeoff
 	if !req.NoCache && req.Rotation != nil && !req.Rotation.Matches(ca.GetRotation()) {
 		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
-		ca, err = a.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err = a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, true)

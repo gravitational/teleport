@@ -1439,7 +1439,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix)
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
