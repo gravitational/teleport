@@ -55,6 +55,8 @@ type UploadCompleterConfig struct {
 	// GracePeriod is the period after which an upload's session
 	// tracker will be check to see if it's an abandoned upload.
 	GracePeriod time.Duration
+	// ClusterName identifies the originating teleport cluster
+	ClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -64,6 +66,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.SessionTracker == nil {
 		return trace.BadParameter("missing parameter SessionTracker")
+	}
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
@@ -217,11 +222,12 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		}()
 		session := &events.SessionUpload{
 			Metadata: events.Metadata{
-				Type:  SessionUploadEvent,
-				Code:  SessionUploadCode,
-				Time:  u.cfg.Clock.Now().UTC(),
-				ID:    uuid.New().String(),
-				Index: SessionUploadIndex,
+				Type:        SessionUploadEvent,
+				Code:        SessionUploadCode,
+				Time:        u.cfg.Clock.Now().UTC(),
+				ID:          uuid.New().String(),
+				Index:       SessionUploadIndex,
+				ClusterName: u.cfg.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
