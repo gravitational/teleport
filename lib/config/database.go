@@ -115,6 +115,23 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
+  {{- if or .AzureMySQLDiscoveryRegions }}
+  # Matchers for registering Azure-hosted databases.
+  azure:
+  {{- end }}
+  {{- if or .AzureMySQLDiscoveryRegions }}
+  # Azure MySQL databases auto-discovery.
+  # For more information about Azure MySQL auto-discovery: TODO(gavin): make guide
+  - types: ["mysql"]
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzureMySQLDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
@@ -294,6 +311,10 @@ type DatabaseSampleFlags struct {
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
+	// AzureMySQLDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover MySQL servers in.
+	AzureMySQLDiscoveryRegions []string
+	// TODO(gavin): add azure postgres regions
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
