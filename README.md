@@ -203,6 +203,10 @@ To build `tsh` version > `10.x` with `libfido` support:
   $ brew install libfido2
   $ brew install openssl@1.1
   ```
+`tsh` binaries with Touch ID support are only functional using binaries signed
+with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
+maintainer, ask the team for access. The make switch for Touch ID is
+`TOUCHID=yes`.
 
 #### Perform a build
 
