@@ -115,17 +115,30 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions }}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions }}
   # Matchers for registering Azure-hosted databases.
   azure:
   {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
-  # For more information about Azure MySQL auto-discovery: TODO(gavin): make guide
+  # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
   - types: ["mysql"]
     # Azure regions to register databases from.
     regions:
     {{- range .AzureMySQLDiscoveryRegions }}
+    - {{ . }}
+    {{- end }}
+    # Azure resource tags to match when registering databases.
+    tags:
+      "*": "*"
+  {{- end }}
+  {{- if or .AzurePostgresDiscoveryRegions }}
+  # Azure Postgres databases auto-discovery.
+  # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+  - types: ["postgres"]
+    # Azure regions to register databases from.
+    regions:
+    {{- range .AzurePostgresDiscoveryRegions }}
     - {{ . }}
     {{- end }}
     # Azure resource tags to match when registering databases.
@@ -314,7 +327,9 @@ type DatabaseSampleFlags struct {
 	// AzureMySQLDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover MySQL servers in.
 	AzureMySQLDiscoveryRegions []string
-	// TODO(gavin): add azure postgres regions
+	// AzurePostgresDiscoveryRegions is a list of regions Azure auto-discovery is
+	// configured to discover Postgres servers in.
+	AzurePostgresDiscoveryRegions []string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
