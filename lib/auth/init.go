@@ -177,6 +177,8 @@ type InitConfig struct {
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
 
+	// SendAllHostCAs sends the host CAs of all clusters to SSH clients logging in when
+	// enabled, instead of just the host CA for the current cluster.
 	SendAllHostCAs bool
 }
 

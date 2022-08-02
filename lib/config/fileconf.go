@@ -719,6 +719,8 @@ type Auth struct {
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
 	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
 
+	// SendAllHostCAs sends the host CAs of all clusters to SSH clients logging in
+	// when enabled, instead of just the host CA for the current cluster.
 	SendAllHostCAs bool `yaml:"send_all_host_cas,omitempty"`
 }
 

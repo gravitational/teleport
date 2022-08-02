@@ -397,6 +397,8 @@ type Server struct {
 
 	inventory *inventory.Controller
 
+	// sendAllHostCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
+	// instead of just the host CA for the current cluster.
 	sendAllHostCAs bool
 }
 
