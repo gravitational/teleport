@@ -233,7 +233,7 @@ func makeAzureMySQLFetcher(clients common.CloudClients, subscription string, cre
 		azureMySQLFetcherConfig{
 			Regions: regions,
 			Labels:  tags,
-			Client:     client,
+			Client:  client,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
