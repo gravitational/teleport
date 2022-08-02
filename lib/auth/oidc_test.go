@@ -229,7 +229,7 @@ func TestSSODiagnostic(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			err = s.a.CreateRole(role)
+			err = s.a.CreateRole(ctx, role)
 			require.NoError(t, err)
 
 			// connector spec
