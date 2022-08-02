@@ -1435,8 +1435,8 @@ func decodeSharedDirectoryMoveResponse(in peekReader) (SharedDirectoryMoveRespon
 	if err != nil {
 		return SharedDirectoryMoveResponse{}, trace.Wrap(err)
 	}
-	if t != byte(TypeSharedDirectoryMoveRequest) {
-		return SharedDirectoryMoveResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryMoveResponse(%v)", t, TypeSharedDirectoryMoveRequest)
+	if t != byte(TypeSharedDirectoryMoveResponse) {
+		return SharedDirectoryMoveResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryMoveResponse(%v)", t, TypeSharedDirectoryMoveResponse)
 	}
 
 	var res SharedDirectoryMoveResponse
