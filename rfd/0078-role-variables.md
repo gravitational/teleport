@@ -14,7 +14,7 @@ Requirements:
 
 1. Variable definitions should support some form of pattern matching so that
    traits can be easily and powerfully extended.
-2. A variable defined in one role should be usable in many other roles.
+2. Variables should be easily referenced anywhere you can reference a trait.
 
 Non-requirements:
 
@@ -64,7 +64,7 @@ spec:
           # the output.
           #
           # Here "alice@goteleport.com" maps to "alice", but "foo@example.com"
-          # will be rejected.
+          # will not be included because it does not match the regex.
           match: "^(.*)@goteleport.com$"
           out: ["$1"]
 
@@ -89,11 +89,11 @@ spec:
           out: ["dev"]
   allow:
     logins:
-      # Variables can be referenced as `vars.<role_name>.<variable_name>` or
-      # `vars["<role_name>"]["<variable_name"]`.
-      - "{{vars.node_users.logins}}"
+      # Variables can be referenced as `vars.<variable_name>` or
+      # `vars["<variable_name"]`.
+      - "{{vars.logins}}"
     node_labels:
-      env: ["{{vars.node_users["allow-env"]}}"]
+      env: ["{{vars["allow-env"]}}"]
 ```
 
 These variables could be used in another role without redefinition:
@@ -106,7 +106,7 @@ metadata:
 spec:
   allow:
     app_labels:
-      env: ["{{vars.node_users["allow-env"]}}"]
+      env: ["{{vars["allow-env"]}}"]
 ```
 
 ### How to reference variables
@@ -114,45 +114,33 @@ spec:
 Variables can be referenced similar to traits, by enclosing their name in
 `{{}}`.
 
-Variable names are prefixed by that `vars` namespace and include the role name
-to avoid collisions.
+Variable names are prefixed by that `vars` namespace to avoid name collisions
+with external traits.
 
-You can use the selector syntax `{{vars.role_name.variable_name}}`, the index
-syntax `{{vars["role-name"]["variable-name"]}}`, or some combination
-`{{vars[role_name].variable_name}}`.
+You can use the selector syntax `{{vars.variable_name}}` or the index syntax
+`{{vars["variable-name"]}}`.
 
-It is necessary to use the index syntax and enclose the identifier (role or
-variable name) in quotes if it is not a valid
+It is necessary to use the index syntax and enclose the variable name in quotes
+if it is not a valid
 [Go identifier](https://go.dev/ref/spec#Identifiers),
 or else the parser will not be able to handle it.
 The same is true for traits today.
 
-Variables can be referenced in the role which defines them, or in any other
-role.
-In order for a variable to be defined, the user must always posess the role
-which defines it.
+Variables can only be referenced in the role which defines them.
+The idea of allowing variables to be defined and referenced accross different
+roles was explored, but it has some downsides:
 
-If the user does not have the role which defines the variable, or a typo is made,
-the variable may be undefined.
-We will handle this the same way we handle undefined traits: the entire value,
-including any prefix or suffix, will not be used.
-
-For example, if only the variable `vars.example.login = "ubuntu"` is defined,
-then the following will expand to just `logins: ["ubuntu"]`:
-
-```yaml
-logins:
-  - '{{vars.example.login}}'
-  - '{{vars.example.unknown}}'
-  - 'user-{{vars.example.unknown}}'
-  - '{{vars.unknown.login}}-user'
-```
+1. Scope of the variable is not clear.
+2. Variable dependencies could create cycles.
+3. Today each role is self-sufficient and can be linted and checked on its own,
+   depending on variables in other roles would break that and make things much
+   more complicated.
 
 ### Where variables can be used
 
-Variables can be used anywhere traits can be used. This is almost anywhere you
-need to set a value in a role spec, including allow or deny rules such as
-`logins` or `node_labels`, impersonation conditions, etc.
+Variables can be used anywhere traits can be used in a role spec, including
+allow or deny rules such as `logins` or `node_labels`, impersonation conditions,
+etc.
 
 ### When to compute variable values
 
@@ -169,27 +157,52 @@ However, this would make it difficult to detect variable redefinition and would
 make root cluster variables override alternate definitions in leaf clusters.
 Computing variable values will not be much more intensive than what we already
 do to expand traits, and I don't expect it will noticably slow anything down.
+The performance impact can be further explored during implementation.
 
 ### What happens when the same variable name is defined in two different roles?
 
-Variable names will be scoped by the role name to avoid collisions (this section
-was more relevant before this was decided, it's no longer an issue).
+Variables are local to the role which defines them only, variables defined in
+other roles will not be visible or effect the current role in any way.
 
 ### Can variable definitions depend on other variables?
 
-A simple implementation iterates all roles held by the current user and computes
-the variables, then iterates all roles again and expands variables/traits in the
-rest of the role.
+Yes, within the variable definition block variables may depend on other
+variables only if they are defined *earlier*, or higher-up, in the variable
+list.
 
-This would allow variables defined in a single role to depend on variables
-defined earlier in the same role spec, but would not guarantee that variables in
-separate roles could depend on each other (it would depend on which role is
-processed first).
+It would be technically feasible not to enforce this ordering by sorting the
+variables topologically based on their dependencies, but requiring the ordering
+forces admins to carefully consider their dependencies and automatically avoids
+cycles, which is arguably for the best.
 
-To prevent confusion about variables intermittently being defined, we can
-enforce no variable definition can depend on variables defined in a different
-role. But I think it's simple and useful enough to allow variables to depend on
-variables defined earlier in the same role.
+Example:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: example
+spec:
+  vars:
+    - name: var_a
+      values:
+          out: ["foo"]
+    - name: var_b
+      values:
+          out:
+            # var_b can depend on var_a because it is defined above.
+            - "{{vars.var_a}}"
+            # Error: cannot depend on a variable defined later in the list.
+            # - "{{vars.var_c}}"
+    - name: var_c
+      values:
+          # Variables can be used as inputs.
+          input: "{{var_a}}"
+          match: "^foo$"
+          out:
+            - "bar"
+            - "{{vars.var_b}}"
+```
 
 ### Trusted clusters
 
@@ -255,9 +268,9 @@ spec:
             - "staging"
   allow:
     node_labels:
-      env: "{{vars.users.allow_envs}}"
+      env: "{{vars.allow_envs}}"
     app_labels:
-      env: "{{vars.users.allow_envs}}"
+      env: "{{vars.allow_envs}}"
 ```
 
 The same variable can easily be defined once, and used many times within this
