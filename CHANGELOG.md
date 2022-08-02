@@ -10,7 +10,13 @@ Teleport 10.1 is a minor release that brings the following new features:
 * Kubernetes Operator (Preview). [#14860](https://github.com/gravitational/teleport/pull/14860)
 * Plain TCP applications support for Application Access (Preview). [#14896](https://github.com/gravitational/teleport/pull/14896)
 
-In addition, this release of Teleport contains multiple improvements and bug fixes.
+In addition, this release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
+
+Security fix:
+
+* Fixed issue with token not being validated when generating a join script. [#14944](https://github.com/gravitational/teleport/pull/14944)
+
+Other improvements and bug fixes:
 
 * Fixed "no suitable devices found" libfido2 error. [#14795](https://github.com/gravitational/teleport/pull/14795)
 * Fixed "access denied" error when joining a session. [#14770](https://github.com/gravitational/teleport/pull/14770)

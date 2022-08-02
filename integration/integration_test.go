@@ -345,7 +345,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 				return tconf
 			}
-			nodeProcess, err := teleport.StartNode(nodeConfig())
+			_, err := teleport.StartNode(nodeConfig())
 			require.NoError(t, err)
 
 			// get access to a authClient for the cluster
@@ -548,15 +548,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, 0, start.GetInt("bytes"))
 			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
-
-			// If session are being recorded at nodes, the SessionServerID should contain
-			// the ID of the node. If sessions are being recorded at the proxy, then
-			// SessionServerID should be that of the proxy.
-			expectedServerID := nodeProcess.Config.HostUUID
-			if services.IsRecordAtProxy(tt.inRecordLocation) {
-				expectedServerID = teleport.Process.Config.HostUUID
-			}
-			require.Equal(t, expectedServerID, start.GetString(events.SessionServerID))
 
 			// make sure data is recorded properly
 			out := &bytes.Buffer{}
