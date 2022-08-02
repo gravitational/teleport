@@ -1,0 +1,14 @@
+clusterName: test-aws-cluster
+chartMode: aws
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  auditLogTable: test-dynamodb-auditlog-table
+  sessionRecordingBucket: test-s3-session-storage-bucket
+  dynamoAutoScaling: true
+  readMinCapacity: 5
+  readMaxCapacity: 100
+  readTargetValue: 50.0
+  writeMinCapacity: 5
+  writeMaxCapacity: 100
+  writeTargetValue: 50.0
