@@ -231,7 +231,9 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			return
 		case playSpeed := <-pp.playSpeed:
+			prevPlayFactor := playFactor
 			playFactor = 1.0 / playSpeed
+			lastDelay = int64(float32(lastDelay) * (playFactor / prevPlayFactor))
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
