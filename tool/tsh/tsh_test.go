@@ -24,12 +24,21 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -54,13 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -77,6 +79,9 @@ func init() {
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
 		main()
+		// main will only exit if there is an error.
+		// since we are here, there was no error, so we must do so ourselves.
+		os.Exit(0)
 		return
 	}
 
@@ -128,6 +133,130 @@ func (p *cliModules) Features() modules.Features {
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *cliModules) IsBoringBinary() bool {
 	return false
+}
+
+func TestAlias(t *testing.T) {
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		aliases        map[string]string
+		args           []string
+		wantErr        bool
+		validateOutput func(t *testing.T, output string)
+	}{
+		{
+			name: "loop",
+			aliases: map[string]string{
+				"loop": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "loop via other",
+			aliases: map[string]string{
+				"loop":      fmt.Sprintf("%v loop", testExecutable),
+				"loop-call": fmt.Sprintf("%v loop", testExecutable),
+			},
+			args:    []string{"loop-call"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"loop\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "r1 -> r2 -> r1",
+			aliases: map[string]string{
+				"r1": fmt.Sprintf("%v r2", testExecutable),
+				"r2": fmt.Sprintf("%v r1", testExecutable),
+			},
+			args:    []string{"r2"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, "recursive alias \"r2\"; correct alias definition and try again")
+			},
+		},
+		{
+			name: "set default flag to command",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+			},
+			args:    []string{"version"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "default flag and alias",
+			aliases: map[string]string{
+				"version": fmt.Sprintf("%v version --format=json", testExecutable),
+				"v":       fmt.Sprintf("%v version", testExecutable),
+			},
+			args:    []string{"v"},
+			wantErr: false,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, `"version"`)
+				require.Contains(t, output, `"gitref"`)
+				require.Contains(t, output, `"runtime"`)
+			},
+		},
+		{
+			name: "call external program, pass non-zero exit code",
+			aliases: map[string]string{
+				"ss": fmt.Sprintf("%v status", testExecutable),
+				"bb": fmt.Sprintf("bash -c '%v ss'", testExecutable),
+			},
+			args:    []string{"bb"},
+			wantErr: true,
+			validateOutput: func(t *testing.T, output string) {
+				require.Contains(t, output, fmt.Sprintf("%vNot logged in", utils.Color(utils.Red, "ERROR: ")))
+				require.Contains(t, output, fmt.Sprintf("%vexit status 1", utils.Color(utils.Red, "ERROR: ")))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// make sure we have fresh configs for the tests:
+			// - new home
+			// - new global config
+			tmpHomePath := t.TempDir()
+			t.Setenv(types.HomeEnvVar, tmpHomePath)
+			t.Setenv(globalTshConfigEnvVar, filepath.Join(tmpHomePath, "tsh_global.yaml"))
+
+			// make the re-exec behave as `tsh` instead of test binary.
+			t.Setenv(tshBinMainTestEnv, "1")
+
+			// write config to use
+			config := &TshConfig{Aliases: tt.aliases}
+			configBytes, err := yamlv2.Marshal(config)
+			require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(tmpHomePath, "tsh_global.yaml"), configBytes, 0o777)
+			require.NoError(t, err)
+
+			// run command
+			cmd := exec.Command(testExecutable, tt.args...)
+			t.Logf("running command %v", cmd)
+			output, err := cmd.CombinedOutput()
+			t.Logf("executable output: %v", string(output))
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			tt.validateOutput(t, string(output))
+		})
+	}
 }
 
 func TestFailedLogin(t *testing.T) {
@@ -513,7 +642,7 @@ func TestMakeClient(t *testing.T) {
 	require.Error(t, err)
 
 	// minimal configuration (with defaults)
-	conf.Proxy = "proxy"
+	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
@@ -1813,13 +1942,8 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	})
 
 	// Wait for node to become ready.
-	eventCh := make(chan service.Event, 1)
-	node.WaitForEvent(node.ExitContext(), service.NodeSSHReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("node didn't start after 10s")
-	}
+	node.WaitForEventTimeout(10*time.Second, service.NodeSSHReady)
+	require.NoError(t, err, "node didn't start after 10s")
 
 	return node
 }
@@ -1871,15 +1995,10 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
 
 	authAddr, err := auth.AuthAddr()
 	require.NoError(t, err)
@@ -1911,12 +2030,8 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	})
 
 	// Wait for proxy to become ready.
-	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("proxy web server didn't start after 10s")
-	}
+	_, err = proxy.WaitForEventTimeout(10*time.Second, service.ProxyWebServerReady)
+	require.NoError(t, err, "proxy web server didn't start after 10s")
 
 	return auth, proxy
 }

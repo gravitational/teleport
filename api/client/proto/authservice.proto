@@ -467,6 +467,8 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
+    // LicenseWarnings is a list of license compliance warnings.
+    repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
 }
 
 // Features are auth server features.
@@ -1918,6 +1920,12 @@ message InventoryPingRequest { string ServerID = 1; }
 // inventory ping request.
 message InventoryPingResponse { int64 Duration = 1 [ (gogoproto.casttype) = "time.Duration" ]; }
 
+// GetConnectionDiagnosticRequest is a request to return a connection diagnostic.
+message GetConnectionDiagnosticRequest {
+    // Name is the name of the connection diagnostic.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2395,6 +2403,12 @@ service AuthService {
     rpc GenerateWindowsDesktopCert(WindowsDesktopCertRequest) returns (WindowsDesktopCertResponse);
     // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
     rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
+
+    // CreateConnectionDiagnostic creates a new connection diagnostic.
+    rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
+    // GetConnectionDiagnostic reads a connection diagnostic.
+    rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest)
+        returns (types.ConnectionDiagnosticV1);
 
     // ChangeUserAuthentication allows a user to change their password and if enabled,
     // also adds a new MFA device. After successful invocation, a new web session is created as well

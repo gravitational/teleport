@@ -26,6 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -41,13 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
@@ -316,7 +316,8 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			promptCalled := false
 			*client.PromptMFAStandalone = func(
 				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+				gotOpts *client.PromptMFAChallengeOpts,
+			) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
 				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
@@ -485,13 +486,8 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 
-	eventC := make(chan service.Event, 1)
-	instance.WaitForEvent(instance.ExitContext(), eventName, eventC)
-	select {
-	case <-eventC:
-	case <-time.After(30 * time.Second):
-		t.Fatal("Timed out waiting for teleport")
-	}
+	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
+	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
 }

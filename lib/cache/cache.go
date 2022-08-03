@@ -584,6 +584,9 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Unstarted indicates that the cache should not be started during New. The
+	// cache is usable before it's started, but it will always hit the backend.
+	Unstarted bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -708,34 +711,48 @@ func New(config Config) (*Cache, error) {
 	}
 	cs.collections = collections
 
-	retry, err := utils.NewLinear(utils.LinearConfig{
-		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
-		Step:   cs.MaxRetryPeriod / 5,
-		Max:    cs.MaxRetryPeriod,
-		Jitter: utils.NewHalfJitter(),
-		Clock:  cs.Clock,
-	})
-	if err != nil {
+	if config.Unstarted {
+		return cs, nil
+	}
+
+	if err := cs.Start(); err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
 	}
 
-	go cs.update(ctx, retry)
+	return cs, nil
+}
+
+// Starts the cache. Should only be called once.
+func (c *Cache) Start() error {
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
+		Step:   c.MaxRetryPeriod / 5,
+		Max:    c.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  c.Clock,
+	})
+	if err != nil {
+		c.Close()
+		return trace.Wrap(err)
+	}
+
+	go c.update(c.ctx, retry)
 
 	select {
-	case <-cs.initC:
-		if cs.initErr == nil {
-			cs.Infof("Cache %q first init succeeded.", cs.Config.target)
+	case <-c.initC:
+		if c.initErr == nil {
+			c.Infof("Cache %q first init succeeded.", c.Config.target)
 		} else {
-			cs.WithError(cs.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", cs.Config.target)
+			c.WithError(c.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", c.Config.target)
 		}
-	case <-ctx.Done():
-		cs.Close()
-		return nil, trace.Wrap(ctx.Err(), "context closed during cache init")
-	case <-time.After(cs.Config.CacheInitTimeout):
-		cs.Warningf("Cache init is taking too long, will continue in background.")
+	case <-c.ctx.Done():
+		c.Close()
+		return trace.Wrap(c.ctx.Err(), "context closed during cache init")
+	case <-time.After(c.Config.CacheInitTimeout):
+		c.Warningf("Cache init is taking too long, will continue in background.")
 	}
-	return cs, nil
+	return nil
 }
 
 // NewWatcher returns a new event watcher. In case of a cache

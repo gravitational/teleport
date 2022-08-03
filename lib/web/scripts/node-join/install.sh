@@ -35,25 +35,22 @@ INTERACTIVE=false
 
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
-TELEPORT_VERSION="{{.version}}"
-TARGET_HOSTNAME="{{.hostname}}"
-TARGET_PORT="{{.port}}"
-JOIN_TOKEN="{{.token}}"
-JOIN_METHOD="{{.joinMethod}}"
+TELEPORT_VERSION='{{.version}}'
+TARGET_HOSTNAME='{{.hostname}}'
+TARGET_PORT='{{.port}}'
+JOIN_TOKEN='{{.token}}'
+JOIN_METHOD='{{.joinMethod}}'
 JOIN_METHOD_FLAG=""
 [ ! -z "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
-# When all stanza generators have been updated to use the new 
+# When all stanza generators have been updated to use the new
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
 # with the script passing it in in `join_tokens.go`.
-CA_PIN_HASHES="{{.caPinsOld}}"
-CA_PINS="{{.caPins}}"
+CA_PIN_HASHES='{{.caPinsOld}}'
+CA_PINS='{{.caPins}}'
 ARG_CA_PIN_HASHES=""
-APP_INSTALL_MODE="{{.appInstallMode}}"
-APP_NAME="{{.appName}}"
-APP_URI="{{.appURI}}"
-NODE_LABELS="{{.nodeLabels}}"
-LABELS_FLAG=""
-[ ! -z "$NODE_LABELS" ] && LABELS_FLAG="--labels ${NODE_LABELS}"
+APP_INSTALL_MODE='{{.appInstallMode}}'
+APP_NAME='{{.appName}}'
+APP_URI='{{.appURI}}'
 
 # usage message
 # shellcheck disable=SC2086
@@ -442,7 +439,6 @@ install_teleport_node_config() {
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
       --auth-server ${TARGET_HOSTNAME}:${TARGET_PORT} \
-      ${LABELS_FLAG} \
       --output ${TELEPORT_CONFIG_PATH}
 }
 # checks whether the given host is running MacOS
