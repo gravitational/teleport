@@ -24,11 +24,11 @@ import (
 
 const (
 	// DefaultEnvironmentFile is the default path to the env file
-	DefaultEnvironmentFile = "/etc/default/teleport"
+	SystemdDefaultEnvironmentFile = "/etc/default/teleport"
 	// DefaultPIDFile is the default path to the PID file
-	DefaultPIDFile = "/run/teleport.pid"
+	SystemdDefaultPIDFile = "/run/teleport.pid"
 	// DefaultFileDescriptorLimit is the default max number of open file descriptors
-	DefaultFileDescriptorLimit = 8192
+	SystemdDefaultFileDescriptorLimit = 8192
 )
 
 // systemdUnitFileTemplate is the systemd unit file configuration template.
@@ -48,8 +48,8 @@ LimitNOFILE={{ .FileDescriptorLimit }}
 [Install]
 WantedBy=multi-user.target`))
 
-// SystemdSampleFlags specifies configuration parameters for a systemd unit file.
-type SystemdSampleFlags struct {
+// SystemdFlags specifies configuration parameters for a systemd unit file.
+type SystemdFlags struct {
 	// EnvironmentFile is the environment file path provided by the user.
 	EnvironmentFile string
 	// PIDFile is the process ID (PID) file path provided by the user.
@@ -61,7 +61,7 @@ type SystemdSampleFlags struct {
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
-func (f *SystemdSampleFlags) CheckAndSetDefaults() error {
+func (f *SystemdFlags) CheckAndSetDefaults() error {
 	if f.TeleportInstallationFile == "" {
 		teleportPath, err := os.Readlink("/proc/self/exe")
 		if err != nil {
@@ -75,16 +75,11 @@ func (f *SystemdSampleFlags) CheckAndSetDefaults() error {
 
 // WriteSystemdUnitFile accepts flags and an io.Writer
 // and writes the systemd unit file configuration to it
-func WriteSystemdUnitFile(flags SystemdSampleFlags, dest io.Writer) error {
+func WriteSystemdUnitFile(flags SystemdFlags, dest io.Writer) error {
 	err := flags.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = systemdUnitFileTemplate.Execute(dest, flags)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(systemdUnitFileTemplate.Execute(dest, flags))
 }

@@ -23,24 +23,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSystemd_Install(t *testing.T) {
+func TestWriteSystemdUnitFile(t *testing.T) {
 
-	flags := SystemdSampleFlags{
+	flags := SystemdFlags{
 		EnvironmentFile:          "/custom/env/dir/teleport",
 		PIDFile:                  "/custom/pid/dir/teleport.pid",
 		FileDescriptorLimit:      16384,
 		TeleportInstallationFile: "/custom/install/dir/teleport",
 	}
 
-	t.Run("stdout", func(t *testing.T) {
-		stdout := new(bytes.Buffer)
-		err := WriteSystemdUnitFile(flags, stdout)
-		require.NoError(t, err)
-		data := stdout.Bytes()
-		if golden.ShouldSet() {
-			golden.Set(t, data)
-		}
-		require.Equal(t, string(golden.Get(t)), stdout.String())
-	})
+	stdout := new(bytes.Buffer)
+	err := WriteSystemdUnitFile(flags, stdout)
+	require.NoError(t, err)
+	data := stdout.Bytes()
+	if golden.ShouldSet() {
+		golden.Set(t, data)
+	}
+	require.Equal(t, string(golden.Get(t)), stdout.String())
 
 }

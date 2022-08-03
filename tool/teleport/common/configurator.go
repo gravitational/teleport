@@ -39,7 +39,7 @@ var awsDatabaseTypes = []string{
 }
 
 type installSystemdFlags struct {
-	config.SystemdSampleFlags
+	config.SystemdFlags
 	// output is the destination to write the systemd unit file to.
 	output string
 }
@@ -63,7 +63,7 @@ func onDumpSystemdUnitFile(flags installSystemdFlags) error {
 	}
 
 	buf := new(bytes.Buffer)
-	err := config.WriteSystemdUnitFile(flags.SystemdSampleFlags, buf)
+	err := config.WriteSystemdUnitFile(flags.SystemdFlags, buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

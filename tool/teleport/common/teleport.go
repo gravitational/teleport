@@ -288,9 +288,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// "teleport install" command and its subcommands
 	installCmd := app.Command("install", "Teleport install commands.")
 	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
-	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.DefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
-	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.DefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
-	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.DefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.SystemdDefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
 	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
 	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
