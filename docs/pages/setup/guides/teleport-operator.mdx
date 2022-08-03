@@ -21,7 +21,7 @@ Currently supported Teleport resources are:
 
 This guide covers how to:
 - Install Teleport Operator on Kubernetes.
-- Configure Teleport users and roles using Kubernetes.
+- Manage Teleport users and roles using Kubernetes.
 
 ## Prerequisites
 
@@ -48,7 +48,7 @@ $ kubectl cluster-info
   ```
 </Admonition>
 
-## Step 1/3. Install teleport-cluster with the operator
+## Step 1/3. Install teleport-cluster Helm chart with the operator
 
 Add the Teleport Helm Chart repo:
 ```code
@@ -73,7 +73,7 @@ All subsequents commands will take place in the `teleport-cluster` namespace, so
 $ kubectl config set-context --current --namespace teleport-cluster
 ```
 
-## Step 2/3. Manage users and roles using `kubectl`
+## Step 2/3. Manage Teleport users and roles using `kubectl`
 
 Create a manifest `teleport-resources.yaml` that describes two CustomResources: a `TeleportUser` and a `TeleportRole`:
 
@@ -156,9 +156,9 @@ FIELDS:
      Options is for OpenSSH options like agent forwarding.
 ```
 
-## Going Further
+## Troubleshooting
 
-### Troubleshooting a resource not reconciled in Teleport
+### Resource is not reconciled in Teleport
 
 The operator watches for new resources or changes in Kubernetes. When a change happens, it triggers the reconciliation
 loop. This loop is in charge of validating the resource, checking if it already exists in Teleport and making calls to
