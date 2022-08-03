@@ -2180,21 +2180,6 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showSessions(events []apievents.AuditEvent, format string, w io.Writer) error {
-	sessions := &common.SessionsCollection{SessionEvents: events}
-	switch format {
-	case teleport.Text:
-		return trace.Wrap(sessions.WriteText(w))
-	case teleport.YAML:
-		return trace.Wrap(sessions.WriteYAML(w))
-	case teleport.JSON:
-		return trace.Wrap(sessions.WriteJSON(w))
-	default:
-		return trace.BadParameter("unknown format %q", format)
-
-	}
-}
-
 func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
