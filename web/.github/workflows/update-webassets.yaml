@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - master
-      # TODO(zmb3): enable on release branches
-      #- teleport-v**
+      - teleport-v**
 
 jobs:
   build:
@@ -24,7 +23,7 @@ jobs:
       - name: Checkout webassets
         uses: actions/checkout@v3
         with:
-          repository: gravitational/webassets-fork # TODO(zmb3): switch off the fork
+          repository: gravitational/webassets
           path: dist
           ref: ${{ github.ref_name }}
           ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
