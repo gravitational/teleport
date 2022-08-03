@@ -108,7 +108,7 @@ func TestAddKey(t *testing.T) {
 
 	// add the key to the local agent, this should write the key
 	// to disk as well as load it in the agent
-	_, err = lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
 	require.NoError(t, err)
 
 	// check that the key has been written to disk
@@ -193,9 +193,9 @@ func TestLoadKey(t *testing.T) {
 
 	// load the key to the twice, this should only
 	// result in one key for this user in the agent
-	_, err = lka.LoadKey(*s.key)
+	err = lka.LoadKey(*s.key)
 	require.NoError(t, err)
-	_, err = lka.LoadKey(*s.key)
+	err = lka.LoadKey(*s.key)
 	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent

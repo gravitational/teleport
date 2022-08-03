@@ -1531,7 +1531,7 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
-	_, err := tc.localAgent.LoadKeyForCluster(clusterName)
+	err := tc.localAgent.LoadKeyForCluster(clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3516,7 +3516,7 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	_, err = tc.localAgent.AddKey(key)
+	err = tc.localAgent.AddKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3907,9 +3907,9 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 }
 
 // AddKey adds a key to the client's local agent, used in tests.
-func (tc *TeleportClient) AddKey(key *Key) (*agent.AddedKey, error) {
+func (tc *TeleportClient) AddKey(key *Key) error {
 	if tc.localAgent == nil {
-		return nil, trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
+		return trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
 	}
 	if key.ClusterName == "" {
 		key.ClusterName = tc.SiteName

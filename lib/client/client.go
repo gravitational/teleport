@@ -264,7 +264,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	_, err = proxy.localAgent().AddKey(key)
+	err = proxy.localAgent().AddKey(key)
 	return trace.Wrap(err)
 }
 
