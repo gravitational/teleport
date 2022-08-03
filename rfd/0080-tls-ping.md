@@ -103,10 +103,10 @@ configuration.
 
 ```yaml
 auth_service:
-  # pingInterval defines in which interval the TLS routing ping message should
-  # be sent. This is applicable only when using ping-wrapped connections,
+  # proxy_ping_interval defines in which interval the TLS routing ping message
+  # should be sent. This is applicable only when using ping-wrapped connections,
   # regular TLS routing connections are not affected.
-  pingInterval: 2m
+  proxy_ping_interval: 30s
 ```
 
 ### Security
