@@ -1929,6 +1929,18 @@ message InventoryPingRequest { string ServerID = 1; }
 // inventory ping request.
 message InventoryPingResponse { int64 Duration = 1 [ (gogoproto.casttype) = "time.Duration" ]; }
 
+// GetClusterAlertsResponse contains the result of a cluster alerts query.
+message GetClusterAlertsResponse {
+    // Alerts is the list of matching alerts.
+    repeated types.ClusterAlert Alerts = 1 [ (gogoproto.nullable) = false ];
+}
+
+// UpsertClusterAlertRequest is used to create a cluster alert.
+message UpsertClusterAlertRequest {
+    // Alert is the alert being created.
+    types.ClusterAlert Alert = 1 [ (gogoproto.nullable) = false ];
+}
+
 // GetConnectionDiagnosticRequest is a request to return a connection diagnostic.
 message GetConnectionDiagnosticRequest {
     // Name is the name of the connection diagnostic.
@@ -1947,6 +1959,12 @@ service AuthService {
 
     // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
     rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
+
+    // GetClusterAlerts loads cluster-level alert messages.
+    rpc GetClusterAlerts(types.GetClusterAlertsRequest) returns (GetClusterAlertsResponse);
+
+    // UpsertClusterAlert creates a cluster alert.
+    rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
 
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
     // session.
