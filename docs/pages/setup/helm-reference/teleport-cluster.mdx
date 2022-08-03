@@ -445,7 +445,7 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
 | - | - | - |
 | `bool` | `false`| ✅ |
 
-CRDs are not namespace-scoped resources—they can be installed only once in a cluster.
+CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
 
 CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
 `installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
