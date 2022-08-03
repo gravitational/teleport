@@ -634,7 +634,7 @@ func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRe
 func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
 			return C.ErrCodeFailure
 		}
 		return C.ErrCodeSuccess
@@ -657,7 +657,7 @@ func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRe
 func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
 			return C.ErrCodeFailure
 		}
 		return C.ErrCodeSuccess
@@ -680,7 +680,7 @@ func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListReques
 func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
 	if c.cfg.AllowDirectorySharing {
 		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+			c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
 			return C.ErrCodeFailure
 		}
 		return C.ErrCodeSuccess
