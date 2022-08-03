@@ -29,11 +29,13 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -43,6 +45,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -520,7 +523,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		"#v": aws.String("Value"),
 	})
 	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
-		":prev": &dynamodb.AttributeValue{
+		":prev": {
 			B: expected.Value,
 		},
 	})
@@ -900,7 +903,10 @@ func convertError(err error) error {
 	}
 	aerr, ok := err.(awserr.Error)
 	if !ok {
-		return err
+		return trace.Wrap(err)
+	}
+	if request.IsErrorThrottle(aerr) {
+		return trace.Retry(aerr, aerr.Error())
 	}
 	switch aerr.Code() {
 	case dynamodb.ErrCodeConditionalCheckFailedException:
@@ -916,7 +922,7 @@ func convertError(err error) error {
 	case dynamodbstreams.ErrCodeExpiredIteratorException, dynamodbstreams.ErrCodeLimitExceededException, dynamodbstreams.ErrCodeTrimmedDataAccessException:
 		return trace.ConnectionProblem(aerr, aerr.Error())
 	default:
-		return err
+		return trace.Wrap(err)
 	}
 }
 

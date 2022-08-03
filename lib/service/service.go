@@ -1220,10 +1220,51 @@ func adminCreds() (*int, *int, error) {
 	return &uid, &gid, nil
 }
 
-// initUploadHandler initializes upload handler based on the config settings,
-func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig, dataDir string) (events.MultipartHandler, error) {
-	if !auditConfig.ShouldUploadSessions() {
-		recordsDir := filepath.Join(dataDir, events.RecordsDir)
+// auditSessionUploadConfig is a configuration for an audit session storage handler.
+type auditSessionUploadConfig struct {
+	// ctx is a signalling context.
+	ctx context.Context
+	// auditConfig defines the cluster audit log configuration.
+	auditConfig types.ClusterAuditConfig
+	// dataDir is the local log storage directory.
+	dataDir string
+	// uploaderFunc is a mock external uploader initalization function
+	// configurable for testing purposes.
+	uploaderFunc func() error
+	// retryConfig is the retry config for external loggers that
+	// support retries on initialization errors.
+	retryConfig *utils.LinearConfig
+}
+
+func (c *auditSessionUploadConfig) CheckAndSetDefaults() error {
+	if c.auditConfig == nil {
+		return trace.BadParameter("missing audit config")
+	}
+
+	if c.ctx == nil {
+		c.ctx = context.Background()
+	}
+
+	if c.retryConfig == nil {
+		c.retryConfig = &utils.LinearConfig{
+			Step: defaults.NetworkRetryDuration,
+			Max:  defaults.AwsBackoffDuration,
+		}
+	}
+	return nil
+}
+
+// initAuditSessionUploadHandler initializes upload handler based on the config settings,
+func initAuditSessionUploadHandler(config auditSessionUploadConfig) (events.MultipartHandler, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !config.auditConfig.ShouldUploadSessions() {
+		if config.dataDir == "" {
+			return nil, trace.BadParameter("missing data dir")
+		}
+		recordsDir := filepath.Join(config.dataDir, events.RecordsDir)
 		if err := os.MkdirAll(recordsDir, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -1233,32 +1274,55 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return handler, nil
 	}
-	uri, err := apiutils.ParseSessionsURI(auditConfig.AuditSessionsURI())
+	uri, err := apiutils.ParseSessionsURI(config.auditConfig.AuditSessionsURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch uri.Scheme {
 	case teleport.SchemeGCS:
-		config := gcssessions.Config{}
-		if err := config.SetFromURL(uri); err != nil {
+		cfg := gcssessions.Config{}
+		if err := cfg.SetFromURL(uri); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		handler, err := gcssessions.DefaultNewHandler(ctx, config)
+		handler, err := gcssessions.DefaultNewHandler(config.ctx, cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler, nil
 	case teleport.SchemeS3:
-		config := s3sessions.Config{UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint()}
+		cfg := s3sessions.Config{UseFIPSEndpoint: config.auditConfig.GetUseFIPSEndpoint()}
 
-		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
+		if err := cfg.SetFromURL(uri, config.auditConfig.Region()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		handler, err := s3sessions.NewHandler(ctx, config)
+		retry, err := utils.NewLinear(*config.retryConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		retryCtx, cancel := context.WithTimeout(config.ctx, defaults.HTTPRequestTimeout)
+		defer cancel()
+
+		var handler *s3sessions.Handler
+		if config.uploaderFunc == nil {
+			config.uploaderFunc = func() error {
+				handler, err = s3sessions.NewHandler(config.ctx, cfg)
+				if err != nil {
+					if trace.IsRetryError(err) {
+						return trace.Wrap(err)
+					}
+					return utils.PermanentRetryError(err)
+				}
+				return nil
+			}
+		}
+
+		err = retry.For(retryCtx, config.uploaderFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1281,12 +1345,50 @@ func initUploadHandler(ctx context.Context, auditConfig types.ClusterAuditConfig
 	}
 }
 
-// initExternalLog initializes external storage, if the storage is not
-// setup, returns (nil, nil).
-func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, log logrus.FieldLogger, backend backend.Backend) (events.IAuditLog, error) {
+// externalAuditLogConfig is a configuration for an external log storage.
+type externalAuditLogConfig struct {
+	// ctx is a signalling context.
+	ctx context.Context
+	// auditConfig defines the cluster audit log configuration.
+	auditConfig types.ClusterAuditConfig
+	// backend is a remote storage backend inteface
+	backend backend.Backend
+	// loggerFunc is a mock external logger initalization function
+	// configurable for testing purposes.
+	loggerFunc func() error
+	// retryConfig is the retry config for external loggers that
+	// support retries on initialization errors.
+	retryConfig *utils.LinearConfig
+}
+
+func (c *externalAuditLogConfig) CheckAndSetDefaults() error {
+	if c.auditConfig == nil {
+		return trace.BadParameter("missing audit config")
+	}
+
+	if c.ctx == nil {
+		c.ctx = context.Background()
+	}
+
+	if c.retryConfig == nil {
+		c.retryConfig = &utils.LinearConfig{
+			Step: defaults.NetworkRetryDuration,
+			Max:  defaults.AwsBackoffDuration,
+		}
+	}
+	return nil
+}
+
+// initExternalAuditLog initializes an external audit logger.
+// It returns (nil, nil) if the logger is not setup.
+func initExternalAuditLog(config externalAuditLogConfig) (events.IAuditLog, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
-	for _, eventsURI := range auditConfig.AuditEventsURIs() {
+	for _, eventsURI := range config.auditConfig.AuditEventsURIs() {
 		uri, err := apiutils.ParseSessionsURI(eventsURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1307,31 +1409,57 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 		case dynamo.GetName():
 			hasNonFileLog = true
 
-			cfg := dynamoevents.Config{
-				Tablename:               uri.Host,
-				Region:                  auditConfig.Region(),
-				EnableContinuousBackups: auditConfig.EnableContinuousBackups(),
-				EnableAutoScaling:       auditConfig.EnableAutoScaling(),
-				ReadMinCapacity:         auditConfig.ReadMinCapacity(),
-				ReadMaxCapacity:         auditConfig.ReadMaxCapacity(),
-				ReadTargetValue:         auditConfig.ReadTargetValue(),
-				WriteMinCapacity:        auditConfig.WriteMinCapacity(),
-				WriteMaxCapacity:        auditConfig.WriteMaxCapacity(),
-				WriteTargetValue:        auditConfig.WriteTargetValue(),
-				RetentionPeriod:         auditConfig.RetentionPeriod(),
-				UseFIPSEndpoint:         auditConfig.GetUseFIPSEndpoint(),
-			}
-
-			err = cfg.SetFromURL(uri)
+			retry, err := utils.NewLinear(*config.retryConfig)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(ctx, cfg, backend)
+			retryCtx, cancel := context.WithTimeout(config.ctx, defaults.HTTPRequestTimeout)
+			defer cancel()
+
+			if config.loggerFunc == nil {
+				if config.backend == nil {
+					return nil, trace.BadParameter("missing backend")
+				}
+
+				cfg := dynamoevents.Config{
+					Tablename:               uri.Host,
+					Region:                  config.auditConfig.Region(),
+					EnableContinuousBackups: config.auditConfig.EnableContinuousBackups(),
+					EnableAutoScaling:       config.auditConfig.EnableAutoScaling(),
+					ReadMinCapacity:         config.auditConfig.ReadMinCapacity(),
+					ReadMaxCapacity:         config.auditConfig.ReadMaxCapacity(),
+					ReadTargetValue:         config.auditConfig.ReadTargetValue(),
+					WriteMinCapacity:        config.auditConfig.WriteMinCapacity(),
+					WriteMaxCapacity:        config.auditConfig.WriteMaxCapacity(),
+					WriteTargetValue:        config.auditConfig.WriteTargetValue(),
+					RetentionPeriod:         config.auditConfig.RetentionPeriod(),
+					UseFIPSEndpoint:         config.auditConfig.GetUseFIPSEndpoint(),
+				}
+
+				err = cfg.SetFromURL(uri)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				config.loggerFunc = func() error {
+					logger, err := dynamoevents.New(config.ctx, cfg, config.backend)
+					if err != nil {
+						if trace.IsRetryError(err) {
+							return trace.Wrap(err)
+						}
+						return utils.PermanentRetryError(err)
+					}
+					loggers = append(loggers, logger)
+					return nil
+				}
+			}
+
+			err = retry.For(retryCtx, config.loggerFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			loggers = append(loggers, logger)
+
 		case teleport.SchemeFile:
 			if uri.Path == "" {
 				return nil, trace.BadParameter("unsupported audit uri: %q (missing path component)", uri)
@@ -1363,7 +1491,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 		return nil, nil
 	}
 
-	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+	if !config.auditConfig.ShouldUploadSessions() && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
 		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
@@ -1416,8 +1544,11 @@ func (process *TeleportProcess) initAuthService() error {
 			cfg.Auth.AuditConfig.SetUseFIPSEndpoint(types.ClusterAuditConfigSpecV2_FIPS_ENABLED)
 		}
 
-		uploadHandler, err = initUploadHandler(
-			process.ExitContext(), cfg.Auth.AuditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
+		uploadHandler, err = initAuditSessionUploadHandler(auditSessionUploadConfig{
+			ctx:         process.ExitContext(),
+			auditConfig: cfg.Auth.AuditConfig,
+			dataDir:     filepath.Join(cfg.DataDir, teleport.LogsDir),
+		})
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -1431,7 +1562,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(process.ExitContext(), cfg.Auth.AuditConfig, process.log, process.backend)
+		externalLog, err := initExternalAuditLog(externalAuditLogConfig{
+			ctx:         process.ExitContext(),
+			auditConfig: cfg.Auth.AuditConfig,
+			backend:     process.backend,
+		})
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

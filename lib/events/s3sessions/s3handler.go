@@ -30,18 +30,21 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
-	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
+
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"github.com/gravitational/trace"
+
+	awssession "github.com/aws/aws-sdk-go/aws/session"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -90,7 +93,7 @@ type Config struct {
 
 	// Insecure is an optional switch to opt out of https connections
 	Insecure bool
-	//DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
+	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
 }
 
@@ -286,7 +289,6 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 		Key:       aws.String(h.path(sessionID)),
 		VersionId: aws.String(versionID),
 	})
-
 	if err != nil {
 		return ConvertS3Error(err)
 	}
@@ -440,15 +442,19 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
-	if aerr, ok := err.(awserr.Error); ok {
-		switch aerr.Code() {
-		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
-			return trace.NotFound(aerr.Error(), args...)
-		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
-			return trace.AlreadyExists(aerr.Error(), args...)
-		default:
-			return trace.BadParameter(aerr.Error(), args...)
-		}
+	aerr, ok := err.(awserr.Error)
+	if !ok {
+		return trace.Wrap(err)
 	}
-	return err
+	if request.IsErrorThrottle(aerr) {
+		return trace.Retry(aerr, aerr.Error())
+	}
+	switch aerr.Code() {
+	case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
+		return trace.NotFound(aerr.Error(), args...)
+	case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
+		return trace.AlreadyExists(aerr.Error(), args...)
+	default:
+		return trace.BadParameter(aerr.Error(), args...)
+	}
 }
