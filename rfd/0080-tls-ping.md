@@ -271,8 +271,9 @@ unsolved questions:
 
 #### PoC implementation
 
-<summary>
-<details>View code</details>
+<details>
+<summary>View code</summary>
+
 ```go
 package main
 
@@ -411,4 +412,4 @@ func panicOnErr(err error) {
 	}
 }
 ```
-</summary>
+</details>
