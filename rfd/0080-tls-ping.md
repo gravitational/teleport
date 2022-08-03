@@ -82,7 +82,7 @@ type pingConn struct {
 	// bytesRead number of bytes already read from the current packet.
 	bytesRead int
 	// currentSize size of bytes of the current packet.
-	currentSize int32
+	currentSize uint32
 }
 
 func (c *pingConn) Read(p []byte) (int, error) {
@@ -96,7 +96,7 @@ func (c *pingConn) Read(p []byte) (int, error) {
 
 	// Check if the current size is larger than the provided buffer.
 	readSize := c.currentSize
-	if c.currentSize > int32(len(p)) {
+	if c.currentSize > uint32(len(p)) {
 		readSize = int32(len(p))
 	}
 
@@ -104,7 +104,7 @@ func (c *pingConn) Read(p []byte) (int, error) {
 	c.bytesRead += n
 
 	// Check if it has read everything.
-	if int32(c.bytesRead) >= c.currentSize {
+	if uint32(c.bytesRead) >= c.currentSize {
 		c.bytesRead = 0
 		c.currentSize = 0
 	}
@@ -117,7 +117,7 @@ func (c *pingConn) WritePing() error {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 
-	return binary.Write(c.Conn, binary.LittleEndian, int32(0))
+	return binary.Write(c.Conn, binary.BigEndian, uint32(0))
 }
 
 // discardPingReads reads from the wrapped net.Conn until it encounters a
@@ -128,7 +128,7 @@ func (c *pingConn) discardPingReads() error {
 	}
 
 	for c.currentSize == 0 {
-		err := binary.Read(c.Conn, binary.LittleEndian, &c.currentSize)
+		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
 		if err != nil {
 			return err
 		}
@@ -141,13 +141,13 @@ func (c *pingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 
-	size := int32(len(p))
+	size := uint32(len(p))
 	if size == 0 {
 		return 0, nil
 	}
 
 	// Write packet size.
-	if err := binary.Write(c.Conn, binary.LittleEndian, size); err != nil {
+	if err := binary.Write(c.Conn, binary.BigEndian, size); err != nil {
 		return 0, err
 	}
 
