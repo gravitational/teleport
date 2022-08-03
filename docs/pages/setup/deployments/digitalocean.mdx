@@ -9,7 +9,7 @@ DigitalOcean with the Teleport 1-Click Droplet app.
 
 <Notice type="tip">
 
-If you are looking for a manual installation, refer to our [Linux installation guide](./linux-server.mdx). 
+If you are looking for a manual installation, refer to our [Linux installation guide](../../getting-started/linux-server.mdx). 
 
 </Notice>
 
@@ -23,19 +23,19 @@ If you are looking for a manual installation, refer to our [Linux installation g
 Head over to the Teleport page on [DigitalOcean Marketplace](https://marketplace.digitalocean.com/apps/teleport) and click the “Create a Droplet” button:
 
 <Figure align="left" bordered caption="Teleport 1-Click droplet page">
-  ![Teleport 1-Click droplet page](../../img/quickstart/digitalocean/1click-droplet-page.png)
+  ![Teleport 1-Click droplet page](../../../img/quickstart/digitalocean/1click-droplet-page.png)
 </Figure>
 
 
 Once you click the button, DigitalOcean redirects you to the control panel to configure resources for the Teleport droplet. This step is similar to how you create a regular [droplet in DigitalOcean](https://docs.digitalocean.com/products/droplets/how-to/create/). Teleport is very lightweight, and if you are just trying out Teleport, you can select the $5 droplet. Make sure you select "SSH keys" as the SSH authentication method as it is more secure than a password.
 <Figure align="left" bordered caption="Create a droplet">
-  ![Create a droplet](../../img/quickstart/digitalocean/create-droplet.png)
+  ![Create a droplet](../../../img/quickstart/digitalocean/create-droplet.png)
 </Figure>
 
 It will take a few minutes before our newly created Teleport droplet is ready. Once the droplet is ready, configure your FQDN with the public IP address of the droplet as an IP address for the `A` record of your domain name. 
 For example, refer to the image below; we use the domain name `example.com`. The resulting domain we are using as an FQDN is `tele.example.com`, pointing to our Teleport droplet's public IP `192.168.200.200`.
 <Figure align="left" bordered caption="Configure DNS">
-  ![Configure DNS](../../img/quickstart/digitalocean/fqdn.png)
+  ![Configure DNS](../../../img/quickstart/digitalocean/fqdn.png)
 </Figure>
 
 ## Step 2/3. Configure Teleport
@@ -82,14 +82,14 @@ Open the link copied in the previous step in the browser to complete the setup p
 1. Scan the QR code with your two-factor authentication app (e.g., Google Authenticator)
 2. Set a password and enter the TOTP code generated from the two-factor authentication app.
 <Figure align="left" bordered caption="Set up user">
-  ![Set up user](../../img/quickstart/digitalocean/setup-user.png)
+  ![Set up user](../../../img/quickstart/digitalocean/setup-user.png)
 </Figure>
 
 
 Once you set up a password and provide a valid TOTP code, the user setup process will be complete, and you will be redirected to Teleport Web UI:
 
 <Figure align="left" bordered caption="Teleport Web UI">
-  ![Teleport Web UI](../../img/quickstart/digitalocean/webui.png)
+  ![Teleport Web UI](../../../img/quickstart/digitalocean/webui.png)
 </Figure>
 
 
@@ -97,23 +97,23 @@ Congrats! You've completed setting up Teleport.
 
 ## Next steps
 Finally, you are a step closer to managing secure access to your infrastructure hosted in DigitalOcean.
-Teleport lets you enable [certificate-based authentication for SSH](../server-access/getting-started.mdx) access. If you want to protect public access to internal applications such as GitLab or Grafana, check out our getting started guide on [Application Access](../application-access/getting-started.mdx).  
+Teleport lets you enable [certificate-based authentication for SSH](../../server-access/getting-started.mdx) access. If you want to protect public access to internal applications such as GitLab or Grafana, check out our getting started guide on [Application Access](../../application-access/getting-started.mdx).  
 
 You can also secure access to databases, DigitalOcean Marketplace apps, and Kubernetes clusters using Teleport. Below are the links to get started further:
 <TileSet>
-  <Tile icon="server" title="Server Access" href="../server-access/getting-started.mdx">
+  <Tile icon="server" title="Server Access" href="../../server-access/getting-started.mdx">
     Single Sign-On, short-lived certificates, and audit for SSH servers.
   </Tile>
-  <Tile icon="window" title="Application Access" href="../application-access/getting-started.mdx">
+  <Tile icon="window" title="Application Access" href="../../application-access/getting-started.mdx">
     Secure access to internal dashboards and web applications.
   </Tile>
-  <Tile icon="kubernetes" title="Kubernetes Access" href="../kubernetes-access/getting-started.mdx">
+  <Tile icon="kubernetes" title="Kubernetes Access" href="../../kubernetes-access/getting-started.mdx">
     Single Sign-On, audit and unified access for Kubernetes clusters.
   </Tile>
-  <Tile icon="database" title="Database Access" href="../database-access/getting-started.mdx">
+  <Tile icon="database" title="Database Access" href="../../database-access/getting-started.mdx">
     Secure access to PostgreSQL, MySQL and MongoDB databases.
   </Tile>
-  <Tile icon="desktop" title="Desktop Access" href="../desktop-access/getting-started.mdx">
+  <Tile icon="desktop" title="Desktop Access" href="../../desktop-access/getting-started.mdx">
     Secure access to Windows Server.
   </Tile>
 </TileSet>
