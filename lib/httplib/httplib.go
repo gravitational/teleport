@@ -34,9 +34,9 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
@@ -55,7 +55,19 @@ type ErrorWriter func(w http.ResponseWriter, err error)
 
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
-	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
+	return MakeTracingHandler(MakeHandlerWithErrorWriter(fn, trace.WriteError))
+}
+
+// MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
+// with one that will add a tracing span for each request.
+func MakeTracingHandler(h httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		handler := otelhttp.NewHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			h(writer, request, p)
+		}), r.RequestURI)
+
+		handler.ServeHTTP(w, r)
+	}
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,

@@ -23,14 +23,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gravitational/teleport"
 	apiutils "github.com/gravitational/teleport/api/utils"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/net/http/httpproxy"
 )
 
 func NewInsecureWebClient() *http.Client {
@@ -40,12 +42,12 @@ func NewInsecureWebClient() *http.Client {
 	tlsConfig.InsecureSkipVerify = true
 
 	return &http.Client{
-		Transport: &http.Transport{
+		Transport: otelhttp.NewTransport(&http.Transport{
 			TLSClientConfig: tlsConfig,
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		},
+		}),
 	}
 }
 
@@ -56,12 +58,12 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	tlsConfig.RootCAs = pool
 
 	return &http.Client{
-		Transport: &http.Transport{
+		Transport: otelhttp.NewTransport(&http.Transport{
 			TLSClientConfig: tlsConfig,
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 			},
-		},
+		}),
 	}
 }
 
