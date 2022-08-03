@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -2901,7 +2902,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, role.GetServerID())
+	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -2984,7 +2985,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 }
 
 func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	err := events.ValidateServerMetadata(event, s.serverID)
+	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -3687,14 +3688,25 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //    role Db.
 //  - Database service when initiating connection to a database instance to
 //    produce a client certificate.
+//  - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if this is a local cluster admin, or a database service, or a
-	// user that is allowed to impersonate database service.
-	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
-		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
-			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
-				a.context.User.GetName(), types.RoleDatabase)
-			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
+	// Check if the User can `create` DatabaseCertificates
+	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// Err is access denied, trying the old way
+
+		// Check if this is a local cluster admin, or a database service, or a
+		// user that is allowed to impersonate database service.
+		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
+			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
+				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
+					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
+				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+			}
 		}
 	}
 	return a.authServer.GenerateDatabaseCert(ctx, req)
