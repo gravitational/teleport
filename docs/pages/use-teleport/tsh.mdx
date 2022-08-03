@@ -627,11 +627,6 @@ other user can join you through their terminal by typing:
 $ tsh join <session_ID>
 ```
 
-The Teleport user joining the session must have access to the same SSH principal
-used to start the session. In this case, Teleport user `joe` is logged in to the
-SSH Node as Unix user `joe`, so only Teleport users with a role allowing login `joe`
-will be able to join.
-
 <Admonition
   type="tip"
   title="Lacking permission?"
