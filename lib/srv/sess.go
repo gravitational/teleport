@@ -1571,12 +1571,6 @@ func (p *party) updateActivity() {
 	p.lastActive = time.Now()
 }
 
-func (p *party) getLastActive() time.Time {
-	p.Lock()
-	defer p.Unlock()
-	return p.lastActive
-}
-
 func (p *party) Read(bytes []byte) (int, error) {
 	p.updateActivity()
 	return p.ch.Read(bytes)

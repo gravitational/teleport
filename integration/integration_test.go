@@ -582,13 +582,13 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
+			require.Equal(t, sessionID, end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
+			require.Equal(t, sessionID, leave.GetString(events.SessionEventID))
 
 			// all of them should have a proper time
 			for _, e := range history {
@@ -1268,7 +1268,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 			return
 		}
 
-		sessionID := string(sessions[0].GetSessionID())
+		sessionID := sessions[0].GetSessionID()
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   username,
 			Cluster: helpers.Site,
@@ -4721,7 +4721,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		defer cancel()
 		sessions, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 		require.NoError(t, err)
-		sessionID := string(sessions[0].GetSessionID())
+		sessionID := sessions[0].GetSessionID()
 
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   suite.Me.Username,
