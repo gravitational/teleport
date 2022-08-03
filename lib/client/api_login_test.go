@@ -51,14 +51,7 @@ import (
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
-	// Silence logging during this test.
-	lvl := log.GetLevel()
-	t.Cleanup(func() {
-		log.SetOutput(os.Stderr)
-		log.SetLevel(lvl)
-	})
-	log.SetOutput(io.Discard)
-	log.SetLevel(log.PanicLevel)
+	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
@@ -495,4 +488,15 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
+}
+
+// silenceLogger silences logger during testing.
+func silenceLogger(t *testing.T) {
+	lvl := log.GetLevel()
+	t.Cleanup(func() {
+		log.SetOutput(os.Stderr)
+		log.SetLevel(lvl)
+	})
+	log.SetOutput(io.Discard)
+	log.SetLevel(log.PanicLevel)
 }
