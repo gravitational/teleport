@@ -34,13 +34,13 @@ func TestSystemd_Install(t *testing.T) {
 
 	t.Run("stdout", func(t *testing.T) {
 		stdout := new(bytes.Buffer)
-		out, err := MakeSystemdUnitFileString(flags)
+		err := WriteSystemdUnitFile(flags, stdout)
 		require.NoError(t, err)
 		data := stdout.Bytes()
 		if golden.ShouldSet() {
 			golden.Set(t, data)
 		}
-		require.Equal(t, string(golden.Get(t)), string(out))
+		require.Equal(t, string(golden.Get(t)), stdout.String())
 	})
 
 }

@@ -15,11 +15,20 @@
 package config
 
 import (
-	"bytes"
+	"io"
 	"os"
 	"text/template"
 
 	"github.com/gravitational/trace"
+)
+
+const (
+	// DefaultEnvironmentFile is the default path to the env file
+	DefaultEnvironmentFile = "/etc/default/teleport"
+	// DefaultPIDFile is the default path to the PID file
+	DefaultPIDFile = "/run/teleport.pid"
+	// DefaultFileDescriptorLimit is the default max number of open file descriptors
+	DefaultFileDescriptorLimit = 8192
 )
 
 // systemdUnitFileTemplate is the systemd unit file configuration template.
@@ -53,41 +62,29 @@ type SystemdSampleFlags struct {
 
 // CheckAndSetDefaults checks and sets default values for the flags.
 func (f *SystemdSampleFlags) CheckAndSetDefaults() error {
-	if f.EnvironmentFile == "" {
-		f.EnvironmentFile = "/etc/default/teleport"
-	}
-	if f.PIDFile == "" {
-		f.PIDFile = "/run/teleport.pid"
-	}
-	if f.FileDescriptorLimit == 0 {
-		f.FileDescriptorLimit = 8192
-	}
-
 	if f.TeleportInstallationFile == "" {
-		TeleportBinaryPath, err := os.Readlink("/proc/self/exe")
+		teleportPath, err := os.Readlink("/proc/self/exe")
 		if err != nil {
 			return trace.Wrap(err, "Can't find Teleport binary. Please specify the path.")
 		}
-		f.TeleportInstallationFile = TeleportBinaryPath
+		f.TeleportInstallationFile = teleportPath
 	}
 
 	return nil
 }
 
-// MakeSystemdUnitFileString generates a systemd unit file
-// configuration based on the flags provided. Returns the configuration as a
-// string.
-func MakeSystemdUnitFileString(flags SystemdSampleFlags) (string, error) {
+// WriteSystemdUnitFile accepts flags and an io.Writer
+// and writes the systemd unit file configuration to it
+func WriteSystemdUnitFile(flags SystemdSampleFlags, dest io.Writer) error {
 	err := flags.CheckAndSetDefaults()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	buf := new(bytes.Buffer)
-	err = systemdUnitFileTemplate.Execute(buf, flags)
+	err = systemdUnitFileTemplate.Execute(dest, flags)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return buf.String(), nil
+	return nil
 }

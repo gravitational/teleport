@@ -15,6 +15,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -61,12 +62,13 @@ func onDumpSystemdUnitFile(flags installSystemdFlags) error {
 		return trace.Wrap(err)
 	}
 
-	sfc, err := config.MakeSystemdUnitFileString(flags.SystemdSampleFlags)
+	buf := new(bytes.Buffer)
+	err := config.WriteSystemdUnitFile(flags.SystemdSampleFlags, buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = dumpConfigFile(flags.output, sfc, "")
+	_, err = dumpConfigFile(flags.output, buf.String(), "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
