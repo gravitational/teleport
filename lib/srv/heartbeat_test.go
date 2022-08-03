@@ -35,7 +35,7 @@ import (
 func TestHeartbeatKeepAlive(t *testing.T) {
 	t.Parallel()
 
-	var tests = []struct {
+	tests := []struct {
 		name       string
 		mode       HeartbeatMode
 		makeServer func() types.Resource
@@ -62,15 +62,19 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive app server",
 			mode: HeartbeatModeApp,
 			makeServer: func() types.Resource {
-				return &types.ServerV2{
+				return &types.AppServerV3{
 					Kind:    types.KindAppServer,
 					Version: types.V2,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
 						Name:      "1",
 					},
-					Spec: types.ServerSpecV2{
-						Addr:     "127.0.0.1:1234",
+					Spec: types.AppServerSpecV3{
+						App: &types.AppV3{
+							Spec: types.AppSpecV3{
+								PublicAddr: "127.0.0.1:1234",
+							},
+						},
 						Hostname: "2",
 					},
 				}
