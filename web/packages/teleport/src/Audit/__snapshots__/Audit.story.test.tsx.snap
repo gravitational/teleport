@@ -363,7 +363,7 @@ exports[`list of all events 1`] = `
            of
            
           <strong>
-            122
+            124
           </strong>
         </div>
         <button
@@ -2594,6 +2594,80 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session Data
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          New AWS app session data created [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-10-30T17:28:15.705Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session Started
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [STeve] has started an AWS app session [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-10-30T17:28:15.381Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
               class="c10 c15 icon icon-terminal c10 c15"
               color="light"
               font-size="3"
@@ -4048,80 +4122,6 @@ exports[`list of all events 1`] = `
           style="word-break: break-word;"
         >
           User [root] failed to change attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22T19:41:23Z
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c16"
-            kind="border"
-            width="87px"
-          >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="vertical-align: inherit;"
-        >
-          <div
-            class="c14"
-          >
-            <span
-              class="c10 c15 icon icon-folder-plus c10 c15"
-              color="light"
-              font-size="3"
-            />
-            SFTP Setstat
-          </div>
-        </td>
-        <td
-          style="word-break: break-word;"
-        >
-          User [root] changed attributes of file [/tmp/file] on node [[::1]:3022]
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22T19:41:23Z
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c16"
-            kind="border"
-            width="87px"
-          >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="vertical-align: inherit;"
-        >
-          <div
-            class="c14"
-          >
-            <span
-              class="c10 c15 icon icon-folder-plus c10 c15"
-              color="light"
-              font-size="3"
-            />
-            SFTP Fstat Failed
-          </div>
-        </td>
-        <td
-          style="word-break: break-word;"
-        >
-          User [root] failed to query attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
         </td>
         <td
           style="min-width: 120px;"

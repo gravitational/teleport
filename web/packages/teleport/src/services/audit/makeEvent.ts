@@ -478,13 +478,24 @@ export const formatters: Formatters = {
   [eventCodes.APP_SESSION_START]: {
     type: 'app.session.start',
     desc: 'App Session Started',
-    format: ({ user, sid }) =>
-      `User [${user}] has started an app session [${sid}]`,
+    format: event => {
+      const { user, sid, aws_role_arn } = event;
+      if (aws_role_arn) {
+        return `User [${user}] has started an AWS app session [${sid}]`;
+      }
+      return `User [${user}] has started an app session [${sid}]`;
+    },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
-    format: ({ sid }) => `New app session data created [${sid}]`,
+    format: event => {
+      const { sid, aws_role_arn } = event;
+      if (aws_role_arn) {
+        return `New AWS app session data created [${sid}]`;
+      }
+      return `New app session data created [${sid}]`;
+    },
   },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',

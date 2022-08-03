@@ -427,11 +427,17 @@ export type RawEvents = {
   >;
   [eventCodes.APP_SESSION_START]: RawEvent<
     typeof eventCodes.APP_SESSION_START,
-    { sid: string }
+    {
+      sid: string;
+      aws_role_arn: string;
+    }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
     typeof eventCodes.APP_SESSION_CHUNK,
-    { sid: string }
+    {
+      sid: string;
+      aws_role_arn: string;
+    }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<
     typeof eventCodes.SUBSYSTEM,
