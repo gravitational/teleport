@@ -685,9 +685,10 @@ func (s *Server) serveAWSWebConsole(w http.ResponseWriter, r *http.Request, iden
 		identity.Username, identity.RouteToApp.AWSRoleARN)
 
 	url, err := s.c.Cloud.GetAWSSigninURL(AWSSigninRequest{
-		Identity:  identity,
-		TargetURL: app.GetURI(),
-		Issuer:    app.GetPublicAddr(),
+		Identity:   identity,
+		TargetURL:  app.GetURI(),
+		Issuer:     app.GetPublicAddr(),
+		ExternalID: app.GetAWSExternalID(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
