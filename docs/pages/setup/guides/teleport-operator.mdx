@@ -27,7 +27,7 @@ This guide covers how to:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Kubernetes cluster (with or without `teleport-cluster` already deployed);
+- Kubernetes cluster (with or without `teleport-cluster` Helm chart already deployed);
 - [Helm](https://helm.sh/docs/intro/quickstart/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 
@@ -53,6 +53,7 @@ $ kubectl cluster-info
 Add the Teleport Helm Chart repo:
 ```code
 $ helm repo add teleport https://charts.releases.teleport.dev
+$ helm repo update
 ```
 
 Install the Helm chart for the Teleport Cluster with `operator.enabled=true`.
@@ -211,3 +212,11 @@ $ kubectl logs "$PROXY_POD" -c operator
 
   To diagnose reconciliation issues, you will have to inspect all pods to find the one reconciling the resources.
 </Admonition>
+
+## Next Steps
+
+Helm Chart parameters are documented in the [`teleport-cluster `Helm chart reference](../helm-reference/teleport-cluster.mdx).
+
+See the [Helm Deployment guides](../helm-deployments.mdx) detailing specific setups like running teleport on AWS or GCP.
+
+Check out [access controls documentation](../../access-controls/introduction.mdx)
