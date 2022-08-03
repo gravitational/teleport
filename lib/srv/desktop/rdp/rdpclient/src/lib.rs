@@ -272,7 +272,7 @@ fn connect_rdp_inner(
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
         // Create C compatible string from req.path
-        match req.path.as_cstring() {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_info_request(
@@ -305,7 +305,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
             // Create C compatible string from req.path
-            match req.path.as_cstring() {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_create_request(
@@ -339,7 +339,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
             // Create C compatible string from req.path
-            match req.path.as_cstring() {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_delete_request(
@@ -371,7 +371,7 @@ fn connect_rdp_inner(
     let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
         // Create C compatible string from req.path
-        match req.path.as_cstring() {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_list_request(
@@ -402,7 +402,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_read_request = Box::new(move |req: SharedDirectoryReadRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryReadRequest: {:?}", req);
-        match req.path.as_cstring() {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_read_request(
@@ -436,7 +436,7 @@ fn connect_rdp_inner(
 
     let tdp_sd_write_request = Box::new(move |req: SharedDirectoryWriteRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryWriteRequest: {:?}", req);
-        match req.path.as_cstring() {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_write_request(

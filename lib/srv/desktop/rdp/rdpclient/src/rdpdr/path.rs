@@ -51,7 +51,7 @@ impl UnixPath {
     ///
     /// This function will return an error if the UnixPath contains
     /// any characters that can't be handled by CString::new().
-    pub fn as_cstring(&self) -> Result<CString, NulError> {
+    pub fn to_cstring(&self) -> Result<CString, NulError> {
         CString::new(self.path.clone())
     }
 
