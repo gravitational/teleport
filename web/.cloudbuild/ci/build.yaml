@@ -24,6 +24,8 @@ steps:
       - build
       - '--build-arg'
       - NPM_SCRIPT=type-check-and-lint
+      - '--build-arg'
+      - YARN_FROZEN_LOCKFILE=true
       - .
 
   - name: gcr.io/cloud-builders/docker
@@ -33,6 +35,8 @@ steps:
       - build
       - '--build-arg'
       - NPM_SCRIPT=build-teleport
+      - '--build-arg'
+      - YARN_FROZEN_LOCKFILE=true
       - .
 
   - name: gcr.io/cloud-builders/docker
@@ -42,4 +46,6 @@ steps:
       - build
       - '--build-arg'
       - NPM_SCRIPT=build-and-package-term
+      - '--build-arg'
+      - YARN_FROZEN_LOCKFILE=true
       - .
