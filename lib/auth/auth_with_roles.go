@@ -1436,34 +1436,9 @@ func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 }
 
 func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
-	// Filter out agents that don't have support for moderated sessions access
-	// checking if the user has any roles that require it.
-	if k.localUser {
-		roles := k.checker.Roles()
-		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
-
-		hasK8SRequirePolicy := func() bool {
-			for _, role := range roles {
-				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
-						return true
-					}
-				}
-			}
-			return false
-		}
-
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
-			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
-		}
-	}
-
 	kube := server.GetCluster()
-	if err := k.checker.CheckAccess(kube, services.AccessMFAParams{Verified: true}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	err := k.checker.CheckAccess(kube, services.AccessMFAParams{Verified: true})
+	return trace.Wrap(err)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type

@@ -716,7 +716,7 @@ func (f *Forwarder) getKubeAccessDetails(
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range kubeServers {
 		c := s.GetCluster()
-		if c == nil || c.GetName() != kubeClusterName {
+		if c.GetName() != kubeClusterName {
 			continue
 		}
 
@@ -774,7 +774,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
 	for _, s := range servers {
 		ks := s.GetCluster()
-		if ks == nil || ks.GetName() != actx.kubeCluster {
+		if ks.GetName() != actx.kubeCluster {
 			continue
 		}
 
@@ -1713,7 +1713,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 	var endpoints []kubeClusterEndpoint
 	for _, s := range kubeServers {
 		kubeCluster := s.GetCluster()
-		if kubeCluster == nil || kubeCluster.GetName() != ctx.kubeCluster {
+		if kubeCluster.GetName() != ctx.kubeCluster {
 			continue
 		}
 
