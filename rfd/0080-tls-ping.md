@@ -251,3 +251,164 @@ Writing all data might require multiple write calls. If one fails, but the
 connection keeps going, it will cause bad reads since it expects a larger
 message than it was provided. In those scenarios, the best is to close the
 connection since there will be a high chance of it being broken.
+
+## Alternatives
+
+### HTTP2 Protocol
+
+Instead of introducing a custom protocol, we wrap the protocols on HTTP2 and
+use the already existent [Ping mechanism](https://httpwg.org/specs/rfc7540.html#PING).
+We’ve tried doing a small PoC on this and ended up having some issues and
+unsolved questions:
+
+* The [official package](https://pkg.go.dev/golang.org/x/net/http2) doesn’t
+  provide a way to provide a `net.Conn` to be used. Instead, you have to:
+    * Create a listener who will provide the server with the connections;
+    * "Manually" invoke the protocol methods (using [Framer](https://pkg.go.dev/golang.org/x/net/http2#Framer)), which includes
+      writing/reading frames and delegating them to a handler when necessary;
+* How would the HTTP2 TLS termination work with ours? Should we use the text
+  implementation instead?
+
+#### PoC implementation
+
+<summary>
+<details>View code</details>
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"time"
+)
+
+// flushWriter uses http.Fluser to perform the writes.
+// It implements WriterCloser although the Close won't do anything.
+type flushWriter struct {
+	w io.Writer
+	f http.Flusher
+}
+
+func (fw *flushWriter) Write(b []byte) (int, error) {
+	n, err := fw.w.Write(b)
+	fw.f.Flush()
+	return n, err
+}
+
+func (fw *flushWriter) Close() error { return nil }
+
+// h2Conn implements Read/Write/Close functions that is going to
+// be backed by http connection.
+type h2Conn struct {
+	r io.Reader
+	w io.WriteCloser
+}
+
+func (c *h2Conn) Read(b []byte) (int, error) {
+	return c.r.Read(b)
+}
+
+func (c *h2Conn) Write(b []byte) (int, error) {
+	return c.w.Write(b)
+}
+
+func (c *h2Conn) Close() error {
+	return c.w.Close()
+}
+
+func netConnH2Server(rw http.ResponseWriter, req *http.Request) (*h2Conn, error) {
+	if !req.ProtoAtLeast(2, 0) {
+		return nil, fmt.Errorf("not http2")
+	}
+
+	flusher, ok := rw.(http.Flusher)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	// Write initial headers.
+	rw.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	return &h2Conn{req.Body, &flushWriter{rw, flusher}}, nil
+}
+
+func netConnH2Client(client *http.Client, url string) (*h2Conn, error) {
+	// Make synchronous reader.
+	reader, writer := io.Pipe()
+
+	req, err := http.NewRequest(http.MethodPost, url, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &h2Conn{resp.Body, writer}, nil
+}
+
+type handler struct {
+	ctx         context.Context
+	dataWritten []byte
+}
+
+func (h *handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	conn, err := netConnH2Server(rw, req)
+	panicOnErr(err)
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-ticker.C:
+			_, err := conn.Write(h.dataWritten)
+			panicOnErr(err)
+		}
+	}
+}
+
+func main() {
+	dataWritten := []byte("hello h2")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create http2 server.
+	server := httptest.NewUnstartedServer(&handler{ctx, dataWritten})
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	defer server.Close()
+
+	// Start client.
+	conn, err := netConnH2Client(server.Client(), server.URL)
+	panicOnErr(err)
+
+	buf := make([]byte, len(dataWritten))
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			if err == io.EOF{
+				return
+			}
+
+			panic(err)
+		}
+
+		fmt.Println("read:", string(buf[:n]))
+	}
+}
+
+func panicOnErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+```
+</summary>
