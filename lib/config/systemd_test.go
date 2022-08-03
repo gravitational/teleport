@@ -25,7 +25,6 @@ import (
 )
 
 func TestWriteSystemdUnitFile(t *testing.T) {
-
 	flags := SystemdFlags{
 		EnvironmentFile:          "/custom/env/dir/teleport",
 		PIDFile:                  "/custom/pid/dir/teleport.pid",
@@ -41,5 +40,4 @@ func TestWriteSystemdUnitFile(t *testing.T) {
 		golden.Set(t, data)
 	}
 	require.Equal(t, string(golden.Get(t)), stdout.String())
-
 }
