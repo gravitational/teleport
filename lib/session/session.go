@@ -193,34 +193,6 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 	}
 }
 
-// UpdateRequest is a session update request
-type UpdateRequest struct {
-	ID             ID              `json:"id"`
-	Namespace      string          `json:"namespace"`
-	TerminalParams *TerminalParams `json:"terminal_params"`
-
-	// Parties allows to update the list of session parties. nil means
-	// "do not update", empty list means "everybody is gone"
-	Parties *[]Party `json:"parties"`
-}
-
-// Check returns nil if request is valid, error otherwize
-func (u *UpdateRequest) Check() error {
-	if err := u.ID.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	if u.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if u.TerminalParams != nil {
-		_, err := NewTerminalParamsFromInt(u.TerminalParams.W, u.TerminalParams.H)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 // MaxSessionSliceLength is the maximum number of sessions per time window
 // that the backend will return.
 const MaxSessionSliceLength = 1000
