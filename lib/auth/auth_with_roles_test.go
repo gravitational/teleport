@@ -2705,31 +2705,27 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// deny user to get the first kubernetes service
 	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
-	testServers[0].SetCluster(nil)
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
-	require.Len(t, testServers, len(testServers))
-	require.Empty(t, cmp.Diff(testServers, servers))
+	require.Len(t, servers, len(testServers)-1)
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources))
-	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+	require.Len(t, resp.Resources, len(testResources)-1)
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
 
 	// deny user to get all databases
 	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
-	for _, testServer := range testServers {
-		testServer.SetCluster(nil)
-	}
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
-	require.Len(t, testServers, len(testServers))
-	require.Empty(t, cmp.Diff(testServers, servers))
+	require.Len(t, servers, 0)
+	require.Empty(t, cmp.Diff(testServers[:0], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources))
-	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+	require.Len(t, resp.Resources, 0)
+	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
 }
 
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
