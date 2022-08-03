@@ -204,6 +204,7 @@ impl From<RdpError> for ConnectError {
 }
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
 struct ConnectParams {
@@ -233,6 +234,10 @@ fn connect_rdp_inner(
 
     // From rdp-rs/src/core/client.rs
     let shared_tcp = SharedStream::new(tcp);
+    // Set read timeout to prevent blocking forever on the handshake if the RDP server doesn't respond.
+    shared_tcp
+        .tcp
+        .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
@@ -535,6 +540,12 @@ fn connect_rdp_inner(
         rdpdr,
         cliprdr,
     };
+
+    // Reset read timeout as rdp-rs isn't build to handle it internally.
+    // This won't cause a lockup later since at that point the close_rdp() function will be called which
+    // will terminate the connection if the websocket disconnects.
+    shared_tcp.tcp.set_read_timeout(None)?;
+
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
