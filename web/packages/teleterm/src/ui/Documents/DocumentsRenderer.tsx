@@ -15,7 +15,7 @@ export function DocumentsRenderer() {
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
-      const isActiveDoc = doc === documentsService.getActive();
+      const isActiveDoc = workspacesService.isDocumentActive(doc.uri);
       return <MemoizedDocument doc={doc} visible={isActiveDoc} key={doc.uri} />;
     });
   }
