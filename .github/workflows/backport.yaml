@@ -1,0 +1,33 @@
+# This workflow will create backport Pull Requests whenever a pull request with
+# the appropriate labels is merged.
+name: Backport
+on:
+  pull_request:
+    types:
+      - closed
+
+# Limit the permissions on the GitHub token for this workflow to the subset
+# that is required. In this case, the backport workflow needs to be able to
+# create branches and create/update PRs, so it needs write access to
+# "pull-requests" and "contents" permissions.
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  backport-pull-request:
+    name: Backport Pull Request
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout master branch of Teleport repository. This is to prevent an
+      # attacker from submitting their own bot logic.
+      - name: Checkout master branch
+        uses: actions/checkout@v2
+        with:
+          ref: master
+      - name: Installing the latest version of Go.
+        uses: actions/setup-go@v2
+      # Run "backport" subcommand on bot.
+      - name: Backport PR
+        run: cd .github/workflows/robot && go run main.go -workflow=backport -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
