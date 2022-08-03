@@ -38,10 +38,10 @@ from becoming idle.
 The protocol packet is defined by the following:
 ```
 | length | data           |
-| int32  | `length` bytes |
+| uint32 | `length` bytes |
 ```
 
-The `length` field is an `int32` encoded in network order (big-endian).
+The `length` field is an `uint32` encoded in network order (big-endian).
 
 #### Ping message
 
