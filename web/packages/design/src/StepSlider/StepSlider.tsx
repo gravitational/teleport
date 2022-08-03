@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -30,6 +30,8 @@ export function StepSlider<T>(props: Props<T>) {
     ...stepProps
   } = props;
 
+  const [hasTransitionEnded, setHasTransitionEnded] = useState<boolean>(false);
+
   // step defines the current step we are in the current flow.
   const [step, setStep] = useState(0);
   // animationDirectionPrefix defines the prefix of the class name that contains
@@ -37,6 +39,15 @@ export function StepSlider<T>(props: Props<T>) {
   const [animationDirectionPrefix, setAnimationDirectionPrefix] = useState<
     'next' | 'prev' | ''
   >('');
+
+  const startTransitionInDirection = useCallback(
+    (direction: 'next' | 'prev') => {
+      setAnimationDirectionPrefix(direction);
+      setHasTransitionEnded(false);
+    },
+    [setAnimationDirectionPrefix, setHasTransitionEnded]
+  );
+
   const [height, setHeight] = useState(0);
 
   // preMount is used to invisibly render the next view so we
@@ -63,7 +74,11 @@ export function StepSlider<T>(props: Props<T>) {
   // It preps data required for pre mounting and sets the
   // next animation direction.
   useEffect(() => {
-    if (!newFlow) return; // only true on initial render
+    // only true on initial render
+    if (!newFlow) {
+      setHasTransitionEnded(true);
+      return;
+    }
 
     preMountState.current.step = 0; // reset step to 0 to start at beginning
     preMountState.current.flow = newFlow.flow;
@@ -71,10 +86,10 @@ export function StepSlider<T>(props: Props<T>) {
 
     setPreMount(true);
     if (newFlow.applyNextAnimation) {
-      setAnimationDirectionPrefix('next');
+      startTransitionInDirection('next');
       return;
     }
-    setAnimationDirectionPrefix('prev');
+    startTransitionInDirection('prev');
   }, [newFlow]);
 
   // After pre mount, we can calculate the exact height of the next step.
@@ -100,18 +115,16 @@ export function StepSlider<T>(props: Props<T>) {
         next={() => {
           preMountState.current.step = step + 1;
           setPreMount(true);
-          setAnimationDirectionPrefix('next');
+          startTransitionInDirection('next');
           rootRef.current.style.height = `${height}px`;
         }}
         prev={() => {
           preMountState.current.step = step - 1;
           setPreMount(true);
-          setAnimationDirectionPrefix('prev');
+          startTransitionInDirection('prev');
           rootRef.current.style.height = `${height}px`;
         }}
-        willTransition={
-          !preMount && Number.isInteger(preMountState?.current?.step)
-        }
+        hasTransitionEnded={hasTransitionEnded}
         {...stepProps}
       />
     );
@@ -168,8 +181,9 @@ export function StepSlider<T>(props: Props<T>) {
               // that may want it to be overflowed e.g. long drop down menu in a small card.
               rootRef.current.style.overflow = 'auto';
               // Set height back to auto to allow the parent component to grow as needed
-              // e.g. rendering of a error banner
+              // e.g. rendering of an error banner
               rootRef.current.style.height = 'auto';
+              setHasTransitionEnded(true);
             }}
           >
             {$content}
@@ -273,11 +287,7 @@ export type StepComponentProps = {
   next(): void;
   // prev goes back a step in the flow.
   prev(): void;
-  // willTransition is a flag that when true, transition will take place on click.
-  // Example of where this flag can be used:
-  //   - FieldInput.tsx: this flag is used to tell this component to autoFocus
-  //     after some transition property has ended.
-  willTransition: boolean;
+  hasTransitionEnded: boolean;
 };
 
 // NewFlow defines fields for a new flow.

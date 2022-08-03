@@ -158,7 +158,7 @@ const sliderProps: SliderProps & {
   prev: () => null,
   changeFlow: () => null,
   refCallback: () => null,
-  willTransition: false,
+  hasTransitionEnded: true,
   password: '',
   updatePassword: () => null,
 };

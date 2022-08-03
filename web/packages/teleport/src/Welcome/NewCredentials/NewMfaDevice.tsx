@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Text, ButtonPrimary, Flex, Box, Link, Image } from 'design';
 import { Danger } from 'design/Alert';
@@ -27,6 +27,7 @@ import {
 } from 'shared/components/Validation/rules';
 import createMfaOptions from 'shared/utils/createMfaOptions';
 
+import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
@@ -43,21 +44,21 @@ export function NewMfaDevice(props: Props) {
     password,
     prev,
     refCallback,
+    hasTransitionEnded,
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
     auth2faType: auth2faType,
   });
-  const [transitionPropertyName, setTransitionPropertyName] =
-    useState('height');
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
     getDefaultDeviceName(mfaType.value)
   );
 
-  useEffect(() => {
-    setTransitionPropertyName('');
-  }, []);
+  const deviceNameInputRef = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded,
+    refocusDeps: [mfaType.value],
+  });
 
   function onBtnClick(
     e: React.MouseEvent<HTMLButtonElement>,
@@ -195,9 +196,7 @@ export function NewMfaDevice(props: Props) {
                 rule={requiredField('Device name is required')}
                 label="Device name"
                 placeholder="Name"
-                autoFocus
-                transitionPropertyName={transitionPropertyName}
-                refocusIndicator={mfaType.value}
+                ref={deviceNameInputRef}
                 width={mfaType?.value === 'otp' ? '50%' : '100%'}
                 value={deviceName}
                 type="text"
