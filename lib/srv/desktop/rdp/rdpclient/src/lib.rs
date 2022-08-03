@@ -1331,7 +1331,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
         SharedDirectoryInfoRequest {
             completion_id: req.device_io_request.completion_id,
             directory_id: req.device_io_request.device_id,
-            path: UnixPath::from(req.path),
+            path: UnixPath::from(&req.path),
         }
     }
 }

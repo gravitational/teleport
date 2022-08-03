@@ -68,8 +68,8 @@ impl UnixPath {
     }
 }
 
-impl From<WindowsPath> for UnixPath {
-    fn from(p: WindowsPath) -> UnixPath {
+impl From<&WindowsPath> for UnixPath {
+    fn from(p: &WindowsPath) -> UnixPath {
         Self::new(to_unix_path(&p.path))
     }
 }

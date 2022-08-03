@@ -464,7 +464,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -497,7 +497,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -1146,7 +1146,7 @@ impl Client {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
             file_type,
-            path: UnixPath::from(rdp_req.path.clone()),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_create_request)(tdp_req)?;
 
@@ -1166,7 +1166,7 @@ impl Client {
 
                     let file_id = cli.generate_file_id();
                     cli.file_cache
-                        .insert(file_id, FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), fso));
+                        .insert(file_id, FileCacheObject::new(UnixPath::from(&rdp_req.path), fso));
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
@@ -1185,7 +1185,7 @@ impl Client {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
-            path: UnixPath::from(rdp_req.path.clone()),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
