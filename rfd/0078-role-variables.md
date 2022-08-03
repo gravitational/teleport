@@ -300,3 +300,59 @@ spec:
       not_match: 'contractors'
       out: ["dev"]
 ```
+
+### Common Expression Language
+
+Another option for defining role variables (or traits) would be to use an
+expression language rather than the proposed regular expression based
+construction.
+
+Rewritten to use
+[CEL](https://github.com/google/cel-go)
+the first example in this RFD could look like:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: node_users
+spec:
+  vars:
+    - name: "logins"
+      values: >
+        ['ubuntu'] +
+        external.username.map(username, username.replace('-', '_')) +
+        ('nic@goteleport.com' in external.email ? ['root'] : []) +
+        external.email.map(email, email.matches('^[^@]+@goteleport.com$'), email.replace('@goteleport.com', '', 1))
+
+    - name: "allow-env"
+      values: >
+        external.groups.map(group, group.matches('^env-\\w+$'), group.replace('env-', '', 1)) +
+        ('contractors' in external.groups ? [] : 'devs' in external.groups ? ['dev'] : [])
+
+  allow:
+    logins:
+      - "{{vars.logins}}"
+    node_labels:
+      env: ["{{vars["allow-env"]}}"]
+```
+
+For this example, I couldn't find any implementation of regex replacement with
+capture groups, so worked without it. We could relatively easily implement a
+custom CEL extension to support regex capture groups.
+
+Pros:
+
+- more powerful
+- already well-defined and documented language
+
+Cons:
+
+- the usual result of a CEL expression is a
+  [boolean](https://github.com/google/cel-spec/blob/6040c0a6df9601751e628405706bac18948b8eb3/README.md?plain=1#L46),
+  the UX for building lists of strings is not great
+- one more language users need to learn to configure teleport (yaml, custom
+  `{{external.trait}}` syntax with transforms and clauses, predicate language)
+
+I've written a simple sandbox to experiment with CEL for this usecase at
+https://github.com/nklaassen/cel-sandbox
