@@ -702,23 +702,23 @@
           "slug": "/machine-id/guides/",
           "entries": [
             {
-              "title": "Machine ID with Ansible",
+              "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
             },
             {
-              "title": "Machine ID with Jenkins",
+              "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
             {
-              "title": "Machine ID with Databases",
+              "title": "Databases",
               "slug": "/machine-id/guides/databases/"
             },
             {
-              "title": "Machine ID with Kubernetes",
+              "title": "Kubernetes",
               "slug": "/machine-id/guides/kubernetes/"
             },
             {
-              "title": "Machine ID with Apps",
+              "title": "Apps",
               "slug": "/machine-id/guides/apps/"
             }
           ]
