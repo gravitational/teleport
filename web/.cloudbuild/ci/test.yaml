@@ -20,4 +20,6 @@ steps:
       - build
       - '--build-arg'
       - NPM_SCRIPT=test
+      - '--build-arg'
+      - YARN_FROZEN_LOCKFILE=true
       - .
