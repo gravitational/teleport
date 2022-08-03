@@ -2779,3 +2779,22 @@ func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	}
 	return resp, nil
 }
+
+// GetConnectionDiagnostic reads a connection diagnostic
+func (c *Client) GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error) {
+	req := &proto.GetConnectionDiagnosticRequest{
+		Name: name,
+	}
+	res, err := c.grpc.GetConnectionDiagnostic(ctx, req, c.callOpts...)
+	return res, trail.FromGRPC(err)
+}
+
+// CreateConnectionDiagnostic creates a new connection diagnostic.
+func (c *Client) CreateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.CreateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
