@@ -29,8 +29,8 @@ pub struct WindowsPath {
     path: String,
 }
 
-impl WindowsPath {
-    pub fn new(path: String) -> WindowsPath {
+impl From<String> for WindowsPath {
+    fn from(path: String) -> WindowsPath {
         Self { path }
     }
 }
@@ -45,10 +45,6 @@ pub struct UnixPath {
 }
 
 impl UnixPath {
-    pub fn new(path: String) -> UnixPath {
-        Self { path }
-    }
-
     /// This function will create a CString from a UnixPath.
     ///
     /// # Errors
@@ -70,7 +66,13 @@ impl UnixPath {
 
 impl From<&WindowsPath> for UnixPath {
     fn from(p: &WindowsPath) -> UnixPath {
-        Self::new(to_unix_path(&p.path))
+        Self::from(to_unix_path(&p.path))
+    }
+}
+
+impl From<String> for UnixPath {
+    fn from(path: String) -> UnixPath {
+        Self { path }
     }
 }
 

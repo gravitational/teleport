@@ -1165,8 +1165,10 @@ impl Client {
                     }
 
                     let file_id = cli.generate_file_id();
-                    cli.file_cache
-                        .insert(file_id, FileCacheObject::new(UnixPath::from(&rdp_req.path), fso));
+                    cli.file_cache.insert(
+                        file_id,
+                        FileCacheObject::new(UnixPath::from(&rdp_req.path), fso),
+                    );
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
@@ -1429,7 +1431,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: self.fso.size,
                 file_type: self.fso.file_type,
-                path: UnixPath::new(".".to_string()),
+                path: UnixPath::from(".".to_string()),
             })
         } else if !self.dotdot_sent {
             // On the second call to next, return the ".." directory
@@ -1438,7 +1440,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: 0,
                 file_type: FileType::Directory,
-                path: UnixPath::new("..".to_string()),
+                path: UnixPath::from("..".to_string()),
             })
         } else {
             // "." and ".." have been sent, now start iterating through
@@ -2116,7 +2118,7 @@ impl DeviceCreateRequest {
         // for a u32 will never panic on the machines that run teleport.
         let mut path = vec![0u8; path_length.try_into().unwrap()];
         payload.read_exact(&mut path)?;
-        let path = WindowsPath::new(util::from_unicode(path)?);
+        let path = WindowsPath::from(util::from_unicode(path)?);
 
         Ok(Self {
             device_io_request,
@@ -3480,7 +3482,7 @@ impl ServerDriveQueryDirectoryRequest {
 
         let initial_query = payload.read_u8()?;
         let mut path_length: u32 = 0;
-        let mut path = WindowsPath::new("".to_string());
+        let mut path = WindowsPath::from("".to_string());
         let mut padding: [u8; 23] = [0; 23];
         if initial_query != 0 {
             path_length = payload.read_u32::<LittleEndian>()?;
@@ -3491,7 +3493,7 @@ impl ServerDriveQueryDirectoryRequest {
             // TODO(isaiah): make a from_unicode_exact
             let mut path_as_vec = vec![0u8; path_length.try_into().unwrap()];
             payload.read_exact(&mut path_as_vec)?;
-            path = WindowsPath::new(util::from_unicode(path_as_vec)?);
+            path = WindowsPath::from(util::from_unicode(path_as_vec)?);
         }
 
         Ok(Self {

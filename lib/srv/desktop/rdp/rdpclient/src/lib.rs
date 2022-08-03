@@ -1411,7 +1411,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 last_modified: cgo_fso.last_modified,
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
-                path: UnixPath::new(from_go_string(cgo_fso.path)),
+                path: UnixPath::from(from_go_string(cgo_fso.path)),
             }
         }
     }
