@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            85
+            87
           </strong>
            of
            
           <strong>
-            85
+            87
           </strong>
         </div>
         <button
@@ -2537,6 +2537,80 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2020-11-12T20:35:44.978Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session Data
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          New AWS app session data created [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-10-30T17:28:15.705Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session Started
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [STeve] has started an AWS app session [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2020-10-30T17:28:15.381Z
         </td>
         <td
           align="right"
