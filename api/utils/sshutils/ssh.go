@@ -36,6 +36,8 @@ const (
 	// ProxyHelloSignature is a string which Teleport proxy will send
 	// right after the initial SSH "handshake/version" message if it detects
 	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
 	ProxyHelloSignature = "Teleport-Proxy"
 )
 
