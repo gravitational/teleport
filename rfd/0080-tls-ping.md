@@ -1,0 +1,114 @@
+---
+authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
+state: draft
+---
+
+# RFD 80 - TLS routing Ping
+
+## What
+
+Provide to TLS routing protocols a mechanism to prevent idle connections
+(without any data being sent or received) without interfering with the
+underlying protocol.
+
+## Why
+
+Idle connections are closed after a pre-defined period when deployed with load
+balancers. In some of those services (such as AWS ELB and GlobalAccelerator),
+having the TCP Keep-Alive configured is not enough to prevent the connections
+from being closed due to inactivity.
+
+The connections are not dropped in those environments for protocols that already
+implement a mechanism like this (like http2). However, not all protocols
+supported by Teleport provide such features.
+
+## Details
+
+To avoid having idle connections, we need to send at least one byte before the
+idle timeout period elapses. For protocols that that doesn't offer a mechanism
+for transmitting data in pre-defined intervals (avoiding the connection from
+becoming idle), it is necessary to wrap them into a different protocol.
+
+### Ping protocol
+
+A light protocol enables the connections to send ping packets filtered out on
+the receiver. These packets can be sent periodically, preventing the connection
+from becoming idle.
+
+The protocol packet is defined by the following:
+```
+| length | data           |
+| int32  | `length` bytes |
+```
+
+The `length` field is an `int32` encoded in network order (big-endian).
+
+#### Ping message
+
+The ping packet consists of a message where `length = 0`, and there is no `data`
+present. These messages are not visible to the reader since they have no
+content.
+
+#### Data message
+
+When sending data messages, its content size must be encoded and sent as the
+package length. Nothing is sent if the data length is equal to `0` since it is
+used to identify ping messages.
+
+### ALPN
+
+Since the ping protocol is a wrapper for other protocols, it is identified as a
+suffix `-ping`. So if the client wants to wrap a protocol, for example, MySQL,
+it should add this prefix to the already existing MySQL protocol:
+`teleport-mysql-ping`.
+
+Ping protocols will take precedence over regular protocols. If the client asks
+for it and the proxy server supports, it will be used over the regular one.
+
+Clients and servers must rely on the `NegotiatedProtocol` connection state
+property to check if the protocol is supported on both sides and is going to be
+used for the connection.
+
+### Client/Server flow
+
+```mermaid
+sequenceDiagram
+    participant LP as Local Proxy (Client)
+    participant P as Proxy (Server)
+
+    LP->>P: Establish TLS Connection<br>(protocols = "teleport-sample-ping" and "teleport-sample")
+    
+    alt Ping protocol supported?
+        P->>LP: Connected<br>(negotiated protocol = "teleport-sample-ping")
+        P->>P: Starts using Ping connection
+        LP->>LP: Starts using Ping connection.
+        loop Every X time
+            P->>LP: Write Ping message
+        end
+    else
+        P->>LP: Connected<br>(negotiated protocol = "teleport-sample")
+    end
+
+    loop Continuosly
+        LP->P: Read/Write connection data
+    end
+```
+
+### UX
+
+#### Configuration
+
+Users will be able to configure the ping interval in their cluster
+configuration.
+
+```yaml
+auth_service:
+  # pingInterval defines in which interval the TLS routing ping message should
+  # be sent. This is applicable only when using ping-wrapped connections,
+  # regular TLS routing connections are not affected.
+  pingInterval: 2m
+```
+
+### Security
+
+#### Length overflow
