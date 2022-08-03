@@ -89,6 +89,16 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Settings for mounting your own TLS material in the agent pod.
+# The agent does not expose a TLS server, so this is only used to trust CAs.
+tls:
+  # Name of an existing secret to use which contains a CA or trust bundle in x509 PEM format.
+  # This is useful to trust private CAs.
+  # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
+  # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem`
+  # The filename inside the secret is important - it _must_ be ca.pem
+  existingCASecretName: ""
+
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
 # If anything is set under the "storage" key, this will be ignored.
