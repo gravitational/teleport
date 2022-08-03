@@ -22,11 +22,12 @@ WORKDIR web-apps
 # Install JavaScript dependencies and manually check if yarn.lock needs an update.
 # Yarn v1 doesn't respect the --frozen-lockfile flag when using workspaces.
 # https://github.com/yarnpkg/yarn/issues/4098
-RUN sha384sum yarn.lock > yarn-lock-sha \
+RUN cp yarn.lock yarn-before-install.lock \
   && yarn install \
-  && sha384sum --check yarn-lock-sha || \
-  { echo "yarn.lock needs an update; run yarn install, verify that correct dependencies were installed \
-and commit the updated version of yarn.lock"; exit 1; }
+  && git diff --no-index --exit-code yarn-before-install.lock yarn.lock || \
+  { echo "yarn.lock needs an update. Run yarn install, verify that correct dependencies were installed \
+and commit the updated version of yarn.lock. Make sure you have the packages/webapps.e submodule \
+cloned first."; exit 1; }
 
 # copy the rest of the files and run yarn build command
 COPY  . .
