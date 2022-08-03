@@ -3567,3 +3567,21 @@ message SortBy {
     // Field is the name of an objects field to sort by.
     string Field = 2 [ (gogoproto.jsontag) = "field" ];
 }
+
+// ConnectionDiagnosticV1 is the result of testing a connection.
+// When setting up a new resource in Teleport, it's useful to know if we can connect to it.
+// This can be done using the test connection feature.
+// Running `tsh` with `--test-id` creates a new Connection diagnostic
+// The user can then receive the result as feedback using the UI
+message ConnectionDiagnosticV1 {
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the resource spec.
+    ConnectionDiagnosticSpecV1 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message ConnectionDiagnosticSpecV1 {
+    bool Success = 1 [ (gogoproto.jsontag) = "success" ];
+    string Message = 2 [ (gogoproto.jsontag) = "message" ];
+}

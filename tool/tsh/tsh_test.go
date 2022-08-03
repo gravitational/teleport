@@ -644,7 +644,7 @@ func TestMakeClient(t *testing.T) {
 	require.Error(t, err)
 
 	// minimal configuration (with defaults)
-	conf.Proxy = "proxy"
+	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
