@@ -326,8 +326,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web App Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP App Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
@@ -928,7 +932,7 @@
           "forScopes": ["enterprise"]
         },
         {
-          "title": "SOC2",
+          "title": "SOC 2",
           "slug": "/enterprise/soc2/",
           "forScopes": ["enterprise", "cloud"]
         },
