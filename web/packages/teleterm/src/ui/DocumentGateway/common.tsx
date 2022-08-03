@@ -1,6 +1,6 @@
 import FieldInput from 'shared/components/FieldInput';
 import styled from 'styled-components';
-import React from 'react';
+import React, { forwardRef } from 'react';
 
 export const ConfigFieldInput: typeof FieldInput = styled(FieldInput)`
   input {
@@ -42,12 +42,15 @@ const ConfigFieldInputWithoutStepper: typeof ConfigFieldInput = styled(
   }
 `;
 
-export const PortFieldInput: typeof ConfigFieldInput = props => (
-  <ConfigFieldInputWithoutStepper
-    type="number"
-    min={1}
-    max={65535}
-    {...props}
-    width="110px"
-  />
+export const PortFieldInput: typeof ConfigFieldInput = forwardRef(
+  (props, ref) => (
+    <ConfigFieldInputWithoutStepper
+      type="number"
+      min={1}
+      max={65535}
+      ref={ref}
+      {...props}
+      width="110px"
+    />
+  )
 );

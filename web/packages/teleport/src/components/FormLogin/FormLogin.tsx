@@ -33,7 +33,7 @@ import {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-import { useAttempt } from 'shared/hooks';
+import { useAttempt, useRefAutoFocus } from 'shared/hooks';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
@@ -170,8 +170,8 @@ const LocalForm = ({
   onLogin,
   onLoginWithWebauthn,
   clearAttempt,
-  autoFocusOnTransitionEnd = false,
-}: Props & { autoFocusOnTransitionEnd?: boolean }) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded: boolean }) => {
   const { isProcessing } = attempt;
   const [pass, setPass] = useState('');
   const [user, setUser] = useState('');
@@ -181,6 +181,10 @@ const LocalForm = ({
     () => createMfaOptions({ auth2faType: auth2faType }),
     []
   );
+
+  const usernameInputRef = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded,
+  });
 
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
 
@@ -223,10 +227,9 @@ const LocalForm = ({
           data-testid="userpassword"
         >
           <FieldInput
+            ref={usernameInputRef}
             rule={requiredField('Username is required')}
             label="Username"
-            autoFocus
-            transitionPropertyName={autoFocusOnTransitionEnd ? 'height' : ''}
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
@@ -313,7 +316,7 @@ const LocalForm = ({
 const Primary = ({
   next,
   refCallback,
-  willTransition,
+  hasTransitionEnded,
   ...otherProps
 }: Props & StepComponentProps) => {
   const ssoEnabled = otherProps.authProviders?.length > 0;
@@ -327,7 +330,7 @@ const Primary = ({
   if (otherProps.primaryAuthType === 'local') {
     otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;
     $primary = (
-      <LocalForm {...otherProps} autoFocusOnTransitionEnd={willTransition} />
+      <LocalForm {...otherProps} hasTransitionEnded={hasTransitionEnded} />
     );
   }
 
@@ -363,7 +366,7 @@ const Secondary = ({
   const ssoEnabled = otherProps.authProviders?.length > 0;
   const { primaryAuthType, isPasswordlessEnabled } = otherProps;
 
-  const $local = <LocalForm {...otherProps} autoFocusOnTransitionEnd={true} />;
+  const $local = <LocalForm {...otherProps} />;
   const $sso = <SsoList {...otherProps} />;
   const $passwordless = <Passwordless {...otherProps} />;
 

@@ -23,6 +23,8 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
+import { useRefAutoFocus } from 'shared/hooks';
+
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 
 export function NewPassword(props: Props) {
@@ -38,7 +40,7 @@ export function NewPassword(props: Props) {
     changeFlow,
     next,
     refCallback,
-    willTransition,
+    hasTransitionEnded,
   } = props;
   const [passwordConfirmed, setPasswordConfirmed] = useState('');
   const mfaEnabled = auth2faType !== 'off';
@@ -60,6 +62,10 @@ export function NewPassword(props: Props) {
 
     onSubmit(password);
   }
+
+  const passwordInputRef = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded,
+  });
 
   function switchToPasswordlessFlow(e, applyNextAnimation = false) {
     e.preventDefault();
@@ -85,8 +91,7 @@ export function NewPassword(props: Props) {
           />
           <FieldInput
             rule={requiredPassword}
-            autoFocus
-            transitionPropertyName={willTransition ? 'height' : ''}
+            ref={passwordInputRef}
             autoComplete="off"
             label="Password"
             value={password}

@@ -20,6 +20,8 @@ import { Danger, Info } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { useRefAutoFocus } from 'shared/hooks';
+
 import { Props, SliderProps } from './NewCredentials';
 
 export function NewPasswordlessDevice(props: Props & SliderProps) {
@@ -30,10 +32,14 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
     isPasswordlessEnabled,
     changeFlow,
     refCallback,
-    willTransition,
+    hasTransitionEnded,
     clearSubmitAttempt,
   } = props;
   const [deviceName, setDeviceName] = useState('passwordless-device');
+
+  const deviceNameInputRef = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded,
+  });
 
   function handleOnSubmit(
     e: React.MouseEvent<HTMLButtonElement>,
@@ -84,8 +90,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
             label="Device name"
             placeholder="Name"
             width="100%"
-            autoFocus
-            transitionPropertyName={willTransition ? 'height' : ''}
+            ref={deviceNameInputRef}
             value={deviceName}
             type="text"
             onChange={e => setDeviceName(e.target.value)}
