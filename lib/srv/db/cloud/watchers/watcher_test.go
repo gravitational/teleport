@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -118,6 +119,15 @@ func TestWatcher(t *testing.T) {
 	mySQLServerUnsupportedVersion, _ := makeARMMySQLServer(t, "server-6", subscription1, eastus, nil, withARMyMySQLVersion(string(armmysql.ServerVersionFive6)))
 	mySQLServerDisabledState, _ := makeARMMySQLServer(t, "server-7", subscription1, eastus, nil, withARMMySQLState(string(armmysql.ServerStateDisabled)))
 	mySQLServerUnknownState, _ := makeARMMySQLServer(t, "server-8", subscription1, eastus, nil, withARMMySQLState("unknown"))
+
+	postgresServer1, postgresDatabase1 := makeARMPostgresServer(t, "server-1", subscription1, eastus, map[string]string{"env": "prod"})
+	postgresServer2, _ := makeARMPostgresServer(t, "server-2", subscription1, eastus, map[string]string{"env": "dev"})
+	postgresServer3, _ := makeARMPostgresServer(t, "server-3", subscription1, eastus2, map[string]string{"env": "prod"})
+	postgresServer4, postgresDatabase4 := makeARMPostgresServer(t, "server-4", subscription2, westus, map[string]string{"env": "prod"})
+	postgresServerUnknownVersion, _ := makeARMPostgresServer(t, "server-5", subscription1, eastus, nil, withARMyPostgresVersion("unknown"))
+	postgresServerUnsupportedVersion, _ := makeARMPostgresServer(t, "server-6", subscription1, eastus, nil, withARMyPostgresVersion(""))
+	postgresServerDisabledState, _ := makeARMPostgresServer(t, "server-7", subscription1, eastus, nil, withARMPostgresState(string(armpostgresql.ServerStateDisabled)))
+	postgresServerUnknownState, _ := makeARMPostgresServer(t, "server-8", subscription1, eastus, nil, withARMPostgresState("unknown"))
 
 	tests := []watchTest{
 		{
@@ -316,11 +326,11 @@ func TestWatcher(t *testing.T) {
 			},
 		},
 		{
-			name: "Azure MySQL labels matching",
+			name: "Azure labels matching",
 			azureMatchers: []services.AzureMatcher{
 				{
 					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL},
+					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
 					Regions:       []string{eastus},
 					Tags:          types.Labels{"env": []string{"prod"}},
 				},
@@ -334,16 +344,24 @@ func TestWatcher(t *testing.T) {
 						DBServers: []*armmysql.Server{mySQLServer4},
 					},
 				},
+				AzurePostgresPerSub: map[string]common.AzurePostgresClient{
+					subscription1: &cloud.AzurePostgresMock{
+						DBServers: []*armpostgresql.Server{postgresServer1, postgresServer2, postgresServer3},
+					},
+					subscription2: &cloud.AzurePostgresMock{
+						DBServers: []*armpostgresql.Server{postgresServer4},
+					},
+				},
 			},
-			// mySQLServer2 tags dont match, mySQLserver3 is in eastus2, mySQLserver4 is in subscription2
-			expectedDatabases: types.Databases{mySQLDatabase1},
+			// *server2 tags dont match, *server3 is in eastus2, *server4 is in subscription2
+			expectedDatabases: types.Databases{mySQLDatabase1, postgresDatabase1},
 		},
 		{
-			name: "Azure MySQL unsupported and unknown database versions are skipped",
+			name: "Azure unsupported and unknown database versions are skipped",
 			azureMatchers: []services.AzureMatcher{
 				{
 					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL},
+					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
 					Regions:       []string{eastus},
 					Tags:          types.Labels{"*": []string{"*"}},
 				},
@@ -356,15 +374,22 @@ func TestWatcher(t *testing.T) {
 						mySQLServerUnsupportedVersion,
 					},
 				},
+				AzurePostgres: &cloud.AzurePostgresMock{
+					DBServers: []*armpostgresql.Server{
+						postgresServer1,
+						postgresServerUnknownVersion,
+						postgresServerUnsupportedVersion,
+					},
+				},
 			},
-			expectedDatabases: types.Databases{mySQLDatabase1},
+			expectedDatabases: types.Databases{mySQLDatabase1, postgresDatabase1},
 		},
 		{
-			name: "Azure MySQL unavailable databases are skipped",
+			name: "Azure unavailable databases are skipped",
 			azureMatchers: []services.AzureMatcher{
 				{
 					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL},
+					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
 					Regions:       []string{eastus},
 					Tags:          types.Labels{"*": []string{"*"}},
 				},
@@ -377,15 +402,22 @@ func TestWatcher(t *testing.T) {
 						mySQLServerUnknownState,
 					},
 				},
+				AzurePostgres: &cloud.AzurePostgresMock{
+					DBServers: []*armpostgresql.Server{
+						postgresServer1,
+						postgresServerDisabledState,
+						postgresServerUnknownState,
+					},
+				},
 			},
-			expectedDatabases: types.Databases{mySQLDatabase1},
+			expectedDatabases: types.Databases{mySQLDatabase1, postgresDatabase1},
 		},
 		{
-			name: "Azure MySQL skip access denied errors",
+			name: "Azure skip access denied errors",
 			azureMatchers: []services.AzureMatcher{
 				{
 					Subscriptions: []string{subscription1, subscription2},
-					Types:         []string{services.AzureMatcherMySQL},
+					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
 					Regions:       []string{eastus, westus},
 					Tags:          types.Labels{"*": []string{"*"}},
 				},
@@ -399,8 +431,16 @@ func TestWatcher(t *testing.T) {
 						DBServers: []*armmysql.Server{mySQLServer4},
 					},
 				},
+				AzurePostgresPerSub: map[string]common.AzurePostgresClient{
+					subscription1: &cloud.AzurePostgresMockUnauth{
+						DBServers: []*armpostgresql.Server{postgresServer1, postgresServer2, postgresServer3},
+					},
+					subscription2: &cloud.AzurePostgresMock{
+						DBServers: []*armpostgresql.Server{postgresServer4},
+					},
+				},
 			},
-			expectedDatabases: types.Databases{mySQLDatabase4},
+			expectedDatabases: types.Databases{mySQLDatabase4, postgresDatabase4},
 		},
 		{
 			name: "multiple cloud matchers",
@@ -450,6 +490,14 @@ func TestWatcher(t *testing.T) {
 						DBServers: []*armmysql.Server{mySQLServer4},
 					},
 				},
+				AzurePostgresPerSub: map[string]common.AzurePostgresClient{
+					subscription1: &cloud.AzurePostgresMock{
+						DBServers: []*armpostgresql.Server{postgresServer1},
+					},
+					subscription2: &cloud.AzurePostgresMock{
+						DBServers: []*armpostgresql.Server{postgresServer4},
+					},
+				},
 			},
 			expectedDatabases: types.Databases{
 				auroraDatabase1,
@@ -458,6 +506,8 @@ func TestWatcher(t *testing.T) {
 				memorydbDatabaseProd,
 				mySQLDatabase1,
 				mySQLDatabase4,
+				postgresDatabase1,
+				postgresDatabase4,
 			},
 		},
 	}
@@ -522,6 +572,43 @@ func makeARMMySQLServer(t *testing.T, name, subscription, region string, labels 
 	return server, database
 }
 
+func makeARMPostgresServer(t *testing.T, name, subscription, region string, labels map[string]string, opts ...func(*armpostgresql.Server)) (*armpostgresql.Server, types.Database) {
+	resourceGroup := "defaultRG"
+	resourceType := "Microsoft.DBForPostgreSQL/servers"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subscription,
+		resourceGroup,
+		resourceType,
+		name,
+	)
+	// ensure this mock ID is valid and parses
+	_, err := arm.ParseResourceID(id)
+	require.NoError(t, err)
+
+	fqdn := name + ".postgres" + types.AzureEndpointSuffix
+	state := armpostgresql.ServerStateReady
+	version := armpostgresql.ServerVersionEleven
+	server := &armpostgresql.Server{
+		Location: &region,
+		Properties: &armpostgresql.ServerProperties{
+			FullyQualifiedDomainName: &fqdn,
+			UserVisibleState:         &state,
+			Version:                  &version,
+		},
+		Tags: labelsToAzureTags(labels),
+		ID:   &id,
+		Name: &name,
+		Type: &resourceType,
+	}
+	for _, opt := range opts {
+		opt(server)
+	}
+
+	database, err := services.NewDatabaseFromAzurePostgresServer(server)
+	require.NoError(t, err)
+	return server, database
+}
+
 // withARMMySQLState returns an option function to makeARMMySQLServer to overwrite state.
 func withARMMySQLState(state string) func(*armmysql.Server) {
 	return func(server *armmysql.Server) {
@@ -534,6 +621,22 @@ func withARMMySQLState(state string) func(*armmysql.Server) {
 func withARMyMySQLVersion(version string) func(*armmysql.Server) {
 	return func(server *armmysql.Server) {
 		version := armmysql.ServerVersion(version) // ServerVersion is a type alias for string
+		server.Properties.Version = &version
+	}
+}
+
+// withARMPostgresState returns an option function to makeARMPostgresServer to overwrite state.
+func withARMPostgresState(state string) func(*armpostgresql.Server) {
+	return func(server *armpostgresql.Server) {
+		state := armpostgresql.ServerState(state) // ServerState is a type alias for string
+		server.Properties.UserVisibleState = &state
+	}
+}
+
+// withARMyPostgresVersion returns an option function to makeARMPostgresServer to overwrite version.
+func withARMyPostgresVersion(version string) func(*armpostgresql.Server) {
+	return func(server *armpostgresql.Server) {
+		version := armpostgresql.ServerVersion(version) // ServerVersion is a type alias for string
 		server.Properties.Version = &version
 	}
 }

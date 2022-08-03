@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -102,13 +103,12 @@ spec:
   ca_cert: |
 %v`
 
-// TODO(gavin): add test for database from azure postgres db
 // TestDatabaseFromAzureMySQLServer tests converting an Azure MySQL Server to a database resource.
 func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 	name := "testdb"
 	subscription := "sub1"
 	resourceGroup := "defaultRG"
-	resourceType := "Microsoft.DBForMySQL/servers"
+	resourceType := "Microsoft.DBforMySQL/servers"
 	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subscription,
 		resourceGroup,
@@ -140,7 +140,7 @@ func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         "eastus",
-			labelEngine:         "Microsoft.DBForMySQL/servers",
+			labelEngine:         "Microsoft.DBforMySQL/servers",
 			labelEngineVersion:  "5.7",
 			labelResourceGroup:  "defaultRG",
 			labelSubscriptionID: "sub1",
@@ -152,11 +152,69 @@ func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 		Azure: types.Azure{
 			Name:       "testdb",
 			Region:     "eastus",
-			ResourceID: "/subscriptions/sub1/resourceGroups/defaultRG/providers/Microsoft.DBForMySQL/servers/testdb",
+			ResourceID: "/subscriptions/sub1/resourceGroups/defaultRG/providers/Microsoft.DBforMySQL/servers/testdb",
 		},
 	})
 	require.NoError(t, err)
 	actual, err := NewDatabaseFromAzureMySQLServer(server)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+// TestDatabaseFromAzurePostgresServer tests converting an Azure PostgreSQL Server to a database resource.
+func TestDatabaseFromAzurePostgresServer(t *testing.T) {
+	name := "testdb"
+	subscription := "sub1"
+	resourceGroup := "defaultRG"
+	resourceType := "Microsoft.DBforPostgreSQL/servers"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subscription,
+		resourceGroup,
+		resourceType,
+		name,
+	)
+	region := "eastus"
+	fqdn := name + ".postgres" + types.AzureEndpointSuffix
+	state := armpostgresql.ServerStateReady
+	version := armpostgresql.ServerVersionEleven
+	server := &armpostgresql.Server{
+		Location: &region,
+		Properties: &armpostgresql.ServerProperties{
+			FullyQualifiedDomainName: &fqdn,
+			UserVisibleState:         &state,
+			Version:                  &version,
+		},
+		Tags: makeAzureTags(map[string]string{
+			"foo": "bar",
+		}),
+		ID:   &id,
+		Name: &name,
+		Type: &resourceType,
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "testdb",
+		Description: "Azure Postgres server in eastus",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelRegion:         "eastus",
+			labelEngine:         "Microsoft.DBforPostgreSQL/servers",
+			labelEngineVersion:  "11",
+			labelResourceGroup:  "defaultRG",
+			labelSubscriptionID: "sub1",
+			"foo":               "bar",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "testdb.postgres.database.azure.com:5432",
+		Azure: types.Azure{
+			Name:       "testdb",
+			Region:     "eastus",
+			ResourceID: "/subscriptions/sub1/resourceGroups/defaultRG/providers/Microsoft.DBforPostgreSQL/servers/testdb",
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromAzurePostgresServer(server)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
