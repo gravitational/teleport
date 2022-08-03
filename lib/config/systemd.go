@@ -23,11 +23,11 @@ import (
 )
 
 const (
-	// DefaultEnvironmentFile is the default path to the env file
+	// SystemdDefaultEnvironmentFile is the default path to the env file for the systemd unit file config
 	SystemdDefaultEnvironmentFile = "/etc/default/teleport"
-	// DefaultPIDFile is the default path to the PID file
+	// SystemdDefaultPIDFile is the default path to the PID file for the systemd unit file config
 	SystemdDefaultPIDFile = "/run/teleport.pid"
-	// DefaultFileDescriptorLimit is the default max number of open file descriptors
+	// SystemdDefaultFileDescriptorLimit is the default max number of open file descriptors for the systemd unit file config
 	SystemdDefaultFileDescriptorLimit = 8192
 )
 
