@@ -21,7 +21,8 @@
     "build-e": "yarn build-teleport-e",
     "type-check-and-lint": "yarn type-check && yarn lint",
     "lint": "eslint --ext .js,.jsx,.ts,.tsx packages/",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "nop": "exit 0"
   },
   "private": true,
   "resolutions": {
