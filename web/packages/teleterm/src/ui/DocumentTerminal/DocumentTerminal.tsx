@@ -41,6 +41,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       flexDirection="column"
       pl={2}
       onContextMenu={state.data?.openContextMenu}
+      autoFocusDisabled={true}
     >
       {ptyProcess && (
         <Terminal

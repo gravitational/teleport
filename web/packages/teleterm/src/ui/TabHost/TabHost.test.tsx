@@ -92,6 +92,9 @@ function getTestSetup({ documents }: { documents: Document[] }) {
         { clusterUri: 'test_uri', workspaceDocumentsService: docsService },
       ];
     },
+    isDocumentActive(documentUri: string) {
+      return documentUri === documents[0].uri;
+    },
     getRootClusterUri() {
       return 'test_uri';
     },

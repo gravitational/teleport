@@ -16,25 +16,36 @@ limitations under the License.
 
 import React from 'react';
 import { Flex } from 'design';
+import { useRefAutoFocus } from 'shared/hooks';
 
 const Document: React.FC<{
   visible: boolean;
   onContextMenu?(): void;
+  autoFocusDisabled?: boolean;
   [x: string]: any;
-}> = ({ visible, children, onContextMenu, ...styles }) => (
-  <Flex
-    flex="1"
-    bg="primary.darker"
-    onContextMenu={onContextMenu}
-    style={{
-      overflow: 'auto',
-      display: visible ? 'flex' : 'none',
-      position: 'relative',
-    }}
-    {...styles}
-  >
-    {children}
-  </Flex>
-);
+}> = ({ visible, children, onContextMenu, autoFocusDisabled, ...styles }) => {
+  const ref = useRefAutoFocus<HTMLDivElement>({
+    shouldFocus: visible && !autoFocusDisabled,
+  });
+
+  return (
+    <Flex
+      tabIndex={visible ? 0 : -1}
+      flex="1"
+      ref={ref}
+      bg="primary.darker"
+      onContextMenu={onContextMenu}
+      style={{
+        overflow: 'auto',
+        display: visible ? 'flex' : 'none',
+        position: 'relative',
+        outline: 'none',
+      }}
+      {...styles}
+    >
+      {children}
+    </Flex>
+  );
+};
 
 export default Document;
