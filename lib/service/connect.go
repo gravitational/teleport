@@ -29,11 +29,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -940,8 +940,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			return nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
-			grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor, om.UnaryClientInterceptor(grpcMetrics)),
-			grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, om.StreamClientInterceptor(grpcMetrics)),
+			grpc.WithUnaryInterceptor(om.UnaryClientInterceptor(grpcMetrics)),
+			grpc.WithStreamInterceptor(om.StreamClientInterceptor(grpcMetrics)),
 		}...)
 	}
 

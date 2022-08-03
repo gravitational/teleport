@@ -90,8 +90,8 @@ func replyJSON(w http.ResponseWriter, code int, err error) {
 	var out []byte
 	// wrap regular errors in order to achieve unification
 	// and provide structurally consistent responses
-	var obj interface{} = err
-	if _, ok := err.(*TraceErr); !ok {
+	obj, ok := err.(*TraceErr)
+	if !ok {
 		obj = &TraceErr{Err: err}
 	}
 	out, err = json.MarshalIndent(obj, "", "    ")
