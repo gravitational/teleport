@@ -72,7 +72,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	meta.Labels[types.BotLabel] = botName
 	role.SetMetadata(meta)
 
-	err = s.UpsertRole(ctx, role)
+	err = s.CreateRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,15 +125,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	resourceName := BotResourceName(req.Name)
 
 	// Ensure conflicting resources don't already exist.
-	_, err := s.GetRole(ctx, resourceName)
+	// We skip the cache here to allow for bot recreation shortly after bot
+	// deletion.
+	_, err := s.Services.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	if roleExists := (err == nil); roleExists {
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
-
-	_, err = s.GetUser(resourceName, false)
+	_, err = s.Services.GetUser(resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
