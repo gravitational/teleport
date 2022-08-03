@@ -30,6 +30,10 @@ authenticationSecondFactor:
 # Possible values are 'multiplex'
 proxyListenerMode: ""
 
+# Optional setting for configuring session recording.
+# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+sessionRecording: ""
+
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
 # Setting either of these values to true will separate the listeners out onto a separate port (5432 for Postgres, 27017 for MongoDB)
 # This is useful when terminating TLS at a load balancer in front of Teleport (such as when using AWS ACM)
