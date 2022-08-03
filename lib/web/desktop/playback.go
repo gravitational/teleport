@@ -48,7 +48,7 @@ type Player struct {
 	mu        sync.Mutex
 	cond      *sync.Cond
 	playState playbackState
-	playSpeed chan float32
+	playSpeed float32
 
 	log logrus.FieldLogger
 	sID string
@@ -74,7 +74,7 @@ func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.Fie
 		playState: playStatePlaying,
 		log:       log,
 		sID:       sID,
-		playSpeed: make(chan float32),
+		playSpeed: 1.0,
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -205,7 +205,9 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 				action.PlaybackSpeed = maxPlaybackSpeed
 			}
 
-			pp.playSpeed <- action.PlaybackSpeed
+			pp.mu.Lock()
+			pp.playSpeed = action.PlaybackSpeed
+			pp.mu.Unlock()
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
@@ -219,8 +221,11 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
-	var playSpeed float32 = 1.0
-	scaleDelay := func(delay int64) int64 { return int64(float32(delay) / playSpeed) }
+	scaleDelay := func(delay int64) int64 {
+		pp.mu.Lock()
+		defer pp.mu.Unlock()
+		return int64(float32(delay) / pp.playSpeed)
+	}
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -242,7 +247,6 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 				}
 			}
 			return
-		case playSpeed = <-pp.playSpeed:
 		case evt := <-eventsC:
 			if evt == nil {
 				pp.log.Debug("reached end of playback")
