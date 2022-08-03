@@ -88,8 +88,9 @@ type CloudClients interface {
 // NewCloudClients returns a new instance of cloud clients retriever.
 func NewCloudClients() CloudClients {
 	return &cloudClients{
-		awsSessions:       make(map[string]*awssession.Session),
-		azureMySQLClients: make(map[string]AzureMySQLClient),
+		awsSessions:          make(map[string]*awssession.Session),
+		azureMySQLClients:    make(map[string]AzureMySQLClient),
+		azurePostgresClients: make(map[string]AzurePostgresClient),
 	}
 }
 
