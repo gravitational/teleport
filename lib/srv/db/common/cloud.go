@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -78,6 +79,8 @@ type CloudClients interface {
 	GetAzureCredential() (azcore.TokenCredential, error)
 	// GetAzureMySQLClient returns Azure MySQL client for the specified subscription.
 	GetAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureMySQLClient, error)
+	// GetAzurePostgresClient returns Azure Postgres client for the specified subscription.
+	GetAzurePostgresClient(subscription string, cred azcore.TokenCredential) (AzurePostgresClient, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -104,6 +107,8 @@ type cloudClients struct {
 	azureCredential azcore.TokenCredential
 	// azureMySQLClients is the cached Azure MySQL Server clients.
 	azureMySQLClients map[string]AzureMySQLClient
+	// azurePostgresClients is the cached Azure Postgres Server clients.
+	azurePostgresClients map[string]AzurePostgresClient
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -126,6 +131,40 @@ type azureMySQLClientWrapper struct {
 func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListOptions{}
+	pager := wrapper.client.NewListPager(options)
+	for pageNum := 0; pageNum <= MaxPages && pager.More(); pageNum++ {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			// TODO(gavin): convert from azure error to trace error
+			return nil, trace.Wrap(err)
+		}
+		for _, server := range page.Value {
+			if server != nil {
+				servers = append(servers, server)
+			}
+		}
+	}
+	return servers, nil
+}
+
+// AzurePostgresClient provides an interface for getting Postgres servers.
+type AzurePostgresClient interface {
+	// ListServers lists all Azure Postgres servers within an Azure subscription.
+	ListServers(ctx context.Context) ([]*armpostgresql.Server, error)
+}
+
+// azurePostgresClientWrapper implements AzurePostgresClient.
+var _ AzurePostgresClient = (*azurePostgresClientWrapper)(nil)
+
+// azurePostgresClientWrapper wraps armpostgresql.ServersClient so we can implement the AzurePostgresClient interface.
+type azurePostgresClientWrapper struct {
+	client *armpostgresql.ServersClient
+}
+
+// ListServers lists all Azure Postgres servers within an Azure subscription, using a configured armpostgresql client.
+func (wrapper *azurePostgresClientWrapper) ListServers(ctx context.Context) ([]*armpostgresql.Server, error) {
+	var servers []*armpostgresql.Server
+	options := &armpostgresql.ServersClientListOptions{}
 	pager := wrapper.client.NewListPager(options)
 	for pageNum := 0; pageNum <= MaxPages && pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
@@ -260,6 +299,17 @@ func (c *cloudClients) GetAzureMySQLClient(subscription string, cred azcore.Toke
 	return c.initAzureMySQLClient(subscription, cred)
 }
 
+// GetAzurePostgresClient returns an AzurePostgresClient for the given subscription.
+func (c *cloudClients) GetAzurePostgresClient(subscription string, cred azcore.TokenCredential) (AzurePostgresClient, error) {
+	c.mtx.RLock()
+	if client, ok := c.azurePostgresClients[subscription]; ok {
+		c.mtx.RUnlock()
+		return client, nil
+	}
+	c.mtx.RUnlock()
+	return c.initAzurePostgresClient(subscription, cred)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -356,22 +406,42 @@ func (c *cloudClients) initAzureMySQLClient(subscription string, cred azcore.Tok
 	return wrappedClient, nil
 }
 
+func (c *cloudClients) initAzurePostgresClient(subscription string, cred azcore.TokenCredential) (AzurePostgresClient, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if client, ok := c.azurePostgresClients[subscription]; ok { // If some other thread already got here first.
+		return client, nil
+	}
+	logrus.Debug("Initializing Azure Postgres servers client.")
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &arm.ClientOptions{}
+	client, err := armpostgresql.NewServersClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	wrappedClient := &azurePostgresClientWrapper{client: client}
+	c.azurePostgresClients[subscription] = wrappedClient
+	return wrappedClient, nil
+}
+
 // TestCloudClients implements CloudClients
 var _ CloudClients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS              rdsiface.RDSAPI
-	RDSPerRegion     map[string]rdsiface.RDSAPI
-	Redshift         redshiftiface.RedshiftAPI
-	ElastiCache      elasticacheiface.ElastiCacheAPI
-	MemoryDB         memorydbiface.MemoryDBAPI
-	SecretsManager   secretsmanageriface.SecretsManagerAPI
-	IAM              iamiface.IAMAPI
-	STS              stsiface.STSAPI
-	GCPSQL           GCPSQLAdminClient
-	AzureMySQL       AzureMySQLClient
-	AzureMySQLPerSub map[string]AzureMySQLClient
+	RDS                 rdsiface.RDSAPI
+	RDSPerRegion        map[string]rdsiface.RDSAPI
+	Redshift            redshiftiface.RedshiftAPI
+	ElastiCache         elasticacheiface.ElastiCacheAPI
+	MemoryDB            memorydbiface.MemoryDBAPI
+	SecretsManager      secretsmanageriface.SecretsManagerAPI
+	IAM                 iamiface.IAMAPI
+	STS                 stsiface.STSAPI
+	GCPSQL              GCPSQLAdminClient
+	AzureMySQL          AzureMySQLClient
+	AzureMySQLPerSub    map[string]AzureMySQLClient
+	AzurePostgres       AzurePostgresClient
+	AzurePostgresPerSub map[string]AzurePostgresClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -440,6 +510,14 @@ func (c *TestCloudClients) GetAzureMySQLClient(subscription string, cred azcore.
 		return c.AzureMySQLPerSub[subscription], nil
 	}
 	return c.AzureMySQL, nil
+}
+
+// GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription
+func (c *TestCloudClients) GetAzurePostgresClient(subscription string, cred azcore.TokenCredential) (AzurePostgresClient, error) {
+	if len(c.AzurePostgresPerSub) != 0 {
+		return c.AzurePostgresPerSub[subscription], nil
+	}
+	return c.AzurePostgres, nil
 }
 
 // Close closes all initialized clients.

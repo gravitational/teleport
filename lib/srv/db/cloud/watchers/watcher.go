@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -193,11 +192,6 @@ func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher
 }
 
 func makeAzureFetchers(clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	type makeFetcherFunc func(common.CloudClients, string, azcore.TokenCredential, []string, types.Labels) (Fetcher, error)
-	makeFetcherFuncs := map[string][]makeFetcherFunc{
-		services.AzureMatcherMySQL: {makeAzureMySQLFetcher},
-		// TODO(gavin): postgres
-	}
 	cred, err := clients.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -205,41 +199,27 @@ func makeAzureFetchers(clients common.CloudClients, matchers []services.AzureMat
 
 	for _, matcher := range matchers {
 		for _, sub := range matcher.Subscriptions {
-			for matcherType, makeFetchers := range makeFetcherFuncs {
-				if !utils.SliceContainsStr(matcher.Types, matcherType) {
+			for _, matcherType := range matcher.Types {
+				var fetcher Fetcher
+				var err error
+				switch matcherType {
+				case services.AzureMatcherMySQL:
+					fetcher, err = azure.MakeAzureMySQLFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
+				case services.AzureMatcherPostgres:
+					fetcher, err = azure.MakeAzurePostgresFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
+				default:
 					continue
 				}
-
-				for _, makeFetcher := range makeFetchers {
-					fetcher, err := makeFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if fetcher != nil {
 					result = append(result, fetcher)
 				}
 			}
 		}
 	}
 	return result, nil
-}
-
-// makeAzureMySQLFetcher returns Azure MySQL server fetcher for the provided subscription, regions, and tags.
-func makeAzureMySQLFetcher(clients common.CloudClients, subscription string, cred azcore.TokenCredential, regions []string, tags types.Labels) (Fetcher, error) {
-	client, err := clients.GetAzureMySQLClient(subscription, cred)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fetcher, err := azure.NewMySQLFetcher(
-		azure.MySQLFetcherConfig{
-			Regions: regions,
-			Labels:  tags,
-			Client:  client,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fetcher, nil
 }
 
 // makeRDSInstanceFetcher returns RDS instance fetcher for the provided region and tags.

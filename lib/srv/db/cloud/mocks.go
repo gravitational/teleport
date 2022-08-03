@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -62,6 +63,30 @@ type AzureMySQLMockUnauth struct {
 }
 
 func (m *AzureMySQLMockUnauth) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+// AzurePostgresMock implements AzurePostgresClient
+var _ common.AzurePostgresClient = (*AzurePostgresMock)(nil)
+
+// AzurePostgresMock mocks AzurePostgresClient.
+type AzurePostgresMock struct {
+	DBServers []*armpostgresql.Server
+}
+
+func (m *AzurePostgresMock) ListServers(ctx context.Context) ([]*armpostgresql.Server, error) {
+	return m.DBServers, nil
+}
+
+// AzurePostgresMockUnauth implements AzurePostgresClient
+var _ common.AzurePostgresClient = (*AzurePostgresMockUnauth)(nil)
+
+// AzurePostgresMockUnauth mocks AzurePostgresClient.
+type AzurePostgresMockUnauth struct {
+	DBServers []*armpostgresql.Server
+}
+
+func (m *AzurePostgresMockUnauth) ListServers(ctx context.Context) ([]*armpostgresql.Server, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 

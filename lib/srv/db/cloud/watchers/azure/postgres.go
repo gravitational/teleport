@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -31,15 +31,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// MakeAzureMySQLFetcher returns Azure MySQL server fetcher for the provided subscription, regions, and tags.
-func MakeAzureMySQLFetcher(cs common.CloudClients, sub string, cred azcore.TokenCredential, regions []string, tags types.Labels) (*MySQLFetcher, error) {
-	client, err := cs.GetAzureMySQLClient(sub, cred)
+// MakeAzurePostgresFetcher returns Azure Postgres server fetcher for the provided subscription, regions, and tags.
+func MakeAzurePostgresFetcher(cs common.CloudClients, sub string, cred azcore.TokenCredential, regions []string, tags types.Labels) (*PostgresFetcher, error) {
+	client, err := cs.GetAzurePostgresClient(sub, cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := NewMySQLFetcher(
-		MySQLFetcherConfig{
+	fetcher, err := NewPostgresFetcher(
+		postgresFetcherConfig{
 			Regions: regions,
 			Labels:  tags,
 			Client:  client,
@@ -50,12 +50,12 @@ func MakeAzureMySQLFetcher(cs common.CloudClients, sub string, cred azcore.Token
 	return fetcher, nil
 }
 
-// MySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
-type MySQLFetcherConfig struct {
+// postgresFetcherConfig is the Azure Postgres databases fetcher configuration.
+type postgresFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Client is the Azure API client.
-	Client common.AzureMySQLClient
+	Client common.AzurePostgresClient
 	// regions is the Azure regions to filter databases.
 	Regions []string
 	// regionSet is the Azure regions to filter databases, as a hashset for efficient lookup.
@@ -63,7 +63,7 @@ type MySQLFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *MySQLFetcherConfig) CheckAndSetDefaults() error {
+func (c *postgresFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -79,29 +79,29 @@ func (c *MySQLFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// MySQLFetcher retrieves Azure MySQL single-server databases.
-type MySQLFetcher struct {
-	cfg MySQLFetcherConfig
+// PostgresFetcher retrieves Azure Postgres single-server databases.
+type PostgresFetcher struct {
+	cfg postgresFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewMySQLFetcher returns a new Azure MySQL servers fetcher instance.
-func NewMySQLFetcher(config MySQLFetcherConfig) (*MySQLFetcher, error) {
+// NewPostgresFetcher returns a new Azure Postgres servers fetcher instance.
+func NewPostgresFetcher(config postgresFetcherConfig) (*PostgresFetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &MySQLFetcher{
+	return &PostgresFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:azuremysql",
+			trace.Component: "watch:azurepostgres",
 			"labels":        config.Labels,
 			"regions":       config.Regions,
 		}),
 	}, nil
 }
 
-// Get returns Azure MySQL servers matching the watcher's selectors.
-func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
+// Get returns Azure Postgres servers matching the watcher's selectors.
+func (f *PostgresFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,7 +111,7 @@ func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
-func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
+func (f *PostgresFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
 	servers, err := f.cfg.Client.ListServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,8 +126,8 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 		}
 
 		name := stringVal(server.Name)
-		var version armmysql.ServerVersion
-		var state armmysql.ServerState
+		var version armpostgresql.ServerVersion
+		var state armpostgresql.ServerState
 		if server.Properties != nil {
 			if server.Properties.Version != nil {
 				version = *server.Properties.Version
@@ -136,21 +136,21 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 				state = *server.Properties.UserVisibleState
 			}
 		}
-		if !services.IsAzureMySQLVersionSupported(version) {
+		if !services.IsAzurePostgresVersionSupported(version) {
 			f.log.Debugf("Azure server %q (version %v) doesn't support IAM authentication. Skipping.",
 				name,
 				version)
 			continue
 		}
 
-		if !services.IsAzureMySQLServerAvailable(state) {
+		if !services.IsAzurePostgresServerAvailable(state) {
 			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
 				name,
 				state)
 			continue
 		}
 
-		database, err := services.NewDatabaseFromAzureMySQLServer(server)
+		database, err := services.NewDatabaseFromAzurePostgresServer(server)
 		if err != nil {
 			f.log.Warnf("Could not convert Azure server %q to database resource: %v.",
 				name,
@@ -163,7 +163,7 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 }
 
 // String returns the fetcher's string description.
-func (f *MySQLFetcher) String() string {
-	return fmt.Sprintf("azureMySQLFetcher(Region=%v, Labels=%v)",
+func (f *PostgresFetcher) String() string {
+	return fmt.Sprintf("azurePostgresFetcher(Region=%v, Labels=%v)",
 		f.cfg.Regions, f.cfg.Labels)
 }

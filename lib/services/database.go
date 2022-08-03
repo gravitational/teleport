@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -164,6 +165,38 @@ func NewDatabaseFromAzureMySQLServer(server *armmysql.Server) (types.Database, e
 		types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
 			URI:      fmt.Sprintf("%v:%v", endpoint, AzureMySQLPort),
+			Azure:    *metadata,
+		})
+}
+
+// NewDatabaseFromAzurePostgresServer creates a database resource from an AzurePostgres server.
+func NewDatabaseFromAzurePostgresServer(server *armpostgresql.Server) (types.Database, error) {
+	if server.Properties == nil || server.Properties.FullyQualifiedDomainName == nil {
+		return nil, trace.BadParameter("empty endpoint")
+	}
+	endpoint := *server.Properties.FullyQualifiedDomainName
+	if server.Name == nil {
+		return nil, trace.BadParameter("empty server name")
+	}
+	name := *server.Name
+
+	metadata, err := MetadataFromAzurePostgresServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var location string
+	if server.Location != nil {
+		location = *server.Location
+	}
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure Postgres server in %v", location),
+			Labels:      labelsFromAzurePostgresServer(server, metadata),
+		}, name),
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      fmt.Sprintf("%v:%v", endpoint, AzurePostgresPort),
 			Azure:    *metadata,
 		})
 }
@@ -398,6 +431,29 @@ func MetadataFromAzureMySQLServer(server *armmysql.Server) (*types.Azure, error)
 	}, nil
 }
 
+// MetadataFromAzurePostgresServer creates Azure metadata from the provided AzurePostgres server.
+func MetadataFromAzurePostgresServer(server *armpostgresql.Server) (*types.Azure, error) {
+	var (
+		name   string
+		region string
+		id     string
+	)
+	if server.Name != nil {
+		name = *server.Name
+	}
+	if server.Location != nil {
+		region = *server.Location
+	}
+	if server.ID != nil {
+		id = *server.ID
+	}
+	return &types.Azure{
+		Name:       name,
+		Region:     region,
+		ResourceID: id,
+	}, nil
+}
+
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 func MetadataFromRDSInstance(rdsInstance *rds.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
@@ -590,6 +646,27 @@ func labelsFromAzureMySQLServer(server *armmysql.Server, meta *types.Azure) map[
 	return labels
 }
 
+// labelsFromAzurePostgresServer creates database labels for the provided Azure Postgres server.
+func labelsFromAzurePostgresServer(server *armpostgresql.Server, meta *types.Azure) map[string]string {
+	labels := azureTagsToLabels(server.Tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = meta.Region
+	if server.Type != nil {
+		labels[labelEngine] = *server.Type
+	}
+	if server.Properties != nil && server.Properties.Version != nil {
+		labels[labelEngineVersion] = string(*server.Properties.Version)
+	}
+	if server.ID != nil {
+		resourceID, err := arm.ParseResourceID(*server.ID)
+		if err == nil {
+			labels[labelResourceGroup] = resourceID.ResourceGroupName
+			labels[labelSubscriptionID] = resourceID.SubscriptionID
+		}
+	}
+	return labels
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -694,6 +771,18 @@ func IsAzureMySQLVersionSupported(version armmysql.ServerVersion) bool {
 	}
 }
 
+// IsAzurePostgresVersionSupported returns true if database supports IAM authentication.
+func IsAzurePostgresVersionSupported(version armpostgresql.ServerVersion) bool {
+	switch version {
+	case armpostgresql.ServerVersionNine5, armpostgresql.ServerVersionNine6, armpostgresql.ServerVersionTen,
+		armpostgresql.ServerVersionTen0, armpostgresql.ServerVersionTen2, armpostgresql.ServerVersionEleven:
+		return true
+	default:
+		log.Warnf("Unknown Azure Postgres server version: %q", version)
+		return false
+	}
+}
+
 // IsRDSInstanceSupported returns true if database supports IAM authentication.
 // Currently, only MariaDB is being checked.
 func IsRDSInstanceSupported(instance *rds.DBInstance) bool {
@@ -760,6 +849,20 @@ func IsAzureMySQLServerAvailable(state armmysql.ServerState) bool {
 		return false
 	default:
 		log.Warnf("Unknown Azure MySQL server state: %q", state)
+		return false
+	}
+}
+
+func IsAzurePostgresServerAvailable(state armpostgresql.ServerState) bool {
+	switch state {
+	case armpostgresql.ServerStateReady:
+		return true
+	case armpostgresql.ServerStateInaccessible,
+		armpostgresql.ServerStateDropping,
+		armpostgresql.ServerStateDisabled:
+		return false
+	default:
+		log.Warnf("Unknown Azure Postgres server state: %q", state)
 		return false
 	}
 }
@@ -1011,4 +1114,6 @@ const (
 const (
 	// Azure managed mysql server port is always 3306
 	AzureMySQLPort = "3306"
+	// Azure managed mysql server port is always 5432 // TODO(gavin): check this
+	AzurePostgresPort = "5432"
 )
