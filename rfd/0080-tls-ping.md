@@ -14,12 +14,15 @@ underlying protocol.
 ## Why
 
 Idle connections are closed after a pre-defined period when deployed with load
-balancers. In some of those services (such as AWS ELB and GlobalAccelerator),
+balancers. In some of those services (such as [AWS ELB](https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html#about-idle-timeout) and [GlobalAccelerator](https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html#about-idle-timeout)),
 having the TCP Keep-Alive configured is not enough to prevent the connections
 from being closed due to inactivity.
 
-The connections are not dropped in those environments for protocols that already
-implement a mechanism like this (like http2). However, not all protocols
+Dropping the connections can directly impact user experience when they perform
+long-running commands such as database queries.
+
+**NOTE:** The connections are not dropped in those environments for protocols that
+already implement a mechanism like this (like [http2](https://httpwg.org/specs/rfc7540.html#PING)). However, not all protocols
 supported by Teleport provide such features.
 
 ## Details
