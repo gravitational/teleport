@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -180,6 +181,9 @@ type InitConfig struct {
 	// SendAllHostCAs sends the host CAs of all clusters to SSH clients logging in when
 	// enabled, instead of just the host CA for the current cluster.
 	SendAllHostCAs bool
+
+	// TraceClient is used to forward spans to the upstream telemetry collector
+	TraceClient otlptrace.Client
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -403,7 +407,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(asrv)
+	err = createPresets(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -514,14 +518,14 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 }
 
 // createPresets creates preset resources (eg, roles).
-func createPresets(asrv *Server) error {
+func createPresets(ctx context.Context, asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
 	}
 	for _, role := range roles {
-		err := asrv.CreateRole(role)
+		err := asrv.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())

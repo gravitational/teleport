@@ -1483,6 +1483,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1514,6 +1530,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 		SendAllHostCAs:          cfg.Auth.SendAllHostCAs,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
@@ -1642,22 +1659,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1667,7 +1668,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
