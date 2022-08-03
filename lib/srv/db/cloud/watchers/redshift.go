@@ -102,7 +102,7 @@ func (f *redshiftFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 		databases = append(databases, database)
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return common.FilterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // String returns the fetcher's string description.

@@ -166,7 +166,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.Databases, error) {
 		}
 	}
 
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return common.FilterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // String returns the fetcher's string description.

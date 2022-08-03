@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package watchers
+package azure
 
 import (
 	"context"
@@ -30,8 +30,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// azureMySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
-type azureMySQLFetcherConfig struct {
+// MySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
+type MySQLFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Client is the Azure resource manager API client.
@@ -43,7 +43,7 @@ type azureMySQLFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *azureMySQLFetcherConfig) CheckAndSetDefaults() error {
+func (c *MySQLFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -59,21 +59,18 @@ func (c *azureMySQLFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// assert azureMySQLFetcher implements Fetcher
-var _ Fetcher = (*azureMySQLFetcher)(nil)
-
-// azureMySQLFetcher retrieves Azure MySQL single-server databases.
-type azureMySQLFetcher struct {
-	cfg azureMySQLFetcherConfig
+// MySQLFetcher retrieves Azure MySQL single-server databases.
+type MySQLFetcher struct {
+	cfg MySQLFetcherConfig
 	log logrus.FieldLogger
 }
 
-// newAzureMySQLFetcher returns a new Azure MySQL servers fetcher instance.
-func newAzureMySQLFetcher(config azureMySQLFetcherConfig) (Fetcher, error) {
+// NewMySQLFetcher returns a new Azure MySQL servers fetcher instance.
+func NewMySQLFetcher(config MySQLFetcherConfig) (*MySQLFetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &azureMySQLFetcher{
+	return &MySQLFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: "watch:azuremysql",
@@ -84,17 +81,17 @@ func newAzureMySQLFetcher(config azureMySQLFetcherConfig) (Fetcher, error) {
 }
 
 // Get returns Azure MySQL servers matching the watcher's selectors.
-func (f *azureMySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
+func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return common.FilterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
-func (f *azureMySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
+func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
 	servers, err := f.cfg.Client.ListServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -146,7 +143,7 @@ func (f *azureMySQLFetcher) getDatabases(ctx context.Context) (types.Databases, 
 }
 
 // String returns the fetcher's string description.
-func (f *azureMySQLFetcher) String() string {
+func (f *MySQLFetcher) String() string {
 	return fmt.Sprintf("azureMySQLFetcher(Region=%v, Labels=%v)",
 		f.cfg.Regions, f.cfg.Labels)
 }

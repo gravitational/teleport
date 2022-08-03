@@ -44,6 +44,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
@@ -113,15 +115,15 @@ type AzureMySQLClient interface {
 }
 
 // ARMMySQLServersClient implements AzureMySQLClient.
-var _ AzureMySQLClient = (*ARMMySQLServersClient)(nil)
+var _ AzureMySQLClient = (*azureMySQLClientWrapper)(nil)
 
-// ARMMySQLServersClient wraps armmysql.ServersClient so we can implement the AzureMySQLClient interface.
-type ARMMySQLServersClient struct {
+// azureMySQLClientWrapper wraps armmysql.ServersClient so we can implement the AzureMySQLClient interface.
+type azureMySQLClientWrapper struct {
 	client *armmysql.ServersClient
 }
 
 // ListServers lists all Azure MySQL servers within an Azure subscription, using a configured armmysql client.
-func (wrapper *ARMMySQLServersClient) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListOptions{}
 	pager := wrapper.client.NewListPager(options)
@@ -349,7 +351,7 @@ func (c *cloudClients) initAzureMySQLClient(subscription string, cred azcore.Tok
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	wrappedClient := &ARMMySQLServersClient{client: client}
+	wrappedClient := &azureMySQLClientWrapper{client: client}
 	c.azureMySQLClients[subscription] = wrappedClient
 	return wrappedClient, nil
 }
@@ -443,4 +445,20 @@ func (c *TestCloudClients) GetAzureMySQLClient(subscription string, cred azcore.
 // Close closes all initialized clients.
 func (c *TestCloudClients) Close() error {
 	return nil
+}
+
+// FilterDatabasesByLabels filters input databases with provided labels.
+func FilterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+	var matchedDatabases types.Databases
+	for _, database := range databases {
+		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
+		if err != nil {
+			log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			matchedDatabases = append(matchedDatabases, database)
+		} else {
+			log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return matchedDatabases
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers/azure"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
@@ -229,8 +230,8 @@ func makeAzureMySQLFetcher(clients common.CloudClients, subscription string, cre
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := newAzureMySQLFetcher(
-		azureMySQLFetcherConfig{
+	fetcher, err := azure.NewMySQLFetcher(
+		azure.MySQLFetcherConfig{
 			Regions: regions,
 			Labels:  tags,
 			Client:  client,

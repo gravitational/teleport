@@ -132,7 +132,7 @@ func (f *memoryDBFetcher) Get(ctx context.Context) (types.Databases, error) {
 			databases = append(databases, database)
 		}
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return common.FilterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
 // getMemoryDBClusters fetches all MemoryDB clusters.
