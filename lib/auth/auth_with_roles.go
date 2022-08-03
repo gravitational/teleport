@@ -51,7 +51,6 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	sessions   session.Service
 	alog       events.IAuditLog
 	// context holds authorization context
 	context Context
@@ -183,18 +182,6 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
-}
-
-// actionForKindSSHSession is a special checker that grants access to active SSH
-// sessions.  It can allow access to a specific session based on the `where`
-// section of the user's access rule for kind `ssh_session`.
-func (a *ServerWithRoles) actionForKindSSHSession(ctx context.Context, namespace, verb string, sid session.ID) error {
-	extendContext := func(serviceContext *services.Context) error {
-		session, err := a.sessions.GetSession(ctx, namespace, sid)
-		serviceContext.SSHSession = session
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
 }
 
 // serverAction returns an access denied error if the role is not one of the builtin server roles.
@@ -502,62 +489,6 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateSSHUser(ctx, req)
-}
-
-func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
-	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := a.sessions.GetSessions(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cond == nil {
-		return sessions, nil
-	}
-
-	// Filter sessions according to cond.
-	filteredSessions := make([]session.Session, 0, len(sessions))
-	ruleCtx := &services.Context{User: a.context.User}
-	for _, s := range sessions {
-		ruleCtx.SSHSession = &s
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
-			continue
-		}
-		filteredSessions = append(filteredSessions, s)
-	}
-	return filteredSessions, nil
-}
-
-func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
-	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbRead, id); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.sessions.GetSession(ctx, namespace, id)
-}
-
-func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) error {
-	if err := a.action(s.Namespace, types.KindSSHSession, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.CreateSession(ctx, s)
-}
-
-func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
-	if err := a.actionForKindSSHSession(ctx, req.Namespace, types.VerbUpdate, req.ID); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.UpdateSession(ctx, req)
-}
-
-// DeleteSession removes an active session from the backend.
-func (a *ServerWithRoles) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
-	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbDelete, id); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.DeleteSession(ctx, namespace, id)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -5032,7 +4963,7 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
+func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
 	ctx, err := NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5041,7 +4972,6 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		authServer: authServer,
 		context:    *ctx,
 		alog:       alog,
-		sessions:   sessions,
 	}, nil
 }
 
