@@ -61,6 +61,28 @@ func (s *ConnectionDiagnosticService) CreateConnectionDiagnostic(ctx context.Con
 	return trace.Wrap(err)
 }
 
+// UpdateConnectionDiagnostic updates a Connection Diagnostic resource.
+func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	if err := connectionDiagnostic.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalConnectionDiagnostic(connectionDiagnostic)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(connectionDiagnosticPrefix, connectionDiagnostic.GetName()),
+		Value:   value,
+		Expires: connectionDiagnostic.Expiry(),
+		ID:      connectionDiagnostic.GetResourceID(),
+	}
+	_, err = s.Update(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetConnectionDiagnostic receives a name and returns the Connection Diagnostic matching that name
 //
 // If not found, a `trace.NotFound` error is returned

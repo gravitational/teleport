@@ -3586,6 +3586,68 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.True(t, receivedConnectionDiagnostic.Success)
 	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
 	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
+
+	diag, err := env.server.Auth().GetConnectionDiagnostic(ctx, diagName)
+	require.NoError(t, err)
+
+	// Adding traces
+	diag.AppendTrace(&types.ConnectionDiagnosticTrace{
+		ID:        "somid",
+		TraceType: "rbac checks",
+		Status:    "some status",
+		Details:   "some details",
+	})
+	diag.SetMessage("after update")
+	require.NoError(t, env.server.Auth().UpdateConnectionDiagnostic(ctx, diag))
+
+	resp, err = pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "after update")
+	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
+	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
+	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
+}
+
+func TestDiagnoseConnection(t *testing.T) {
+	ctx := context.Background()
+	username := "someuser"
+	roleRWConnectionDiagnostic, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindConnectionDiagnostic,
+					[]string{types.VerbRead, types.VerbCreate, types.VerbUpdate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleRWConnectionDiagnostic})
+
+	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+	// No connection diagnostics so far, should return not found
+	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, client.DiagnoseConnectionRequest{
+		ResourceKind: "node",
+		ResourceName: "host1",
+		SSHPrincipal: username,
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "dry-run")
+	require.Len(t, receivedConnectionDiagnostic.Traces, 0)
 }
 
 type authProviderMock struct {

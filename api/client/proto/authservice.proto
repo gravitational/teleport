@@ -2466,6 +2466,8 @@ service AuthService {
 
     // CreateConnectionDiagnostic creates a new connection diagnostic.
     rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
+    // UpdateConnectionDiagnostic updates a connection diagnostic.
+    rpc UpdateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
     // GetConnectionDiagnostic reads a connection diagnostic.
     rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest)
         returns (types.ConnectionDiagnosticV1);

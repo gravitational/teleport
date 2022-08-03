@@ -162,6 +162,8 @@ type ConnectionDiagnostic struct {
 	Success bool `json:"success"`
 	// Message is the diagnostic summary
 	Message string `json:"message"`
+	// Traces contains multiple checkpoints results
+	Traces []*types.ConnectionDiagnosticTrace `json:"traces"`
 }
 
 // Database describes a database server.
