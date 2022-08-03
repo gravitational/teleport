@@ -135,6 +135,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
+	if cfg.Status == nil {
+		cfg.Status = local.NewStatusService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -198,6 +201,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WindowsDesktops:       cfg.WindowsDesktops,
 		SessionTrackerService: cfg.SessionTrackerService,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
+		Status:                cfg.Status,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -248,6 +252,7 @@ type Services struct {
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
+	services.Status
 	types.Events
 	events.IAuditLog
 }

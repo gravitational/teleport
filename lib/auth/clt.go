@@ -1696,6 +1696,7 @@ type ClientI interface {
 	services.WindowsDesktops
 	WebService
 	session.Service
+	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
