@@ -70,6 +70,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for ca-pin.yaml
+    values:
+      - ../.lint/ca-pin.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: does not generate a config for clusterrole.yaml
     values:
       - ../.lint/clusterrole.yaml
