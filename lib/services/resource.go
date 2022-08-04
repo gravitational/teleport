@@ -155,6 +155,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubeService, "kube_services":
 		return types.KindKubeService, nil
+	case types.KindKubeServer, "kube_servers":
+		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
 		return types.KindLock, nil
 	case types.KindDatabaseServer:
