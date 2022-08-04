@@ -146,6 +146,10 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	key, err := client.NewKey()
 	require.NoError(t, err)
 
+	// customPromptCalled is a flag to ensure the custom prompt was indeed called
+	// for each test.
+	customPromptCalled := false
+
 	tests := []struct {
 		name                 string
 		customPromptWebauthn func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
@@ -156,6 +160,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 			customPromptWebauthn: func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				_, ok := p.(*customPromptLogin)
 				require.True(t, ok)
+				customPromptCalled = true
 
 				// Test custom prompts can be called.
 				pin, err := p.PromptPIN()
@@ -178,6 +183,8 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 			customPromptWebauthn: func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				_, ok := p.(*wancli.DefaultPrompt)
 				require.True(t, ok)
+				customPromptCalled = true
+
 				resp, err := solvePwdless(ctx, origin, assert, p)
 				return resp, "", err
 			},
@@ -185,6 +192,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		customPromptCalled = false // reset flag on each test.
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 
@@ -205,6 +213,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		*client.PromptWebauthn = test.customPromptWebauthn
 		_, err = client.SSHAgentPasswordlessLogin(ctx, req)
 		require.NoError(t, err)
+		require.True(t, customPromptCalled, "Custom prompt present but not called")
 	}
 }
 
