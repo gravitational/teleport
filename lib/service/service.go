@@ -3575,7 +3575,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				StreamEmitter:                 streamEmitter,
 				DataDir:                       cfg.DataDir,
 				CachingAuthClient:             accessPoint,
-				ServerID:                      cfg.HostUUID,
+				HostID:                        cfg.HostUUID,
 				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
 				Component:                     component,
@@ -3586,6 +3586,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
+			GetRotation:   process.getRotation,
 			OnHeartbeat:   process.onHeartbeat(component),
 		})
 		if err != nil {
