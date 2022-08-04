@@ -59,7 +59,7 @@ connect to a database.
 3. The user connects to the database with the `tsh db connect` command, which
    first retrieves a short-lived X.509 certificate and then launches the
    standard database client (e.g. `psql`) with this client certificate to
-   authenticate with the Proxy.
+   authenticate with the Teleport Proxy service.
 4. The Proxy authenticates the connection and dispatches it to the appropriate
    Database Service based on the routing information encoded in the client
    certificate, over the reverse tunnel.
