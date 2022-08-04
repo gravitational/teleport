@@ -359,14 +359,14 @@ type CLIConf struct {
 	// disableAccessRequest disables automatic resource access requests.
 	disableAccessRequest bool
 
-	// FromUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	// FromUTC is the start time to use for the range of sessions listed by the session recordings listing command
 	FromUTC string
 
-	// ToUTC is the start time to use for the range of sessions listed by the recorded session listing command
+	// ToUTC is the start time to use for the range of sessions listed by the session recordings listing command
 	ToUTC string
 
-	// maxSessionsToShow is the maximum number of sessions to show per page of results
-	maxSessionsToShow int
+	// maxRecordingsToShow is the maximum number of session recordings to show per page of results
+	maxRecordingsToShow int
 }
 
 // Stdout returns the stdout writer.
@@ -596,13 +596,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
 
-	// Sessions.
-	sessions := app.Command("sessions", "View and control recorded sessions.").Alias("session")
-	lsSessions := sessions.Command("ls", "List recorded sessions.")
-	lsSessions.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	lsSessions.Flag("from-utc", fmt.Sprintf("Start of time range in which sessions are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&cf.FromUTC)
-	lsSessions.Flag("to-utc", fmt.Sprintf("End of time range in which sessions are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&cf.ToUTC)
-	lsSessions.Flag("limit", fmt.Sprintf("Maximum number of sessions to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxSessionsToShow)
+	// Recordings.
+	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
+	lsRecordings := recordings.Command("ls", "List recorded sessions.")
+	lsRecordings.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	lsRecordings.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&cf.FromUTC)
+	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&cf.ToUTC)
+	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -970,8 +970,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
-	case lsSessions.FullCommand():
-		err = onSessions(&cf)
+	case lsRecordings.FullCommand():
+		err = onRecordings(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -3886,7 +3886,7 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 	return string(out), trace.Wrap(err)
 }
 
-func onSessions(cf *CLIConf) error {
+func onRecordings(cf *CLIConf) error {
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), cf.FromUTC, cf.ToUTC)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3897,14 +3897,14 @@ func onSessions(cf *CLIConf) error {
 	}
 	// Max number of days is limited to prevent too many requests being sent if dynamo is used as a backend.
 	if days := toUTC.Sub(fromUTC).Hours() / 24; days > defaults.TshTctlSessionDayLimit {
-		return trace.Errorf("date range for session listing too large: %v days specified: limit %v days",
+		return trace.Errorf("date range for recordings listing too large: %v days specified: limit %v days",
 			days, defaults.TshTctlSessionDayLimit)
 	}
 	var sessions []apievents.AuditEvent
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		sessions, err = tc.SearchSessionEvents(cf.Context,
 			fromUTC, toUTC, apidefaults.DefaultChunkSize,
-			types.EventOrderAscending, cf.maxSessionsToShow)
+			types.EventOrderDescending, cf.maxRecordingsToShow)
 		return err
 	}); err != nil {
 		return trace.Wrap(err)

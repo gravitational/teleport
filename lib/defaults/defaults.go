@@ -792,14 +792,14 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 		from, err = time.Parse(time.RFC3339, fromUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
+				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
 		}
 	}
 	if toUTC != "" {
 		to, err = time.Parse(time.RFC3339, toUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
+				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
 		}
 	}
 	return from, to, nil

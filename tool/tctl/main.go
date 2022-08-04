@@ -42,7 +42,7 @@ func main() {
 		&common.LockCommand{},
 		&common.BotsCommand{},
 		&common.InventoryCommand{},
-		&common.SessionsCommand{},
+		&common.RecordingsCommand{},
 	}
 	common.Run(commands)
 }
