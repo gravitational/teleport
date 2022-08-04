@@ -17,7 +17,9 @@ limitations under the License.
 package resources
 
 import (
+	"bytes"
 	"context"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"reflect"
 	"sort"
 	"testing"
@@ -66,6 +68,62 @@ func TestRoleCreation(t *testing.T) {
 
 	// The role is deleted in K8S
 	k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
+
+	fastEventually(t, func() bool {
+		_, err := tClient.GetRole(ctx, roleName)
+		return trace.IsNotFound(err)
+	})
+}
+
+func TestRoleCreationFromYAML(t *testing.T) {
+	ctx := context.Background()
+
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+
+	require.NoError(t, teleportServer.Start())
+
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+	k8sClient := startKubernetesOperator(t, tClient)
+
+	namespace := createNamespaceForTest(t, k8sClient)
+	roleName := "interns"
+
+	roleYAML := yaml.NewYAMLOrJSONDecoder(bytes.NewBuffer([]byte(`
+kind: role
+version: v5
+metadata:
+  name: interns
+spec:
+  allow:
+    node_labels:
+      'foo': ['bar']
+`)), 1024)
+
+	var roleX resourcesv5.TeleportRole
+	err := roleYAML.Decode(&roleX)
+	require.NoError(t, err)
+
+	roleX.Namespace = namespace.Name
+	err = k8sClient.Create(ctx, &roleX)
+	require.NoError(t, err)
+
+	fastEventually(t, func() bool {
+		tRole, err := tClient.GetRole(ctx, roleName)
+		if trace.IsNotFound(err) {
+			return false
+		}
+		require.NoError(t, err)
+
+		require.Equal(t, tRole.GetName(), roleName)
+
+		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+
+		return true
+	})
+
+	// The role is deleted in K8S
+	k8sDeleteRole(ctx, t, k8sClient, roleName, namespace.Name)
 
 	fastEventually(t, func() bool {
 		_, err := tClient.GetRole(ctx, roleName)
