@@ -138,8 +138,7 @@ func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context, group s
 		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				// TODO(gavin): convert from azure error to trace error
-				return nil, trace.Wrap(err)
+				return nil, ConvertError(err)
 			}
 			servers = append(servers, page.Value...)
 		}
@@ -149,8 +148,7 @@ func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context, group s
 		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				// TODO(gavin): convert from azure error to trace error
-				return nil, trace.Wrap(err)
+				return nil, ConvertError(err)
 			}
 			servers = append(servers, page.Value...)
 		}
@@ -181,8 +179,7 @@ func (wrapper *azurePostgresClientWrapper) ListServers(ctx context.Context, grou
 		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				// TODO(gavin): convert from azure error to trace error
-				return nil, trace.Wrap(err)
+				return nil, ConvertError(err)
 			}
 			servers = append(servers, page.Value...)
 		}
@@ -192,8 +189,7 @@ func (wrapper *azurePostgresClientWrapper) ListServers(ctx context.Context, grou
 		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
-				// TODO(gavin): convert from azure error to trace error
-				return nil, trace.Wrap(err)
+				return nil, ConvertError(err)
 			}
 			servers = append(servers, page.Value...)
 		}

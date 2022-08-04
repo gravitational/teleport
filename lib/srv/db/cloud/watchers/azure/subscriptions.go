@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 )
 
@@ -15,7 +16,7 @@ func GetSubscriptions(ctx context.Context, cred azcore.TokenCredential) ([]strin
 	opts := &arm.ClientOptions{}
 	client, err := armsubscription.NewSubscriptionsClient(cred, opts)
 	if err != nil {
-		return nil, trace.Wrap(err) // TODO(gavin): convert from azure error
+		return nil, common.ConvertError(err)
 	}
 
 	pagerOpts := &armsubscription.SubscriptionsClientListOptions{}
@@ -24,7 +25,7 @@ func GetSubscriptions(ctx context.Context, cred azcore.TokenCredential) ([]strin
 	for pager.More() {
 		res, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err) // TODO(gavin): convert from azure error
+			return nil, common.ConvertError(err)
 		}
 		for _, v := range res.Value {
 			if v != nil && v.SubscriptionID != nil {

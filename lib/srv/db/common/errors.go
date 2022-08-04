@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
@@ -31,6 +32,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -57,6 +59,8 @@ func ConvertError(err error) error {
 		return convertGCPError(e)
 	case awserr.RequestFailure:
 		return awslib.ConvertRequestFailureError(e)
+	case *azcore.ResponseError:
+		return azure.ConvertResponseError(e)
 	case *pgconn.PgError:
 		return convertPostgresError(e)
 	case *mysql.MyError:
