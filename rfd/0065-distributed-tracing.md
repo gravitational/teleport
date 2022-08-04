@@ -1,6 +1,6 @@
 ---
 authors: Tim Ross (tim.ross@goteleport.com)
-state: draft
+state: implemented (v10.1.0)
 ---
 
 # RFD 65 - Distributed Tracing
