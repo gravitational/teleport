@@ -120,7 +120,7 @@ type AzureMySQLClient interface {
 	ListServers(ctx context.Context) ([]*armmysql.Server, error)
 }
 
-// ARMMySQLServersClient implements AzureMySQLClient.
+// AzureMySQLClient implements AzureMySQLClient.
 var _ AzureMySQLClient = (*azureMySQLClientWrapper)(nil)
 
 // azureMySQLClientWrapper wraps armmysql.ServersClient so we can implement the AzureMySQLClient interface.
