@@ -1027,6 +1027,9 @@ clone:
 steps:
   - name: Wait for docker
     image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
     commands:
     - timeout 15s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
 
@@ -6406,6 +6409,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: df3726eac463f7682076a9be714bd0cfb0b022dc6ba2c048ebbf100bb3eac14d
+hmac: e948b57797c50b1691f64e550dcbfa13b0e697badb56b33d877d9c7ceb4e04b0
 
 ...
