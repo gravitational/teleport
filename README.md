@@ -120,6 +120,8 @@ View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repositor
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
+To run a full test suite locally, see [the test dependecies list](README_local_MacOS.md#local-tests-dependencies) 
+
 ## Building Teleport
 
 The `teleport` repository contains the Teleport daemon binary (written in Go)
@@ -153,63 +155,21 @@ $ make -C build.assets build-binaries
   is stable. If you want to build the latest stable release, run `git checkout`
   to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
   performing a build.
-* The following instructions are Mac-specific.
+* `tsh` binaries with Touch ID support are only functional using binaries signed
+  with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
+  maintainer, ask the team for access.
 
 #### Dependencies
 
-Ensure you have installed correct versions of dependencies:
-
+Ensure you have installed correct versions of necessary dependencies:
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-  
-  ```shell
-  # if we are not on the latest, you might need to
-  # brew install go@<some_version>, i.e. 1.16
-  #
-  # check which version will be installed by running
-  # brew info go
-  
-  $ brew install go
-  ````
-  
-If you wish to build the Rust-powered features like Desktop Access:
-
-* `Rust` and `Cargo` version from
+* If you wish to build the Rust-powered features like Desktop Access, `Rust` and `Cargo` version from
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
-  (search for RUST_VERSION):
-  
-  ```shell
-  $ brew install rustup
-  $ rustup-init
-  # accept defaults
-  #
-  # Once command finishes successfully, you might need to add
-  # 
-  # export PATH="$HOME/.cargo/bin:$PATH"
-  # 
-  # into ~/.zprofile and run
-  # 
-  # $ . ~/.zprofile
-  # 
-  # or open a new shell
-  #
-  $ rustup toolchain install <version from build.assets/Makefile>
-  $ cd <teleport.git>
-  $ rustup override set <version from build.assets/Makefile>
-  $ rustc --version                                                                                                                                                                  ─╯
-  rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
-  ```
-To build `tsh` version > `10.x` with `libfido` support:  
+  (search for `RUST_VERSION`)
+* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
 
-* Install `libfido2` and `openssl v 1.1.1` 
-  ```shell
-  $ brew install libfido2
-  $ brew install openssl@1.1
-  ```
-`tsh` binaries with Touch ID support are only functional using binaries signed
-with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
-maintainer, ask the team for access. The make switch for Touch ID is
-`TOUCHID=yes`.
+For an example of Dev Environment setup on a Mac, see [these instructions](README_local_MacOS.md). 
 
 #### Perform a build
 
@@ -226,19 +186,24 @@ To perform a build
 $ make full
 ```
 
-To build `tsh` with `libfido`
+To build `tsh` with Apple TouchID support enabled:
 
-* On M1 Mac
+```shell
+$ make build/tsh TOUCHID=yes
+```
 
-  ```shell
-  PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@1.1/lib/pkgconfig make build/tsh FIDO2=dynamic
-  ```
-
-* On Intel Mac
+To build `tsh` with `libfido`:
 
   ```shell
-  PKG_CONFIG_PATH=/usr/local/opt/openssl@1.1/lib/pkgconfig make build/tsh FIDO2=dynamic
+  make build/tsh FIDO2=dynamic
   ```
+
+  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
+
+    ```shell
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
+    make build/tsh FIDO2=dynamic
+    ```
 
 #### Build output and running locally
 
