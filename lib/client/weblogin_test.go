@@ -156,6 +156,18 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 			customPromptWebauthn: func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				_, ok := p.(*customPromptLogin)
 				require.True(t, ok)
+
+				// Test custom prompts can be called.
+				pin, err := p.PromptPIN()
+				require.NoError(t, err)
+				require.Empty(t, pin)
+
+				creds, err := p.PromptCredential(nil)
+				require.NoError(t, err)
+				require.Empty(t, creds)
+
+				require.NoError(t, p.PromptTouch())
+
 				resp, err := solvePwdless(ctx, origin, assert, p)
 				return resp, "", err
 			},
