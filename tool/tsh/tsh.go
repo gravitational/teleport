@@ -213,6 +213,8 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
+	// BenchSessions number of active sessions to maintain
+	BenchSessions int
 	// Context is a context to control execution
 	Context context.Context
 	// IdentityFileIn is an argument to -i flag (path to the private key+cert file)
@@ -719,6 +721,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
+	bench.Flag("sessions", "Number of active interactive sessions to maintain").Default("-1").IntVar(&cf.BenchSessions)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -2619,6 +2622,14 @@ func onBenchmark(cf *CLIConf) error {
 		Interactive:   cf.BenchInteractive,
 		Web:           cf.BenchWebSession,
 	}
+
+	if cf.BenchSessions > 0 {
+		if err := cnf.Stress(cf.Context, cf.BenchSessions, tc, pc); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
 	result, err := cnf.Benchmark(cf.Context, tc, pc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

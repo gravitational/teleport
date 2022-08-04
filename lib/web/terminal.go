@@ -684,6 +684,10 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 	}
 
 	switch envelope.GetType() {
+	case defaults.WebsocketAudit:
+		// TODO(tross) handle audit events somehow, but for now do
+		// nothing so the handler can survive someone joining the session
+		return 0, nil
 	case defaults.WebsocketRaw:
 		n := copy(out, data)
 		// if payload size is greater than [out], store the remaining

@@ -120,7 +120,7 @@ func (p *ProxyClient) connectToHost(ctx context.Context, sess session.Session, t
 	return ws, nil
 }
 
-func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, command []string) error {
+func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, command []string, interactive bool) error {
 	// detect the common error when users use host:port address format
 	_, port, err := net.SplitHostPort(tc.Host)
 	// client has used host:port notation
@@ -191,15 +191,17 @@ func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, comman
 	stream := th.asTerminalStream(conn)
 	defer stream.Close()
 
-	go func() {
-		_, err := io.Copy(tc.Stdout, stream)
-		if err != nil && !errors.Is(err, net.ErrClosed) {
-			log.WithError(err).Warn("--------- failed to copy output to stream")
-		}
-	}()
+	cmd := strings.Join(command, " ") + "\r\n"
+	if !interactive {
+		cmd += "exit\r\n"
+	}
 
-	if _, err := stream.Write([]byte(strings.Join(command, " ") + "\r\nexit\r\n")); err != nil {
+	if _, err := stream.Write([]byte(cmd)); err != nil {
 		log.WithError(err).Warn("--------------- failed to execute command")
+	}
+
+	if _, err := io.Copy(io.Discard, stream); err != nil && !errors.Is(err, net.ErrClosed) {
+		log.WithError(err).Warn("--------- failed to copy output to stream")
 	}
 
 	return nil

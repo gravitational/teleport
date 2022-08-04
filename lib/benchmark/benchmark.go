@@ -216,6 +216,67 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, pc *w
 	}
 }
 
+func (c *Config) Stress(ctx context.Context, activeSessions int, tc *client.TeleportClient, pc *web.ProxyClient) error {
+	sem := make(chan struct{}, activeSessions)
+
+	interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+
+		go func() {
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() {
+				<-sem
+			}()
+
+			cmd := fmt.Sprintf("while %s; do sleep 10; done", strings.Join(c.Command, " "))
+			if c.Web {
+				if err := pc.SSH(ctx, tc, []string{cmd}, true); err != nil {
+					logrus.WithError(err).Warn("failed to execute command")
+				}
+				return
+			}
+
+			config := tc.Config
+			clt, err := client.NewClient(&config)
+			if err != nil {
+				logrus.WithError(err).Warn("failed to create client")
+				return
+			}
+
+			reader, writer := io.Pipe()
+			defer reader.Close()
+			defer writer.Close()
+			out := utils.NewSyncBuffer()
+			clt.Stdout = out
+			clt.Stderr = out
+			if err := tc.SSH(ctx, nil, false); err != nil {
+				logrus.WithError(err).Warn("failed to establish ssh shell")
+			}
+
+			if _, err := writer.Write([]byte(cmd + "\r\n")); err != nil {
+				logrus.WithError(err).Warn("failed to execute command")
+				return
+			}
+
+			if _, err := io.Copy(io.Discard, reader); err != nil {
+				logrus.WithError(err).Warn("--------- failed to copy output to stream")
+			}
+		}()
+	}
+
+}
+
 type benchMeasure struct {
 	ResponseStart time.Time
 	End           time.Time
@@ -252,7 +313,7 @@ func (m *benchMeasure) executeWeb(ctx context.Context) error {
 		return trace.BadParameter("missing proxy client")
 	}
 
-	return trace.Wrap(m.pclt.SSH(ctx, m.client, m.command))
+	return trace.Wrap(m.pclt.SSH(ctx, m.client, m.command, m.interactive))
 }
 
 func (m *benchMeasure) execute(ctx context.Context) error {
