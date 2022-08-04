@@ -301,7 +301,88 @@ spec:
       out: ["dev"]
 ```
 
+Will likely switch to this trait method, possibly with different syntax.
+
+### Predicate language
+
+Instead of the proposed regex-based construct, variables (or traits) could be
+defined using the
+[`vulcand/predicate`](https://github.com/vulcand/predicate)
+language.
+`vulcand/predicate` is already used
+elsewhere in teleport, in search and condition evaluation.
+
+`predicate` is perfectly capable of manipulating lists of strings with the help
+of a few new functions that can easily be added as extensions.
+I've written a simple sandbox to experiment at
+https://github.com/nklaassen/predicate-sandbox.
+
+Rewritten to use the predicate language, the first example in this RFD could
+look like:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: node_users
+spec:
+  vars:
+    - name: "logins"
+      # values should be an expression which returns a list of strings
+      values: >
+        // The concat helper returns the concatenation of 0 or more strings or
+        // lists of strings
+        concat(
+          "ubuntu",
+
+          // The transform helper applies the transform function to each item in
+          // the list. The replace helper does a regex replacement on its input.
+          transform(external.username, replace("-", "_")),
+
+          // ifelse evaluates the condition in its first argument. If true it
+          // returns the second argument, else it returns the third argument.
+          ifelse(contains(external.email, "nic@goteleport.com"), "root", concat()),
+
+          // filter returns a filtered list containing only elements of its
+          // first argument which match the filter in the second argument.
+          // The replace helper support regex capture group replacements.
+          transform(filter(external.email, matches("@goteleport.com")), replace("^(.*)@goteleport.com", "$1")))
+
+    - name: "allow-env"
+      values: >
+        concat(
+          transform(
+            filter(external.groups, matches(`^env-\w+$`)),
+            replace(`^env-(\w+)$`, "$1")),
+          ifelse(
+            contains(external.groups, "contractors"),
+            // concat with no args returns an empty list
+            concat(),
+            ifelse(contains(external.groups, "devs"), "dev", concat())))
+
+  allow:
+    logins:
+      - "{{vars.logins}}"
+    node_labels:
+      env: ["{{vars["allow-env"]}}"]
+```
+
+Pros:
+
+- more powerful expressions
+- more fun to write
+
+Cons:
+
+- arguably more complex
+- the usual result of a `vulcand/predicate` expression is a boolean predicate,
+  the UX for building lists of strings is not great
+
 ### Common Expression Language
+
+Edit: decided against this to avoid adding another configuration language to
+Teleport, especially one so similar to `vulcand/predicate` which is already
+used.
 
 Another option for defining role variables (or traits) would be to use an
 expression language rather than the proposed regular expression based
