@@ -147,17 +147,17 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 
 // makeFetchers returns cloud fetchers for the provided matchers.
 func (c *WatcherConfig) makeFetchers(ctx context.Context) (result []Fetcher, err error) {
-	if fetchers, err := makeAWSFetchers(c.Clients, c.AWSMatchers); err != nil {
+	fetchers, err := makeAWSFetchers(c.Clients, c.AWSMatchers)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		result = append(result, fetchers...)
 	}
+	result = append(result, fetchers...)
 
-	if fetchers, err := makeAzureFetchers(ctx, c.Clients, c.AzureMatchers); err != nil {
+	fetchers, err = makeAzureFetchers(ctx, c.Clients, c.AzureMatchers)
+	if err != nil {
 		return nil, trace.Wrap(err)
-	} else {
-		result = append(result, fetchers...)
 	}
+	result = append(result, fetchers...)
 
 	return result, nil
 }
