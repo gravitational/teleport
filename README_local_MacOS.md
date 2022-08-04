@@ -16,13 +16,13 @@ PRs with corrections and updates are welcome!
   * Or install required version of `Go` with homebrew:
 
   ```shell
-  # if we are not on the latest, you might need to
-  # $ brew install go@<version from go.mod>, i.e. 1.16
+  # if we are not on the latest, you might need to install like this:
+  # brew install go@<version from go.mod>, i.e. 1.16
   #
-  # check which version will be installed by running
-  # $ brew info go
+  # check which version will be installed by running:
+  # brew info go
   
-  $ brew install go
+  brew install go
   ````
 
 * `Rust` and `Cargo` version from
@@ -33,22 +33,23 @@ PRs with corrections and updates are welcome!
   *  Or install with homebrew:
   
   ```shell
-  $ brew install rustup
+  brew install rustup
   ```
   
   * Initialize Rustup
   
   ```shell
-  $ rustup-init
+  rustup-init
+  #
   # accept defaults
   #
   # Once command finishes successfully, you might need to add
   # 
   # export PATH="$HOME/.cargo/bin:$PATH"
   # 
-  # into ~/.zprofile and run
+  # into ~/.zprofile and run:
   # 
-  # $ . ~/.zprofile
+  # . ~/.zprofile
   # 
   # or open a new shell
   ```
@@ -56,27 +57,27 @@ PRs with corrections and updates are welcome!
   * If on M1 Mac, add `x86_64` target 
   
   ```shell
-  $ rustup target add x86_64-apple-darwin
+  rustup target add x86_64-apple-darwin
   ```
 
   * Install the required version
   
   ```shell
-  $ rustup toolchain install <version from build.assets/Makefile>
+  rustup toolchain install <version from build.assets/Makefile>
   # 
   # In addition to the above, if on M1 Mac, also run
   #
   # $ rustup toolchain install <version from build.assets/Makefile> --target x86_64-apple-darwin
-  $ cd <teleport.git>
-  $ rustup override set <version from build.assets/Makefile>
-  $ rustc --version                                                                                                                                                                  ─╯
-  rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
+  cd <teleport.git>
+  rustup override set <version from build.assets/Makefile>
+  rustc --version                                                                                                                                                                  ─╯
+  # rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
   ```
 
 * To install `libfido2` (pulls `openssl 1.1.1` as dependency)
  
   ```shell
-  $ brew install libfido2
+  brew install libfido2
   ```
 
 ##### Local Tests Dependencies
@@ -86,8 +87,8 @@ To run a full test suite locally, you will need
 * `helm` and `helm3-unittest` plugin
  
   ```shell
-  $ brew install helm
-  $ helm plugin install https://github.com/vbehar/helm3-unittest
+  brew install helm
+  helm plugin install https://github.com/vbehar/helm3-unittest
   ```
   
 * `bats-core` version from [build.assets/Dockerfile](https://github.com/gravitational/teleport/blob/master/build.assets/Dockerfile#L183) (search for `bats-core`)
@@ -106,18 +107,18 @@ To run a full test suite locally, you will need
 * `protoc` binary, typically found in `protobuf` package 
 
   ```shell
-  $ brew install protobuf
+  brew install protobuf
   ```
 
 * `gnu-sed` since Makefile tasks run inside linux containers typically
 
   ```shell
-  $ brew install gnu-sed
-  $ echo 'export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.zprofile
+  brew install gnu-sed
+  echo 'export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.zprofile
   ```
   
 * increased `ulimit -n`
   
   ```shell
-  $ ulimit -n 2560 # 10x default
+  ulimit -n 2560 # 10x default
   ```

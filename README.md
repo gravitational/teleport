@@ -94,7 +94,7 @@ unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries in
 Then you can run Teleport as a single-node cluster:
 
 ```bash
-$ sudo teleport start
+sudo teleport start
 ```
 
 In a production environment, Teleport must run as `root`. For testing or non-production environments, run it as the `$USER`:
@@ -112,7 +112,7 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 If you wish to deploy Teleport inside a Docker container:
 ```
 # This command will pull the Teleport container image for version 8
-$ docker pull quay.io/gravitational/teleport:8
+docker pull quay.io/gravitational/teleport:8
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -141,7 +141,7 @@ tooling is available for the build. To execute a dockerized build, ensure
 that docker is installed and running, and execute:
 
 ```
-$ make -C build.assets build-binaries
+make -C build.assets build-binaries
 ```
 
 ### Local Build
@@ -174,14 +174,14 @@ For an example of Dev Environment setup on a Mac, see [these instructions](READM
 Get the source
 
 ```shell
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
+git clone https://github.com/gravitational/teleport.git
+cd teleport
 ```
 
 To perform a build 
 
 ```shell
-$ make full
+make full
 ```
 
 To build `tsh` with Apple TouchID support enabled:
@@ -193,7 +193,7 @@ with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
 maintainer, ask the team for access.
 
 ```shell
-$ make build/tsh TOUCHID=yes
+make build/tsh TOUCHID=yes
 ```
 
 To build `tsh` with `libfido`:
@@ -216,8 +216,8 @@ If the build succeeds, the installer will place the binaries in the `build` dire
 Before starting, create default data directories:
 
 ```shell
-$ sudo mkdir -p -m0700 /var/lib/teleport
-$ sudo chown $USER /var/lib/teleport
+sudo mkdir -p -m0700 /var/lib/teleport
+sudo chown $USER /var/lib/teleport
 ```
 
 ### Web UI
@@ -229,9 +229,9 @@ The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gr
 To clone this repository and rebuild the Teleport UI package, run the following commands:
 
 ```bash
-$ git clone git@github.com:gravitational/webapps.git
-$ cd webapps
-$ make build-teleport
+git clone git@github.com:gravitational/webapps.git
+cd webapps
+make build-teleport
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
@@ -244,7 +244,7 @@ To enable this behavior, set the environment variable `DEBUG=1` and rebuild with
 
 ```bash
 # Run Teleport as a single-node cluster in development mode:
-$ DEBUG=1 ./build/teleport start -d
+DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
