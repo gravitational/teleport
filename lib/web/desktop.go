@@ -151,7 +151,12 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 
 	sendTDPError := func(ws *websocket.Conn, err error) error {
-		return trace.Wrap(tdp.NewConn(&WebsocketIO{Conn: ws}).SendError(err.Error()))
+		msg := tdp.Error{Message: err.Error()}
+		b, err := msg.Encode()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(ws.WriteMessage(websocket.BinaryMessage, b))
 	}
 
 	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
@@ -293,11 +298,14 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 	})
 }
 
-func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
+// proxyWebsocketConn does a bidrectional copy between the websocket
+// connection to the browser (ws) and the mTLS connection to Windows
+// Desktop Serivce (wds)
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
-		con.Close()
+		wds.Close()
 	}
 
 	errs := make(chan error, 2)
@@ -310,7 +318,7 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 		// 'message' event is emitted in the browser
 		// (io.Copy's internal buffer could split one message
 		// into multiple ws.WriteMessage calls)
-		tc := tdp.NewConn(con)
+		tc := tdp.NewConn(wds)
 		for {
 			// TODO(zmb3): avoid the decode/encode loop here,
 			// and instead just build a tokenizer that reads
@@ -350,7 +358,7 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 		// operates on a stream and doesn't care if TPD messages
 		// are fragmented
 		stream := &WebsocketIO{Conn: ws}
-		_, err := io.Copy(con, stream)
+		_, err := io.Copy(wds, stream)
 		if utils.IsOKNetworkError(err) {
 			err = nil
 		}
