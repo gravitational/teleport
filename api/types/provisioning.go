@@ -37,6 +37,9 @@ const (
 	JoinMethodEC2 JoinMethod = "ec2"
 	// JoinMethodIAM indicates that the node will join with the IAM join method.
 	JoinMethodIAM JoinMethod = "iam"
+	// JoinMethodOIDCGCP indicates that the node will join with the GCP OIDC
+	// join method.
+	JoinMethodOIDCGCP JoinMethod = "oidc-gcp"
 )
 
 // ProvisionToken is a provisioning token
@@ -175,6 +178,9 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
 			}
 		}
+	case JoinMethodOIDCGCP:
+		// TODO: Validate allow rules to ensure that their rules are secure as
+		// per the RFC.
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}

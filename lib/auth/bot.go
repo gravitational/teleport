@@ -274,8 +274,12 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
+
+		// Ensure the token uses a supported join method for bots
 		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken, types.JoinMethodIAM:
+		case types.JoinMethodToken,
+			types.JoinMethodIAM,
+			types.JoinMethodOIDCGCP:
 		default:
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",

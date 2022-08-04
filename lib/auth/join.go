@@ -98,6 +98,11 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.Wrap(err)
 	}
 
+	oidcGCPProvider, err := newGCPOIDCTokenChecker(a.closeCtx, a.GetClock(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch a.tokenJoinMethod(ctx, req.Token) {
 	case types.JoinMethodEC2:
 		if err := a.checkEC2JoinRequest(ctx, req); err != nil {
@@ -108,6 +113,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		return nil, trace.AccessDenied("this token is only valid for the IAM " +
 			"join method but the node has connected to the wrong endpoint, make " +
 			"sure your node is configured to use the IAM join method")
+	case types.JoinMethodOIDCGCP:
+		if err := a.checkOIDCJoinRequest(ctx, req, oidcGCPProvider); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -139,32 +148,36 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 
 		joinMethod := provisionToken.GetJoinMethod()
 
-		// certs for IAM method should not be renewable
+		// Static tokens should produce renewable certificates, as the bot has
+		// no other way to prove its identity after initial joining. Dynamic
+		// token types (IAM, OIDC-GCP) should not be renewable, we will expect
+		// the bot to continually "join" using fresh proof from the third party
+		// authority.
 		var renewable bool
+		// Mark ephemeral token types for deletion after use.
+		var shouldDeleteToken bool
 		switch joinMethod {
 		case types.JoinMethodToken:
 			renewable = true
-		case types.JoinMethodIAM:
+			shouldDeleteToken = true
+		case types.JoinMethodIAM,
+			types.JoinMethodOIDCGCP:
 			renewable = false
 		default:
 			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
-		certs, err := a.generateInitialBotCerts(ctx, botResourceName, req.PublicSSHKey, expires, renewable)
+		certs, err := a.generateInitialBotCerts(
+			ctx, botResourceName, req.PublicSSHKey, expires, renewable,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		switch joinMethod {
-		case types.JoinMethodToken:
-			// delete ephemeral bot join tokens so they can't be re-used
+		if shouldDeleteToken {
 			if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
 				log.WithError(err).Warnf("Could not delete bot provision token %q after generating certs",
 					string(backend.MaskKeyName(provisionToken.GetName())))
 			}
-		case types.JoinMethodIAM:
-			// don't delete long-lived IAM join tokens
-		default:
-			return nil, trace.BadParameter("unsupported join method %q for bot", joinMethod)
 		}
 
 		log.Infof("Bot %q has joined the cluster.", botName)

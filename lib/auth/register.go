@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"os"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -118,6 +119,9 @@ type RegisterParams struct {
 	// ec2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	ec2IdentityDocument []byte
+	// oidcJWT is used for OIDC based joining to prove the identity of the node
+	// based on the environment it is running in.
+	oidcJWT string
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
 }
@@ -146,8 +150,8 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// add EC2 Identity Document to params if required for given join method
-	if params.JoinMethod == types.JoinMethodEC2 {
+	switch params.JoinMethod {
+	case types.JoinMethodEC2:
 		if !utils.IsEC2NodeID(params.ID.HostUUID) {
 			return nil, trace.BadParameter(
 				`Host ID %q is not valid when using the EC2 join method, `+
@@ -159,6 +163,9 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodOIDCGCP:
+		// TODO: Replace this with something that fetches the token
+		params.oidcJWT = os.Getenv("STUB_GCP_JWT")
 	}
 
 	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
@@ -238,6 +245,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				OIDCJWT:              params.oidcJWT,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -284,6 +292,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 				PublicTLSKey:         params.PublicTLSKey,
 				PublicSSHKey:         params.PublicSSHKey,
 				EC2IdentityDocument:  params.ec2IdentityDocument,
+				OIDCJWT:              params.oidcJWT,
 			})
 	}
 	return certs, trace.Wrap(err)
