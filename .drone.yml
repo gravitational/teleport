@@ -1039,7 +1039,7 @@ steps:
     commands:
       - apk --update --no-cache add curl
       # get Dockerfiles
-      - curl -Ls -o /go/build/Dockerfile-fpm https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-fpm
+      - curl -Ls -o /go/build/Dockerfile-fpm https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-logan/add-fpm-drone}/build.assets/Dockerfile-fpm
 
   - name: Build and push fpm image
     image: docker
@@ -6175,6 +6175,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: e948b57797c50b1691f64e550dcbfa13b0e697badb56b33d877d9c7ceb4e04b0
+hmac: 93a08f396bd1ab7812b3b9c45a73f9eb1663d64410a3b81a5b5520e83691c10f
 
 ...
