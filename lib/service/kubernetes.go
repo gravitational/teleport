@@ -232,7 +232,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			StreamEmitter:                 streamEmitter,
 			DataDir:                       cfg.DataDir,
 			CachingAuthClient:             accessPoint,
-			ServerID:                      cfg.HostUUID,
+			HostID:                        cfg.HostUUID,
 			Context:                       process.ExitContext(),
 			KubeconfigPath:                cfg.Kube.KubeconfigPath,
 			KubeClusterName:               cfg.Kube.KubeClusterName,
@@ -249,6 +249,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		AccessPoint:          accessPoint,
 		LimiterConfig:        cfg.Kube.Limiter,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
+		GetRotation:          process.getRotation,
 		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {

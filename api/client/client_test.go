@@ -168,6 +168,13 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.Errorf("kubernetes server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
@@ -262,6 +269,28 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			resources[i], err = types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
 				map[string]string{
 					"label": string(make([]byte, nodeLabelSize)),
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	case types.KindKubeServer:
+		for i := 0; i < size; i++ {
+			var err error
+			name := fmt.Sprintf("kube-service-%d", i)
+			resources[i], err = types.NewKubernetesServerV3(types.Metadata{
+				Name:   name,
+				Labels: map[string]string{"name": name},
+			},
+				types.KubernetesServerSpecV3{
+					Hostname: "test",
+					Cluster: &types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   name,
+							Labels: map[string]string{"name": name},
+						},
+					},
 				},
 			)
 			if err != nil {

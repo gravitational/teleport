@@ -5398,7 +5398,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:138
+# Generated at dronegen/os_repos.go:270
 ################################################
 
 kind: pipeline
@@ -5426,7 +5426,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:162
+# Generated at dronegen/os_repos.go:294
 ################################################
 
 kind: pipeline
@@ -5469,6 +5469,7 @@ steps:
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -5479,25 +5480,25 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 - name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18.1-bullseye
+  image: golang:1.18.4-bullseye
   commands:
-  - mkdir -pv -m0700 $GNUPGHOME
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root $GNUPGHOME
   - apt update
-  - apt install aptly tree -y
+  - apt install -y aptly
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
-    -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL" -aptly-root-dir
-    "$APTLY_ROOT_DIR" -artifact-path "$ARTIFACT_PATH" -log-level 4
-  - rm -rf "$BUCKET_CACHE_PATH"
-  - df -h "$APTLY_ROOT_DIR"
+  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
   environment:
-    APT_S3_BUCKET:
-      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
     APTLY_ROOT_DIR: /mnt/aptly
     ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
@@ -5506,16 +5507,24 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
     BUCKET_CACHE_PATH: /tmp/bucket
+    DEBIAN_FRONTEND: noninteractive
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
   volumes:
-  - name: aptrepo
+  - name: apt-persistence
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 volumes:
-- name: aptrepo
+- name: apt-persistence
   claim:
     name: drone-s3-aptrepo-pvc
 - name: tmpfs
@@ -5526,12 +5535,40 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:81
+# Generated at dronegen/os_repos.go:270
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: promote-docker-quay
+name: migrate-yum-new-repos
+trigger:
+  event:
+    include:
+    - custom
+  repo:
+    include:
+    - non-existent-repository
+  branch:
+    include:
+    - non-existent-branch
+clone:
+  disable: true
+steps:
+- name: Placeholder
+  image: alpine:latest
+  commands:
+  - echo "This command, step, and pipeline never runs"
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go:294
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-yum-new-repos
 trigger:
   event:
     include:
@@ -5539,11 +5576,9 @@ trigger:
   target:
     include:
     - production
-    - promote-docker
-    - promote-docker-quay
   repo:
     include:
-    - gravitational/*
+    - gravitational/teleport
 workspace:
   path: /go
 clone:
@@ -5554,74 +5589,91 @@ steps:
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
-- name: Wait for docker
-  image: docker
+- name: Check out code
+  image: alpine/git:latest
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  volumes:
-  - name: dockersock
-    path: /var/run
-- name: Pull/retag Docker images
-  image: docker
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
   commands:
-  - apk add --no-cache aws-cli
-  - export VERSION=${DRONE_TAG##v}
-  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
-  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
-    146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - echo "---> Pulling images for $${VERSION}"
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
-  - echo "---> Tagging images for $${VERSION}"
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
-    quay.io/gravitational/teleport:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
-    quay.io/gravitational/teleport-ent:$${VERSION}
-  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-    quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-  - docker logout quay.io
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
-  - echo "---> Pushing images for $${VERSION}"
-  - docker push quay.io/gravitational/teleport:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker push quay.io/gravitational/teleport-operator:$${VERSION}
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+- name: Download artifacts for "${DRONE_TAG}"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+    "$ARTIFACT_PATH"
   environment:
+    ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
-    QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-    STAGING_QUAY_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    STAGING_QUAY_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+      from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+- name: Publish rpms to YUM repos for "${DRONE_TAG}"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="${DRONE_TAG}"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
   volumes:
-  - name: dockersock
-    path: /var/run
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 volumes:
-- name: dockersock
-  temp: {}
+- name: yum-persistence
+  claim:
+    name: drone-s3-yumrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:27
+# Generated at dronegen/promote.go:28
 ################################################
 
 kind: pipeline
@@ -5686,6 +5738,101 @@ steps:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/promote.go:82
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-docker-quay
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-docker
+    - promote-docker-quay
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull/retag Docker images
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - export VERSION=${DRONE_TAG##v}
+  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - echo "---> Pulling images for $${VERSION}"
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+  - echo "---> Tagging images for $${VERSION}"
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+    quay.io/gravitational/teleport:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+    quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+    quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
+  - docker logout quay.io
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
+  - echo "---> Pushing images for $${VERSION}"
+  - docker push quay.io/gravitational/teleport:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  -   ERSION}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+    QUAY_PASSWORD:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+    STAGING_QUAY_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    STAGING_QUAY_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6091,6 +6238,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfe9263c545d10b26f27dc10b8b5e5b833d0fca4333860550dae28113cef681a
+hmac: 886b4ee9d5440155e696730354e0d8f773def8d703105d58d7017bf997e0c687
 
 ...
