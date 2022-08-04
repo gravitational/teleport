@@ -43,25 +43,12 @@ func (process *TeleportProcess) initKubernetes() {
 
 	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), KubeIdentityEvent, eventsC)
-
-		var event Event
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debug("Process is exiting.")
-			return nil
+		conn, err := process.waitForConnector(KubeIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
-		}
-
-		err := process.initKubernetesService(log, conn)
-		if err != nil {
+		if err := process.initKubernetesService(log, conn); err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
 		}
@@ -245,7 +232,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			StreamEmitter:                 streamEmitter,
 			DataDir:                       cfg.DataDir,
 			CachingAuthClient:             accessPoint,
-			ServerID:                      cfg.HostUUID,
+			HostID:                        cfg.HostUUID,
 			Context:                       process.ExitContext(),
 			KubeconfigPath:                cfg.Kube.KubeconfigPath,
 			KubeClusterName:               cfg.Kube.KubeClusterName,
@@ -262,6 +249,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		AccessPoint:          accessPoint,
 		LimiterConfig:        cfg.Kube.Limiter,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
+		GetRotation:          process.getRotation,
 		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {

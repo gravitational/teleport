@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -223,6 +224,10 @@ func (m *mockServer) GetInfo() types.Server {
 			Version:   teleport.Version,
 		},
 	}
+}
+
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
