@@ -174,7 +174,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		idFile := &identityfile.IdentityFile{
-			PrivateKey: cfg.Key.PrivateKeyPEMTODO(),
+			PrivateKeyData: cfg.Key.PrivateKeyDataPEM(),
 			Certs: identityfile.Certs{
 				SSH: cfg.Key.Cert,
 				TLS: cfg.Key.TLSCert,
@@ -217,7 +217,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyData(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyDataPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -244,7 +244,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyData(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyDataPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -268,7 +268,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyData()...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyDataPEM()...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -41,8 +41,8 @@ const (
 
 // IdentityFile represents the basic components of an identity file.
 type IdentityFile struct {
-	// PrivateKey is a PEM encoded key.
-	PrivateKey []byte
+	// PrivateKeyData is PEM encoded private key data.
+	PrivateKeyData []byte
 	// Certs contains PEM encoded certificates.
 	Certs Certs
 	// CACerts contains PEM encoded CA certificates.
@@ -67,7 +67,7 @@ type CACerts struct {
 
 // TLSConfig returns the identity file's associated TLSConfig.
 func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKey)
+	cert, err := tls.X509KeyPair(i.Certs.TLS, i.PrivateKeyData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,7 +87,7 @@ func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns the identity file's associated SSHClientConfig.
 func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	ssh, err := sshutils.ProxyClientSSHConfig(i.Certs.SSH, i.PrivateKey, i.CACerts.SSH)
+	ssh, err := sshutils.ProxyClientSSHConfig(i.Certs.SSH, i.PrivateKeyData, i.CACerts.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,7 +173,7 @@ func FromString(content string) (*IdentityFile, error) {
 // encodeIdentityFile combines the components of an identity file in its file format.
 func encodeIdentityFile(w io.Writer, idFile *IdentityFile) error {
 	// write key:
-	if err := writeWithNewline(w, idFile.PrivateKey); err != nil {
+	if err := writeWithNewline(w, idFile.PrivateKeyData); err != nil {
 		return trace.Wrap(err)
 	}
 	// append ssh cert:
@@ -268,8 +268,8 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 			// Decide where to place the pem block based on
 			// which pem blocks have already been found.
 			switch {
-			case ident.PrivateKey == nil:
-				ident.PrivateKey = pemBlock
+			case ident.PrivateKeyData == nil:
+				ident.PrivateKeyData = pemBlock
 			case ident.Certs.TLS == nil:
 				ident.Certs.TLS = pemBlock
 			default:

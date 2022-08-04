@@ -614,8 +614,6 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 		TTL:               c.TTL,
 		RouteToCluster:    c.RouteToCluster,
 		KubernetesCluster: c.KubernetesCluster,
-		Cert:              c.Cert,
-		AttestationCert:   c.AttestationCert,
 	})
 }
 
@@ -638,8 +636,6 @@ func (s *sessionCache) GetCertificateWithOTP(
 		TTL:               c.TTL,
 		RouteToCluster:    c.RouteToCluster,
 		KubernetesCluster: c.KubernetesCluster,
-		Cert:              c.Cert,
-		AttestationCert:   c.AttestationCert,
 	})
 }
 

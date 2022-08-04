@@ -121,7 +121,7 @@ type TestClientConfig struct {
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test
 // database Postgres/MySQL clients.
 func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

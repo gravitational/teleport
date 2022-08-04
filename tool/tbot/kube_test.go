@@ -52,7 +52,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 
 	privateKeyBytes := tlsca.MarshalPrivateKeyPEM(privateKey)
 	idFile := &identityfile.IdentityFile{
-		PrivateKey: privateKeyBytes,
+		PrivateKeyData: privateKeyBytes,
 		Certs: identityfile.Certs{
 			SSH: []byte("ssh ssh-cert"), // dummy value
 			TLS: certBytes,

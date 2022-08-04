@@ -1540,7 +1540,7 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

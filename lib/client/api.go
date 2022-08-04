@@ -52,8 +52,10 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -359,9 +361,11 @@ type Config struct {
 	//	off - do not attempt to load keys into agent
 	AddKeysToAgent string
 
-	YubikeyLogin       bool
-	YubikeyPINPolicy   piv.PINPolicy
-	YubikeyTouchPolicy piv.TouchPolicy
+	PIV              bool
+	PIVPINPolicy     piv.PINPolicy
+	PIVTouchPolicy   piv.TouchPolicy
+	PIVSlot          piv.Slot
+	PIVYubikeySerial string
 
 	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
 	// command/shell execution. This also requires Stdin to be an interactive
@@ -3216,26 +3220,12 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
-	var pk PrivateKey
-	if tc.YubikeyLogin {
-		// Yubikey login requested by client or required by server.
-		pk, err = GenerateYkPrivateKey(tc.YubikeyPINPolicy, tc.YubikeyTouchPolicy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		pk, err = GenerateRSAPrivateKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sshPub, err := sshutils.MarshalPublicKeyForSSH(pk.Public())
+	pk, err := tc.generatePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, attestationCert, err := pk.AttestationCerts()
+	sshPub, err := sshutils.MarshalPublicKeyForSSH(pk.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3249,8 +3239,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		Compatibility:     tc.CertificateFormat,
 		RouteToCluster:    tc.SiteName,
 		KubernetesCluster: tc.KubernetesCluster,
-		Cert:              cert,
-		AttestationCert:   attestationCert,
 	}
 
 	var response *auth.SSHLoginResponse
@@ -3329,7 +3317,20 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	return key, nil
 }
 
-func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pk PrivateKey) (*auth.SSHLoginResponse, error) {
+func (tc *TeleportClient) generatePrivateKey() (keys.PrivateKey, error) {
+	if tc.PIV {
+		return keys.GeneratePIVPrivateKey(keys.PIVCardTypeYubikey, tc.PIVYubikeySerial, tc.PIVSlot, tc.PIVPINPolicy, tc.PIVTouchPolicy)
+	}
+
+	rsaPrivateKey, err := native.GenerateRSAPrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return keys.NewRSAPrivateKey(rsaPrivateKey), nil
+}
+
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pk keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
 	if err != nil {
 		return nil, trace.Wrap(err)

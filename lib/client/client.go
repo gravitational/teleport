@@ -319,22 +319,16 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	case proto.UserCertsRequest_All:
 		key.Cert = certs.SSH
 		key.TLSCert = certs.TLS
-
-		// DELETE IN 7.0
-		// Database certs have to be requested with CertUsage All because
-		// pre-7.0 servers do not accept usage-restricted certificates.
-		if params.RouteToDatabase.ServiceName != "" {
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
-				params.RouteToDatabase.Protocol, certs.TLS, key.PrivateKeyPEMTODO())
-		}
-
 	case proto.UserCertsRequest_SSH:
 		key.Cert = certs.SSH
 	case proto.UserCertsRequest_App:
 		key.AppTLSCerts[params.RouteToApp.Name] = certs.TLS
 	case proto.UserCertsRequest_Database:
-		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
-			params.RouteToDatabase.Protocol, certs.TLS, key.PrivateKeyPEMTODO())
+		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
 	case proto.UserCertsRequest_Kubernetes:
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	case proto.UserCertsRequest_WindowsDesktop:
@@ -346,12 +340,16 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert, key []byte) []byte {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		return append(cert, key...)
+		rsaKeyPEM, err := pk.RSAPrivateKeyPEM()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return append(cert, rsaKeyPEM...), nil
 	}
-	return cert
+	return cert, nil
 }
 
 // PromptMFAChallengeHandler is a handler for MFA challenges.
@@ -505,8 +503,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Kubernetes:
 			key.KubeTLSCerts[initReq.KubernetesCluster] = crt.TLS
 		case proto.UserCertsRequest_Database:
-			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = makeDatabaseClientPEM(
-				params.RouteToDatabase.Protocol, crt.TLS, key.PrivateKeyPEMTODO())
+			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, crt.TLS, key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
 		case proto.UserCertsRequest_WindowsDesktop:
 			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
 		default:

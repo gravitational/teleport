@@ -135,7 +135,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 		return trace.Wrap(err)
 	}
 
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,7 +170,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 }
 
 func (c *Cluster) localMFALogin(ctx context.Context, user, password string) error {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -200,7 +200,7 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 }
 
 func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken string) error {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}

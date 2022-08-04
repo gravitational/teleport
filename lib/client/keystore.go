@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -132,18 +133,19 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := key.KeyIndex.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	// Store core key data.
-	if err := fs.writeBytes(key.PrivateKeyData(), fs.UserKeyPath(key.KeyIndex)); err != nil {
-		return trace.Wrap(err)
-	}
+
 	if err := fs.writeBytes(key.SSHPublicKeyPEM(), fs.publicKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := fs.writeBytes(key.PrivateKeyDataPEM(), fs.UserKeyPath(key.KeyIndex)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Store TLS cert
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if runtime.GOOS == constants.WindowsOS {
-		// TODO: can we support this with yubikey?
 		ppkFile, err := key.PPKFile()
 		if err == nil {
 			if err := fs.writeBytes(ppkFile, fs.PPKFilePath(key.KeyIndex)); err != nil {
@@ -245,7 +247,6 @@ func (fs *FSLocalKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) err
 
 // DeleteKeys removes all session keys.
 func (fs *FSLocalKeyStore) DeleteKeys() error {
-
 	files, err := os.ReadDir(fs.KeyDir)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -294,28 +295,21 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	// Get Private key from key device or from disk
-	var pk PrivateKey
-	pk, err = GetYkPrivateKey()
+	privData, err := os.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		privData, err := os.ReadFile(fs.UserKeyPath(idx))
-		if err != nil {
-			fs.log.Error(err)
-			return nil, trace.ConvertSystemError(err)
-		}
-		pub, err := os.ReadFile(fs.publicKeyPath(idx))
-		if err != nil {
-			fs.log.Error(err)
-			return nil, trace.ConvertSystemError(err)
-		}
-		pk, err = ParsePrivateKey(privData, pub)
-		if err != nil {
-			fs.log.Error(err)
-			return nil, trace.ConvertSystemError(err)
-		}
+		fs.log.Error(err)
+		return nil, trace.ConvertSystemError(err)
+	}
+	// pub, err := os.ReadFile(fs.publicKeyPath(idx))
+	// if err != nil {
+	// 	fs.log.Error(err)
+	// 	return nil, trace.ConvertSystemError(err)
+	// }
+
+	pk, err := keys.ParsePrivateKey(privData)
+	if err != nil {
+		fs.log.Error(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	key := &Key{

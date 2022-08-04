@@ -427,7 +427,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		},
 	}
 
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -457,7 +457,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.PrivateKeyPEMTODO(),
+			outKey:         key.PrivateKeyDataPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -472,7 +472,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.PrivateKeyPEMTODO(),
+			outKey:         key.PrivateKeyDataPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -486,7 +486,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outServerNames: []string{"mongo.example.com"},
 			outCertFile:    "mongo.crt",
 			outCAFile:      "mongo.cas",
-			outCert:        append(certBytes, key.PrivateKeyPEMTODO()...),
+			outCert:        append(certBytes, key.PrivateKeyDataPEM()...),
 			outCA:          caBytes,
 		},
 		{
@@ -499,7 +499,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "node.key",
 			outCertFile:    "node.crt",
 			outCAFile:      "ca.crt",
-			outKey:         key.PrivateKeyPEMTODO(),
+			outKey:         key.PrivateKeyDataPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},
@@ -514,7 +514,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outKeyFile:     "db.key",
 			outCertFile:    "db.crt",
 			outCAFile:      "db.cas",
-			outKey:         key.PrivateKeyPEMTODO(),
+			outKey:         key.PrivateKeyDataPEM(),
 			outCert:        certBytes,
 			outCA:          caBytes,
 		},

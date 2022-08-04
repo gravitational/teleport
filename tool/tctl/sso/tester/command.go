@@ -160,7 +160,7 @@ type AuthRequestInfo struct {
 }
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c auth.ClientI, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

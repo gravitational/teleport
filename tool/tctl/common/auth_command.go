@@ -346,7 +346,7 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
 // Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
 func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -413,7 +413,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	principals := strings.Split(a.genHost, ",")
 
 	// generate a keypair
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -458,7 +458,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -632,7 +632,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 
 	// generate a keypair:
-	key, err := client.GenerateKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}

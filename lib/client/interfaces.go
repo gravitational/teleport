@@ -25,9 +25,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,9 +68,8 @@ func (idx KeyIndex) Check() error {
 type Key struct {
 	KeyIndex
 
-	// KeyPair is a private/public that can be used to sign new certificates
-	// with a certificate authority (AKA the Teleport Auth Server).
-	PrivateKey
+	// PrivateKey is a private key used for cryptographical operations.
+	keys.PrivateKey
 
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
@@ -91,28 +92,17 @@ type Key struct {
 	TrustedCA []auth.TrustedCerts
 }
 
-// GenerateKey generates a new unsigned key. Such key must be signed by a
+// GenerateRSAKey generates a new unsigned key. Such key must be signed by a
 // Teleport CA (auth server) before it becomes useful.
-func GenerateKey() (*Key, error) {
-	pk, err := GenerateRSAPrivateKey()
+func GenerateRSAKey() (*Key, error) {
+	rsaPrivateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKey(pk), nil
+	return NewKey(keys.NewRSAPrivateKey(rsaPrivateKey)), nil
 }
 
-// ParsePrivateKey returns a new KeyPair for the given private key data and public key PEM.
-func ParsePrivateKey(privateKeyData, pubPEM []byte) (PrivateKey, error) {
-	if pk, err := GetYkPrivateKey(); err == nil {
-		return pk, nil
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	return ParseRSAPrivateKey(privateKeyData, pubPEM), nil
-}
-
-func NewKey(pk PrivateKey) (key *Key) {
+func NewKey(pk keys.PrivateKey) (key *Key) {
 	return &Key{
 		PrivateKey:          pk,
 		KubeTLSCerts:        make(map[string][]byte),
@@ -145,12 +135,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
 
-	// validate both by parsing them:
-	privKey, err := ssh.ParseRawPrivateKey(ident.PrivateKey)
-	if err != nil {
-		return nil, trace.BadParameter("invalid identity: %s. %v", path, err)
-	}
-	signer, err := ssh.NewSignerFromKey(privKey)
+	pk, err := keys.ParsePrivateKey(ident.PrivateKeyData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,7 +145,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
-		if _, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey); err != nil {
+		if _, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKeyData); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -204,7 +189,7 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		PrivateKey:  ParseRSAPrivateKey(ident.PrivateKey, ssh.MarshalAuthorizedKey(signer.PublicKey())),
+		PrivateKey:  pk,
 		Cert:        ident.Certs.SSH,
 		TLSCert:     ident.Certs.TLS,
 		TrustedCA:   trustedCA,
@@ -554,7 +539,11 @@ func (k *Key) SSHPublicKey() ssh.PublicKey {
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *Key) PPKFile() ([]byte, error) {
-	ppkFile, err := ppk.ConvertToPPK(k.PrivateKeyPEMTODO(), k.SSHPublicKeyPEM())
+	rsaKeyPEM, err := k.RSAPrivateKeyPEM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ppkFile, err := ppk.ConvertToPPK(rsaKeyPEM, k.SSHPublicKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -597,4 +586,11 @@ func (k *Key) RootClusterName() (string, error) {
 		return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
 	}
 	return clusterName, nil
+}
+
+func (k *Key) RSAPrivateKeyPEM() ([]byte, error) {
+	if _, ok := k.PrivateKey.(*keys.RSAPrivateKey); !ok {
+		return nil, trace.BadParameter("cannot get rsa key PEM for private key of type %T", k.PrivateKey)
+	}
+	return k.PrivateKeyDataPEM(), nil
 }

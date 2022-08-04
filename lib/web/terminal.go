@@ -38,6 +38,7 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -370,7 +371,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	}
 	defer pc.Close()
 
-	priv, err := ssh.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,7 +380,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		RouteToCluster: t.params.Cluster,
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
-			PrivateKey: client.ParseRSAPrivateKey(t.ctx.session.GetPriv(), ssh.MarshalAuthorizedKey(priv.PublicKey())),
+			PrivateKey: pk,
 			Cert:       t.ctx.session.GetPub(),
 			TLSCert:    t.ctx.session.GetTLSCert(),
 		},

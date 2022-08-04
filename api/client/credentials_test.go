@@ -64,7 +64,7 @@ func TestLoadIdentityFile(t *testing.T) {
 	// Write identity file to disk.
 	path := filepath.Join(t.TempDir(), "file")
 	idFile := &identityfile.IdentityFile{
-		PrivateKey: keyPEM,
+		PrivateKeyData: keyPEM,
 		Certs: identityfile.Certs{
 			TLS: tlsCert,
 			SSH: sshCert,
@@ -107,7 +107,7 @@ func TestLoadIdentityFileFromString(t *testing.T) {
 	// Write identity file to disk.
 	path := filepath.Join(t.TempDir(), "file")
 	idFile := &identityfile.IdentityFile{
-		PrivateKey: keyPEM,
+		PrivateKeyData: keyPEM,
 		Certs: identityfile.Certs{
 			TLS: tlsCert,
 			SSH: sshCert,

@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
@@ -122,10 +123,15 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pk, err := keys.ParsePrivateKey(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &UserCreds{
 		HostCA: ca,
 		Key: client.Key{
-			PrivateKey: client.ParseRSAPrivateKey(priv, pub),
+			PrivateKey: pk,
 			Cert:       sshCert,
 			TLSCert:    x509Cert,
 		},

@@ -631,11 +631,16 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
+
+	rsaKepPEM, err := key.RSAPrivateKeyPEM()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
-			ClientKeyData:         string(key.PrivateKeyPEMTODO()),
+			ClientKeyData:         string(rsaKepPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)

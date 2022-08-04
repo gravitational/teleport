@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -981,13 +982,13 @@ type YubikeyLogin struct {
 
 func (y *YubikeyLogin) Parse() (*types.YubikeyLogin, error) {
 	if y.PinPolicy != "" {
-		if _, err := client.ParseYubikeyPinPolicy(y.PinPolicy); err != nil {
+		if _, err := keys.ParsePIVPinPolicy(y.PinPolicy); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if y.TouchPolicy != "" {
-		if _, err := client.ParseYubikeyTouchPolicy(y.TouchPolicy); err != nil {
+		if _, err := keys.ParsePIVTouchPolicy(y.TouchPolicy); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

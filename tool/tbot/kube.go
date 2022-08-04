@@ -50,7 +50,7 @@ func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(idFile.Certs.TLS),
-			ClientKeyData:         string(idFile.PrivateKey),
+			ClientKeyData:         string(idFile.PrivateKeyData),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)

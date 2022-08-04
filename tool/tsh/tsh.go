@@ -37,6 +37,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -285,9 +287,11 @@ type CLIConf struct {
 	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
 
-	YubikeyLogin       bool
-	YubikeyPINPolicy   string
-	YubikeyTouchPolicy string
+	PIV              bool
+	PIVSlot          string
+	PIVPINPolicy     string
+	PIVTouchPolicy   string
+	PIVYubikeySerial string
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
 	// command/shell execution. This also requires stdin to be an interactive
@@ -516,9 +520,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	// TODO: yubikey options should be settable through tsh config/envvar
-	app.Flag("yubikey", "Use yubikey PIV to private key data.").Short('y').BoolVar(&cf.YubikeyLogin)
-	app.Flag("yubikey-pin-policy", fmt.Sprintf("Control how often you need to enter your yubikey PIN to access the yubikey private key data. Valid values are %v.", client.YubikeyPolicyOptions)).Default(client.YubikeyPolicyAlways).StringVar(&cf.YubikeyPINPolicy)
-	app.Flag("yubikey-touch-policy", fmt.Sprintf("Control how often you need to touch your yubikey to access the yubikey private key data. Valid values are %v.", client.YubikeyPolicyOptions)).Default(client.YubikeyPolicyAlways).StringVar(&cf.YubikeyTouchPolicy)
+	app.Flag("piv", "During login, use PIV to generate and store private key data for your login session.").Short('y').BoolVar(&cf.PIV)
+	app.Flag("piv-slot", "Specify which PIV slot to use for this login session. Valid values are 9a, 9c-9e, and 82-95.").Default(piv.SlotAuthentication.String()).StringVar(&cf.PIVSlot)
+	app.Flag("piv-pin-policy", fmt.Sprintf("Control how often you need to enter your PIV PIN to access PIV private key data. Valid values are %v.", keys.PIVPINPolicyOptions)).Default(keys.PIVPolicyOnce).StringVar(&cf.PIVPINPolicy)
+	app.Flag("piv-touch-policy", fmt.Sprintf("Control how often you need to touch your PIV device to access PIV private key data. Valid values are %v.", keys.PIVTouchPolicyOptions)).Default(keys.PIVPolicyCached).StringVar(&cf.PIVTouchPolicy)
+	app.Flag("piv-yubikey-serial", "Specify a yubikey to use for PIV login by serial number.").StringVar(&cf.PIVYubikeySerial)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
@@ -3053,15 +3059,21 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
-	c.YubikeyLogin = cf.YubikeyLogin
-	c.YubikeyPINPolicy, err = client.ParseYubikeyPinPolicy(cf.YubikeyPINPolicy)
+	c.PIV = cf.PIV
+	c.PIVSlot, err = keys.ParsePIVSlot(cf.PIVSlot)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.YubikeyTouchPolicy, err = client.ParseYubikeyTouchPolicy(cf.YubikeyTouchPolicy)
+	c.PIVPINPolicy, err = keys.ParsePIVPinPolicy(cf.PIVPINPolicy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.PIVTouchPolicy, err = keys.ParsePIVTouchPolicy(cf.PIVTouchPolicy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.PIVYubikeySerial = cf.PIVYubikeySerial
 
 	c.EnableEscapeSequences = cf.EnableEscapeSequences
 
@@ -3243,13 +3255,8 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO remove onShow? it doesn't actually work...
-	// unmarshal private key bytes into a *rsa.PrivateKey
-	priv, err := ssh.ParseRawPrivateKey(key.PrivateKeyPEMTODO())
-	// if err != nil {
+	priv, err := ssh.ParseRawPrivateKey(key.PrivateKeyDataPEM())
 	// ignore error, we might not have an rsa key...
-	// return trace.Wrap(err)
-	// }
 
 	pub, err := ssh.ParsePublicKey(key.SSHPublicKeyPEM())
 	if err != nil {

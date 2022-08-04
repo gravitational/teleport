@@ -24,6 +24,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -120,8 +121,13 @@ func genUserKey() (*client.Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	pk, err := keys.ParsePrivateKey(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &client.Key{
-		PrivateKey: client.ParseRSAPrivateKey(priv, pub),
+		PrivateKey: pk,
 		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},

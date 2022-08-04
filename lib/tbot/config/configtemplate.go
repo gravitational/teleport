@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -247,11 +248,12 @@ func (b *BotConfigWriter) Stat(name string) (fs.FileInfo, error) {
 
 // newClientKey returns a sane client.Key for the given bot identity.
 func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) *client.Key {
+	pk, _ := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	return &client.Key{
 		KeyIndex: client.KeyIndex{
 			ClusterName: ident.ClusterName,
 		},
-		PrivateKey: client.ParseRSAPrivateKey(ident.PrivateKeyBytes, ident.PublicKeyBytes),
+		PrivateKey: pk,
 		Cert:       ident.CertBytes,
 		TLSCert:    ident.TLSCertBytes,
 		TrustedCA:  auth.AuthoritiesToTrustedCerts(hostCAs),

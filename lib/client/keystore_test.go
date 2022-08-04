@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -472,9 +473,13 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 		PermitPortForwarding:  true,
 	})
 	require.NoError(t, err)
+
+	pk, err := keys.ParsePrivateKey(priv)
+	require.NoError(t, err)
+
 	return &Key{
 		KeyIndex:   idx,
-		PrivateKey: ParseRSAPrivateKey(priv, pub),
+		PrivateKey: pk,
 		Cert:       cert,
 		TLSCert:    tlsCert,
 		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},

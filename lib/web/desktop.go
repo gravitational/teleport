@@ -30,10 +30,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -211,7 +211,7 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 }
 
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
-	priv, err := ssh.ParsePrivateKey(sessCtx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sessCtx.session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,7 +224,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		},
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
-			PrivateKey:          client.ParseRSAPrivateKey(sessCtx.session.GetPriv(), ssh.MarshalAuthorizedKey(priv.PublicKey())),
+			PrivateKey:          pk,
 			Cert:                sessCtx.session.GetPub(),
 			TLSCert:             sessCtx.session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),

@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -98,8 +99,11 @@ func newClientKey(t *testing.T) *client.Key {
 	})
 	require.NoError(t, err)
 
+	pk, err := keys.ParsePrivateKey(privateKey)
+	require.NoError(t, err)
+
 	return &client.Key{
-		PrivateKey: client.ParseRSAPrivateKey(privateKey, publicKey),
+		PrivateKey: pk,
 		Cert:       certificate,
 		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{
@@ -128,7 +132,7 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(key.PrivateKeyData()))
+	require.Equal(t, string(out), string(key.PrivateKeyDataPEM()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
@@ -146,7 +150,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		key.PrivateKeyData(),
+		key.PrivateKeyDataPEM(),
 		{'\n'},
 		key.Cert,
 		key.TLSCert,
