@@ -151,11 +151,7 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 
 	sendTDPError := func(ws *websocket.Conn, err error) error {
-		tdpErr := tdp.NewConn(&WebsocketIO{Conn: ws}).SendError(err.Error())
-		if tdpErr != nil {
-			return trace.Wrap(tdpErr)
-		}
-		return nil
+		return trace.Wrap(tdp.NewConn(&WebsocketIO{Conn: ws}).SendError(err.Error()))
 	}
 
 	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
@@ -304,19 +300,55 @@ func proxyWebsocketConn(ws *websocket.Conn, con net.Conn) error {
 	}
 
 	errs := make(chan error, 2)
-	stream := &WebsocketIO{Conn: ws}
+
 	go func() {
 		defer closeOnce.Do(close)
 
-		_, err := io.Copy(stream, con)
-		if utils.IsOKNetworkError(err) {
-			err = nil
+		// we avoid using io.Copy here, as we want to make sure
+		// each TDP message is sent as a unit so that a single
+		// 'message' event is emitted in the browser
+		// (io.Copy's internal buffer could split one message
+		// into multiple ws.WriteMessage calls)
+		tc := tdp.NewConn(con)
+		for {
+			// TODO(zmb3): avoid the decode/encode loop here,
+			// and instead just build a tokenizer that reads
+			// the correct amount of bytes
+			msg, err := tc.InputMessage()
+			if utils.IsOKNetworkError(err) {
+				errs <- nil
+				return
+			}
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			encoded, err := msg.Encode()
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
+			if utils.IsOKNetworkError(err) {
+				errs <- nil
+				return
+			}
+			if err != nil {
+				errs <- err
+				return
+			}
 		}
-		errs <- err
 	}()
+
 	go func() {
 		defer closeOnce.Do(close)
 
+		// io.Copy is fine here, as the Windows Desktop Service
+		// operates on a stream and doesn't care if TPD messages
+		// are fragmented
+		stream := &WebsocketIO{Conn: ws}
 		_, err := io.Copy(con, stream)
 		if utils.IsOKNetworkError(err) {
 			err = nil
