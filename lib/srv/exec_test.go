@@ -366,7 +366,7 @@ func (f *fakeTerminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (f *fakeTerminal) Run() error {
+func (f *fakeTerminal) Run(ctx context.Context) error {
 	return nil
 }
 
@@ -380,7 +380,7 @@ func (f *fakeTerminal) Wait() (*ExecResult, error) {
 func (f *fakeTerminal) Continue() {}
 
 // Kill will force kill the terminal.
-func (f *fakeTerminal) Kill() error {
+func (f *fakeTerminal) Kill(ctx context.Context) error {
 	return nil
 }
 
@@ -410,7 +410,7 @@ func (f *fakeTerminal) GetWinSize() (*term.Winsize, error) {
 }
 
 // SetWinSize sets the window size of the terminal.
-func (f *fakeTerminal) SetWinSize(params rsession.TerminalParams) error {
+func (f *fakeTerminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
 	return nil
 }
 
