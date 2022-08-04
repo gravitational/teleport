@@ -170,12 +170,14 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	go func() {
 		defer downstreamConn.Close()
 		defer upstreamConn.Close()
+
 		_, err := io.Copy(downstreamConn, upstreamConn)
 		errC <- err
 	}()
 	go func() {
 		defer downstreamConn.Close()
 		defer upstreamConn.Close()
+
 		_, err := io.Copy(upstreamConn, downstreamConn)
 		errC <- err
 	}()

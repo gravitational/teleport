@@ -71,6 +71,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 )
 
 func TestMain(m *testing.M) {
@@ -1553,6 +1555,43 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 // cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
 func (c *testContext) cassandraClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cassandra.Session, error) {
 	return c.cassandraClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
+}
+
+// cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
+func (c *testContext) cassandraRawClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cqlclient.CqlClientConnection, error) {
+	options := cassandra.ClientOptionsParams{
+		Username: "cassandra",
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	cc := cqlclient.NewCqlClient(c.webListener.Addr().String(), &cqlclient.AuthCredentials{
+		Username: options.Username,
+		Password: "cassandra",
+	})
+	cc.ReadTimeout = time.Hour
+	cc.ConnectTimeout = time.Hour
+	tlsConfig, err := common.MakeTestClientTLSConfig(common.TestClientConfig{
+		AuthClient: c.authClient,
+		AuthServer: c.authServer,
+		Address:    c.webListener.Addr().String(),
+		Cluster:    c.clusterName,
+		Username:   teleportUser,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: dbService,
+			Protocol:    defaults.ProtocolCassandra,
+			Username:    dbUser,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cc.TLSConfig = tlsConfig
+	pp, err := cc.Connect(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pp, nil
 }
 
 // cassandraClientWithAddr is like cassandraClient but allows overriding connection address.

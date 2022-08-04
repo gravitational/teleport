@@ -27,6 +27,11 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -38,10 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -647,9 +648,10 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		keyFile:   keyFile,
 	}
 
-	// For SQL Server connections, local proxy must be configured with the
+	// For SQL Server and cassandra connections, local proxy must be configured with the
 	// client certificate that will be used to route connections.
-	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer {
+	switch arg.routeToDatabase.Protocol {
+	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
 		opts.certFile = arg.profile.DatabaseCertPathForCluster("", arg.routeToDatabase.ServiceName)
 		opts.keyFile = arg.profile.KeyPath()
 	}
@@ -720,7 +722,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 	opts = append(opts, dbcmd.WithLogger(log))
 
-	cmd, err := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...).GetConnectCommand()
+	if database.GetProtocol() == defaults.ProtocolCassandra && database.IsAWSHosted() {
+		// Cassandra client always prompt for password, so we need to provide it
+		// and provide an auto generated dummy password to skip the prompt in case of
+		// connection to AWS hosted cassandra.
+		opts = append(opts, dbcmd.WithPassword(uuid.New().String()))
+	}
+
+	bb := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...)
+	cmd, err := bb.GetConnectCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,9 +757,15 @@ func onDatabaseConnect(cf *CLIConf) error {
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
 	database, err := pickActiveDatabase(cf)
 	if err == nil {
-		return database, nil, nil
+		switch database.Protocol {
+		case defaults.ProtocolCassandra:
+			// Cassandra CLI connection require database resource to determine
+			// if the target database is AWS hosted in order to skip the password prompt.
+		default:
+			return database, nil, nil
+		}
 	}
-	if !trace.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
 	db, err := getDatabase(cf, tc, dbName)
@@ -1001,8 +1017,11 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 // for connecting to the provided database. Currently return true if:
 //   - TLS routing is enabled.
 //   - A SQL Server connection always requires a local proxy.
+//   - A Cassandra connection always requires a local proxy.
 func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	return tc.TLSRoutingEnabled || db.Protocol == defaults.ProtocolSQLServer
+	return tc.TLSRoutingEnabled ||
+		db.Protocol == defaults.ProtocolSQLServer ||
+		db.Protocol == defaults.ProtocolCassandra
 }
 
 const (

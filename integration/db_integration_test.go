@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -859,6 +860,59 @@ func (p *databasePack) testAgentState(t *testing.T) {
 	}
 }
 
+// TestDatabaseAccessCassandraRootCluster tests a scenario where a user connects
+// to a Postgres database running in a root cluster.
+func TestDatabaseAccessCassandraRootCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    pack.root.cluster.Web,
+		Cluster:    pack.root.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.root.cassandraService.Name,
+			Protocol:    pack.root.cassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+}
+
+// TestDatabaseAccessCassandraLeafCluster tests a scenario where a user connects
+// to a Postgres database running in a root cluster.
+func TestDatabaseAccessCassandraLeafCluster(t *testing.T) {
+	pack := setupDatabaseTest(t)
+	pack.waitForLeaf(t)
+
+	// Connect to the database service in root cluster.
+	dbConn, err := cassandra.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+		AuthServer: pack.root.cluster.Process.GetAuthServer(),
+		Address:    pack.root.cluster.Web,
+		Cluster:    pack.leaf.cluster.Secrets.SiteName,
+		Username:   pack.root.user.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: pack.leaf.cassandraService.Name,
+			Protocol:    pack.leaf.cassandraService.Protocol,
+			Username:    "cassandra",
+		},
+	})
+	require.NoError(t, err)
+
+	var clusterName string
+	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
+	require.NoError(t, err)
+	require.Equal(t, "Test Cluster", clusterName)
+}
+
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
 	max := time.Second
 	timeout := time.After(max)
@@ -901,20 +955,23 @@ type databasePack struct {
 }
 
 type databaseClusterPack struct {
-	cluster         *helpers.TeleInstance
-	user            types.User
-	role            types.Role
-	dbProcess       *service.TeleportProcess
-	dbAuthClient    *auth.Client
-	postgresService service.Database
-	postgresAddr    string
-	postgres        *postgres.TestServer
-	mysqlService    service.Database
-	mysqlAddr       string
-	mysql           *mysql.TestServer
-	mongoService    service.Database
-	mongoAddr       string
-	mongo           *mongodb.TestServer
+	cluster          *helpers.TeleInstance
+	user             types.User
+	role             types.Role
+	dbProcess        *service.TeleportProcess
+	dbAuthClient     *auth.Client
+	postgresService  service.Database
+	postgresAddr     string
+	postgres         *postgres.TestServer
+	mysqlService     service.Database
+	mysqlAddr        string
+	mysql            *mysql.TestServer
+	mongoService     service.Database
+	mongoAddr        string
+	mongo            *mongodb.TestServer
+	cassandraService service.Database
+	cassandraAddr    string
+	cassandra        *cassandra.TestServer
 }
 
 type testOptions struct {
@@ -990,14 +1047,16 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
-			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
-			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			postgresAddr:  net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:     net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:     net.JoinHostPort("localhost", helpers.NewPortStr()),
+			cassandraAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 		leaf: databaseClusterPack{
-			postgresAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
-			mysqlAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
-			mongoAddr:    net.JoinHostPort("localhost", helpers.NewPortStr()),
+			postgresAddr:  net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mysqlAddr:     net.JoinHostPort("localhost", helpers.NewPortStr()),
+			mongoAddr:     net.JoinHostPort("localhost", helpers.NewPortStr()),
+			cassandraAddr: net.JoinHostPort("localhost", helpers.NewPortStr()),
 		},
 	}
 
@@ -1101,6 +1160,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      p.root.mongoAddr,
 	}
+	p.root.cassandraService = service.Database{
+		Name:     "root-cassandra",
+		Protocol: defaults.ProtocolCassandra,
+		URI:      p.root.cassandraAddr,
+	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
 	rdConf.SetToken("static-token-value")
@@ -1115,6 +1179,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.postgresService,
 		p.root.mysqlService,
 		p.root.mongoService,
+		p.root.cassandraService,
 	}
 	rdConf.Clock = p.clock
 	rdConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -1139,6 +1204,12 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      p.leaf.mongoAddr,
 	}
+	p.leaf.cassandraService = service.Database{
+		Name:     "leaf-cassandra",
+		Protocol: defaults.ProtocolCassandra,
+		URI:      p.leaf.cassandraAddr,
+	}
+
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
 	ldConf.SetToken("static-token-value")
@@ -1153,6 +1224,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.leaf.postgresService,
 		p.leaf.mysqlService,
 		p.leaf.mongoService,
+		p.leaf.cassandraService,
 	}
 	ldConf.Clock = p.clock
 	ldConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -1198,6 +1270,18 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongo.Close()
 	})
 
+	// Create and start test Cassandra in the root cluster.
+	p.root.cassandra, err = cassandra.NewTestServer(common.TestServerConfig{
+		AuthClient: p.root.dbAuthClient,
+		Name:       p.root.cassandraService.Name,
+		Address:    p.root.cassandraAddr,
+	})
+	require.NoError(t, err)
+	go p.root.cassandra.Serve()
+	t.Cleanup(func() {
+		p.root.cassandra.Close()
+	})
+
 	// Create and start test Postgres in the leaf cluster.
 	p.leaf.postgres, err = postgres.NewTestServer(common.TestServerConfig{
 		AuthClient: p.leaf.dbAuthClient,
@@ -1232,6 +1316,18 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	go p.leaf.mongo.Serve()
 	t.Cleanup(func() {
 		p.leaf.mongo.Close()
+	})
+
+	// Create and start test Mongo in the leaf cluster.
+	p.leaf.cassandra, err = cassandra.NewTestServer(common.TestServerConfig{
+		AuthClient: p.leaf.dbAuthClient,
+		Name:       p.leaf.cassandraService.Name,
+		Address:    p.leaf.cassandraAddr,
+	})
+	require.NoError(t, err)
+	go p.leaf.cassandra.Serve()
+	t.Cleanup(func() {
+		p.leaf.cassandra.Close()
 	})
 
 	return p

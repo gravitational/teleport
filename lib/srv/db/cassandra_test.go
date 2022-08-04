@@ -1,20 +1,17 @@
 /*
+Copyright 2021 Gravitational, Inc.
 
- Copyright 2022 Gravitational, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
 
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package db
@@ -22,21 +19,28 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
 
+	"github.com/datastax/go-cassandra-native-protocol/frame"
+	"github.com/datastax/go-cassandra-native-protocol/message"
+	"github.com/datastax/go-cassandra-native-protocol/primitive"
 	"github.com/gocql/gocql"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAccessCassandra(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
@@ -102,7 +106,6 @@ func TestAccessCassandra(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			// Create user/role with the requested permissions.
 			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
@@ -128,7 +131,70 @@ func TestAccessCassandra(t *testing.T) {
 	}
 }
 
+func TestAccessCassandraHandshake(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		protocolVersion primitive.ProtocolVersion
+	}{
+		{
+			protocolVersion: primitive.ProtocolVersion5,
+		},
+		{
+			protocolVersion: primitive.ProtocolVersion4,
+		},
+		{
+			protocolVersion: primitive.ProtocolVersion3,
+		},
+	}
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
+	go testCtx.startHandlingConnections()
+	teleportUser := "alice"
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%s", tc.protocolVersion), func(t *testing.T) {
+			t.Run("successful", func(t *testing.T) {
+				testCtx.createUserAndRole(ctx, t, teleportUser, "admin", []string{"cassandra"}, []string{types.Wildcard})
+				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "cassandra")
+				require.NoError(t, err)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				require.NoError(t, err)
+				fr := frame.NewFrame(tc.protocolVersion, 102, &message.Query{
+					Query: "select * from system.local where key='local'"},
+				)
+				_, err = cqlRawClient.SendAndReceive(fr)
+				require.NoError(t, err)
+				cqlRawClient.Close()
+			})
+
+			t.Run("auth error", func(t *testing.T) {
+				testCtx.createUserAndRole(ctx, t, teleportUser, "admin", []string{"cassandra"}, []string{types.Wildcard})
+				opts := []cassandra.ClientOptions{cassandra.WithCassandraUsername("unknown_user")}
+				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "unknown_user", opts...)
+				require.NoError(t, err)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "access to db denied")
+				cqlRawClient.Close()
+			})
+
+			t.Run("user  doesn't exist", func(t *testing.T) {
+				testCtx.createUserAndRole(ctx, t, teleportUser, "admin", []string{"unknown_user"}, []string{types.Wildcard})
+				opts := []cassandra.ClientOptions{cassandra.WithCassandraUsername("unknown_user")}
+				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "unknown_user", opts...)
+				require.NoError(t, err)
+				err = cqlRawClient.InitiateHandshake(tc.protocolVersion, 101)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid credentials")
+				cqlRawClient.Close()
+			})
+		})
+	}
+}
+
 func TestAuditCassandra(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
@@ -171,6 +237,7 @@ func TestAuditCassandra(t *testing.T) {
 }
 
 func TestBatchCassandra(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()
@@ -198,6 +265,7 @@ func TestBatchCassandra(t *testing.T) {
 }
 
 func TestEventCassandra(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withCassandra("cassandra"))
 	go testCtx.startHandlingConnections()

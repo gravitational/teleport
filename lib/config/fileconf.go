@@ -1369,6 +1369,8 @@ type DatabaseAWS struct {
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
+	// AccountID is the AWS account ID.
+	AccountID string `yaml:"account_id,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1395,6 +1397,12 @@ type DatabaseAWSElastiCache struct {
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
 	ClusterName string `yaml:"cluster_name,omitempty"`
+}
+
+// DatabaseAWSKeyspace ...
+type DatabaseAWSKeyspace struct {
+	// ClusterName is the MemoryDB cluster name.
+	PolicyToUser map[string]string `yaml:"user_to_policy,omitempty"`
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.

@@ -29,16 +29,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/pavlo-v-chernykh/keystore-go/v4"
+
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/gravitational/trace"
-
-	"github.com/pavel-v-chernykh/keystore-go/v4"
 )
 
 // Format describes possible file formats how a user identity can be stored.
@@ -159,6 +158,8 @@ type WriteConfig struct {
 	OverwriteDestination bool
 	// Writer is the filesystem implementation.
 	Writer ConfigWriter
+	// JKSPassword is the password for the JKS keystore used by Cassandra format.
+	JKSPassword string
 }
 
 // Write writes user credentials to disk in a specified format.
@@ -387,7 +388,6 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	}
 
 	ts := keystore.New()
-
 	trustIn := keystore.TrustedCertificateEntry{
 		CreationTime: time.Now(),
 		Certificate: keystore.Certificate{
@@ -395,21 +395,20 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 			Content: caCerts,
 		},
 	}
-
 	if err := ts.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	truststoreBuf := &bytes.Buffer{}
-	if err := ts.Store(truststoreBuf, []byte("teleport")); err != nil {
+	var buff bytes.Buffer
+	if err := ts.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return truststoreBuf, nil
+	return &buff, nil
 }
 
 func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
-	privBlock, _ := pem.Decode(cfg.Key.Priv)
+	privBlock, _ := pem.Decode(cfg.Key.PrivateKeyPEM())
 
 	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	if err != nil {
@@ -432,19 +431,15 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 			},
 		},
 	}
-
-	// TODO(jakule): "teleport" password shouldn't be hardcoded
-	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte("teleport")); err != nil {
+	if err := ks.SetPrivateKeyEntry("certificate", pkeIn, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	keystoreBuf := &bytes.Buffer{}
-
-	// TODO(jakule): "teleport" password shouldn't be hardcoded
-	if err := ks.Store(keystoreBuf, []byte("teleport")); err != nil {
+	var buff bytes.Buffer
+	if err := ks.Store(&buff, []byte{}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keystoreBuf, nil
+	return &buff, nil
 }
 
 func checkOverwrite(writer ConfigWriter, force bool, paths ...string) error {

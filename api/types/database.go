@@ -23,13 +23,13 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // Database represents a database proxied by a database server.
@@ -371,9 +371,16 @@ func (d *DatabaseV3) IsMemoryDB() bool {
 	return d.GetType() == DatabaseTypeMemoryDB
 }
 
+// IsAWSCassandra returns true if this is an AWS hosted Cassandra database.
+func (d *DatabaseV3) IsAWSCassandra() bool {
+	return d.Spec.Protocol == DatabaseTypeAWSKeyspace &&
+		d.Spec.AWS.AccountID != "" &&
+		d.Spec.AWS.Region != ""
+}
+
 // IsAWSHosted returns true if database is hosted by AWS.
 func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
+	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB() || d.IsAWSCassandra()
 }
 
 // IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
@@ -384,6 +391,10 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
+	if d.Spec.Protocol == DatabaseTypeAWSKeyspace && d.Spec.AWS.AccountID != "" {
+		return DatabaseTypeAWSKeyspace
+	}
+
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
 	}
@@ -453,11 +464,17 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
 	if d.Spec.URI == "" {
-		return trace.BadParameter("database %q URI is empty", d.GetName())
+		switch {
+		case d.IsAWSCassandra():
+			// In cas of AWS Hosted Cassandra allow to omit URI.
+		default:
+			return trace.BadParameter("database %q URI is empty", d.GetName())
+		}
 	}
 	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
 		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
 	}
+
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
@@ -519,6 +536,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	case d.IsAWSCassandra():
+		d.Spec.URI = fmt.Sprintf("cassandra.%s.amazonaws.com:9142", d.Spec.AWS.Region)
 	}
 	return nil
 }
@@ -672,6 +691,8 @@ const (
 	DatabaseTypeElastiCache = "elasticache"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
+	// DatabaseTypeAWSKeyspace is AWS-hosted Keyspace database.
+	DatabaseTypeAWSKeyspace = "cassandra"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

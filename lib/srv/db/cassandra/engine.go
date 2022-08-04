@@ -1,20 +1,17 @@
 /*
+Copyright 2022 Gravitational, Inc.
 
- Copyright 2022 Gravitational, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
 
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package cassandra
@@ -23,24 +20,22 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"net"
-	"strings"
-	"sync"
 
-	"github.com/datastax/go-cassandra-native-protocol/client"
-	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
-	"github.com/datastax/go-cassandra-native-protocol/primitive"
-	"github.com/datastax/go-cassandra-native-protocol/segment"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func init() {
@@ -51,9 +46,6 @@ func init() {
 func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
-		v5LayoutMtx:  &sync.Mutex{},
-		frameCodec:   frame.NewRawCodec(),
-		segmentCodec: segment.NewCodec(),
 	}
 }
 
@@ -62,276 +54,203 @@ type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
-	clientConn net.Conn
+	clientConn *protocol.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// segmentCodec is the segment decoder used by v5 protocol to decode segments.
-	segmentCodec segment.Codec
-	// frameCodec is the frame decoder used to decode frames.
-	frameCodec frame.RawCodec
-	// v5LayoutMtx is a mutex used to protect v5Layout member.
-	v5LayoutMtx *sync.Mutex
-	// v5Layout is true when communication used v5 protocol (the latest supported), false otherwise.
-	v5Layout bool
+	// handshakeTriggered is set to true if handshake was triggered and
+	// used to indicated that custom errors should be sent to the client.
+	// Cassandra wire protocol relays on streamID to that needs to match the request value
+	// so sending a custom error to the client requires to read a first message send by the client.
+	handshakeTriggered bool
 }
 
-func (e *Engine) SendError(err error) {
-	if utils.IsOKNetworkError(err) || err == nil {
+// SendError send a Cassandra ServerError to  error to the client if handshake was not yet initialized by the client.
+// Cassandra wire protocol relays on streamID to that are set by the client and server response needs to
+// set the correct streamID in order to get streamID SendError reads a first message send by the client.
+func (e *Engine) SendError(sErr error) {
+	if utils.IsOKNetworkError(sErr) || sErr == nil {
+		return
+	}
+	e.Log.Debug("cassandra connection error: %v", sErr)
+	if e.handshakeTriggered {
 		return
 	}
 
-	// TODO(jakule) implement if possible.
-	e.Log.Errorf("cassandra connection error: %v", err)
-}
-
-func (e *Engine) sendClientError(protoVer primitive.ProtocolVersion, streamID int16, err error) {
-	var errFrame *frame.Frame
-
-	if trace.IsAccessDenied(err) {
-		errFrame = frame.NewFrame(protoVer, streamID, &message.AuthenticationError{ErrorMessage: err.Error()})
-	} else {
-		errFrame = frame.NewFrame(protoVer, streamID, &message.ServerError{ErrorMessage: err.Error()})
-	}
-
-	codec := frame.NewRawCodec()
-	if err := codec.EncodeFrame(errFrame, e.clientConn); err != nil {
-		e.Log.Errorf("failed to send error message to the client: %v", err)
+	eh := failedHandshake{error: sErr}
+	if err := eh.handshake(e.clientConn, nil); err != nil {
+		e.Log.Warnf("cassandra connection error: %v", sErr)
 	}
 }
 
 // InitializeConnection initializes the database connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
-	e.clientConn = clientConn
+	e.clientConn = protocol.NewConn(clientConn)
 	e.sessionCtx = sessionCtx
-
 	return nil
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	err := e.authorizeConnection(ctx)
 	if err != nil {
-		e.sendAuthError(err)
 		return trace.Wrap(err)
 	}
 
-	e.Log.Info("Accepted new connection")
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	serverConn, err := e.connect(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer serverConn.Close()
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	serverConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), tlsConfig)
-	if err != nil {
+	if err := e.handshake(sessionCtx, e.clientConn, serverConn); err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		if err := serverConn.Close(); err != nil {
-			e.Log.WithError(err).Error("failed to close server connection")
-		}
-	}()
 
+	return trace.Wrap(e.handleClientServerConn(ctx, e.clientConn, serverConn))
+}
+
+func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protocol.Conn, serverConn net.Conn) error {
+	errC := make(chan error, 2)
 	go func() {
-		err := e.handleServerConnection(serverConn)
-		if err != nil {
-			e.Log.WithError(err).Error("failed to proxy server data")
-		}
+		err := e.handleClientConnectionWithAudit(clientConn, serverConn)
+		errC <- trace.Wrap(err, "client done")
+	}()
+	go func() {
+		err := e.handleServerConnection(clientConn, serverConn)
+		errC <- trace.Wrap(err, "server done")
 	}()
 
-	return e.handleClientConnection(serverConn)
-}
-
-func (e *Engine) handleClientConnection(serverConn *tls.Conn) error {
-	memBuf := newMemoryBuffer(e.clientConn)
-
-	for {
-		payloadReader, err := e.maybeReadFromClient(memBuf)
-		if err != nil {
-			if errors.Is(err, io.EOF) || utils.IsOKNetworkError(err) {
-				return nil
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case err := <-errC:
+			if err != nil && !utils.IsOKNetworkError(errors.Unwrap(err)) && !errors.Is(err, io.EOF) {
+				errs = append(errs, err)
 			}
-			return trace.Wrap(err, "failed to read frame")
-		}
-
-		if err := e.processFrame(payloadReader); err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return trace.Wrap(err, "failed to process frame")
-		}
-
-		if _, err := serverConn.Write(memBuf.Bytes()); err != nil {
-			return trace.Wrap(err, "failed to write frame to cassandra: %v", err)
-		}
-
-		// Reset buffered frames.
-		memBuf.Reset()
-	}
-}
-
-func (e *Engine) maybeReadFromClient(memBuf *memoryBuffer) (io.Reader, error) {
-	e.v5LayoutMtx.Lock()
-	// there is no point to keep the mutex until the end of this function as we only
-	// want to protect the v5Layout member.
-	if e.v5Layout {
-		e.v5LayoutMtx.Unlock()
-		return e.readV5Layout(memBuf)
-	}
-	e.v5LayoutMtx.Unlock()
-
-	// protocol v4 and earlier
-	return memBuf, nil
-}
-
-func (e *Engine) readV5Layout(memBuf io.Reader) (io.Reader, error) {
-	previousSegment := bytes.Buffer{}
-	expectedSegmentSize := 0
-
-	for {
-		seg, err := e.segmentCodec.DecodeSegment(memBuf)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to decode frame")
-		}
-
-		// If the frame is self-contained return it.
-		if seg.Header.IsSelfContained {
-			return bytes.NewReader(seg.Payload.UncompressedData), nil
-		}
-
-		// Otherwise read the frame size and keep reading until we read all data.
-		// Segments are always delivered in order.
-		if expectedSegmentSize == 0 {
-			frameHeader, err := e.frameCodec.DecodeHeader(bytes.NewReader(seg.Payload.UncompressedData))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			expectedSegmentSize = int(primitive.FrameHeaderLengthV3AndHigher + frameHeader.BodyLength)
-		}
-		// Append another segment
-		previousSegment.Write(seg.Payload.UncompressedData)
-
-		// Return the frame after reading all segments.
-		if expectedSegmentSize == previousSegment.Len() {
-			return &previousSegment, nil
 		}
 	}
+	return trace.NewAggregate(errs...)
+
 }
 
-func (e *Engine) handleServerConnection(serverConn *tls.Conn) error {
-	r := io.TeeReader(serverConn, e.clientConn)
-
+func (e *Engine) handleClientConnectionWithAudit(clientConn *protocol.Conn, serverConn net.Conn) error {
+	defer serverConn.Close()
 	for {
-		rawFrame, err := e.frameCodec.DecodeRawFrame(r)
+		packet, err := clientConn.ReadPacket()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
 			return trace.Wrap(err)
 		}
-
-		if rawFrame.Header.OpCode == primitive.OpCodeSupported {
-			body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if _, ok := body.Body.Message.(*message.Supported); ok {
-				e.v5LayoutMtx.Lock()
-				e.v5Layout = rawFrame.Header.Version == primitive.ProtocolVersion5
-				e.v5LayoutMtx.Unlock()
-				break
-			}
+		if err := e.processPacket(packet); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := serverConn.Write(packet.Raw()); err != nil {
+			return trace.Wrap(err)
 		}
 	}
+}
 
-	if _, err := io.Copy(e.clientConn, serverConn); err != nil && !utils.IsOKNetworkError(err) {
+func (e *Engine) handleServerConnection(clientConn, serverConn net.Conn) error {
+	defer e.clientConn.Close()
+	if _, err := io.Copy(clientConn, serverConn); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
-func (e *Engine) processFrame(conn io.Reader) error {
-	rawFrame, err := e.frameCodec.DecodeRawFrame(conn)
-	if err != nil {
-		return trace.Wrap(err, "failed to decode frame")
+func getUsernameFromAuthResponse(msg *message.AuthResponse) (string, error) {
+	// auth token contains username and password split by \0 character
+	// ex: \0username\0password
+	data := bytes.Split(msg.Token, []byte{0})
+	if len(data) != 3 {
+		return "", trace.BadParameter("failed to extract username from the auth package")
 	}
+	return string(data[1]), nil
+}
 
-	body, err := e.frameCodec.ConvertFromRawFrame(rawFrame)
+func validateCassandraUsername(ses *common.Session, msg *message.AuthResponse) error {
+	username, err := getUsernameFromAuthResponse(msg)
 	if err != nil {
-		return trace.Wrap(err, "failed to decode auth response")
+		return trace.Wrap(err)
 	}
+	if ses.DatabaseUser != username {
+		return trace.AccessDenied("user %s is not authorized to access the database", username)
+	}
+	return nil
+}
 
-	switch msg := body.Body.Message.(type) {
+func (e *Engine) processPacket(packet *protocol.Packet) error {
+	body := packet.FrameBody()
+	switch msg := body.Message.(type) {
 	case *message.Options:
-		// NOOP - this message is used as a ping/heartbeat.
+		// Cassandra client sends options message to the server to negotiate protocol version.
+		// Skip audit for this message.
 	case *message.Startup:
-		// Compression for some reason it returned lowercase. Looks like a library bug :(
-		compression := primitive.Compression(strings.ToUpper(string(msg.GetCompression())))
-		// Update the connection codec if compression is enabled.
-		if compression != primitive.CompressionNone {
-			e.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
-			e.segmentCodec = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
-		}
+		// Startup message is sent by the client to initialize the cassandra handshake.
+		// Skip audit for this message.
 	case *message.AuthResponse:
-		// auth token contains username and password split by \0 character
-		// ex: \0username\0password
-		data := bytes.Split(msg.Token, []byte{0})
-		if len(data) != 3 {
-			return trace.BadParameter("failed to extract username from the auth package.")
-		}
-		username := string(data[1])
-
-		e.Log.Infof("auth response: %s, %s", username, string(data[2]))
-
-		if e.sessionCtx.DatabaseUser != username {
-			return trace.AccessDenied("user %s is not authorized to access the database", username)
+		if err := validateCassandraUsername(e.sessionCtx, msg); err != nil {
+			return trace.Wrap(err)
 		}
 	case *message.Query:
-		queryStr := msg.String()
-		// TODO(jakule): what to do if query exceeds 65k?
-		if len(queryStr) > 100 {
-			queryStr = queryStr[:100]
-		}
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-			Query: queryStr,
+			Query: msg.String(),
 		})
 	case *message.Prepare:
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-			Query: msg.String(),
+		e.Audit.EmitEvent(e.Context, &events.CassandraPrepare{
+			Metadata: common.MakeEventMetadata(e.sessionCtx,
+				libevents.DatabaseSessionCassandraPrepareEvent,
+				libevents.CassandraPrepareEventCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
+			SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+			Query:            msg.Query,
+			Keyspace:         msg.Keyspace,
 		})
 	case *message.Execute:
-		// TODO(jakule): Execute log is not probably very useful as it contains only
-		// query ID returned by PREPARE command.
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-			Query: msg.String(),
+		e.Audit.EmitEvent(e.Context, &events.CassandraExecute{
+			Metadata: common.MakeEventMetadata(e.sessionCtx,
+				libevents.DatabaseSessionCassandraExecuteEvent,
+				libevents.CassandraExecuteEventCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
+			SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+			QueryId:          hex.EncodeToString(msg.QueryId),
 		})
 	case *message.Batch:
-		queries := make([]string, 0, len(msg.Children))
-		for _, child := range msg.Children {
-			queries = append(queries, fmt.Sprintf("%+v, values: %v", child.QueryOrId, child.Values))
-		}
-
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-			Query: fmt.Sprintf("begin batch %s batch apply", queries),
-			Parameters: []string{
-				"consistency", msg.Consistency.String(),
-				"keyspace", msg.Keyspace,
-				"batch", msg.Type.String(),
-			},
+		e.Audit.EmitEvent(e.Context, &events.CassandraBatch{
+			Metadata: common.MakeEventMetadata(e.sessionCtx,
+				libevents.DatabaseSessionCassandraBatchEvent,
+				libevents.CassandraBatchEventCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
+			SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+			Consistency:      msg.Consistency.String(),
+			Keyspace:         msg.Keyspace,
+			BatchType:        msg.Type.String(),
+			Children:         batchChildToProto(msg.Children),
 		})
 	case *message.Register:
-		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{
-			Query: msg.String(),
+		e.Audit.EmitEvent(e.Context, &events.CassandraRegister{
+			Metadata: common.MakeEventMetadata(e.sessionCtx,
+				libevents.DatabaseSessionCassandraRegisterEvent,
+				libevents.CassandraRegisterEventCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
+			SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+			EventTypes:       eventTypesToString(msg.EventTypes),
 		})
 	case *message.Revise:
-		// TODO(jakule): investigate this package. Looks like something only available in the enterprise edition.
 		return trace.NotImplemented("revise package is not supported")
 	default:
-		return trace.BadParameter("received a message with unexpected type %T", body.Body.Message)
+		return trace.BadParameter("received a message with unexpected type %T", body.Message)
 	}
 
 	return nil
@@ -366,38 +285,34 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) sendAuthError(accessErr error) {
-	codec := frame.NewRawCodec()
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*protocol.Conn, error) {
+	config, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serverConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return protocol.NewConn(serverConn), nil
+}
 
-	for {
-		rawFrame, err := codec.DecodeRawFrame(e.clientConn)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				e.Log.Infof("failed to decode frame: %v", err)
-				return
-			}
-			e.Log.WithError(err).Error("failed to send encode a frame")
-		}
+func (e *Engine) handshake(sessionCtx *common.Session, clientConn, serverConn *protocol.Conn) error {
+	auth, err := e.getAuth(sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	e.handshakeTriggered = true
+	return auth.handleHandshake(clientConn, serverConn)
+}
 
-		switch rawFrame.Header.OpCode {
-		case primitive.OpCodeStartup:
-			// TODO(jakule): If protocol v5 then the message needs to be wrapped in a segment.
-			startupFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId,
-				&message.Authenticate{Authenticator: "org.apache.cassandra.auth.PasswordAuthenticator"})
-
-			if err := codec.EncodeFrame(startupFrame, e.clientConn); err != nil {
-				e.Log.WithError(err).Error("failed to send startup frame")
-				return
-			}
-		case primitive.OpCodeAuthResponse:
-			e.sendClientError(rawFrame.Header.Version, rawFrame.Header.StreamId, accessErr)
-			return
-		case primitive.OpCodeOptions:
-			supportedFrame := frame.NewFrame(rawFrame.Header.Version, rawFrame.Header.StreamId, &message.Supported{})
-			if err := codec.EncodeFrame(supportedFrame, e.clientConn); err != nil {
-				e.Log.WithError(err).Error("failed to send startup frame")
-				return
-			}
-		}
+func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
+	switch {
+	case sessionCtx.Database.IsAWSHosted():
+		return &authAWSSigV4Auth{
+			ses: sessionCtx,
+		}, nil
+	default:
+		return &basicHandshake{ses: sessionCtx}, nil
 	}
 }

@@ -19,7 +19,6 @@
 package dbcmd
 
 import (
-	"bytes"
 	"fmt"
 	"net/url"
 	"os"
@@ -27,12 +26,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -107,6 +106,8 @@ type CLICommandBuilder struct {
 	port        int
 	options     connectionCommandOpts
 	uid         utils.UID
+
+	DBResource types.Database
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -512,69 +513,15 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 }
 
 func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
-	cfgPath, err := c.createCassandraCfgFile()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	args := []string{
 		"-u", c.db.Username,
-		"--cqlshrc", cfgPath,
+		c.host, strconv.Itoa(c.port),
 	}
-
-	if !c.options.noTLS {
-		args = append(args, "--ssl")
+	if c.options.password != "" {
+		args = append(args, []string{"-p", c.options.password}...)
 	}
-
-	return c.exe.Command(cqlshBin, args...), nil
+	return exec.Command(cqlshBin, args...), nil
 }
-
-func (c *CLICommandBuilder) createCassandraCfgFile() (string, error) {
-	opts := struct {
-		Certfile    string
-		Userkey     string
-		Usercertkey string
-		Port        int
-	}{
-		Certfile:    c.profile.CACertPathForCluster(c.rootCluster),
-		Userkey:     c.profile.KeyPath(),
-		Usercertkey: c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
-		Port:        c.port,
-	}
-	buf := &bytes.Buffer{}
-	err := cqlshrcTmpl.Execute(buf, opts)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// TODO(jakule): Should we remove the file somehow?
-	cfg, err := os.CreateTemp("", "cqlshrc")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if _, err := cfg.Write(buf.Bytes()); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if err := cfg.Close(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return cfg.Name(), nil
-}
-
-var cqlshrcTmpl = template.Must(template.New("").Parse(`[connection]
-hostname = 127.0.0.1
-port = {{.Port}}
-factory = cqlshlib.ssl.ssl_transport_factory
-
-[ssl]
-validate = true
-certfile = {{.Certfile}}
-userkey = {{.Userkey}}
-usercert = {{.Usercertkey}}
-`))
 
 type connectionCommandOpts struct {
 	localProxyPort           int
@@ -585,6 +532,7 @@ type connectionCommandOpts struct {
 	tolerateMissingCLIClient bool
 	log                      *logrus.Entry
 	exe                      Execer
+	password                 string
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -612,6 +560,14 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
+	}
+}
+
+// WithPassword is the command option that allows to set the database password
+// that will be used for database CLI.
+func WithPassword(pass string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.password = pass
 	}
 }
 

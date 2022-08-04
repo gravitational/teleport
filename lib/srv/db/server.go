@@ -48,7 +48,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
-
+	// Import to register Cassandra engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/cassandra"
 
 	"github.com/google/uuid"

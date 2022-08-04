@@ -70,6 +70,7 @@ type AuthCommand struct {
 	dbName                     string
 	dbUser                     string
 	signOverwrite              bool
+	jksPassword                string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -124,6 +125,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
+	a.authSign.Flag("jks-password", `JKS password used for cassandra format for Keystore and Truststore protection.`).Default("teleport").StringVar(&a.jksPassword)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
@@ -372,7 +374,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 	}
 
 	return trace.Wrap(
-		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
 	)
 }
 
@@ -475,13 +477,14 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
 		Key:                key,
+		JKSPassword:        a.jksPassword,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat))
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.jksPassword))
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -490,9 +493,10 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatCockroach: cockroachAuthSignTpl,
 	identityfile.FormatRedis:     redisAuthSignTpl,
 	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
+	identityfile.FormatCassandra: cassandraAuthSignTpl,
 }
 
-func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, jksPassword string) error {
 	if writer == nil {
 		return nil
 	}
@@ -503,10 +507,10 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-
 	tplVars := map[string]interface{}{
-		"files":  strings.Join(filesWritten, ", "),
-		"output": output,
+		"files":       strings.Join(filesWritten, ", "),
+		"jksPassword": jksPassword,
+		"output":      output,
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))
@@ -569,6 +573,26 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
 Please add the generated key to the Snowflake users as described here:
 https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
+`))
+
+	cassandraAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Cassandra server, add the following to your
+cassandra.yaml configuration file:
+
+client_encryption_options:
+    enabled: true
+    optional: false
+    keystore: /path/to/{{.output}}.keystore
+    keystore_password: "{{.jksPassword}}"
+
+    require_client_auth: true
+    truststore: /path/to/{{.output}}.truststore
+    truststore_password: "{{.jksPassword}}"
+    protocol: TLS
+    algorithm: SunX509
+    store_type: JKS
+    cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
 `))
 )
 

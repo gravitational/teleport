@@ -103,21 +103,6 @@ var SupportedProtocols = append(
 		ProtocolTCP,
 	}, DatabaseProtocols...)...,
 )
-var SupportedProtocols = []Protocol{
-	ProtocolHTTP2,
-	ProtocolHTTP,
-	ProtocolPostgres,
-	ProtocolMySQL,
-	ProtocolMongoDB,
-	ProtocolRedisDB,
-	ProtocolSQLServer,
-	ProtocolSnowflake,
-	ProtocolCassandra,
-	ProtocolProxySSH,
-	ProtocolReverseTunnel,
-	ProtocolAuth,
-	ProtocolTCP,
-}
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
 func ProtocolsToString(protocols []Protocol) []string {
