@@ -437,6 +437,15 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	for i := 0; i < len(conf.Databases.AzureMatchers); i++ {
+		matcher := &conf.Databases.AzureMatchers[i]
+		if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
+			matcher.Subscriptions = []string{types.Wildcard}
+		}
+		if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
+			matcher.ResourceGroups = []string{types.Wildcard}
+		}
+	}
 	return nil
 }
 
@@ -1194,6 +1203,8 @@ type AWSMatcher struct {
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string `yaml:"resource_groups,omitempty"`
 	// Types are azure database types to match: "mysql", "postgres"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.

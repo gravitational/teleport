@@ -46,6 +46,8 @@ type AWSMatcher struct {
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources
 	Subscriptions []string
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string
 	// Types are Azure database types to match, "rds" or "redshift".
 	Types []string
 	// Regions are Azure regions to query for databases.

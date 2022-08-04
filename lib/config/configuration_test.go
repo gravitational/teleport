@@ -421,19 +421,30 @@ func TestConfigReading(t *testing.T) {
 			},
 			AzureMatchers: []AzureMatcher{
 				{
-					Subscriptions: []string{"sub1", "sub2"},
-					Types:         []string{"mysql"},
-					Regions:       []string{"eastus", "westus"},
+					Subscriptions:  []string{"sub1", "sub2"},
+					ResourceGroups: []string{"rg1", "rg2"},
+					Types:          []string{"mysql"},
+					Regions:        []string{"eastus", "westus"},
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 				},
 				{
-					Subscriptions: []string{"sub3", "sub4"},
-					Types:         []string{"postgres"},
-					Regions:       []string{"centralus"},
+					Subscriptions:  []string{"sub3", "sub4"},
+					ResourceGroups: []string{"rg3", "rg4"},
+					Types:          []string{"postgres"},
+					Regions:        []string{"centralus"},
 					Tags: map[string]apiutils.Strings{
 						"c": {"d"},
+					},
+				},
+				{
+					Subscriptions:  []string{"*"},
+					ResourceGroups: []string{"*"},
+					Types:          []string{"mysql", "postgres"},
+					Regions:        []string{"centralus"},
+					Tags: map[string]apiutils.Strings{
+						"e": {"f"},
 					},
 				},
 			},
@@ -1293,19 +1304,28 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.AzureMatchers = []AzureMatcher{
 		{
-			Subscriptions: []string{"sub1", "sub2"},
-			Types:         []string{"mysql"},
-			Regions:       []string{"eastus", "westus"},
+			Subscriptions:  []string{"sub1", "sub2"},
+			ResourceGroups: []string{"rg1", "rg2"},
+			Types:          []string{"mysql"},
+			Regions:        []string{"eastus", "westus"},
 			Tags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 		},
 		{
-			Subscriptions: []string{"sub3", "sub4"},
-			Types:         []string{"postgres"},
-			Regions:       []string{"centralus"},
+			Subscriptions:  []string{"sub3", "sub4"},
+			ResourceGroups: []string{"rg3", "rg4"},
+			Types:          []string{"postgres"},
+			Regions:        []string{"centralus"},
 			Tags: map[string]apiutils.Strings{
 				"c": {"d"},
+			},
+		},
+		{
+			Types:   []string{"mysql", "postgres"},
+			Regions: []string{"centralus"},
+			Tags: map[string]apiutils.Strings{
+				"e": {"f"},
 			},
 		},
 	}

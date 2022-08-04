@@ -122,7 +122,9 @@ db_service:
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - types: ["mysql"]
+  - subscriptions: ["*"]
+    resource_groups: ["*"]
+    types: ["mysql"]
     # Azure regions to register databases from.
     regions:
     {{- range .AzureMySQLDiscoveryRegions }}
@@ -135,7 +137,9 @@ db_service:
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
   # For more information about Azure Postgres auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
-  - types: ["postgres"]
+  - subscriptions: ["*"]
+    resource_groups: ["*"]
+    types: ["postgres"]
     # Azure regions to register databases from.
     regions:
     {{- range .AzurePostgresDiscoveryRegions }}

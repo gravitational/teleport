@@ -1128,10 +1128,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 	for _, matcher := range fc.Databases.AzureMatchers {
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
 			services.AzureMatcher{
-				Subscriptions: matcher.Subscriptions,
-				Types:         matcher.Types,
-				Regions:       matcher.Regions,
-				Tags:          matcher.Tags,
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				Tags:           matcher.Tags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
