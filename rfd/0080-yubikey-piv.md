@@ -7,7 +7,7 @@ state: draft
 
 ## Required approvers
 
-Engineering: @jakule && @r0mant
+Engineering: @jakule && @r0mant && @codingllama
 Product: @klizhentas && @xinding33
 Security: @reedloden
 
@@ -100,16 +100,15 @@ Note: Yubikeys also have an attestation slot, `f9`, which is not standardized by
 
 Usually, `tsh` checks the user's `~/.tsh/keys/proxy.example.com` for an existing public-private key pair. If found, that key pair will be used alongside any stored certificates to handle `tsh` calls.
 
-With PIV login session's we need a similar way to detect whether the user has an existing login session. In order to make PIV login a purely opt in feature, we will depend on information written to the user's tsh profile to determine whether the login session is PIV or non-PIV. Specifically, we will add a new `piv` field to the user's `~/.tsh/proxy.yaml` file which can also uniquely identify the PIV card and Slot being used for the login session.
+Since we can't store the PIV private key on disk, we will instead store a fake private key which we can use to identify the PIV slot to load the private key from. This key will be PEM encoded data where, `pem.Type` specifies the PIV key type, and the encoded data contains a unique ID and PIV slot.
 
-```yaml
-piv:
-  name: YubiKey 5 Nano (5.2.7) [OTP+FIDO+CCID] # PIV card name
-  id: xxxxxxxx                                 # unique ID
-  slot: 9a                                     # PIV slot
+Note: for yubikey, the unique ID will be the card's serial number. Different implementations of PIV may provide alternative methods for identifying unique cards
+
 ```
-
-Note: for yubikey, the unique ID will be the card's serial number. Different implementations of PIV may have alternative methods for identifying unique cards
+-----BEGIN PIV YUBIKEY PRIVATE KEY-----
+# PEM encoded `yubikey_serial_number+piv_slot`
+-----END PIV YUBIKEY PRIVATE KEY-----
+```
 
 ##### Check the public key
 
@@ -123,9 +122,7 @@ ERROR: PIV private key does not match login certificates.
 
 ##### Concurrent login sessions
 
-`tsh` should support multiple concurrent login sessions for different proxies. This can be done by specifying a different slot for each concurrent login session, allowing up to 24 concurrent PIV login sessions. However, this requires that each user maintain a mental map of which slots are in use to avoid overwriting an existing login session.
-
-To move the burden off of the user, `tsh login --piv` will also create a self-signed certificate with login metadata attached and add it to the slot.
+`tsh` should support multiple concurrent login sessions for different proxies. This can be done by specifying a different slot for each concurrent login session, allowing up to 24 concurrent PIV login sessions. To make it easier for `tsh` to track used slots, and avoid overwriting slots that are already in use, `tsh login --piv` will also create a self-signed certificate with login metadata attached and add it to the slot.
 
 ```
 Slot 9a:
@@ -136,24 +133,24 @@ Slot 9a:
 Now, future calls to `tsh login --piv --piv-slot=9a` can retrieve the certificate from the slot and decide what to do:
  - if there is no certificate, overwrite the slot
  - if there is a tsh-generated certificate that matches the current user and proxy, overwrite the slot
- - if there is a tsh-generated certificate that doesn't match the current user and proxy, prompt the user
+ - if there is a tsh-generated certificate that doesn't match the current user and proxy, prompt the user to overwrite. If they say no, then prompt them to use the next open slot.
   ```
   > tsh login --piv
   PIV slot 9a is currently in use by another tsh login session:
     proxy: proxy.example.com
     user: username
   Would you like to overwrite this slot? (y/N):
+  Would you like to use the next open slot? (9c) (y/N):
   ```
- - if there is a non-tsh-generated certificate, overwrite the slot, prompt the user
+ - if there is a non-tsh-generated certificate, prompt the user to overwrite. If they say no, then prompt them to use the next open slot.
   ```
   > tsh login --piv
   PIV slot 9a may be in use by another program.
   Would you like to overwrite this slot? (y/N):
+  Would you like to use the next open slot? (9c) (y/N):
   ```
 
-We will also provie the user with the `--piv-slot-overwrite` flag to skip the prompts above.
-
-Additionally, users can provide `--piv-slot=next` to use the next available slot, so that they don't need to manually find an open slot.
+We will also provide the user with the `--piv-slot-overwrite` flag to skip the prompts above.
 
 ##### logout
 
@@ -176,35 +173,39 @@ In addition to verifying the certificate chain, the attestation will return the 
 Attestation will be enforced in a similar way to [Certificate Locking](https://github.com/gravitational/teleport/blob/master/rfd/0009-locking.md). Essentially, a user will not be able to successfully make requests unless the public key on their certificates has been attested, and the attestation properties (pin and touch policies) meet the criteria set by the server (auth preference and role options).
 
 For this flow, we will need to:
- 1. perform attestation after the user recieves their certificates from a successful login
+ 1. perform attestation after the user receives their certificates from a successful login
  2. store the attestation object in the backend for future checks
  3. check if a certificate has a valid attestation in the backend before authorizing any requests
 
 In `tsh login --piv`, attestation will be performed immediately after the signing process with a new gRPC endpoint:
 
 ```
-rpc AssertYubikeyPIVSlot(AssertYubikeyPIVSlotRequest) returns (google.protobuf.Empty);
+service AuthService {
+  rpc AssertPIVSlot(AssertPIVSlotRequest) returns (AssertPIVSlotRequest);
+}
 
-message AssertYubikeySlotRequest {
-    bytes SlotCert = 1;
-    bytes AttestationCert = 2;
+message AssertPIVSlotRequest {
+  YubikeyPIVAttestationData yubikey_attestation = 1;
+}
+
+message YubikeyPIVAttestationData {
+  bytes SlotCert = 1;
+  bytes AttestationCert = 2;
 }
 ```
 
-Note: if/when we add other PIV device support in the future, we can deprecate `AssertYubikeyPIVSlot` for a more generalized `AssertPIVSlot` request, or add new custom endpoints (like `AssertSolokeyPIVSlot`) if it cannot be easily generalized accross PIV implementations.
-
-`AssertYubikeyPIVSlot` will then check if the attestation passes the current enforcement criteria for the user. If it doesn't an access denied error will be returned describing what criteria were not met. Otherwise, the attestation will be inserted into the backend in the table `/piv_assertions/<public_key>` to verify future requests for corresponding certificates.
+`AssertPIVSlot` will then check if the attestation passes the current enforcement criteria for the user. If it doesn't, an access denied error will be returned describing what criteria were not met. Otherwise, the attestation will be inserted into the backend in the table `/piv_assertions/<public_key>` to verify future requests for corresponding certificates.
 
 #### Auth Service Config or Auth Preference
 
-You can provide a `piv_attestation` field to to a cluster's Auth Preference, in the Auth Service's config file or with a dynamic Cluster Auth Preference object:
+You can provide a `piv` field to to a cluster's Auth Preference, in the Auth Service's config file or with a dynamic Cluster Auth Preference object:
 
 ```yaml
 auth_service:
   ...
   authentication:
     ...
-    piv_attestation: 
+    piv: 
       mode: required
       pin_policy: always
       touch_policy: always
@@ -216,13 +217,13 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  piv_attestation: 
+  piv: 
     mode: required
     pin_policy: always
     touch_policy: always
 ```
 
-Allowed values for `piv_attestation.mode`:
+Allowed values for `piv.mode`:
  - `required`: certificates must have a valid attestation to be used
  - `optional` (default): certificates won't require a valid attestation to be used, but users can still attest their keys pre-emptively in case of future config changes
  - `disabled`: attestation will not be performed - essentially `AssertYubikeyPIVSlot` will be disabled by the auth server and always return no error
@@ -245,10 +246,11 @@ version: v5
 metadata:
   name: role-name
 spec:
-  piv_attestation: 
-    mode: required
-    pin_policy: once
-    touch_policy: cached
+  role_options:
+    piv: 
+      mode: required
+      pin_policy: once
+      touch_policy: cached
 ```
 
 A user's role options will be combined with the cluster's Auth Preference to form the strictest combination.
@@ -261,7 +263,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  piv_attestation: 
+  piv: 
     mode: optional
     pin_policy: once
     touch_policy: cached
@@ -271,18 +273,20 @@ version: v5
 metadata:
   name: piv-pin
 spec:
-  piv_attestation: 
-    mode: required
-    pin_policy: always
+  role_options:
+    piv: 
+      mode: required
+      pin_policy: always
 ---
 kind: role
 version: v5
 metadata:
   name: piv-touch
 spec:
-  piv_attestation: 
-    mode: required
-    touch_policy: always
+  role_options:
+    piv:
+      mode: required
+      touch_policy: always
 ```
 - Users with `piv-pin` role must use PIV login with `pin=always` and `touch=cached|always`
 - Users with `piv-touch` role must use PIV login with `pin=once|always` and `touch=always`
@@ -293,12 +297,20 @@ spec:
 
 Since PIN and touch policies are configured locally on a PIV private key, we cannot delegate the task of setting policies for a private key to the server. Additionally, since these policies depend on Cluster Auth Preference and Role settings, there is no way for us to give the required settings to the user before they login.
 
-To work around this limitiation, we will add another gRPC endpoint `GetPIVAssertionRequirements` for a user to fetch their PIV requirements:
+To work around this limitiation, we will add another gRPC endpoint `GetPIVRequirements` for a user to fetch their PIV requirements:
 
 ```
-rpc GetPIVAssertionRequirements() returns (PIVAssertionRequirements);
+rpc GetPIVRequirements(GetPIVRequirementsRequest) returns (GetPIVRequirementsResponse);
 
-message PIVAssertionRequirements {
+// The user will be pulled from the request certificate, so request message can be empty for now.
+message GetPIVRequirementsRequest {
+}
+
+message GetPIVRequirementsResponse {
+    PIVRequirements PIVRequirements = 1;
+}
+
+message PIVRequirements {
     string Mode = 1;
     string PINPolicy = 2;
     string TouchPolicy = 3;
@@ -321,15 +333,19 @@ The Management Key must be provided during login, and the PIN must be provided d
 
 ```
 > tsh login --piv
+Enter the PIV card's Management Key [blank to retrieve it from PIN protected metadata]:
 Enter the PIV card's PIN:
-Enter the PIV card's Management Key:
 ```
 
 #### tsh piv configure
 
 We will provide a new command - `tsh piv configure` - so that users can configure their PIV management secrets before they login. This command will prompt the user for the current PIN, PUK, and Management Key, with defaults mentioned. The PIN and PUK will be set from user input, while the Management Key will be randomly generated and stored in [PIN protected metadata](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#YubiKey.Metadata). This way, the user will only need to provide the PIN during login. If the user does not have a management key set in metadata, because they didn't run `tsh piv configure` previously, then they will still be prompted as shown above.
 
-Note: Using metadata in this way is possible because of the [Yubico PIV Extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html), so this strategy may not work for all PIV hardware keys.
+Storing the Management Key in metadata is the [intended purpose](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#YubiKey.Metadata) set by `piv-go`, because it can greatly improve UX. However, it essentially conflates the PIN and Management Key into a single key, which lowers the general security profile of the card.
+
+In our case, we are ok with making this tradeoff because the Management Key does not actually provide any significant security benefit. It is only needed to grant access to [generating/importing key pairs and importing certificates](https://developers.yubico.com/PIV/Introduction/Admin_access.html), which will be strictly managed by `tsh`. If a user attempts to generate/import a new key, it would only break the user's existing `tsh` login session, becuase the user's signed Teleport certificates would not be signable with the new key. Importing a new certificate would just make it so that `tsh` cannot find the self-signed certificate holding login metadata.
+
+Note: Using metadata to store the Management Key is possible because of the [Yubico PIV Extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html), so this strategy may not work for all PIV cards.
 
 ```
 > tsh piv configure
@@ -347,11 +363,16 @@ Repeat for confirmation:
 New PIN set.
 
 // Prompt user to set management key
-Please enter the current management key [blank to use default key]:
-New randomly generated Management Key set. This key has been added to 
-PIN protected metadata for future use in `tsh`. You can retrieve this
-key with `tsh piv configure --get-mgm-key` for use with other PIV 
-clients, like `ykman` or `yubico-piv-tool`.
+Please enter the current Management key [blank to use default key]:
+New Management Key generated: <random-24-byte-key>
+
+Would you like to store this key in PIN protected PIV metadata, so that
+tsh can find it automatically? This is not recommended if you plan to use
+the Management Key with other PIV applications, like `yubikey-agent`. (y/N):
+
+The Management key has been added to PIN protected metadata. You can 
+retrieve this key with `tsh piv configure --get-mgm-key` for use with
+other PIV clients, like `ykman` or `yubico-piv-tool`.
 
 > tsh login --piv
 Enter the PIV card's PIN:
@@ -383,6 +404,7 @@ We will also provide the user with the flags `--get-mgm-key` and `--reset`, whic
 
 // Retrieve management key from metadata
 Management Key: <24 byte random code>
+WARNING: This is not recommended if you are using your PIV card with any other applications. Continue? (y/N):
 
 // Or if management key key not found in metadata...
 Management Key not found, try configuring it with `tsh piv configure --set-mgm-key`
@@ -420,7 +442,7 @@ Note: `yubikey-agent` [holds an open connection](https://github.com/FiloSottile/
 
 #### Universal Teleport Client support
 
-At first, PIV login support will only be added to `tsh`, but in the future other clients like `tctl` and the WebUI can support it with the same general flow. 
+At first, PIV login support will only be added to `tsh`, but in the future other clients like `tctl`, the WebUI, and Teleport Connect can support it with the same general flow. 
 
 When PIV login is enforced on the Auth Server, unsupported Teleport clients will fail to login unless we add PIV login support for them as well. This would be especially disruptive for the WebUI. Until all Teleport clients are supported, PIV login will remain in preview mode, and we will communicate with preview users that required PIV attestation should be enabled with caution.
 
