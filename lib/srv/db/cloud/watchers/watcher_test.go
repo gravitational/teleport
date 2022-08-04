@@ -105,29 +105,33 @@ func TestWatcher(t *testing.T) {
 	}
 
 	const (
+		group1        = "group1"
+		group2        = "group2"
 		eastus        = "eastus"
 		eastus2       = "eastus2"
 		westus        = "westus"
 		subscription1 = "sub1"
 		subscription2 = "sub2"
 	)
-	azMySQLServer1, azMySQLDB1 := makeAzureMySQLServer(t, "server-1", subscription1, eastus, map[string]string{"env": "prod"})
-	azMySQLServer2, _ := makeAzureMySQLServer(t, "server-2", subscription1, eastus, map[string]string{"env": "dev"})
-	azMySQLServer3, _ := makeAzureMySQLServer(t, "server-3", subscription1, eastus2, map[string]string{"env": "prod"})
-	azMySQLServer4, azMySQLDB4 := makeAzureMySQLServer(t, "server-4", subscription2, westus, map[string]string{"env": "prod"})
-	azMySQLServerUnknownVersion, _ := makeAzureMySQLServer(t, "server-5", subscription1, eastus, nil, withAzureMySQLVersion("unknown"))
-	azMySQLServerUnsupportedVersion, _ := makeAzureMySQLServer(t, "server-6", subscription1, eastus, nil, withAzureMySQLVersion(string(armmysql.ServerVersionFive6)))
-	azMySQLServerDisabledState, _ := makeAzureMySQLServer(t, "server-7", subscription1, eastus, nil, withAzureMySQLState(string(armmysql.ServerStateDisabled)))
-	azMySQLServerUnknownState, _ := makeAzureMySQLServer(t, "server-8", subscription1, eastus, nil, withAzureMySQLState("unknown"))
+	azMySQLServer1, azMySQLDB1 := makeAzureMySQLServer(t, "server-1", subscription1, group1, eastus, map[string]string{"env": "prod"})
+	azMySQLServer2, _ := makeAzureMySQLServer(t, "server-2", subscription1, group1, eastus, map[string]string{"env": "dev"})
+	azMySQLServer3, _ := makeAzureMySQLServer(t, "server-3", subscription1, group1, eastus2, map[string]string{"env": "prod"})
+	azMySQLServer4, azMySQLDB4 := makeAzureMySQLServer(t, "server-4", subscription2, group1, westus, map[string]string{"env": "prod"})
+	azMySQLServer5, _ := makeAzureMySQLServer(t, "server-5", subscription1, group2, eastus, map[string]string{"env": "prod"})
+	azMySQLServerUnknownVersion, _ := makeAzureMySQLServer(t, "server-6", subscription1, group1, eastus, nil, withAzureMySQLVersion("unknown"))
+	azMySQLServerUnsupportedVersion, _ := makeAzureMySQLServer(t, "server-7", subscription1, group1, eastus, nil, withAzureMySQLVersion(string(armmysql.ServerVersionFive6)))
+	azMySQLServerDisabledState, _ := makeAzureMySQLServer(t, "server-8", subscription1, group1, eastus, nil, withAzureMySQLState(string(armmysql.ServerStateDisabled)))
+	azMySQLServerUnknownState, _ := makeAzureMySQLServer(t, "server-9", subscription1, group1, eastus, nil, withAzureMySQLState("unknown"))
 
-	azPostgresServer1, azPostgresDB1 := makeAzurePostgresServer(t, "server-1", subscription1, eastus, map[string]string{"env": "prod"})
-	azPostgresServer2, _ := makeAzurePostgresServer(t, "server-2", subscription1, eastus, map[string]string{"env": "dev"})
-	azPostgresServer3, _ := makeAzurePostgresServer(t, "server-3", subscription1, eastus2, map[string]string{"env": "prod"})
-	azPostgresServer4, azPostgresDB4 := makeAzurePostgresServer(t, "server-4", subscription2, westus, map[string]string{"env": "prod"})
-	azPostgresServerUnknownVersion, _ := makeAzurePostgresServer(t, "server-5", subscription1, eastus, nil, withAzurePostgresVersion("unknown"))
-	azPostgresServerUnsupportedVersion, _ := makeAzurePostgresServer(t, "server-6", subscription1, eastus, nil, withAzurePostgresVersion(""))
-	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-7", subscription1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
-	azPostgresServerUnknownState, _ := makeAzurePostgresServer(t, "server-8", subscription1, eastus, nil, withAzurePostgresState("unknown"))
+	azPostgresServer1, azPostgresDB1 := makeAzurePostgresServer(t, "server-1", subscription1, group1, eastus, map[string]string{"env": "prod"})
+	azPostgresServer2, _ := makeAzurePostgresServer(t, "server-2", subscription1, group1, eastus, map[string]string{"env": "dev"})
+	azPostgresServer3, _ := makeAzurePostgresServer(t, "server-3", subscription1, group1, eastus2, map[string]string{"env": "prod"})
+	azPostgresServer4, azPostgresDB4 := makeAzurePostgresServer(t, "server-4", subscription2, group1, westus, map[string]string{"env": "prod"})
+	azPostgresServer5, _ := makeAzurePostgresServer(t, "server-5", subscription1, group2, eastus, map[string]string{"env": "prod"})
+	azPostgresServerUnknownVersion, _ := makeAzurePostgresServer(t, "server-6", subscription1, group1, eastus, nil, withAzurePostgresVersion("unknown"))
+	azPostgresServerUnsupportedVersion, _ := makeAzurePostgresServer(t, "server-7", subscription1, group1, eastus, nil, withAzurePostgresVersion(""))
+	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
+	azPostgresServerUnknownState, _ := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
 
 	tests := []watchTest{
 		{
@@ -329,16 +333,17 @@ func TestWatcher(t *testing.T) {
 			name: "Azure labels matching",
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
-					Regions:       []string{eastus},
-					Tags:          types.Labels{"env": []string{"prod"}},
+					Subscriptions:  []string{subscription1},
+					ResourceGroups: []string{group1},
+					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Regions:        []string{eastus},
+					Tags:           types.Labels{"env": []string{"prod"}},
 				},
 			},
 			clients: &common.TestCloudClients{
 				AzureMySQLPerSub: map[string]common.AzureMySQLClient{
 					subscription1: &cloud.AzureMySQLMock{
-						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3},
+						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
 					},
 					subscription2: &cloud.AzureMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer4},
@@ -346,24 +351,25 @@ func TestWatcher(t *testing.T) {
 				},
 				AzurePostgresPerSub: map[string]common.AzurePostgresClient{
 					subscription1: &cloud.AzurePostgresMock{
-						DBServers: []*armpostgresql.Server{azPostgresServer1, azPostgresServer2, azPostgresServer3},
+						DBServers: []*armpostgresql.Server{azPostgresServer1, azPostgresServer2, azPostgresServer3, azPostgresServer5},
 					},
 					subscription2: &cloud.AzurePostgresMock{
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					},
 				},
 			},
-			// *server2 tags dont match, *server3 is in eastus2, *server4 is in subscription2
+			// server2 tags dont match, server3 is in eastus2, server4 is in subscription2, server5 is in group2
 			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
 			name: "Azure unsupported and unknown database versions are skipped",
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
-					Regions:       []string{eastus},
-					Tags:          types.Labels{"*": []string{"*"}},
+					Subscriptions:  []string{subscription1},
+					ResourceGroups: []string{"*"},
+					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Regions:        []string{eastus},
+					Tags:           types.Labels{"*": []string{"*"}},
 				},
 			},
 			clients: &common.TestCloudClients{
@@ -388,10 +394,11 @@ func TestWatcher(t *testing.T) {
 			name: "Azure unavailable databases are skipped",
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions: []string{subscription1},
-					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
-					Regions:       []string{eastus},
-					Tags:          types.Labels{"*": []string{"*"}},
+					Subscriptions:  []string{subscription1},
+					ResourceGroups: []string{"*"},
+					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Regions:        []string{eastus},
+					Tags:           types.Labels{"*": []string{"*"}},
 				},
 			},
 			clients: &common.TestCloudClients{
@@ -416,16 +423,17 @@ func TestWatcher(t *testing.T) {
 			name: "Azure skip access denied errors",
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions: []string{subscription1, subscription2},
-					Types:         []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
-					Regions:       []string{eastus, westus},
-					Tags:          types.Labels{"*": []string{"*"}},
+					Subscriptions:  []string{subscription1, subscription2},
+					ResourceGroups: []string{"*"},
+					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+					Regions:        []string{eastus, westus},
+					Tags:           types.Labels{"*": []string{"*"}},
 				},
 			},
 			clients: &common.TestCloudClients{
 				AzureMySQLPerSub: map[string]common.AzureMySQLClient{
 					subscription1: &cloud.AzureMySQLMockUnauth{
-						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3},
+						DBServers: []*armmysql.Server{azMySQLServer1},
 					},
 					subscription2: &cloud.AzureMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer4},
@@ -433,7 +441,7 @@ func TestWatcher(t *testing.T) {
 				},
 				AzurePostgresPerSub: map[string]common.AzurePostgresClient{
 					subscription1: &cloud.AzurePostgresMockUnauth{
-						DBServers: []*armpostgresql.Server{azPostgresServer1, azPostgresServer2, azPostgresServer3},
+						DBServers: []*armpostgresql.Server{azPostgresServer1},
 					},
 					subscription2: &cloud.AzurePostgresMock{
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
@@ -458,7 +466,8 @@ func TestWatcher(t *testing.T) {
 			},
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions: []string{subscription1, subscription2},
+					Subscriptions:  []string{subscription1, subscription2},
+					ResourceGroups: []string{"group1"},
 					Types: []string{
 						services.AzureMatcherMySQL,
 						services.AzureMatcherPostgres,
@@ -535,12 +544,11 @@ func TestWatcher(t *testing.T) {
 	}
 }
 
-func makeAzureMySQLServer(t *testing.T, name, subscription, region string, labels map[string]string, opts ...func(*armmysql.Server)) (*armmysql.Server, types.Database) {
-	resourceGroup := "defaultRG"
+func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armmysql.Server)) (*armmysql.Server, types.Database) {
 	resourceType := "Microsoft.DBForMySQL/servers"
 	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subscription,
-		resourceGroup,
+		group,
 		resourceType,
 		name,
 	)
@@ -572,12 +580,11 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, region string, label
 	return server, database
 }
 
-func makeAzurePostgresServer(t *testing.T, name, subscription, region string, labels map[string]string, opts ...func(*armpostgresql.Server)) (*armpostgresql.Server, types.Database) {
-	resourceGroup := "defaultRG"
+func makeAzurePostgresServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armpostgresql.Server)) (*armpostgresql.Server, types.Database) {
 	resourceType := "Microsoft.DBForPostgreSQL/servers"
 	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subscription,
-		resourceGroup,
+		group,
 		resourceType,
 		name,
 	)

@@ -116,8 +116,9 @@ type cloudClients struct {
 
 // AzureMySQLClient provides an interface for getting MySQL servers.
 type AzureMySQLClient interface {
-	// ListServers lists all Azure MySQL servers within an Azure subscription.
-	ListServers(ctx context.Context) ([]*armmysql.Server, error)
+	// ListServers lists all Azure MySQL servers within an Azure subscription by resource group.
+	// If the resource group is "*", then all resources are queried.
+	ListServers(ctx context.Context, group string) ([]*armmysql.Server, error)
 }
 
 // AzureMySQLClient implements AzureMySQLClient.
@@ -129,20 +130,29 @@ type azureMySQLClientWrapper struct {
 }
 
 // ListServers lists all Azure MySQL servers within an Azure subscription, using a configured armmysql client.
-func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context) ([]*armmysql.Server, error) {
+func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context, group string) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
-	options := &armmysql.ServersClientListOptions{}
-	pager := wrapper.client.NewListPager(options)
-	for pageNum := 0; pageNum <= MaxPages && pager.More(); pageNum++ {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			// TODO(gavin): convert from azure error to trace error
-			return nil, trace.Wrap(err)
-		}
-		for _, server := range page.Value {
-			if server != nil {
-				servers = append(servers, server)
+	if group == types.Wildcard {
+		options := &armmysql.ServersClientListOptions{}
+		pager := wrapper.client.NewListPager(options)
+		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				// TODO(gavin): convert from azure error to trace error
+				return nil, trace.Wrap(err)
 			}
+			servers = append(servers, page.Value...)
+		}
+	} else {
+		options := &armmysql.ServersClientListByResourceGroupOptions{}
+		pager := wrapper.client.NewListByResourceGroupPager(group, options)
+		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				// TODO(gavin): convert from azure error to trace error
+				return nil, trace.Wrap(err)
+			}
+			servers = append(servers, page.Value...)
 		}
 	}
 	return servers, nil
@@ -151,7 +161,7 @@ func (wrapper *azureMySQLClientWrapper) ListServers(ctx context.Context) ([]*arm
 // AzurePostgresClient provides an interface for getting Postgres servers.
 type AzurePostgresClient interface {
 	// ListServers lists all Azure Postgres servers within an Azure subscription.
-	ListServers(ctx context.Context) ([]*armpostgresql.Server, error)
+	ListServers(ctx context.Context, group string) ([]*armpostgresql.Server, error)
 }
 
 // azurePostgresClientWrapper implements AzurePostgresClient.
@@ -163,20 +173,29 @@ type azurePostgresClientWrapper struct {
 }
 
 // ListServers lists all Azure Postgres servers within an Azure subscription, using a configured armpostgresql client.
-func (wrapper *azurePostgresClientWrapper) ListServers(ctx context.Context) ([]*armpostgresql.Server, error) {
+func (wrapper *azurePostgresClientWrapper) ListServers(ctx context.Context, group string) ([]*armpostgresql.Server, error) {
 	var servers []*armpostgresql.Server
-	options := &armpostgresql.ServersClientListOptions{}
-	pager := wrapper.client.NewListPager(options)
-	for pageNum := 0; pageNum <= MaxPages && pager.More(); pageNum++ {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			// TODO(gavin): convert from azure error to trace error
-			return nil, trace.Wrap(err)
-		}
-		for _, server := range page.Value {
-			if server != nil {
-				servers = append(servers, server)
+	if group == types.Wildcard {
+		options := &armpostgresql.ServersClientListOptions{}
+		pager := wrapper.client.NewListPager(options)
+		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				// TODO(gavin): convert from azure error to trace error
+				return nil, trace.Wrap(err)
 			}
+			servers = append(servers, page.Value...)
+		}
+	} else {
+		options := &armpostgresql.ServersClientListByResourceGroupOptions{}
+		pager := wrapper.client.NewListByResourceGroupPager(group, options)
+		for pageNum := 0; pageNum < MaxPages && pager.More(); pageNum++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				// TODO(gavin): convert from azure error to trace error
+				return nil, trace.Wrap(err)
+			}
+			servers = append(servers, page.Value...)
 		}
 	}
 	return servers, nil

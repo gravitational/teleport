@@ -31,37 +31,51 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// MakeAzurePostgresFetcher returns Azure Postgres server fetcher for the provided subscription, regions, and tags.
-func MakeAzurePostgresFetcher(cs common.CloudClients, sub string, cred azcore.TokenCredential, regions []string, tags types.Labels) (*PostgresFetcher, error) {
+// NewAzurePostgresFetcher returns a Azure Postgres server fetcher for the provided subscription, group, regions, and tags.
+func NewAzurePostgresFetcher(cs common.CloudClients, cred azcore.TokenCredential, sub, group string, regions []string, tags types.Labels) (*PostgresFetcher, error) {
 	client, err := cs.GetAzurePostgresClient(sub, cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := newPostgresFetcher(
-		postgresFetcherConfig{
-			Regions: utils.StringsSet(regions),
-			Labels:  tags,
-			Client:  client,
-		})
-	if err != nil {
+	config := postgresFetcherConfig{
+		Client:        client,
+		ResourceGroup: group,
+		Labels:        tags,
+		Regions:       utils.StringsSet(regions),
+	}
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	fetcher := &PostgresFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:azurepostgres",
+			"labels":        config.Labels,
+			"regions":       config.Regions,
+		}),
 	}
 	return fetcher, nil
 }
 
 // postgresFetcherConfig is the Azure Postgres databases fetcher configuration.
 type postgresFetcherConfig struct {
-	// Labels is a selector to match cloud databases.
-	Labels types.Labels
 	// Client is the Azure API client.
 	Client common.AzurePostgresClient
+	// ResourceGroup is a selector to match cloud resource group.
+	ResourceGroup string
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
 	// regions is the Azure regions to filter databases.
 	Regions map[string]struct{}
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (c *postgresFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.ResourceGroup) == 0 {
+		return trace.BadParameter("missing parameter ResourceGroup")
+	}
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -80,21 +94,6 @@ type PostgresFetcher struct {
 	log logrus.FieldLogger
 }
 
-// newPostgresFetcher returns a new Azure Postgres servers fetcher instance.
-func newPostgresFetcher(config postgresFetcherConfig) (*PostgresFetcher, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &PostgresFetcher{
-		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:azurepostgres",
-			"labels":        config.Labels,
-			"regions":       config.Regions,
-		}),
-	}, nil
-}
-
 // Get returns Azure Postgres servers matching the watcher's selectors.
 func (f *PostgresFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
@@ -107,13 +106,17 @@ func (f *PostgresFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 // getDatabases returns a list of database resources representing Azure database servers.
 func (f *PostgresFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
-	servers, err := f.cfg.Client.ListServers(ctx)
+	servers, err := f.cfg.Client.ListServers(ctx, f.cfg.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	databases := make(types.Databases, 0, len(servers))
 	for _, server := range servers {
+		if server == nil {
+			continue
+		}
+
 		// azure sdk provides no way to query by region, so we have to filter results
 		location := stringVal(server.Location)
 		if _, ok := f.cfg.Regions[location]; !ok {

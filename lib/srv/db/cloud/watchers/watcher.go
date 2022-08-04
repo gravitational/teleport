@@ -78,7 +78,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fetchers, err := config.makeFetchers()
+	fetchers, err := config.makeFetchers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,14 +146,14 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
-func (c *WatcherConfig) makeFetchers() (result []Fetcher, err error) {
+func (c *WatcherConfig) makeFetchers(ctx context.Context) (result []Fetcher, err error) {
 	if fetchers, err := makeAWSFetchers(c.Clients, c.AWSMatchers); err != nil {
 		return nil, trace.Wrap(err)
 	} else {
 		result = append(result, fetchers...)
 	}
 
-	if fetchers, err := makeAzureFetchers(c.Clients, c.AzureMatchers); err != nil {
+	if fetchers, err := makeAzureFetchers(ctx, c.Clients, c.AzureMatchers); err != nil {
 		return nil, trace.Wrap(err)
 	} else {
 		result = append(result, fetchers...)
@@ -191,29 +191,41 @@ func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher
 	return result, nil
 }
 
-func makeAzureFetchers(clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	cred, err := clients.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	var allSubscriptions []string
 	for _, matcher := range matchers {
-		for _, sub := range matcher.Subscriptions {
-			for _, matcherType := range matcher.Types {
-				var fetcher Fetcher
-				var err error
-				switch matcherType {
-				case services.AzureMatcherMySQL:
-					fetcher, err = azure.MakeAzureMySQLFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
-				case services.AzureMatcherPostgres:
-					fetcher, err = azure.MakeAzurePostgresFetcher(clients, sub, cred, matcher.Regions, matcher.Tags)
-				default:
-					continue
-				}
+		subscriptions := matcher.Subscriptions
+		if utils.SliceContainsStr(subscriptions, types.Wildcard) {
+			// hit the subscriptions API at most once
+			if allSubscriptions == nil {
+				allSubscriptions, err = azure.GetSubscriptions(ctx, cred)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if fetcher != nil {
+			}
+			subscriptions = allSubscriptions
+		}
+		for _, matcherType := range matcher.Types {
+			for _, group := range matcher.ResourceGroups {
+				for _, sub := range subscriptions {
+					var fetcher Fetcher
+					var err error
+					switch matcherType {
+					case services.AzureMatcherMySQL:
+						fetcher, err = azure.NewAzureMySQLFetcher(clients, cred, sub, group, matcher.Regions, matcher.Tags)
+					case services.AzureMatcherPostgres:
+						fetcher, err = azure.NewAzurePostgresFetcher(clients, cred, sub, group, matcher.Regions, matcher.Tags)
+					default:
+						continue
+					}
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
 					result = append(result, fetcher)
 				}
 			}

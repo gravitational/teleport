@@ -31,37 +31,50 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// MakeAzureMySQLFetcher returns Azure MySQL server fetcher for the provided subscription, regions, and tags.
-func MakeAzureMySQLFetcher(cs common.CloudClients, sub string, cred azcore.TokenCredential, regions []string, tags types.Labels) (*MySQLFetcher, error) {
+// NewAzureMySQLFetcher returns a Azure MySQL server fetcher for the provided subscription, group, regions, and tags.
+func NewAzureMySQLFetcher(cs common.CloudClients, cred azcore.TokenCredential, sub, group string, regions []string, tags types.Labels) (*MySQLFetcher, error) {
 	client, err := cs.GetAzureMySQLClient(sub, cred)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	fetcher, err := newMySQLFetcher(
-		mySQLFetcherConfig{
-			Regions: utils.StringsSet(regions),
-			Labels:  tags,
-			Client:  client,
-		})
-	if err != nil {
+	config := mySQLFetcherConfig{
+		Client:        client,
+		ResourceGroup: group,
+		Labels:        tags,
+		Regions:       utils.StringsSet(regions),
+	}
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	fetcher := &MySQLFetcher{
+		cfg: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: "watch:azuremysql",
+			"labels":        config.Labels,
+			"regions":       config.Regions,
+		}),
 	}
 	return fetcher, nil
 }
 
 // mySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
 type mySQLFetcherConfig struct {
-	// Labels is a selector to match cloud databases.
-	Labels types.Labels
 	// Client is the Azure API client.
 	Client common.AzureMySQLClient
+	// ResourceGroup is a selector to match cloud resource group.
+	ResourceGroup string
+	// Labels is a selector to match cloud databases.
+	Labels types.Labels
 	// regions is the Azure regions to filter databases.
 	Regions map[string]struct{}
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (c *mySQLFetcherConfig) CheckAndSetDefaults() error {
+	if len(c.ResourceGroup) == 0 {
+		return trace.BadParameter("missing parameter ResourceGroup")
+	}
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -80,21 +93,6 @@ type MySQLFetcher struct {
 	log logrus.FieldLogger
 }
 
-// newMySQLFetcher returns a new Azure MySQL servers fetcher instance.
-func newMySQLFetcher(config mySQLFetcherConfig) (*MySQLFetcher, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &MySQLFetcher{
-		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:azuremysql",
-			"labels":        config.Labels,
-			"regions":       config.Regions,
-		}),
-	}, nil
-}
-
 // Get returns Azure MySQL servers matching the watcher's selectors.
 func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
@@ -107,13 +105,16 @@ func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 // getDatabases returns a list of database resources representing Azure database servers.
 func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
-	servers, err := f.cfg.Client.ListServers(ctx)
+	servers, err := f.cfg.Client.ListServers(ctx, f.cfg.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	databases := make(types.Databases, 0, len(servers))
 	for _, server := range servers {
+		if server == nil {
+			continue
+		}
 		// azure sdk provides no way to query by region, so we have to filter results
 		location := stringVal(server.Location)
 		if _, ok := f.cfg.Regions[location]; !ok {
