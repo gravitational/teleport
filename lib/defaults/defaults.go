@@ -324,10 +324,6 @@ var (
 	// start losing events
 	AuditBackoffTimeout = 5 * time.Second
 
-	// AwsBackoffDuration is a time out before aws initialization functions
-	// will error out
-	AwsBackoffDuration = time.Second * 60
-
 	// NetworkRetryDuration is a standard retry on network requests
 	// to retry quickly, e.g. once in one second
 	NetworkRetryDuration = time.Second
@@ -728,7 +724,7 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{
-			{
+			limiter.Rate{
 				Period:  1 * time.Second,
 				Average: 10,
 				Burst:   10,

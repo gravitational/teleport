@@ -30,21 +30,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/request"
+
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
+	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/request"
+	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
@@ -52,8 +53,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -1067,10 +1066,7 @@ func convertError(err error) error {
 	}
 	aerr, ok := err.(awserr.Error)
 	if !ok {
-		return trace.Wrap(err)
-	}
-	if request.IsErrorThrottle(aerr) {
-		return trace.Retry(aerr, aerr.Error())
+		return err
 	}
 	switch aerr.Code() {
 	case dynamodb.ErrCodeConditionalCheckFailedException:
@@ -1089,7 +1085,7 @@ func convertError(err error) error {
 		// "Item size has exceeded the maximum allowed size" AWS validation error.
 		return trace.Wrap(errAWSValidation, aerr.Error())
 	default:
-		return trace.Wrap(err)
+		return err
 	}
 }
 

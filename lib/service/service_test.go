@@ -17,7 +17,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
@@ -276,6 +276,9 @@ func TestServiceInitExternalLog(t *testing.T) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
 	for _, tt := range tts {
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
@@ -287,7 +290,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalAuditLog(externalAuditLogConfig{auditConfig: auditConfig})
+			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -298,178 +301,6 @@ func TestServiceInitExternalLog(t *testing.T) {
 				require.Nil(t, loggers)
 			} else {
 				require.NotNil(t, loggers)
-			}
-		})
-	}
-}
-
-// TestExternalAuditLogRetryOnInitError tests the connection retry capabilities
-// of supported external audit loggers in case of a retriable error is encountered.
-func TestExternalAuditLogRetryOnInitError(t *testing.T) {
-	retryIndex := 0
-	var cancelFunc context.CancelFunc
-
-	tts := []struct {
-		events         []string
-		wantErr        bool
-		externalLogger func() error
-		retryConfig    *utils.LinearConfig
-	}{
-		// No retries
-		{
-			events:         []string{"dynamodb://example.com"},
-			wantErr:        false,
-			externalLogger: func() error { return nil },
-			retryConfig:    nil,
-		},
-		// Instant failure
-		{
-			events:         []string{"dynamodb://example.com"},
-			wantErr:        true,
-			externalLogger: func() error { return utils.PermanentRetryError(errors.New("instant failure")) },
-			retryConfig:    nil,
-		},
-		// Trigger a retry mechanism that eventually succeeds
-		{
-			events:  []string{"dynamodb://example.com"},
-			wantErr: false,
-			externalLogger: func() error {
-				retryIndex++
-				if retryIndex == 2 {
-					return nil
-				}
-				return trace.Retry(errors.New("retry"), "retry")
-			},
-			retryConfig: &utils.LinearConfig{
-				Step: time.Millisecond * 1,
-				Max:  time.Millisecond * 10,
-			},
-		},
-		// Trigger the retry mechanism that never succeeds
-		{
-			events:  []string{"dynamodb://example.com"},
-			wantErr: true,
-			externalLogger: func() error {
-				retryIndex++
-				if retryIndex == 2 {
-					cancelFunc()
-				}
-				return trace.Retry(errors.New("retry"), "retry")
-			},
-			retryConfig: &utils.LinearConfig{
-				Step: time.Millisecond * 1,
-				Max:  time.Millisecond * 10,
-			},
-		},
-	}
-	for _, tt := range tts {
-		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
-			retryIndex = 0
-			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-				AuditEventsURI: tt.events,
-			})
-			require.NoError(t, err)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cancelFunc = cancel
-
-			_, err = initExternalAuditLog(externalAuditLogConfig{
-				ctx:         ctx,
-				auditConfig: auditConfig,
-				loggerFunc:  tt.externalLogger,
-				retryConfig: tt.retryConfig,
-			})
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-// TestAuditSessionUploadHandlerRetryOnInitError tests the connection retry capabilities
-// of supported external session uploaders in case of a retriable error is encountered.
-func TestAuditSessionUploadHandlerRetryOnInitError(t *testing.T) {
-	retryIndex := 0
-	var cancelFunc context.CancelFunc
-
-	tts := []struct {
-		sessions         string
-		wantErr          bool
-		externalUploader func() error
-		retryConfig      *utils.LinearConfig
-	}{
-		// No retries
-		{
-			sessions:         "s3://example.com",
-			wantErr:          false,
-			externalUploader: func() error { return nil },
-			retryConfig:      nil,
-		},
-		// Instant failure
-		{
-			sessions:         "s3://example.com",
-			wantErr:          true,
-			externalUploader: func() error { return utils.PermanentRetryError(errors.New("instant failure")) },
-			retryConfig:      nil,
-		},
-		// Trigger a retry mechanism that eventually succeeds
-		{
-			sessions: "s3://example.com",
-			wantErr:  false,
-			externalUploader: func() error {
-				retryIndex++
-				if retryIndex == 2 {
-					return nil
-				}
-				return trace.Retry(errors.New("retry"), "retry")
-			},
-			retryConfig: &utils.LinearConfig{
-				Step: time.Millisecond * 1,
-				Max:  time.Millisecond * 10,
-			},
-		},
-		// Trigger the retry mechanism that never succeeds
-		{
-			sessions: "s3://example.com",
-			wantErr:  true,
-			externalUploader: func() error {
-				retryIndex++
-				if retryIndex == 2 {
-					cancelFunc()
-				}
-				return trace.Retry(errors.New("retry"), "retry")
-			},
-			retryConfig: &utils.LinearConfig{
-				Step: time.Millisecond * 1,
-				Max:  time.Millisecond * 10,
-			},
-		},
-	}
-	for _, tt := range tts {
-		t.Run(tt.sessions, func(t *testing.T) {
-			retryIndex = 0
-			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-				AuditSessionsURI: tt.sessions,
-			})
-			require.NoError(t, err)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cancelFunc = cancel
-
-			_, err = initAuditSessionUploadHandler(auditSessionUploadConfig{
-				ctx:          ctx,
-				auditConfig:  auditConfig,
-				uploaderFunc: tt.externalUploader,
-				retryConfig:  tt.retryConfig,
-			})
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
 			}
 		})
 	}
