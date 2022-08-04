@@ -255,7 +255,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 
 type connector struct {
 	log      *logrus.Entry
-	clt      *auth.Client
+	clt      auth.ClientI
 	site     reversetunnel.RemoteSite
 	userAddr string
 }

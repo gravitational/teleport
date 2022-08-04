@@ -61,7 +61,7 @@ type SessionContext struct {
 
 	// clt holds a connection to the root auth. Note that requests made using this
 	// client are made with the identity of the user and are NOT cached.
-	clt *auth.Client
+	clt auth.ClientI
 	// remoteClientCache holds the remote clients that have been used in this
 	// session.
 	remoteClientCache
@@ -81,6 +81,34 @@ type SessionContext struct {
 	resources *sessionResources
 	// session refers the web session created for the user.
 	session types.WebSession
+}
+
+func NewSessionContext(session types.WebSession, clt auth.ClientI) (*SessionContext, error) {
+	cache, err := newSessionCache(sessionCacheOptions{
+		proxyClient: clt,
+		accessPoint: clt,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	logger := logrus.WithFields(logrus.Fields{
+		"user":    session.GetUser(),
+		"session": session.GetShortName(),
+	})
+
+	return &SessionContext{
+		log:                    logger,
+		user:                   session.GetUser(),
+		clt:                    clt,
+		remoteClientCache:      remoteClientCache{},
+		unsafeCachedAuthClient: clt,
+		parent:                 cache,
+		resources: &sessionResources{
+			log: logger,
+		},
+		session: session,
+	}, nil
 }
 
 // String returns the text representation of this context
@@ -135,7 +163,7 @@ func (c *SessionContext) GetClient() (auth.ClientI, error) {
 
 // GetClientConnection returns a connection to Auth Service
 func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
-	return c.clt.GetConnection()
+	return c.clt.(*auth.Client).APIClient.GetConnection()
 }
 
 // GetUserClient will return an auth.ClientI with the role of the user at

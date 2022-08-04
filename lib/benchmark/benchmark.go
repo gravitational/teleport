@@ -26,14 +26,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 const (
@@ -55,6 +56,8 @@ type Config struct {
 	Command []string
 	// Interactive turns on interactive sessions
 	Interactive bool
+	// Web uses web sessions instead of ssh sessions
+	Web bool
 	// MinimumWindow is the min duration
 	MinimumWindow time.Duration
 	// MinimumMeasurements is the min amount of requests
@@ -102,7 +105,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		if benchmarkC == nil {
 			break
 		}
-		result, err := benchmarkC.Benchmark(ctx, tc)
+		result, err := benchmarkC.Benchmark(ctx, tc, nil)
 		if err != nil {
 			return results, trace.Wrap(err)
 		}
@@ -143,8 +146,8 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
-// This is a blocking function that can be cancelled via context argument.
-func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
+// This is a blocking function that can be canceled via context argument.
+func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, pc *web.ProxyClient) (Result, error) {
 	tc.Stdout = io.Discard
 	tc.Stderr = io.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -171,8 +174,10 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 					command:       c.Command,
 					client:        tc,
 					interactive:   c.Interactive,
+					web:           c.Web,
+					pclt:          pc,
 				}
-				go work(ctx, &measure, resultC)
+				go measure.work(ctx, resultC)
 			case <-ctx.Done():
 				return
 			}
@@ -218,19 +223,36 @@ type benchMeasure struct {
 	client        *client.TeleportClient
 	command       []string
 	interactive   bool
+	web           bool
+	pclt          *web.ProxyClient
 }
 
-func work(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+func (m *benchMeasure) work(ctx context.Context, send chan<- *benchMeasure) {
+
 	// do not use parent context that will cancel in flight requests
 	// because we give test some time to gracefully wrap up
 	// the in-flight connections to avoid extra errors
-	m.Error = m.execute(context.Background())
+
+	if m.web {
+		m.Error = m.executeWeb(ctx)
+	} else {
+		m.Error = m.execute(ctx)
+	}
+
 	m.End = time.Now()
 	select {
 	case send <- m:
 	case <-ctx.Done():
 		return
 	}
+}
+
+func (m *benchMeasure) executeWeb(ctx context.Context) error {
+	if m.pclt == nil {
+		return trace.BadParameter("missing proxy client")
+	}
+
+	return trace.Wrap(m.pclt.SSH(ctx, m.client, m.command))
 }
 
 func (m *benchMeasure) execute(ctx context.Context) error {

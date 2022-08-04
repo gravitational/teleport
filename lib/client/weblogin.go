@@ -19,32 +19,38 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 )
 
 const (
@@ -454,6 +460,111 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 	return loginResp, nil
 }
 
+type CreateSessionReq struct {
+	// User is the Teleport username.
+	User string `json:"user"`
+	// Pass is the password.
+	Pass string `json:"pass"`
+	// SecondFactorToken is the OTP.
+	SecondFactorToken string `json:"second_factor_token"`
+}
+
+type CreateSessionResponse struct {
+	// TokenType is token type (bearer)
+	TokenType string `json:"type"`
+	// Token value
+	Token string `json:"token"`
+	// TokenExpiresIn sets seconds before this token is not valid
+	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpires is when this session expires.
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// SessionInactiveTimeoutMS specifies how long in milliseconds
+	// a user WebUI session can be left idle before being logged out
+	// by the server. A zero value means there is no idle timeout set.
+	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
+}
+
+// SSHAgentLoginWeb is used by tsh to fetch local user credentials.
+func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (types.WebSession, []*http.Cookie, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	csrfToken := hex.EncodeToString(token)
+	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(&CreateSessionReq{
+			User:              login.User,
+			Pass:              login.Password,
+			SecondFactorToken: login.OTPToken,
+		}); err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", clt.Endpoint("webapi", "sessions", "web"), &buf)
+		if err != nil {
+			return nil, err
+		}
+
+		cookie := &http.Cookie{
+			Name:  csrf.CookieName,
+			Value: csrfToken,
+		}
+
+		req.AddCookie(cookie)
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		return clt.HTTPClient().Do(req)
+	}))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var sess CreateSessionResponse
+	err = json.Unmarshal(resp.Bytes(), &sess)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// SessionCookie stores information about active user and session
+	type SessionCookie struct {
+		User string `json:"user"`
+		SID  string `json:"sid"`
+	}
+
+	cookies := resp.Cookies()
+	if len(cookies) != 1 {
+		return nil, nil, trace.BadParameter("received unexpected cookie")
+	}
+
+	var cookie SessionCookie
+	if err := json.NewDecoder(hex.NewDecoder(strings.NewReader(cookies[0].Value))).Decode(&cookie); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := types.NewWebSession(cookie.SID, types.KindWebSession, types.WebSessionSpecV2{
+		User:               cookie.User,
+		Pub:                login.PubKey,
+		BearerToken:        sess.Token,
+		BearerTokenExpires: time.Now().Add(time.Duration(sess.TokenExpiresIn)),
+		Expires:            sess.SessionExpires,
+		LoginTime:          time.Now(),
+		IdleTimeout:        types.Duration(sess.SessionInactiveTimeoutMS),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return session, resp.Cookies(), nil
+}
+
 // SSHAgentMFALogin requests a MFA challenge via the proxy.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
@@ -522,6 +633,72 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 	loginResp := &auth.SSHLoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
+}
+
+func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	beginReq := MFAChallengeRequest{
+		User: login.User,
+		Pass: login.Password,
+	}
+	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert to auth gRPC proto challenge.
+	challengePB := &proto.MFAAuthenticateChallenge{}
+	if challenge.TOTPChallenge {
+		challengePB.TOTP = &proto.TOTPChallenge{}
+	}
+	if challenge.WebauthnChallenge != nil {
+		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
+	}
+
+	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
+		AllowStdinHijack:        login.AllowStdinHijack,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+		PreferOTP:               login.PreferOTP,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeResp := AuthenticateSSHUserRequest{
+		User:              login.User,
+		Password:          login.Password,
+		PubKey:            login.PubKey,
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
+	}
+	// Convert back from auth gRPC proto response.
+	switch r := respPB.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		challengeResp.TOTPCode = r.TOTP.Code
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		challengeResp.WebauthnChallengeResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
+	default:
+		// No challenge was sent, so we send back just username/password.
+	}
+
+	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var loginResp types.WebSession
+	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), &loginResp))
 }
 
 // HostCredentials is used to fetch host credentials for a node.

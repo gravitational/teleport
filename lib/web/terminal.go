@@ -71,7 +71,7 @@ type TerminalRequest struct {
 	// Cluster is the name of the remote cluster to connect to.
 	Cluster string `json:"-"`
 
-	// InteractiveCommand is a command to execut.e
+	// InteractiveCommand is a command to execute
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
@@ -128,20 +128,24 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		join = true
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
 		}),
-		params:       req,
-		ctx:          sessCtx,
-		hostName:     hostName,
-		hostPort:     hostPort,
-		hostUUID:     req.Server,
-		authProvider: authProvider,
-		encoder:      unicode.UTF8.NewEncoder(),
-		decoder:      unicode.UTF8.NewDecoder(),
-		wsLock:       &sync.Mutex{},
-		join:         join,
+		params:          req,
+		ctx:             sessCtx,
+		hostName:        hostName,
+		hostPort:        hostPort,
+		hostUUID:        req.Server,
+		authProvider:    authProvider,
+		encoder:         unicode.UTF8.NewEncoder(),
+		decoder:         unicode.UTF8.NewDecoder(),
+		wsLock:          &sync.Mutex{},
+		join:            join,
+		terminalContext: ctx,
+		terminalCancel:  cancel,
 	}, nil
 }
 
@@ -276,7 +280,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(ws, r)
+	tc, err := t.MakeClient(ws, r)
 	if err != nil {
 		t.log.WithError(err).Infof("Failed creating a client for session %v.", t.params.SessionID)
 		writeErr := t.writeError(err, ws)
@@ -306,8 +310,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.log.Debugf("Closing websocket stream for %v.", t.params.SessionID)
 }
 
-// makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
+// MakeClient builds a *client.TeleportClient for the connection.
+func (t *TerminalHandler) MakeClient(ws *websocket.Conn, r *http.Request) (*client.TeleportClient, error) {
 	clientConfig, err := makeTeleportClientConfig(r.Context(), t.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
