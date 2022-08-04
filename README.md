@@ -164,7 +164,8 @@ $ make -C build.assets build-binaries
 Ensure you have installed correct versions of necessary dependencies:
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-* If you wish to build the Rust-powered features like Desktop Access, `Rust` and `Cargo` version from
+* If you wish to build the Rust-powered features like Desktop Access, see the
+  `Rust` and `Cargo` version in
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
