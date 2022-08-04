@@ -2355,8 +2355,8 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		s.Wait()
-		agentPool.Wait()
 		agentPool.Stop()
+		agentPool.Wait()
 
 		log.Infof("Exited.")
 		return nil
