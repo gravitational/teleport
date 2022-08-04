@@ -54,20 +54,10 @@ PRs with corrections and updates are welcome!
   # or open a new shell
   ```
   
-  * If on M1 Mac, add `x86_64` target 
-  
-  ```shell
-  rustup target add x86_64-apple-darwin
-  ```
-
   * Install the required version
   
   ```shell
   rustup toolchain install <version from build.assets/Makefile>
-  # 
-  # In addition to the above, if on M1 Mac, also run
-  #
-  # $ rustup toolchain install <version from build.assets/Makefile> --target x86_64-apple-darwin
   cd <teleport.git>
   rustup override set <version from build.assets/Makefile>
   rustc --version                                                                                                                                                                  ─╯
