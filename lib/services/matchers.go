@@ -44,7 +44,6 @@ type AWSMatcher struct {
 
 // AzureMatcher matches Azure databases.
 type AzureMatcher struct {
-	// TODO(gavin): test multiple subs with one credential
 	// Subscriptions are Azure subscriptions to query for resources
 	Subscriptions []string
 	// Types are Azure database types to match, "rds" or "redshift".

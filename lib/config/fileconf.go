@@ -1192,7 +1192,6 @@ type AWSMatcher struct {
 
 // AzureMatcher matches Azure databases.
 type AzureMatcher struct {
-	// TODO(gavin): test multiple subs with one credential
 	// Subscriptions are Azure subscriptions to query for resources
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// Types are azure database types to match: "mysql", "postgres"
