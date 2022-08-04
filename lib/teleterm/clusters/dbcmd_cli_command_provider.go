@@ -63,7 +63,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		// At this point it doesn't matter though because this argument is used only for
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
-		cluster.GetActualName(),
+		cluster.Name,
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
