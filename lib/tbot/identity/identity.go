@@ -40,8 +40,8 @@ const (
 	// TLSCertKey is the name under which TLS certificates exist in a destination.
 	TLSCertKey = "tlscert"
 
-	// TLSCertKey is the name under which SSH certificates exist in a destination.
-	SSHCertKey = "sshcert"
+	// SSHCertKey is the name under which SSH certificates exist in a destination.
+	SSHCertKey = "key-cert.pub"
 
 	// SSHCACertsKey is the name under which SSH CA certificates exist in a destination.
 	SSHCACertsKey = "sshcacerts"
@@ -433,6 +433,25 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 		data, err := d.Read(artifact.Key)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
+		}
+
+		// Attempt to load from an old key if there was no data in the current
+		// key. This allows migrations of key names.
+		if artifact.OldKey != "" && len(data) == 0 {
+			log.Debugf(
+				"Unable to load from current key %q, trying to migrate from old key %q",
+				artifact.Key,
+				artifact.OldKey,
+			)
+			data, err = d.Read(artifact.OldKey)
+			if err != nil {
+				return nil, trace.WrapWithMessage(
+					err,
+					"could not read artifact %q from destination %q",
+					artifact.OldKey,
+					d,
+				)
+			}
 		}
 
 		// We generally expect artifacts to exist beforehand regardless of
