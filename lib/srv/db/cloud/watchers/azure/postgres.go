@@ -38,9 +38,9 @@ func MakeAzurePostgresFetcher(cs common.CloudClients, sub string, cred azcore.To
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := NewPostgresFetcher(
+	fetcher, err := newPostgresFetcher(
 		postgresFetcherConfig{
-			Regions: regions,
+			Regions: utils.StringsSet(regions),
 			Labels:  tags,
 			Client:  client,
 		})
@@ -57,9 +57,7 @@ type postgresFetcherConfig struct {
 	// Client is the Azure API client.
 	Client common.AzurePostgresClient
 	// regions is the Azure regions to filter databases.
-	Regions []string
-	// regionSet is the Azure regions to filter databases, as a hashset for efficient lookup.
-	regionSet map[string]struct{}
+	Regions map[string]struct{}
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -73,9 +71,6 @@ func (c *postgresFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	if len(c.regionSet) == 0 {
-		c.regionSet = utils.StringsSet(c.Regions)
-	}
 	return nil
 }
 
@@ -85,8 +80,8 @@ type PostgresFetcher struct {
 	log logrus.FieldLogger
 }
 
-// NewPostgresFetcher returns a new Azure Postgres servers fetcher instance.
-func NewPostgresFetcher(config postgresFetcherConfig) (*PostgresFetcher, error) {
+// newPostgresFetcher returns a new Azure Postgres servers fetcher instance.
+func newPostgresFetcher(config postgresFetcherConfig) (*PostgresFetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +116,7 @@ func (f *PostgresFetcher) getDatabases(ctx context.Context) (types.Databases, er
 	for _, server := range servers {
 		// azure sdk provides no way to query by region, so we have to filter results
 		location := stringVal(server.Location)
-		if _, ok := f.cfg.regionSet[location]; !ok {
+		if _, ok := f.cfg.Regions[location]; !ok {
 			continue
 		}
 
@@ -137,7 +132,7 @@ func (f *PostgresFetcher) getDatabases(ctx context.Context) (types.Databases, er
 			}
 		}
 		if !services.IsAzurePostgresVersionSupported(version) {
-			f.log.Debugf("Azure server %q (version %v) doesn't support IAM authentication. Skipping.",
+			f.log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
 				name,
 				version)
 			continue

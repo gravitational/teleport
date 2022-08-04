@@ -38,9 +38,9 @@ func MakeAzureMySQLFetcher(cs common.CloudClients, sub string, cred azcore.Token
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher, err := NewMySQLFetcher(
-		MySQLFetcherConfig{
-			Regions: regions,
+	fetcher, err := newMySQLFetcher(
+		mySQLFetcherConfig{
+			Regions: utils.StringsSet(regions),
 			Labels:  tags,
 			Client:  client,
 		})
@@ -50,20 +50,18 @@ func MakeAzureMySQLFetcher(cs common.CloudClients, sub string, cred azcore.Token
 	return fetcher, nil
 }
 
-// MySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
-type MySQLFetcherConfig struct {
+// mySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
+type mySQLFetcherConfig struct {
 	// Labels is a selector to match cloud databases.
 	Labels types.Labels
 	// Client is the Azure API client.
 	Client common.AzureMySQLClient
 	// regions is the Azure regions to filter databases.
-	Regions []string
-	// regionSet is the Azure regions to filter databases, as a hashset for efficient lookup.
-	regionSet map[string]struct{}
+	Regions map[string]struct{}
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *MySQLFetcherConfig) CheckAndSetDefaults() error {
+func (c *mySQLFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Labels) == 0 {
 		return trace.BadParameter("missing parameter Labels")
 	}
@@ -73,20 +71,17 @@ func (c *MySQLFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	if len(c.regionSet) == 0 {
-		c.regionSet = utils.StringsSet(c.Regions)
-	}
 	return nil
 }
 
 // MySQLFetcher retrieves Azure MySQL single-server databases.
 type MySQLFetcher struct {
-	cfg MySQLFetcherConfig
+	cfg mySQLFetcherConfig
 	log logrus.FieldLogger
 }
 
-// NewMySQLFetcher returns a new Azure MySQL servers fetcher instance.
-func NewMySQLFetcher(config MySQLFetcherConfig) (*MySQLFetcher, error) {
+// newMySQLFetcher returns a new Azure MySQL servers fetcher instance.
+func newMySQLFetcher(config mySQLFetcherConfig) (*MySQLFetcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +116,7 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 	for _, server := range servers {
 		// azure sdk provides no way to query by region, so we have to filter results
 		location := stringVal(server.Location)
-		if _, ok := f.cfg.regionSet[location]; !ok {
+		if _, ok := f.cfg.Regions[location]; !ok {
 			continue
 		}
 
@@ -137,7 +132,7 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			}
 		}
 		if !services.IsAzureMySQLVersionSupported(version) {
-			f.log.Debugf("Azure server %q (version %v) doesn't support IAM authentication. Skipping.",
+			f.log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
 				name,
 				version)
 			continue
