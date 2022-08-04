@@ -3238,7 +3238,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = tt.server.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = tt.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = tt.server.Auth().GetClusterName()
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

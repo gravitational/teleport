@@ -23,11 +23,14 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -58,7 +61,7 @@ type AgentStateCallback func(AgentState)
 // transporter handles the creation of new transports over ssh.
 type transporter interface {
 	// Transport creates a new transport.
-	transport(context.Context, ssh.Channel, <-chan *ssh.Request, ssh.Conn) *transport
+	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -74,7 +77,11 @@ type versionGetter interface {
 
 // SSHClient is a client for an ssh connection.
 type SSHClient interface {
-	ssh.Conn
+	ssh.ConnMetadata
+	io.Closer
+	Wait() error
+	OpenChannel(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
 	Principals() []string
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
@@ -156,7 +163,7 @@ type agent struct {
 	// an agent is connecting and protects wait groups from being waited on early.
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
-	hbChannel ssh.Channel
+	hbChannel *tracessh.Channel
 	// hbRequests are requests going over the heartbeat channel.
 	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
@@ -388,7 +395,7 @@ func (a *agent) connect() error {
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
-	channel, requests, err := a.client.OpenChannel(chanHeartbeat, nil)
+	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -397,7 +404,7 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	a.hbRequests = requests
 
 	// Send the first ping right away.
-	if _, err := a.hbChannel.SendRequest("ping", false, nil); err != nil {
+	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -540,7 +547,7 @@ func (a *agent) handleDrainChannels() error {
 				continue
 			}
 			bytes, _ := a.clock.Now().UTC().MarshalText()
-			_, err := a.hbChannel.SendRequest("ping", false, bytes)
+			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
 			if err != nil {
 				a.log.Error(err)
 				return trace.Wrap(err)

@@ -28,6 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,9 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestDatabaseLogin verifies "tsh db login" command.
@@ -113,9 +113,6 @@ func TestListDatabase(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	tshHome := t.TempDir()
-	t.Setenv(types.HomeEnvVar, tshHome)
-
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -137,7 +134,7 @@ func TestListDatabase(t *testing.T) {
 		}),
 	)
 
-	mustLogin(t, s)
+	mustLoginSetEnv(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{
@@ -292,7 +289,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 			require.NoError(t, err)
 
 			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
-			require.NoError(t, os.WriteFile(certPath, certBytes, 0600))
+			require.NoError(t, os.WriteFile(certPath, certBytes, 0o600))
 
 			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
 			got, err := dbInfoHasChanged(cliConf, certPath)
@@ -331,13 +328,8 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	})
 
 	// Wait for database agent to start.
-	eventCh := make(chan service.Event, 1)
-	db.WaitForEvent(db.ExitContext(), service.DatabasesReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("database server didn't start after 10s")
-	}
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
+	require.NoError(t, err, "database server didn't start after 10s")
 
 	// Wait for all databases to register to avoid races.
 	for _, database := range dbs {

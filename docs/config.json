@@ -302,6 +302,10 @@
         {
           "title": "Using tsh",
           "slug": "/use-teleport/tsh/"
+        },
+        {
+          "title": "Using Teleport Connect",
+          "slug": "/use-teleport/teleport-connect/"
         }
       ]
     },
@@ -322,8 +326,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web App Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP App Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
@@ -738,7 +746,7 @@
           "slug": "/access-controls/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Cluster Access and RBAC",
           "slug": "/access-controls/guides/",
           "entries": [
             {
@@ -777,6 +785,46 @@
             }
           ]
         },
+	{
+	    "title": "Access Requests",
+	    "slug": "/access-controls/access-requests/",
+	    "entries": [
+		{
+		    "title": "Role Requests",
+		    "slug":"/access-controls/access-requests/role-requests/"
+		},
+		{
+		    "title": "Resource Requests",
+		    "slug":"/access-controls/access-requests/resource-requests/"
+		}
+	    ]
+	},
+	{
+	    "title": "Access Request Plugins",
+	    "slug": "/access-controls/access-request-plugins/",
+	    "entries": [
+		{
+		    "title": "Mattermost",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/"
+		},
+		{
+		    "title": "PagerDuty",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/"
+		},
+                {
+                    "title": "Jira Server",
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/"
+                },
+		{
+		    "title": "Jira Cloud",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/"
+		},
+		{
+		    "title": "Slack",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		}
+	    ]
+	},
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
@@ -892,7 +940,7 @@
           "forScopes": ["enterprise"]
         },
         {
-          "title": "SOC2",
+          "title": "SOC 2",
           "slug": "/enterprise/soc2/",
           "forScopes": ["enterprise", "cloud"]
         },
@@ -1397,6 +1445,46 @@
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
+    },
+    {
+       "source": "/enterprise/workflow/",
+       "destination": "/access-controls/access-requests/",
+       "permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-server/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-slack/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-slack/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/resource-requests/",
+    	"destination": "/access-controls/access-requests/resource-requests/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/role-requests/",
+    	"destination": "/access-controls/access-requests/role-requests/",
+    	"permanent": true
     }
   ]
 }
