@@ -23,17 +23,17 @@ import (
 	"crypto/x509/pkix"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RotateRequest is a request to start rotation of the certificate authority.
@@ -211,7 +211,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 	}
 
 	caTypes := req.Types()
-	allCerts, err := a.getAllCertificates(ctx, clusterName.GetClusterName())
+	allCerts, err := a.getAllCertificatesForRotation(ctx, clusterName.GetClusterName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -268,7 +268,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -318,7 +318,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -404,12 +404,13 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 
 type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
 
-// getAllCertificates returns all certificates authorities including private keys.
-func (a *Server) getAllCertificates(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
+// getAllCertificatesForRotation returns all certificates authorities including
+// private keys from the backend, bypassing the cache.
+func (a *Server) getAllCertificatesForRotation(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
 	certs := make(CertAuthorityMap)
 
 	for _, caType := range types.CertAuthTypes {
-		ca, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName,
 		}, true)

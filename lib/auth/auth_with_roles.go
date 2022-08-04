@@ -999,7 +999,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	if err := a.action(namespace, types.KindNode, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	node, err := a.authServer.GetCache().GetNode(ctx, namespace, name)
+	node, err := a.authServer.GetNode(ctx, namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2028,7 +2028,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 			}
 		}
 	}
-	return a.authServer.Identity.GetUser(name, withSecrets)
+	return a.authServer.GetUser(name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -2624,7 +2624,7 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnector(ctx, id, withSecrets)
+	return a.authServer.GetOIDCConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
@@ -2639,7 +2639,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnectors(ctx, withSecrets)
+	return a.authServer.GetOIDCConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
@@ -2707,7 +2707,7 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnector(ctx, id, withSecrets)
+	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
@@ -2722,7 +2722,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnectors(ctx, withSecrets)
+	return a.authServer.GetSAMLConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -2833,7 +2833,7 @@ func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, wit
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnector(ctx, id, withSecrets)
+	return a.authServer.GetGithubConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -2848,7 +2848,7 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnectors(ctx, withSecrets)
+	return a.authServer.GetGithubConnectors(ctx, withSecrets)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -3073,7 +3073,7 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 }
 
 // CreateRole not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateRole(role types.Role) error {
+func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
