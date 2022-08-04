@@ -86,11 +86,11 @@ func TestSearchSessionRange(t *testing.T) {
 		{
 			name:    "invalid from",
 			fromUTC: "this is not a time",
-			err:     trace.BadParameter("failed to parse session listing start time: expected format %s, got this is not a time.", time.RFC3339),
+			err:     trace.BadParameter("failed to parse session recording listing start time: expected format %s, got this is not a time.", time.RFC3339),
 		}, {
 			name:  "invalid to",
 			toUTC: "this is also not a time",
-			err:   trace.BadParameter("failed to parse session listing end time: expected format %s, got this is also not a time.", time.RFC3339),
+			err:   trace.BadParameter("failed to parse session recording listing end time: expected format %s, got this is also not a time.", time.RFC3339),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
