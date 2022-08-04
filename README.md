@@ -120,7 +120,7 @@ View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repositor
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](README_local_MacOS.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
@@ -157,7 +157,7 @@ Ensure you have installed correct versions of necessary dependencies:
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
 
-For an example of Dev Environment setup on a Mac, see [these instructions](README_local_MacOS.md). 
+For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md). 
 
 #### Perform a build
 
