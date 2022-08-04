@@ -699,8 +699,8 @@
               "slug": "/machine-id/guides/kubernetes/"
             },
             {
-              "title": "Apps",
-              "slug": "/machine-id/guides/apps/"
+              "title": "Applications",
+              "slug": "/machine-id/guides/applications/"
             }
           ]
         }

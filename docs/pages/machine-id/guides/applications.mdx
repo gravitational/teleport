@@ -16,8 +16,7 @@ controls that Teleport provides for human users.
 You will need Teleport Cloud 10.1.0 or later.
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
-You will need to be running the Teleport Proxy and Auth Services, version 10.1.0
-or later.
+You will need to be running the Teleport version 10.1.0 or later.
 </ScopedBlock>
 
 If you have not already connected your application to Teleport, follow
@@ -29,8 +28,8 @@ Machine ID. You'll also need `tctl` access to initially configure the bot.
 
 (!docs/pages/includes/tctl.mdx!)
 
-Lastly, ensure both `tbot` is installed on your Machine ID client system. Refer
-to our [Installation guide](../../installation.mdx) for more information.
+Lastly, ensure `tbot` is installed on your Machine ID client system. Refer to
+our [Installation guide](../../installation.mdx) for more information.
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 
@@ -177,7 +176,7 @@ tools like `curl` as described in the
 Given the destination directory `/opt/machine-id`, the following
 certificate files can be used:
  * `/opt/machine-id/tlscert`: the client TLS certificate
- * `/opt/machine-id/key`
+ * `/opt/machine-id/key`: the TLS certificate's private key
 
 You may use these credentials with any client application that supports them.
 
@@ -204,6 +203,12 @@ $ curl --user admin:admin \
   https://grafana-example.teleport.example.com/api/users
 ```
 </ScopedBlock>
+
+Note that in the example above, we include `--user` to provide a local username
+and password to our Grafana instance. This is not necessary if your application
+either requires no additional authentication, or if you've configured 
+[JWT authentication](../../application-access/jwt/introduction.mdx) for your
+app.
 
 No CA certificate needs to be specified so long as your Teleport Proxy is
 configured with a valid wildcard CA from Let's Encrypt or another public
