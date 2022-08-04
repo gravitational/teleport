@@ -102,7 +102,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
-	case types.KindKubeService:
+	case types.KindKubeService, types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
 		}
@@ -192,11 +192,25 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 		return true, nil
 	}
 
-	server, ok := resource.(types.Server)
-	if !ok {
-		return false, trace.BadParameter("expected types.Server, got %T", resource)
+	switch server := resource.(type) {
+	case types.Server:
+		return matchAndFilterKubeClustersLegacy(server, filter)
+	case types.KubeServer:
+		kubeCluster := server.GetCluster()
+		if kubeCluster == nil {
+			return false, nil
+		}
+		match, err := matchResourceByFilters(kubeCluster, filter)
+		return match, trace.Wrap(err)
+	default:
+		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
 
+}
+
+// matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services
+// REMOVE in 13.0
+func matchAndFilterKubeClustersLegacy(server types.Server, filter MatchResourceFilter) (bool, error) {
 	kubeClusters := server.GetKubernetesClusters()
 
 	// Apply filter to each kube cluster.
