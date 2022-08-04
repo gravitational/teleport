@@ -114,6 +114,32 @@
           ]
         },
         {
+          "title": "Helm Deployments",
+          "slug": "/setup/helm-deployments/",
+          "entries": [
+            {
+              "title": "AWS EKS Cluster",
+              "slug": "/setup/helm-deployments/aws/"
+            },
+            {
+              "title": "Google Cloud GKE Cluster",
+              "slug": "/setup/helm-deployments/gcp/"
+            },
+            {
+              "title": "DigitalOcean Kubernetes Cluster",
+              "slug": "/setup/helm-deployments/digitalocean/"
+            },
+            {
+              "title": "Customize Deployment Config",
+              "slug": "/setup/helm-deployments/custom/"
+            },
+            {
+              "title": "Migrating From Older Charts",
+              "slug": "/setup/helm-deployments/migration/"
+            }
+          ]
+        },
+        {
           "title": "Operations",
           "slug": "/setup/operations/",
           "entries": [
@@ -392,37 +418,6 @@
             {
               "title": "Standalone",
               "slug": "/kubernetes-access/guides/standalone-teleport/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Guides",
-          "slug": "/kubernetes-access/helm/guides/",
-          "entries": [
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/",
-              "forScopes": ["oss", "enterprise"]
             }
           ]
         },
@@ -1258,6 +1253,36 @@
     {
       "source": "/getting-started/digitalocean/",
       "destination": "/setup/deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/setup/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/aws/",
+      "destination": "/setup/helm-deployments/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/custom/",
+      "destination": "/setup/helm-deployments/custom/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/digitalocean/",
+      "destination": "/setup/helm-deployments/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/gcp/",
+      "destination": "/setup/helm-deployments/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/migration/",
+      "destination": "/setup/helm-deployments/migration/",
       "permanent": true
     }
   ]
