@@ -146,19 +146,6 @@ $ make -C build.assets build-binaries
 
 ### Local Build
 
-**Important:**
-
-* The Go compiler is somewhat sensitive to the amount of memory: you will need
-  **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
-  without swap will **not** work.
-* This will build the latest version of Teleport, **regardless** of whether it
-  is stable. If you want to build the latest stable release, run `git checkout`
-  to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
-  performing a build.
-* `tsh` binaries with Touch ID support are only functional using binaries signed
-  with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
-  maintainer, ask the team for access.
-
 #### Dependencies
 
 Ensure you have installed correct versions of necessary dependencies:
@@ -174,6 +161,16 @@ For an example of Dev Environment setup on a Mac, see [these instructions](READM
 
 #### Perform a build
 
+>**Important**
+>
+>* The Go compiler is somewhat sensitive to the amount of memory: you will need
+   **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
+   without swap will **not** work.
+>* This will build the latest version of Teleport, **regardless** of whether it
+   is stable. If you want to build the latest stable release, run `git checkout`
+   to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
+   performing a build.
+
 Get the source
 
 ```shell
@@ -188,6 +185,12 @@ $ make full
 ```
 
 To build `tsh` with Apple TouchID support enabled:
+
+> **Important**
+> 
+>`tsh` binaries with Touch ID support are only functional using binaries signed
+with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
+maintainer, ask the team for access.
 
 ```shell
 $ make build/tsh TOUCHID=yes
