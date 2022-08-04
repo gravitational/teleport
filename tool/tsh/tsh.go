@@ -358,7 +358,7 @@ type CLIConf struct {
 	disableAccessRequest bool
 
 	// command is the selected command (and subcommands) parsed from command
-	// line args. command does not contain the binary (e.g. tsh).
+	// line args. Note that this command does not contain the binary (e.g. tsh).
 	command string
 }
 

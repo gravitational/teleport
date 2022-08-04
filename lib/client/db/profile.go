@@ -128,8 +128,7 @@ func IsSupported(db tlsca.RouteToDatabase) bool {
 	// Out of supported databases, only Postgres and MySQL have a concept
 	// of the connection options file.
 	switch db.Protocol {
-	case defaults.ProtocolPostgres,
-		defaults.ProtocolMySQL:
+	case defaults.ProtocolPostgres, defaults.ProtocolMySQL:
 		return true
 	default:
 		return false

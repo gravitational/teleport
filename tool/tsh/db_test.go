@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -86,78 +87,82 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		databaseName       string
-		expectCertsLen     int
-		expectKeysLen      int
-		expectErrForConfig bool
-		expectErrForEnv    bool
+		databaseName          string
+		expectCertsLen        int
+		expectKeysLen         int
+		expectErrForConfigCmd bool
+		expectErrForEnvCmd    bool
 	}{
 		{
 			databaseName:   "postgres",
 			expectCertsLen: 1,
 		},
 		{
-			databaseName:    "mongo",
-			expectCertsLen:  1,
-			expectKeysLen:   1,
-			expectErrForEnv: true, // "tsh db env" not supported for Mongo.
+			databaseName:       "mongo",
+			expectCertsLen:     1,
+			expectKeysLen:      1,
+			expectErrForEnvCmd: true, // "tsh db env" not supported for Mongo.
 		},
 		{
-			databaseName:       "mssql",
-			expectCertsLen:     1,
-			expectErrForConfig: true, // "tsh db config" not supported for MSSQL.
-			expectErrForEnv:    true, // "tsh db env" not supported for MSSQL.
+			databaseName:          "mssql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
+	}
+
+	// Note: keystore currently races when multiple tsh clients work in the
+	// same profile dir (e.g. StatusCurrent might fail reading if someone else
+	// is writing a key at the same time). Thus running all `tsh db login` in
+	// sequence first before running other test cases in parallel.
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+			err := Run(context.Background(), []string{
+				"db", "login", "--db-user", "admin", test.databaseName,
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// Fetch the active profile.
+			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+			require.NoError(t, err)
+
+			// Verify certificates.
+			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
+			require.NoError(t, err)
+			require.Len(t, certs, test.expectCertsLen)
+			require.Len(t, keys, test.expectKeysLen)
+		})
 	}
 
 	for _, test := range testCases {
 		test := test
-		t.Run(test.databaseName, func(t *testing.T) {
+
+		t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
 			t.Parallel()
 
-			t.Run("tsh db login", func(t *testing.T) {
-				err := Run(context.Background(), []string{
-					"db", "login", "--debug", "--db-user", "admin", test.databaseName,
-				}, setHomePath(tmpHomePath))
+			err := Run(context.Background(), []string{
+				"db", "config", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForConfigCmd {
+				require.Error(t, err)
+			} else {
 				require.NoError(t, err)
+			}
+		})
 
-				// Fetch the active profile.
-				profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+		t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+
+			err := Run(context.Background(), []string{
+				"db", "env", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForEnvCmd {
+				require.Error(t, err)
+			} else {
 				require.NoError(t, err)
-
-				// Verify certificates.
-				certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
-				require.NoError(t, err)
-				require.Len(t, certs, test.expectCertsLen)
-				require.Len(t, keys, test.expectKeysLen)
-			})
-
-			t.Run("tsh db config", func(t *testing.T) {
-				err := Run(context.Background(), []string{
-					"db", "config", "--debug", test.databaseName,
-				}, setHomePath(tmpHomePath))
-
-				if test.expectErrForConfig {
-					require.Error(t, err)
-					t.Log(err)
-				} else {
-					require.NoError(t, err)
-				}
-			})
-
-			t.Run("tsh db env", func(t *testing.T) {
-				// Verify "tsh db env".
-				err := Run(context.Background(), []string{
-					"db", "env", "--debug", test.databaseName,
-				}, setHomePath(tmpHomePath))
-
-				if test.expectErrForEnv {
-					require.Error(t, err)
-					t.Log(err)
-				} else {
-					require.NoError(t, err)
-				}
-			})
+			}
 		})
 	}
 }

@@ -482,13 +482,11 @@ func onDatabaseConfig(cf *CLIConf) error {
 		host, port = tc.MySQLProxyHostPort()
 	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake:
 		host, port = tc.WebProxyHostPort()
-	case defaults.ProtocolSQLServer:
+	default:
 		return trace.BadParameter(errDBCmdUnsupportedDBProtocol,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
-	default:
-		return trace.BadParameter("unknown database protocol: %q", database)
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -965,6 +963,7 @@ func formatDatabaseConnectCommand(clusterFlag string, active tlsca.RouteToDataba
 	return strings.Join(cmdTokens, " ")
 }
 
+// formatDatabaseConnectArgs generates the arguments for "tsh db connect" command.
 func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase) (flags []string) {
 	if clusterFlag != "" {
 		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
@@ -979,15 +978,18 @@ func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase)
 	return
 }
 
+// formatDatabaseProxyCommand formats the "tsh proxy db" command.
 func formatDatabaseProxyCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
-	// "tsh proxy db" support same args as "tsh db connect".
 	cmdTokens := append(
+		// "--tunnel" mode is more user friendly and supports all DB protocols.
 		[]string{"tsh", "proxy", "db", "--tunnel"},
+		// Rest of the args are the same as "tsh db connect".
 		formatDatabaseConnectArgs(clusterFlag, active)...,
 	)
 	return strings.Join(cmdTokens, " ")
 }
 
+// formatDatabaseConfigCommand formats the "tsh db config" command.
 func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) string {
 	if clusterFlag == "" {
 		return fmt.Sprintf("tsh db config --format=cmd %v", db.ServiceName)
@@ -998,7 +1000,7 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 // isLocalProxyRequiredForDatabase returns true if local proxy has to be used
 // for connecting to the provided database. Currently return true if:
 //   - TLS routing is enabled.
-//   - or this is a SQL Server connection which always requires a local proxy.
+//   - A SQL Server connection always requires a local proxy.
 func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
 	return tc.TLSRoutingEnabled || db.Protocol == defaults.ProtocolSQLServer
 }
@@ -1043,7 +1045,7 @@ Or view the connect command for the native database CLI client:
 
 {{end -}}
 {{if .proxyCommand -}}
-Or start a local proxy for the native database CLI client or a GUI client:
+Or start a local proxy for database GUI clients:
 
   {{ .proxyCommand }}
 
