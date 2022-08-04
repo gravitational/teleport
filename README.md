@@ -168,8 +168,8 @@ For an example of Dev Environment setup on a Mac, see [these instructions](READM
    without swap will **not** work.
 >* This will build the latest version of Teleport, **regardless** of whether it
    is stable. If you want to build the latest stable release, run `git checkout`
-   to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
-   performing a build.
+   and `git submodule update --recursive` to the corresponding tag (for example, 
+>* run `git checkout v8.0.0`) **before** performing a build.
 
 Get the source
 
