@@ -18,6 +18,7 @@ package srv
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/events"
@@ -68,7 +70,7 @@ type Exec interface {
 	SetCommand(string)
 
 	// Start will start the execution of the command.
-	Start(channel ssh.Channel) (*ExecResult, error)
+	Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error)
 
 	// Wait will block while the command executes.
 	Wait() *ExecResult
@@ -135,7 +137,7 @@ func (e *localExec) SetCommand(command string) {
 
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
-func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
+func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error) {
 	// Parse the command to see if it is scp.
 	err := e.transformSecureCopy()
 	if err != nil {
@@ -286,7 +288,7 @@ func waitForContinue(contfd *os.File) error {
 // remoteExec is used to run an "exec" SSH request and return the result.
 type remoteExec struct {
 	command string
-	session *ssh.Session
+	session *tracessh.Session
 	ctx     *ServerContext
 }
 
@@ -307,7 +309,7 @@ func (e *remoteExec) SetCommand(command string) {
 
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
-func (e *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
+func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
 	// hook up stdout/err the channel so the user can interact with the command
 	e.session.Stdout = ch
 	e.session.Stderr = ch.Stderr()
@@ -324,7 +326,7 @@ func (e *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 		inputWriter.Close()
 	}()
 
-	err = e.session.Start(e.command)
+	err = e.session.Start(ctx, e.command)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

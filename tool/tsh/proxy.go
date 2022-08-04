@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -188,23 +189,23 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer client.Close()
 
-	sess, err := client.NewSession()
+	sess, err := client.NewSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer sess.Close()
 
-	err = agent.ForwardToAgent(client, tc.LocalAgent())
+	err = agent.ForwardToAgent(client.Client, tc.LocalAgent())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = agent.RequestAgentForwarding(sess)
+	err = agent.RequestAgentForwarding(sess.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
-	if err = sess.RequestSubsystem(proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
+	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(ctx, sess); err != nil {
@@ -251,15 +252,15 @@ func proxySubsystemName(userHost, cluster string) string {
 	return fmt.Sprintf("proxy:%s", userHost)
 }
 
-func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {
-	cc, chs, reqs, err := ssh.NewClientConn(conn, addr, cfg)
+func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
+	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ssh.NewClient(cc, chs, reqs), nil
+	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
-func proxySession(ctx context.Context, sess *ssh.Session) error {
+func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
