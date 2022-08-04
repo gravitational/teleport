@@ -37,7 +37,8 @@ type Cluster struct {
 	URI uri.ResourceURI
 	// Name is the cluster name
 	Name string
-
+	// ProfileName is the name of the tsh profile
+	ProfileName string
 	// Log is a component logger
 	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored

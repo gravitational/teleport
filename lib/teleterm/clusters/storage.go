@@ -93,8 +93,8 @@ func (s *Storage) ResolveCluster(resourceURI string) (*Cluster, error) {
 }
 
 // Remove removes a cluster
-func (s *Storage) Remove(ctx context.Context, clusterName string) error {
-	if err := profile.RemoveProfile(s.Dir, clusterName); err != nil {
+func (s *Storage) Remove(ctx context.Context, profileName string) error {
+	if err := profile.RemoveProfile(s.Dir, profileName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -168,6 +168,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	return &Cluster{
 		URI:           clusterURI,
 		Name:          webConfig.ProxyClusterName,
+		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
@@ -228,6 +229,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	return &Cluster{
 		URI:           clusterURI,
 		Name:          clusterClient.SiteName,
+		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
