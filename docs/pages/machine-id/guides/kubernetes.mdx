@@ -21,7 +21,7 @@ or later.
 </ScopedBlock>
 
 If you have not already connected your Kubernetes cluster to Teleport, follow
-the [Kubernetes Access Getting Started Guide](../kubernetes-access/getting-started.mdx).
+the [Kubernetes Access Getting Started Guide](../../kubernetes-access/getting-started.mdx).
 
 If you're not already familiar with Machine ID, follow the
 [Getting Started Guide](../getting-started.mdx) to familiarize yourself with
@@ -59,6 +59,7 @@ spec:
 Be sure to configure the `allow` fields to match your environment:
  - `kubernetes_labels` must be specified to allow access to a matching
    Kubernetes cluster in your Teleport environment.
+
  - One (or both) of `kubernetes_groups` and `kubernetes_users` must be specified
    to so that the bot user may be mapped to a Kubernetes user and/or group.
 
