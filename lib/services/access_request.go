@@ -1504,7 +1504,7 @@ func MapResourceKindToListResourcesType(kind string) string {
 	case types.KindDatabase:
 		return types.KindDatabaseServer
 	case types.KindKubernetesCluster:
-		return types.KindKubeService
+		return types.KindKubeServer
 	default:
 		return kind
 	}
@@ -1519,6 +1519,8 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 	switch r := resource.(type) {
 	case types.AppServer:
 		return types.ResourcesWithLabels{r.GetApp()}, nil
+	case types.KubeServer:
+		return types.ResourcesWithLabels{r.GetCluster()}, nil
 	case types.DatabaseServer:
 		return types.ResourcesWithLabels{r.GetDatabase()}, nil
 	case types.Server:

@@ -187,7 +187,8 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
-	client, err := makeSSHClient(ctx, upstreamConn, upstreamConn.RemoteAddr().String(), &ssh.ClientConfig{
+	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
 		User: tc.HostLogin,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(tc.LocalAgent().Signers),

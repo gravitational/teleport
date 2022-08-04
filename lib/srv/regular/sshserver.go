@@ -93,7 +93,7 @@ type Server struct {
 
 	srv           *sshutils.Server
 	shell         string
-	getRotation   RotationGetter
+	getRotation   services.RotationGetter
 	authService   srv.AccessPoint
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
@@ -408,9 +408,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
-// RotationGetter returns rotation state
-type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
-
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
 	return func(s *Server) error {
@@ -430,7 +427,7 @@ func SetClock(clock clockwork.Clock) ServerOption {
 }
 
 // SetRotationGetter sets rotation state getter
-func SetRotationGetter(getter RotationGetter) ServerOption {
+func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	return func(s *Server) error {
 		s.getRotation = getter
 		return nil

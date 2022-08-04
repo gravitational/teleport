@@ -2656,8 +2656,8 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	})
 }
 
-// ListKubeClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
-func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]*types.KubernetesCluster, error) {
+// ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
+func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]types.KubeCluster, error) {
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2666,7 +2666,7 @@ func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Con
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeClusters := make(map[string][]*types.KubernetesCluster, 0)
+	kubeClusters := make(map[string][]types.KubeCluster, 0)
 	for _, cluster := range clusters {
 		ac, err := pc.ConnectToCluster(ctx, cluster.Name)
 		if err != nil {

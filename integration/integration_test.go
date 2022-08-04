@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -157,6 +158,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
+	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -204,6 +206,77 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "ssh: unable to authenticate")
 	}
+}
+
+// testAuthLocalNodeControlStream verifies some basic expected behaviors for auth-local
+// node control streams (requires separate checks because auth-local nodes use a special
+// in-memory control stream).
+func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
+	const clusterName = "control-stream-test"
+
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	tconf := suite.defaultServiceConfig()
+	tconf.Auth.Enabled = true
+	tconf.Proxy.Enabled = true
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.SSH.Enabled = true
+	tconf.SSH.DisableCreateHostUser = true
+
+	// deliberately create a teleport instance that will end up binding
+	// unspecified addr (`0.0.0.0`/`::`). we use this further down to confirm
+	// that in-memory control stream can approximate peer-addr substitution.
+	teleport := suite.newNamedTeleportInstance(t, clusterName,
+		WithNodeName(""),
+		WithListeners(helpers.StandardListenerSetupOn("")),
+	)
+
+	require.NoError(t, teleport.CreateEx(t, nil, tconf))
+	require.NoError(t, teleport.Start())
+	defer teleport.StopAll()
+
+	clt := teleport.GetSiteAPI(clusterName)
+	require.NotNil(t, clt)
+
+	var nodeID string
+	// verify node control stream registers, extracting the id.
+	require.Eventually(t, func() bool {
+		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest{
+			Connected: true,
+		})
+		require.NoError(t, err)
+
+		for _, hello := range status.Connected {
+			for _, s := range hello.Services {
+				if s != types.RoleNode {
+					continue
+				}
+				nodeID = hello.ServerID
+				return true
+			}
+		}
+		return false
+	}, time.Second*10, time.Millisecond*200)
+
+	var nodeAddr string
+	// verify node heartbeat was successful, extracting the addr.
+	require.Eventually(t, func() bool {
+		node, err := clt.GetNode(context.Background(), defaults.Namespace, nodeID)
+		if trace.IsNotFound(err) {
+			return false
+		}
+		require.NoError(t, err)
+		nodeAddr = node.GetAddr()
+		return true
+	}, time.Second*10, time.Millisecond*200)
+
+	addr, err := utils.ParseAddr(nodeAddr)
+	require.NoError(t, err)
+
+	// verify that we've replaced the unspecified host.
+	require.False(t, addr.IsHostUnspecified())
 }
 
 // testAuditOn creates a live session, records a bunch of data through it
@@ -863,16 +936,10 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		return term, errCh
 	}
 
+	// waitSessionTermination wait until the errCh returns something and assert
+	// it with the provided function.
 	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
-		require.Eventually(t, func() bool {
-			select {
-			case err := <-errCh:
-				errorAssertion(t, err)
-				return true
-			default:
-				return false
-			}
-		}, 10*time.Second, 500*time.Millisecond)
+		errorAssertion(t, waitForError(errCh, 10*time.Second))
 	}
 
 	// enableDiskFailure changes the OpenFileFunc on filesession package. The
@@ -3128,15 +3195,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.Error(t, err)
 
 	// wait for the node to reach a degraded state
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
-	eventC := make(chan service.Event)
-	node.WaitForEvent(ctx, service.TeleportDegradedEvent, eventC)
-	select {
-	case <-eventC:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for node to become degraded")
-	}
+	_, err = node.WaitForEventTimeout(5*time.Minute, service.TeleportDegradedEvent)
+	require.NoError(t, err, "timed out waiting for node to become degraded")
 
 	// start the proxy again and ensure the tunnel is re-established
 	proxyTunnel, err = main.StartProxy(proxyConfig)
@@ -4518,14 +4578,10 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.C
 
 // waitForProcessEvent waits for process event to occur or timeout
 func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout time.Duration) error {
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), event, eventC)
-	select {
-	case <-eventC:
-		return nil
-	case <-time.After(timeout):
+	if _, err := svc.WaitForEventTimeout(timeout, event); err != nil {
 		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
 	}
+	return nil
 }
 
 // waitForProcessStart is waiting for the process to start
@@ -4555,12 +4611,7 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 
-	eventC := make(chan service.Event, 1)
-	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-
-	case <-time.After(20 * time.Second):
+	if _, err := svc.WaitForEventTimeout(20*time.Second, service.TeleportReadyEvent); err != nil {
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
 	}
@@ -6551,12 +6602,12 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := tc.ListKubeClustersWithFiltersAllClusters(context.TODO(), req)
+			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(context.TODO(), req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {
 				for _, c := range cl {
-					clusters = append(clusters, c.Name)
+					clusters = append(clusters, c.GetName())
 				}
 			}
 			require.ElementsMatch(t, test.expected, clusters)
