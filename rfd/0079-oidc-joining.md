@@ -28,13 +28,13 @@ Users will need to be able to configure trust in an OP, and rules that determine
 
 This feature reduces the friction involved in dynamically adding many new nodes to Teleport on a variety of platforms. This is also more secure, as the user does not need to distribute a token which is liable to exfilitration.
 
-Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GCP GCE since this represents a key platform for Teleport, and is also well documented and easy to test on. However, the work towards this feature will also enable us to simply add other providers that support OIDC workload identity (see the references for more), this particularly ties into Machine ID goals as we aim to support several CI/CD providers that offer workload identity.
+Whilst multiple providers offer OIDC identities to workloads running on their platform, we will start by targetting GCP since this represents a key platform for Teleport, and is also well documented and easy to test on. However, the work towards this feature will also enable us to simply add other providers that support OIDC workload identity (see the references for more), this particularly ties into Machine ID goals as we aim to support several CI/CD providers that offer workload identity.
 
 ## Details
 
 The work on OIDC joining is broken down into two parts:
 
-- Support in the Auth server for trusting an OP issued JWT. This work is general, and will be applicable to all providers.
+- Support in the Auth server for trusting an OP issued JWT. This work will have a general base that can be shared between all providers, and then have a small, provider-specific part to provide additional validation that lets us guide users to correct and safe configurations.
 - Support in nodes for fetching their workload identity token from their environment. This work will be specific to each platform we intend to support.
 
 OIDC supports multiple types of token (`id_token`: a JWT encoding information about the identity, which can be verified using the issuer's public key and `access_token`: an opaque token that can be used with a `userinfo` endpoint on the issuer to obtain information about the identity). However, in the case of workload identities, `id_token` is the most prevelant. For this reason, our initial implementation will solely support `id_token`.
@@ -43,19 +43,20 @@ OIDC supports multiple types of token (`id_token`: a JWT encoding information ab
 
 We will re-use the existing endpoints around joining as much as possible. This means that the main entry-point for joining will be the existing `RegisterUsingToken` method.
 
-We will introduce a new token type, `oidc-jwt`, and add an additional field to the Token resource to allow the issuer URL to be specified (`issuer_url`).
+We will introduce a new token type for each provider. In the case of GCP this will be `oidc-gcp`.
 
 Registration flow:
 
-1. Client is configured by the user to use `oidc-jwt` joining with a specific provider. The client then uses the provider-specific logic to obtain a token.
-2. The client will call the `RegisterUsingToken` endpoint, providing the OIDC JWT token that it has collected, and specifying the name of the Teleport provisioning token which should be used to verify it.
+1. Client is configured by the user to use `oidc-gcp` joining. The client will then query the Google Metadata Service to obtain a JWT.
+2. The client will call the `RegisterUsingToken` endpoint, providing the OIDC JWT that it has collected, and specifying the name of the Teleport provisioning token which should be used to verify it.
 3. The server will attempt to fetch the Token resource for the specified token.
 4. The server will check JWT header to ensure the `alg` is one we have allow-listed (RS[256, 384, 512])
 5. The server will check the `kid` of the JWT header, and obtain the relevant JWK from the cache or from the specified issuers well-known JWKS endpoint. It will then use the JWK to validate the token has been signed by the issuer.
 6. Other key claims of the JWT will be validated:
+  - Ensure the audience is correct (for providers where the audience can be customised, this should be the Teleport cluster name.)
   - Ensure the Issued At Time (iat) is in the past.
   - Ensure the Expiry Time (exp) is in the future.
-7. The user's [configured Common Expression Language rule](#configuration) for the token will be evaluated against the claims, to ensure that the token is allowed to register with the Teleport cluster.
+7. The user's [allow rules](#configuration) for the token will be evaluated against the claims, to ensure that the token is allowed to register with the Teleport cluster.
 8. Certificates will be generated for the client. In the case of bot certificates, they will be treated as non-renewable, to match the behaviour of IAM registration for bot certificates.
 
 We will re-use `go-jose@v2` for validation of JWTs, since this library is already in use within Teleport.
@@ -85,25 +86,40 @@ We will leverage the existing Token configuration kind as used by static tokens 
 kind: token
 version: v2
 metadata:
-  name: my-gce-token
+  name: my-gcp-token
   expires: "3000-01-01T00:00:00Z"
 spec:
   roles: [Node]
-  join_method: oidc-jwt
-  issuer_url: https://accounts.google.com
+  join_method: oidc-gcp
   allow:
-  - aud: "noah.teleport.sh"
-    google:
-      compute_engine:
-        project_id: "my-project"
-        instance_name: "an-instance"
+  - project_id: "my-project"
+    instance_name: "an-instance"
+  - project_id: "my-project"
+    instance_name: "a-different-instance"
 ```
 
-To allow the user to configure rules for what identities will be accepted, we will leverage the `allow` field similar to how it works with the IAM joining. This performs partial equality/matching with the YAML provided, and the claims within the token. As long as all fields configured in one block match with those in the token, then it will be considered valid for registration. This provides a rough mechanism for configuring AND/OR logic.
+For GCP joining, they will set `join_method` to `oidc-gcp`.
+
+To allow the user to configure rules for what JWTs will be accepted, we will leverage the `allow` field similar to how it works with the IAM joining. Each element of the slice is a set of conditions that must all be satisfied, and a token is authorised as long as at least one allow block is satisfied.
+
+For GCP, we will map the [following JWT claims](https://cloud.google.com/compute/docs/instances/verifying-instance-identity#token_format) to configuration values:
+
+- `sub`: subject
+- `google.compute_engine.project_id`: project_id
+- `google.compute_engine.project_number`: project_number
+- `google.compute_engine.instance_name`: instance_name
+- `google.compute_engine.instance_id`: instance_id
+
 
 To do this, we will need to change the structure of `ProvisionTokenSpecV2`, as the data under `Allow` is currently specifically designed around IAM joining. I suggest that we change this from `repeated TokenRule` to `repeated google.protobuf.Any`, and then [unmarshal it to a more specific message type](https://pkg.go.dev/google.golang.org/protobuf/types/known/anypb#hdr-Unmarshaling_an_Any) based on the value of `JoinMethod`. This will allow us more flexibility going forward as we introduce more joining methods, and avoid polluting a single message type with configuration values that apply to all joining methods.
 
-Users must also configure the `issuer_url`. This must be a host on which there is a compliant `/.well-known/openid-configuration` endpoint. Information about the structure of this endpoint can be found in the [OIDC Core and Discovery specifications.](#references-and-resources)
+To ensure that we guide users to creating secure configurations, we will also ensure that at least one of the following fields is included in each allow block:
+
+- project_id
+- project_number
+- subject
+
+This ensures that a token produced in another GCP project cannot be used against their Teleport cluster.
 
 #### Extracting claims as metadata for generated credentials
 
@@ -125,29 +141,9 @@ GET http://metadata.google.internal/computeMetadata/v1/instance/service-accounts
 
 ### Security Considerations
 
-#### Ease of misconfiguration
+#### Secure authorization rules
 
-It is possible for users to create a trust configuration that would allow a malicious actor to craft an identity that would be able to join their cluster.
-
-For example, if the trust was configured with an allow rule such as:
-
-```go
-claims.google.compute_engine.instance_name == "an-instance"
-```
-
-Then a malicious actor would be able to create their own GCP project, create an instance with that name, and use it to obtain a jwt that would be trusted by Teleport.
-
-It is imperative that users include some rule that filters it to their own project e.g:
-
-```go
-claims.google.compute_engine.project_id == "my-project" && claims.google.compute_engine.instance_name == "an-instance"
-```
-
-or that they restrict it to a specific subject (as this will be unique to the issuer):
-
-```go
-claims.sub == "777666555444333222111"
-```
+It is imperative that we validate the user's provided `allow` rules so that they do not accidentally allow tokens produced in other projects to be used against their teleport cluster. For example, if they provided an `allow` rule that only included `instance_name`, a malicious actor would be able to create an instance with the same name, and use this to generate a valid token.
 
 #### MITM of the connection to the issuer
 
