@@ -1,6 +1,7 @@
-# Example Local Dev Environment Setup
+# MacOS environment setup
 
-## MacOS
+The instructions below are provided as in a best-effort basis.
+PRs with corrections and updates are welcome!
 
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
