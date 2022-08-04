@@ -34,12 +34,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
+	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -53,8 +55,8 @@ type nodeJoinToken struct {
 	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
-	// RefResourceID contains the id of the RefResourceID label
-	RefResourceID string `json:"refResourceID,omitempty"`
+	// SuggestedLabels contains the set of labels we expect the node to set when using this token
+	SuggestedLabels []ui.Label `json:"suggestedLabels,omitempty"`
 }
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -118,16 +120,19 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
-	// If using the automatic method to add a Node, the `install.sh` will add the token's RefResourceID value
+	// If using the automatic method to add a Node, the `install.sh` will add the token's suggested labels
 	//   as part of the initial Labels configuration for that Node
 	// Script install-node.sh:
 	//   ...
-	//   $ teleport configure ... --labels teleport.internal/resource-id=<RefResourceID> ...
+	//   $ teleport configure ... --labels <suggested_label=value>,<suggested_label=value> ...
 	//   ...
 	//
-	// The client can then query the resources by this id and answer the question:
+	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
+	// WebUI can then query the resources by this id and answer the question:
 	//   - Which Node joined the cluster from this token Y?
-	req.RefResourceID = uuid.NewString()
+	req.SuggestedLabels = types.Labels{
+		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
+	}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
@@ -139,11 +144,20 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
+	suggestedLabels := make([]ui.Label, 0, len(req.SuggestedLabels))
+
+	for labelKey, labelValues := range req.SuggestedLabels {
+		suggestedLabels = append(suggestedLabels, ui.Label{
+			Name:  labelKey,
+			Value: strings.Join(labelValues, " "),
+		})
+	}
+
 	return &nodeJoinToken{
-		ID:            tokenName,
-		Expiry:        expires,
-		Method:        provisionToken.GetJoinMethod(),
-		RefResourceID: req.RefResourceID,
+		ID:              tokenName,
+		Expiry:          expires,
+		Method:          provisionToken.GetJoinMethod(),
+		SuggestedLabels: suggestedLabels,
 	}, nil
 }
 
@@ -294,9 +308,9 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	labelsList := []string{}
-	refResourceID := token.GetRefResourceID()
-	if refResourceID != "" {
-		labelsList = append(labelsList, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, refResourceID))
+	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		labels := strings.Join(labelValues, " ")
+		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
 	var buf bytes.Buffer

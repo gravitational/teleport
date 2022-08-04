@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/trace"
@@ -307,7 +308,9 @@ func TestGetNodeJoinScript(t *testing.T) {
 						Name: token,
 					},
 					Spec: types.ProvisionTokenSpecV2{
-						RefResourceID: internalResourceID,
+						SuggestedLabels: types.Labels{
+							types.InternalResourceIDLabel: utils.Strings{internalResourceID},
+						},
 					},
 				}, nil
 			}

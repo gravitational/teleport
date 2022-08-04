@@ -46,7 +46,7 @@ JOIN_METHOD_FLAG=""
 # inject labels into the configuration
 LABELS='{{.labels}}'
 LABELS_FLAG=""
-[ ! -z "$LABELS" ] && LABELS_FLAG="--labels ${LABELS}"
+[ ! -z "$LABELS" ] && LABELS_FLAG="--labels '${LABELS}'"
 
 # When all stanza generators have been updated to use the new
 # `teleport <service> configure` commands CA_PIN_HASHES can be removed along
