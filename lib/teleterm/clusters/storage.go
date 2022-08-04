@@ -143,8 +143,8 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
-	clusterName := parseName(webProxyAddress)
-	clusterURI := uri.NewClusterURI(clusterName)
+	profileName := parseName(webProxyAddress)
+	clusterURI := uri.NewClusterURI(profileName)
 	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -156,13 +156,18 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
+	webConfig, err := clusterClient.GetWebConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := cfg.SaveProfile(s.Dir, false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
 		URI:           clusterURI,
-		Name:          clusterName,
+		Name:          webConfig.ProxyClusterName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
@@ -221,10 +226,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	}
 
 	return &Cluster{
-		URI: clusterURI,
-		// TODO(ravicious): This should probably use leafClusterName if available, but at this point I'm
-		// worried that changing it might break something else in the app.
-		Name:          profileName,
+		URI:           clusterURI,
+		Name:          clusterClient.SiteName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
