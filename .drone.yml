@@ -1014,7 +1014,7 @@ name: teleport-docker-cron-ecr
 
 trigger:
   cron:
-    - teleport-docker-cron-ecr
+    - teleport-docker-cron-ecr-test
   repo:
     include:
       - gravitational/teleport
@@ -6135,6 +6135,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 5a99a9f645644212c0e1a1463742d43922b1ec2a529b23b6f4dbad30675f96ef
+hmac: 0285d61b2b383c5889c89cab1c6a70bfaf4c60d72c235e5f6b89ac0c657ced21
 
 ...
