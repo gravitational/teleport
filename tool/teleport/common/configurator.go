@@ -15,6 +15,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -32,10 +33,42 @@ import (
 // awsDatabaseTypes list of databases supported on the configurator.
 var awsDatabaseTypes = []string{types.DatabaseTypeRDS, types.DatabaseTypeRedshift}
 
+type installSystemdFlags struct {
+	config.SystemdFlags
+	// output is the destination to write the systemd unit file to.
+	output string
+}
+
 type createDatabaseConfigFlags struct {
 	config.DatabaseSampleFlags
 	// output is the destination to write the configuration to.
 	output string
+}
+
+// CheckAndSetDefaults checks and sets the defaults
+func (flags *installSystemdFlags) CheckAndSetDefaults() error {
+	flags.output = normalizeOutput(flags.output)
+	return nil
+}
+
+// onDumpSystemdUnitFile is the handler of the "install systemd" CLI command.
+func onDumpSystemdUnitFile(flags installSystemdFlags) error {
+	if err := flags.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	buf := new(bytes.Buffer)
+	err := config.WriteSystemdUnitFile(flags.SystemdFlags, buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = dumpConfigFile(flags.output, buf.String(), "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults checks and sets the defaults
