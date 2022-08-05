@@ -30,6 +30,10 @@ authenticationSecondFactor:
 # Possible values are 'multiplex'
 proxyListenerMode: ""
 
+# Optional setting for configuring session recording.
+# See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
+sessionRecording: ""
+
 # By default, Teleport will multiplex Postgres and MongoDB database connections on the same port as the proxy's web listener (443)
 # Setting either of these values to true will separate the listeners out onto a separate port (5432 for Postgres, 27017 for MongoDB)
 # This is useful when terminating TLS at a load balancer in front of Teleport (such as when using AWS ACM)
@@ -149,6 +153,20 @@ aws:
   sessionRecordingBucket: ""
   # Whether or not to turn on DynamoDB backups
   backups: false
+
+  # Whether Teleport should configure DynamoDB's autoscaling.
+  # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  dynamoAutoScaling: false
+
+  # DynamoDB autoscaling settings. Required if `dynamoAutoScaling` is `true`.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  readMinCapacity: null      # Integer
+  readMaxCapacity: null      # Integer
+  readTargetValue: null      # Float
+  writeMinCapacity: null     # Integer
+  writeMaxCapacity: null     # Integer
+  writeTargetValue: null     # Float
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)

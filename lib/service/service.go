@@ -42,6 +42,18 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -97,18 +109,6 @@ import (
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -1514,6 +1514,24 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+	}, func(as *auth.Server) error {
+		if !process.Config.CachePolicy.Enabled {
+			return nil
+		}
+
+		cache, err := process.newAccessCache(accessCacheConfig{
+			services:  as.Services,
+			setup:     cache.ForAuth,
+			cacheName: []string{teleport.ComponentAuth},
+			events:    true,
+			unstarted: true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		as.Cache = cache
+
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1581,22 +1599,13 @@ func (process *TeleportProcess) initAuthService() error {
 		MetadataGetter: uploadHandler,
 	}
 
-	var authCache auth.Cache
-	if process.Config.CachePolicy.Enabled {
-		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  authServer.Services,
-			setup:     cache.ForAuth,
-			cacheName: []string{teleport.ComponentAuth},
-			events:    true,
-		})
-		if err != nil {
+	// Auth initialization is done (including creation/updating of all singleton
+	// configuration resources) so now we can start the cache.
+	if c, ok := authServer.Cache.(*cache.Cache); ok {
+		if err := c.Start(); err != nil {
 			return trace.Wrap(err)
 		}
-		authCache = cache
-	} else {
-		authCache = authServer.Services
 	}
-	authServer.SetCache(authCache)
 
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerIdentity.TLSConfig(cfg.CipherSuites)
@@ -1651,7 +1660,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
 		LimiterConfig: cfg.Auth.Limiter,
-		AccessPoint:   authCache,
+		AccessPoint:   authServer.Cache,
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 		ID:            process.id,
 		Listener:      mux.TLS(),
@@ -1822,6 +1831,8 @@ type accessCacheConfig struct {
 	cacheName []string
 	// events is true if cache should turn on events
 	events bool
+	// unstarted is true if the cache should not be started
+	unstarted bool
 }
 
 func (c *accessCacheConfig) CheckAndSetDefaults() error {
@@ -1882,6 +1893,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
+		Unstarted:        cfg.unstarted,
 	}))
 }
 
@@ -2938,9 +2950,29 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	var listeners proxyListeners
 
 	if !cfg.Proxy.SSHAddr.IsEmpty() {
-		listeners.ssh, err = process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
+		l, err := process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if cfg.Proxy.EnableProxyProtocol {
+			// Create multiplexer for the purpose of processing proxy protocol
+			mux, err := multiplexer.New(multiplexer.Config{
+				Listener:            l,
+				EnableProxyProtocol: true,
+				ID:                  teleport.Component(teleport.ComponentProxy, "ssh"),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listeners.ssh = mux.SSH()
+			go func() {
+				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+					mux.Entry.WithError(err).Error("Mux encountered err serving")
+				}
+			}()
+		} else {
+			listeners.ssh = l
 		}
 	}
 
@@ -3033,7 +3065,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel = listeners.mux.SSH()
 		}
-		go listeners.mux.Serve()
+		go func() {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
@@ -3060,7 +3096,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				return nil, trace.Wrap(err)
 			}
 		}
-		go listeners.mux.Serve()
+		go func() {
+			if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+			}
+		}()
 		return &listeners, nil
 	default:
 		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
@@ -3094,7 +3134,11 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 				}
 				listeners.web = listeners.mux.TLS()
 				process.muxPostgresOnWebPort(cfg, &listeners)
-				go listeners.mux.Serve()
+				go func() {
+					if err := listeners.mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+						listeners.mux.Entry.WithError(err).Error("Mux encountered err serving")
+					}
+				}()
 			} else {
 				process.log.Debug("Setup Proxy: TLS is disabled, multiplexing is off.")
 				listeners.web = listener
