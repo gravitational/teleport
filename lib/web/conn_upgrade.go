@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -31,15 +32,10 @@ import (
 type upgradeHandler func(ctx context.Context, conn net.Conn) error
 
 func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, upgradeHandler, error) {
-	// TODO use constants
-	if r.Header.Get("Connection") != "Upgrade" {
-		return "", nil, trace.BadParameter("not an upgrade request")
-	}
-
-	upgrades := r.Header.Values("Upgrade")
+	upgrades := r.Header.Values(constants.ConnectionUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
-		case "alpn":
+		case constants.ConnectionUpgradeTypeALPN:
 			return upgradeType, h.upgradeToALPN, nil
 		}
 	}

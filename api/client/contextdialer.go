@@ -58,7 +58,7 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 // on the environment.
 func NewDialer(keepAlivePeriod, dialTimeout time.Duration, tlsConfig *tls.Config) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectOrHTTPUpgradeDialer(addr, keepAlivePeriod, dialTimeout, tlsConfig)
+		dialer := newDirectOrHTTPConnUpgradeDialer(addr, keepAlivePeriod, dialTimeout, tlsConfig)
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
@@ -159,24 +159,9 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 }
 
 // TODO
-type httpUpgradeDialer struct {
-	insecure bool
-}
-
-func newHTTPUpgradeDialer(insecure bool) ContextDialer {
-	return &httpUpgradeDialer{
-		insecure: insecure,
-	}
-}
-
-func (d httpUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return doHTTPupgrade(ctx, addr, d.insecure)
-}
-
-// TODO
-func newDirectOrHTTPUpgradeDialer(proxyAddr string, keepAlivePeriod, dialTimeout time.Duration, tlsConfig *tls.Config) ContextDialer {
-	if isHTTPUpgradeRequired(proxyAddr, tlsConfig) {
-		return newHTTPUpgradeDialer(tlsConfig.InsecureSkipVerify)
+func newDirectOrHTTPConnUpgradeDialer(proxyAddr string, keepAlivePeriod, dialTimeout time.Duration, tlsConfig *tls.Config) ContextDialer {
+	if isHTTPConnUpgradeRequired(proxyAddr, tlsConfig) {
+		return newHTTPConnUpgradeDialer(tlsConfig.InsecureSkipVerify)
 	}
 
 	return newDirectDialer(keepAlivePeriod, dialTimeout)
@@ -194,7 +179,7 @@ func (d *TLSRoutingDialer) DialContext(ctx context.Context, network, addr string
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	dialer := newDirectOrHTTPUpgradeDialer(addr, d.KeepAlivePeriod, d.DialTimeout, d.Config)
+	dialer := newDirectOrHTTPConnUpgradeDialer(addr, d.KeepAlivePeriod, d.DialTimeout, d.Config)
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)

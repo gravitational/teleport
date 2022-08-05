@@ -20,17 +20,23 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
-// isHTTPUpgradeRequired returns true if a tunnel is required through a HTTP
+var alpnTestResultsCache = utils.NewCache[string, bool](utils.CacheConfig{
+	DefaultTTL: time.Hour,
+})
+
+// isHTTPConnUpgradeRequired returns true if a tunnel is required through a HTTP
 // upgrade.
 //
 // The function makes a test connection to the Proxy Service and checks if the
@@ -40,7 +46,7 @@ import (
 //
 // In those cases, the client makes a HTTP "upgrade" call to the Proxy Service
 // to establish a tunnel for the origianlly planned traffic.
-func isHTTPUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
+func isHTTPConnUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
 	// TODO Currently if remote is not HTTPS, TLS routing is not performed at
 	// all. However, the HTTP upgrade is probably a good workaround for HTTP
 	// remotes.
@@ -48,33 +54,55 @@ func isHTTPUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
 		return false
 	}
 
-	// Use an very old/stable protocol for testing to reduce false positives in
-	// case remote is running a different version.
-	testProtocol := constants.ALPNSNIProtocolReverseTunnel
-	testConn, err := tls.Dial("tcp", proxyAddr, &tls.Config{
-		NextProtos:         []string{testProtocol, protocolHTTP},
-		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+	if result, found := alpnTestResultsCache.Get(proxyAddr); found {
+		return result
+	}
+
+	upgradeRequired, err := alpnHandshakeTest(
+		proxyAddr,
+		// Use an old but stable protocol for testing to reduce false
+		// positives in case remote is running a different version.
+		constants.ALPNSNIProtocolReverseTunnel,
+		tlsConfig.InsecureSkipVerify,
+	)
+	alpnTestResultsCache.Set(proxyAddr, upgradeRequired)
+
+	if err != nil {
+		logrus.Warn(err)
+	}
+
+	return upgradeRequired
+}
+
+func alpnHandshakeTest(addr string, protocol string, insecure bool) (bool, error) {
+	logrus.Debugf("-->> alpnHandshakeTest test for %v", addr)
+
+	testConn, err := tls.Dial("tcp", addr, &tls.Config{
+		NextProtos:         []string{protocol},
+		InsecureSkipVerify: insecure,
 	})
 	if err != nil {
-		// TODO
-		logrus.Warn(err)
-		return false
+		return false, trace.Wrap(err)
 	}
-	defer testConn.Close()
 
-	// Normally the testProtocol should comme back which indicates the HTTP
-	// tunnel is not required.
-	//
-	// When the testProtocol is lost, double check if regular HTTP is
-	// negotiated as there is no point to try a HTTP upgrade if the remote does
-	// not serve HTTP.
-	return testConn.ConnectionState().NegotiatedProtocol == protocolHTTP
+	defer testConn.Close()
+	return testConn.ConnectionState().NegotiatedProtocol == "", nil
 }
 
 // TODO
-func doHTTPupgrade(ctx context.Context, proxyAddr string, insecure bool) (*tls.Conn, error) {
-	conn, err := tls.Dial("tcp", proxyAddr, &tls.Config{
-		InsecureSkipVerify: insecure,
+type httpConnUpgradeDialer struct {
+	insecure bool
+}
+
+func newHTTPConnUpgradeDialer(insecure bool) ContextDialer {
+	return &httpConnUpgradeDialer{
+		insecure: insecure,
+	}
+}
+
+func (d httpConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := tls.Dial("tcp", addr, &tls.Config{
+		InsecureSkipVerify: d.insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,19 +110,17 @@ func doHTTPupgrade(ctx context.Context, proxyAddr string, insecure bool) (*tls.C
 	}
 
 	url := url.URL{
-		Host:   proxyAddr,
+		Host:   addr,
 		Scheme: "https",
-		Path:   fmt.Sprintf(WebAPIConnectionUpgrade),
+		Path:   constants.ConnectionUpgradeWebAPI,
 	}
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// More on Upgrade headers:
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade
-	req.Header.Add(requestHeaderConnection, "upgrade")
-	req.Header.Add(requestHeaderUpgrade, UpgradeTypeALPN)
+	// For now, only ALPN is supported.
+	req.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
 
 	if err = req.Write(conn); err != nil {
 		return nil, trace.Wrap(err)
@@ -105,24 +131,16 @@ func doHTTPupgrade(ctx context.Context, proxyAddr string, insecure bool) (*tls.C
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusSwitchingProtocols {
+	if http.StatusSwitchingProtocols != resp.StatusCode {
+		if http.StatusNotFound == resp.StatusCode {
+			return nil, trace.NotImplemented(
+				"connection upgrade failed with status code %v. please upgrade the server and try again.",
+				resp.StatusCode,
+			)
+		}
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
 
 	// TODO add ping conn
 	return conn, nil
 }
-
-const (
-	// WebAPIConnectionUpgrade is the web API to make the HTTP upgrade.
-	WebAPIConnectionUpgrade = "/webapi/connectionupgrade"
-
-	// UpgradeTypeALPN is the requested connection upgrade type for server-side
-	// ALPN handler to handle the tunneled traffic.
-	UpgradeTypeALPN = "alpn"
-
-	// TODO
-	requestHeaderUpgrade    = "Upgrade"
-	requestHeaderConnection = "Connection"
-	protocolHTTP            = "http/1.1"
-)
