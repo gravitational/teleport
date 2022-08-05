@@ -436,7 +436,9 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 		}
 
 		// Attempt to load from an old key if there was no data in the current
-		// key. This allows migrations of key names.
+		// key. This will be in the case as d.Read for the file destination will
+		// not throw an error if the file does not exist.
+		// This allows migrations of key names.
 		if artifact.OldKey != "" && len(data) == 0 {
 			log.Debugf(
 				"Unable to load from current key %q, trying to migrate from old key %q",
