@@ -993,6 +993,14 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+
+    let res = SharedDirectoryReadResponse::from(res);
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -1001,7 +1009,7 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
     };
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_read_response(SharedDirectoryReadResponse::from(res)) {
+    match rdp_client.handle_tdp_sd_read_response(res) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Read Response: {:?}", e);
@@ -1021,6 +1029,14 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+
+    let res = res;
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
