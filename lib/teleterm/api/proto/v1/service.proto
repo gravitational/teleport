@@ -73,6 +73,24 @@ service TerminalService {
     rpc GetCluster(GetClusterRequest) returns (Cluster);
     // Login logs in a user to a cluster
     rpc Login(LoginRequest) returns (EmptyResponse);
+    // LoginPasswordless logs in a user to a cluster passwordlessly.
+    //
+    // The RPC is streaming both ways and the message sequence example for hardware keys are:
+    // (-> means client-to-server, <- means server-to-client)
+    //
+    // Hardware keys:
+    // -> Init
+    // <- Send PasswordlessPrompt enum TAP to choose a device
+    // -> Receive TAP device response
+    // <- Send PasswordlessPrompt enum PIN
+    // -> Receive PIN response
+    // <- Send PasswordlessPrompt enum RETAP to confirm
+    // -> Receive RETAP device response
+    // <- Send list of credentials (e.g. usernames) associated with device
+    // -> Receive the index number associated with the selected credential in list
+    // <- End
+    rpc LoginPasswordless(stream LoginPasswordlessRequest)
+        returns (stream LoginPasswordlessResponse);
     // ClusterLogin logs out a user from cluster
     rpc Logout(LogoutRequest) returns (EmptyResponse);
 }
@@ -85,6 +103,61 @@ message GetClusterRequest { string cluster_uri = 1; }
 
 // LogoutRequest describes LogoutRequest
 message LogoutRequest { string cluster_uri = 1; }
+
+// PasswordlessPrompt describes different prompts we need from users
+// during the passwordless login flow.
+enum PasswordlessPrompt {
+    PASSWORDLESS_PROMPT_UNSPECIFIED = 0;
+
+    // PASSWORDLESS_PROMPT_PIN is used when we need a user's pin.
+    PASSWORDLESS_PROMPT_PIN = 1;
+
+    // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
+    PASSWORDLESS_PROMPT_TAP = 2;
+
+    // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
+    // associated with their account.
+    PASSWORDLESS_PROMPT_CREDENTIAL = 3;
+}
+
+// CredentialInfo holds fields related to a user's WebAuthn credential.
+message CredentialInfo { string Username = 1; }
+
+// LoginPasswordlessResponse is a message sent by the server during the
+// passwordless login flow.
+message LoginPasswordlessResponse {
+    PasswordlessPrompt prompt = 1;
+    repeated CredentialInfo credentials = 2;
+}
+
+// LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
+message LoginPasswordlessRequest {
+    oneof request {
+        LoginPasswordlessRequestInit init = 1;
+        LoginPasswordlessPINResponse pin = 2;
+        LoginPasswordlessCredentialResponse credential = 3;
+    }
+
+    // LoginPasswordlessRequestInit contains fields needed to init the stream request.
+    message LoginPasswordlessRequestInit {
+        // cluster_uri is needed to resolve cluster by its uri.
+        string cluster_uri = 1;
+    }
+
+    // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
+    message LoginPasswordlessPINResponse {
+        // pin is the user's device's pin.
+        string pin = 1;
+    }
+
+    // LoginPasswordlessPINResponse contains fields related to request from
+    // webauthncli.PromptCredential.
+    message LoginPasswordlessCredentialResponse {
+        // index is the associated number in the list of credentials that the user selected to log
+        // in as.
+        int64 index = 1;
+    }
+}
 
 // LoginRequest describes cluster login request
 message LoginRequest {
