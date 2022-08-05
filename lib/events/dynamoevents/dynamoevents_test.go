@@ -247,6 +247,11 @@ func TestLargeTableRetrieve(t *testing.T) {
 // TestRetry checks that we can trigger the retry mechanism
 // on throttled and retryable requests
 func TestRetry(t *testing.T) {
+	testEnabled := os.Getenv(teleport.AWSRunTests)
+	if ok, _ := strconv.ParseBool(testEnabled); !ok {
+		t.Skip("Skipping AWS-dependent test suite.")
+	}
+
 	cases := []struct {
 		name      string
 		handler   func() http.HandlerFunc
