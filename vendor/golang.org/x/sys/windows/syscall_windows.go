@@ -10,7 +10,6 @@ import (
 	errorspkg "errors"
 	"fmt"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -87,8 +86,10 @@ func StringToUTF16(s string) []uint16 {
 // s, with a terminating NUL added. If s contains a NUL byte at any
 // location, it returns (nil, syscall.EINVAL).
 func UTF16FromString(s string) ([]uint16, error) {
-	if strings.IndexByte(s, 0) != -1 {
-		return nil, syscall.EINVAL
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0 {
+			return nil, syscall.EINVAL
+		}
 	}
 	return utf16.Encode([]rune(s + "\x00")), nil
 }
@@ -185,8 +186,8 @@ func NewCallbackCDecl(fn interface{}) uintptr {
 //sys	GetNamedPipeInfo(pipe Handle, flags *uint32, outSize *uint32, inSize *uint32, maxInstances *uint32) (err error)
 //sys	GetNamedPipeHandleState(pipe Handle, state *uint32, curInstances *uint32, maxCollectionCount *uint32, collectDataTimeout *uint32, userName *uint16, maxUserNameSize uint32) (err error) = GetNamedPipeHandleStateW
 //sys	SetNamedPipeHandleState(pipe Handle, state *uint32, maxCollectionCount *uint32, collectDataTimeout *uint32) (err error) = SetNamedPipeHandleState
-//sys	readFile(handle Handle, buf []byte, done *uint32, overlapped *Overlapped) (err error) = ReadFile
-//sys	writeFile(handle Handle, buf []byte, done *uint32, overlapped *Overlapped) (err error) = WriteFile
+//sys	ReadFile(handle Handle, buf []byte, done *uint32, overlapped *Overlapped) (err error)
+//sys	WriteFile(handle Handle, buf []byte, done *uint32, overlapped *Overlapped) (err error)
 //sys	GetOverlappedResult(handle Handle, overlapped *Overlapped, done *uint32, wait bool) (err error)
 //sys	SetFilePointer(handle Handle, lowoffset int32, highoffsetptr *int32, whence uint32) (newlowoffset uint32, err error) [failretval==0xffffffff]
 //sys	CloseHandle(handle Handle) (err error)
@@ -548,6 +549,12 @@ func Read(fd Handle, p []byte) (n int, err error) {
 		}
 		return 0, e
 	}
+	if raceenabled {
+		if done > 0 {
+			raceWriteRange(unsafe.Pointer(&p[0]), int(done))
+		}
+		raceAcquire(unsafe.Pointer(&ioSync))
+	}
 	return int(done), nil
 }
 
@@ -560,29 +567,10 @@ func Write(fd Handle, p []byte) (n int, err error) {
 	if e != nil {
 		return 0, e
 	}
+	if raceenabled && done > 0 {
+		raceReadRange(unsafe.Pointer(&p[0]), int(done))
+	}
 	return int(done), nil
-}
-
-func ReadFile(fd Handle, p []byte, done *uint32, overlapped *Overlapped) error {
-	err := readFile(fd, p, done, overlapped)
-	if raceenabled {
-		if *done > 0 {
-			raceWriteRange(unsafe.Pointer(&p[0]), int(*done))
-		}
-		raceAcquire(unsafe.Pointer(&ioSync))
-	}
-	return err
-}
-
-func WriteFile(fd Handle, p []byte, done *uint32, overlapped *Overlapped) error {
-	if raceenabled {
-		raceReleaseMerge(unsafe.Pointer(&ioSync))
-	}
-	err := writeFile(fd, p, done, overlapped)
-	if raceenabled && *done > 0 {
-		raceReadRange(unsafe.Pointer(&p[0]), int(*done))
-	}
-	return err
 }
 
 var ioSync int64
@@ -623,6 +611,7 @@ var (
 
 func getStdHandle(stdhandle uint32) (fd Handle) {
 	r, _ := GetStdHandle(stdhandle)
+	CloseOnExec(r)
 	return r
 }
 
