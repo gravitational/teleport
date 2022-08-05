@@ -1,0 +1,25 @@
+name: Lint (Terraform)
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**.tf'
+      - '**.tf.json'
+      - '**.hcl'
+  pull_request:
+    paths:
+      - '**.tf'
+      - '**.tf.json'
+      - '**.hcl'
+  workflow_dispatch:
+
+jobs:
+  terraform-lint:
+    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      security-events: write

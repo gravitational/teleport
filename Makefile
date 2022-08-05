@@ -1123,13 +1123,12 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
-# update-webassets updates the minified code in the webassets repo using the latest webapps
-# repo and creates a PR in the teleport repo to update webassets submodule.
+# update-webassets creates a PR in the teleport repo to update webassets submodule.
 .PHONY: update-webassets
-update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: WEBASSETS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 .PHONY: dronegen
