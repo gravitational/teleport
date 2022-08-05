@@ -447,18 +447,19 @@ func TestPresets(t *testing.T) {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole()}
+		services.NewPresetAuditorRole(),
+	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(as)
+		err := createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -476,10 +477,10 @@ func TestPresets(t *testing.T) {
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
-		err := as.CreateRole(access)
+		err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresets(as)
+		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -973,8 +974,10 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	ctx := context.Background()
 	// Rotate CAs.
