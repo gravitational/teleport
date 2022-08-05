@@ -4,7 +4,8 @@ description: How to access AWS DynamoDB with Teleport.
 ---
 
 Access to AWS DynamoDB is provided by [**Teleport Application
-Access**](../../application-access/introduction.mdx) for AWS Console and API.
+Access**](../../application-access/introduction.mdx) for the AWS Console and
+API.
 
 This guide will help you to:
 - Install the Teleport Application Service.
@@ -23,8 +24,7 @@ This guide will help you to:
 
 - AWS account with DynamoDB databases.
 - IAM permissions to create IAM roles.
-- `aws` (AWS Command Line Interface) installed and added to your system's
-  `PATH` environment variable.
+- `aws` Command Line Interface (CLI) tool installed in PATH.
 - A host, e.g., an EC2 instance, where you will run the Teleport Application
   Service.
 
@@ -44,22 +44,7 @@ We will assume your Teleport cluster is accessible at `teleport.example.com` and
 
 ## Step 1/5. Create an IAM role for DynamoDB access
 
-The first step is to create an IAM role with desired IAM permissions that you
-wish to grant to a Teleport user. The Teleport Application Service will assume
-this role on the Teleport user's behave to access AWS resources. It is
-recommended to limit the IAM permissions to the minimum of what the Teleport
-user needs.
-
-For access to DynamoDB, AWS provides IAM polices like
-`AmazonDynamoDBReadOnlyAccess` and `AmazonDynamoDBFullAccess` that can be
-incorporated in to roles. This example will create an IAM role with the
-`AmazonDynamoDBFullAccess` policy. Nonetheless, you can also use other
-AWS-managed polices or your own custom polices depending on your circumstances.
-
-**Skip this step** if you already have the AWS roles you want to provide access
-to.
-
-Now visit the [Roles page](https://console.aws.amazon.com/iamv2/home#/roles) of
+Visit the [Roles page](https://console.aws.amazon.com/iamv2/home#/roles) of
 the AWS Console, then press "Create Role".
 
 Select the "AWS account" option, which creates a default trust policy to allow
@@ -74,6 +59,13 @@ Press "Next". Find the AWS-managed policy `AmazonDynamoDBFullAccess` and then se
 Press "Next". Enter a role name and press "Create role":
 
 ![Create Role Step 3](../../../img/database-access/guides/dynamodb-create-role-3.png)
+
+<Admonition type="note" title="Apply least-privilege permissions">
+`AmazonDynamoDBFullAccess` may provide too much access for your intentions. To
+use a different IAM policy to reduce permissions, see [Managing access
+permissions to your Amazon DynamoDB
+Resources](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/access-control-overview.html) for more details.
+</Admonition>
 
 ## Step 2/5. Configure the Teleport IAM role mapping
 The next step is to give your Teleport users permissions to assume IAM roles in
