@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -163,10 +162,9 @@ func TestProxyClientDisconnectDueToIdleConnection(t *testing.T) {
 	err = mysql.Ping()
 	require.NoError(t, err)
 
-	now := testCtx.clock.Now()
 	testCtx.clock.Advance(idleClientTimeout + connMonitorDisconnectTimeBuff)
 
-	waitForDisconnectEvent(t, testCtx, now)
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 	err = mysql.Ping()
 	require.Error(t, err)
 }
@@ -250,28 +248,4 @@ func TestExtractMySQLVersion(t *testing.T) {
 	version, err := mysql.FetchMySQLVersion(ctx, testCtx.server.proxiedDatabases["mysql"])
 	require.NoError(t, err)
 	require.Equal(t, "8.0.25", version)
-}
-
-func waitForDisconnectEvent(t *testing.T, testCtx *testContext, now time.Time) {
-	code := events.ClientDisconnectCode
-	ticker := time.NewTicker(time.Millisecond * 200)
-	defer ticker.Stop()
-	deadline := time.Tick(time.Second * 4)
-	for {
-		select {
-		case event := <-testCtx.emitter.C():
-			if event.GetCode() != code {
-				continue
-			}
-			return
-		case <-deadline:
-			t.Fatalf("didn't receive %v event after 4s", code)
-		case <-ticker.C:
-			es, _, err := testCtx.authClient.SearchEvents(now, now.Add(time.Hour), defaults.Namespace, []string{events.ClientDisconnectEvent}, 10, types.EventOrderDescending, "")
-			require.NoError(t, err)
-			if len(es) == 0 {
-				continue
-			}
-		}
-	}
 }
