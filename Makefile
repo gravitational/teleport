@@ -13,10 +13,11 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
 DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
+
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -1024,11 +1025,11 @@ publish-ci: image-ci
 # Docker image build for Teleport Operator
 .PHONY: image-operator-ci
 image-operator-ci:
-	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)
 
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	docker push $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)
 
 .PHONY: print-version
 print-version:
