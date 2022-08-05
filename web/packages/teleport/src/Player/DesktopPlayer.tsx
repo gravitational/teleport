@@ -171,7 +171,8 @@ const useDesktopPlayer = ({
     });
   };
 
-  const tdpCliOnTdpError = (err: Error) => {
+  const tdpCliOnTdpError = (error: { err: Error; isFatal: boolean }) => {
+    const { err } = error;
     setAttempt({
       status: 'failed',
       statusText: err.message,

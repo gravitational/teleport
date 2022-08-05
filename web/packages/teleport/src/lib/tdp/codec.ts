@@ -46,6 +46,7 @@ export enum MessageType {
   SHARED_DIRECTORY_WRITE_REQUEST = 21,
   SHARED_DIRECTORY_WRITE_RESPONSE = 22,
   SHARED_DIRECTORY_MOVE_REQUEST = 23,
+  SHARED_DIRECTORY_MOVE_RESPONSE = 24,
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   __LAST, // utility value
@@ -166,6 +167,12 @@ export type SharedDirectoryMoveRequest = {
   originalPath: string;
   newPathLength: number;
   newPath: string;
+};
+
+// | message type (24) | completion_id uint32 | err_code uint32 |
+export type SharedDirectoryMoveResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -589,6 +596,7 @@ export default class Codec {
     return buffer;
   }
 
+  // | message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
   encodeSharedDirectoryWriteResponse(
     res: SharedDirectoryWriteResponse
   ): Message {
@@ -604,6 +612,23 @@ export default class Codec {
     view.setUint32(offset, res.errCode);
     offset += uint32Length;
     view.setUint32(offset, res.bytesWritten);
+    offset += uint32Length;
+
+    return buffer;
+  }
+
+  // | message type (24) | completion_id uint32 | err_code uint32 |
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
+    const bufLen = byteLength + 2 * uint32Length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.SHARED_DIRECTORY_MOVE_RESPONSE);
+    offset += byteLength;
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
     offset += uint32Length;
 
     return buffer;

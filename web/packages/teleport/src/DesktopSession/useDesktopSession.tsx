@@ -30,10 +30,10 @@ export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
 
   // tdpConnection tracks the state of the tdpClient's TDP connection
-  // tdpConnection.status ===
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // - 'failed' if a TdpClientEvent.TDP_ERROR is encountered
+  // - 'failed' if a fatal error is encountered
+  // - '' if a non-fatal error is encountered
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
@@ -162,6 +162,7 @@ export default function useDesktopSession() {
     disconnected,
     setDisconnected,
     webauthn,
+    setTdpConnection,
     ...clientCanvasProps,
   };
 }

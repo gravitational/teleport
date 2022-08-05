@@ -79,14 +79,18 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  // Default TdpClientEvent.TDP_ERROR handler
-  const onTdpError = (err: Error) => {
+  // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
+  const onTdpError = (error: { err: Error; isFatal: boolean }) => {
+    const { err, isFatal } = error;
     setIsSharingDirectory(false);
     setClipboardState(prevState => ({
       ...prevState,
       enabled: false,
     }));
-    setTdpConnection({ status: 'failed', statusText: err.message });
+    setTdpConnection({
+      status: isFatal ? 'failed' : '',
+      statusText: err.message,
+    });
   };
 
   const onWsClose = () => {

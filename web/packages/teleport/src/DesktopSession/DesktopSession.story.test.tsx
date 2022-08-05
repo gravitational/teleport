@@ -11,6 +11,7 @@ import {
   ClipboardError,
   UnintendedDisconnect,
   WebAuthnPrompt,
+  DismissibleError,
 } from './DesktopSession.story';
 
 test('connected settings false', () => {
@@ -29,26 +30,31 @@ test('disconnected', () => {
 });
 
 test('fetch error', () => {
-  const { container } = render(<FetchError />);
-  expect(container).toMatchSnapshot();
+  const { getByTestId } = render(<FetchError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('connection error', () => {
-  const { container } = render(<ConnectionError />);
-  expect(container).toMatchSnapshot();
+  const { getByTestId } = render(<ConnectionError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('clipboard error', () => {
-  const { container } = render(<ClipboardError />);
-  expect(container).toMatchSnapshot();
+  const { getByTestId } = render(<ClipboardError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('unintended disconnect', () => {
-  const { container } = render(<UnintendedDisconnect />);
-  expect(container).toMatchSnapshot();
+  const { getByTestId } = render(<UnintendedDisconnect />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('dismissible error', () => {
+  const { getByTestId } = render(<DismissibleError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('webauthn prompt', () => {
-  const { container } = render(<WebAuthnPrompt />);
-  expect(container).toMatchSnapshot();
+  const { getByTestId } = render(<WebAuthnPrompt />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
